@@ -1,17 +1,19 @@
-[tool.poetry]
+[project]
 name = "service-ambitions"
 version = "0.1.0"
 description = "Command-line tool for generating service ambitions using a chat model."
 readme = "README.md"
-authors = ["Maintainers <maintainers@example.com>"]
-
-[tool.poetry.dependencies]
-python = "^3.11"
-openai = "1.86.0"
-langchain = "0.3.27"
-"langchain-core" = "0.3.72"
-"langchain-openai" = "0.3.28"
-"python-dotenv" = "1.1.1"
+authors = [
+    {name = "Jolyon Suthers",email = "201621+fenrick@users.noreply.github.com"}
+]
+requires-python = ">= 3.11,<4"
+dependencies = [
+"openai" ,
+"langchain" ,
+"langchain-core" ,
+"langchain-openai",
+"python-dotenv",
+]
 
 [tool.poetry.group.dev.dependencies]
 black = "*"
@@ -20,19 +22,27 @@ mypy = "*"
 bandit = "*"
 "pip-audit" = "*"
 pytest = "*"
+isort = "*"
+flake8 = "*"
+flake8-bugbear = "*"
 
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+package-mode = false
 
 [tool.black]
 line-length = 88
-target-version = ["py311"]
+target-version = ["py313"]
 
 [tool.ruff]
 line-length = 88
-target-version = "py311"
+target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
 
+[tool.isort]
+profile = "black"
