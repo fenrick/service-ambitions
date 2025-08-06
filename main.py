@@ -4,7 +4,7 @@ import argparse
 import getpass
 import json
 import os
-from typing import Iterable, List, Dict, Any
+from typing import Dict, Any, Iterator
 
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
@@ -39,23 +39,27 @@ def load_prompt(path: str) -> str:
         ) from exc
 
 
-def load_services(path: str) -> List[Dict[str, Any]]:
-    """Return a list of services from ``path``.
+def load_services(path: str) -> Iterator[Dict[str, Any]]:
+    """Yield services from ``path`` in JSON Lines format.
 
     Args:
-        path: Location of the services JSON file.
+        path: Location of the services JSONL file.
 
-    Returns:
-        Parsed JSON data describing the services.
+    Yields:
+        Parsed service definitions.
 
     Raises:
         FileNotFoundError: If the file does not exist.
-        RuntimeError: If the file cannot be parsed.
+        RuntimeError: If any line cannot be parsed as JSON.
     """
 
     try:
         with open(path, "r", encoding="utf-8") as file:
-            return json.load(file)
+            for line in file:
+                line = line.strip()
+                if not line:
+                    continue
+                yield json.loads(line)
     except FileNotFoundError:
         raise FileNotFoundError(
             f"Services file not found. Please create a {path} file in the current directory."
@@ -93,28 +97,20 @@ def process_service(service: Dict[str, Any], model, prompt: str) -> Dict[str, An
     return parse_json_markdown(response.content)
 
 
-def write_output(results: Iterable[Dict[str, Any]], path: str) -> None:
-    """Write ``results`` to ``path`` as newline-delimited JSON."""
-
-    with open(path, "w", encoding="utf-8") as file:
-        for result in results:
-            file.write(f"{json.dumps(result)}\n")
-
-
 def main() -> None:
     """Parse arguments and generate ambitions for each service."""
 
     parser = argparse.ArgumentParser(description="Generate service ambitions")
     parser.add_argument(
-        "--prompt-path", default="prompt.md", help="Path to the system prompt file"
+        "--prompt-file", default="prompt.md", help="Path to the system prompt file"
     )
     parser.add_argument(
-        "--services-path",
-        default="sample-services.json",
-        help="Path to the services JSON file",
+        "--input-file",
+        default="sample-services.jsonl",
+        help="Path to the services JSONL file",
     )
     parser.add_argument(
-        "--output-path", default="ambitions.json", help="File to write the results"
+        "--output-file", default="ambitions.jsonl", help="File to write the results"
     )
     args = parser.parse_args()
 
@@ -122,22 +118,22 @@ def main() -> None:
     if not os.environ.get("OPENAI_API_KEY"):
         os.environ["OPENAI_API_KEY"] = getpass.getpass("Enter API key for OpenAI: ")
 
-    system_prompt = load_prompt(args.prompt_path)
-    services = load_services(args.services_path)
+    system_prompt = load_prompt(args.prompt_file)
+    services = load_services(args.input_file)
 
     model = init_chat_model(model="o4-mini", model_provider="openai")
 
-    results: List[Dict[str, Any]] = []
-    for i, service in enumerate(services, start=1):
-        print(f"Processing service {i}: {service.get('name', 'unknown')}")
-        try:
-            result = process_service(service, model, system_prompt)
-        except Exception as exc:  # pylint: disable=broad-except
-            print(f"Failed to process service {service.get('name', 'unknown')}: {exc}")
-            continue
-        results.append(result)
-
-    write_output(results, args.output_path)
+    with open(args.output_file, "w", encoding="utf-8") as output_file:
+        for i, service in enumerate(services, start=1):
+            print(f"Processing service {i}: {service.get('name', 'unknown')}")
+            try:
+                result = process_service(service, model, system_prompt)
+            except Exception as exc:  # pylint: disable=broad-except
+                print(
+                    f"Failed to process service {service.get('name', 'unknown')}: {exc}"
+                )
+                continue
+            output_file.write(f"{json.dumps(result)}\n")
 
 
 if __name__ == "__main__":
