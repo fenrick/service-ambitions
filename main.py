@@ -104,12 +104,26 @@ def main() -> None:
         "--prompt-file", default="prompt.md", help="Path to the system prompt file"
     )
     parser.add_argument(
+        "--prompt-id",
+        help="Prompt template identifier. Overrides --prompt-file when provided.",
+    )
+    parser.add_argument(
         "--input-file",
         default="sample-services.jsonl",
         help="Path to the services JSONL file",
     )
     parser.add_argument(
         "--output-file", default="ambitions.jsonl", help="File to write the results"
+    )
+    parser.add_argument(
+        "--model",
+        default=os.getenv("MODEL", "o4-mini"),
+        help="Chat model name. Can also be set via the MODEL env variable.",
+    )
+    parser.add_argument(
+        "--model-provider",
+        default=os.getenv("MODEL_PROVIDER", "openai"),
+        help="Chat model provider. Can also be set via the MODEL_PROVIDER env variable.",
     )
     args = parser.parse_args()
 
@@ -120,10 +134,13 @@ def main() -> None:
             "OPENAI_API_KEY is not set. Provide it via a .env file or a secret manager."
         )
 
-    system_prompt = load_prompt(args.prompt_file)
+    prompt_file = args.prompt_file
+    if args.prompt_id:
+        prompt_file = f"prompt-{args.prompt_id}.md"
+    system_prompt = load_prompt(prompt_file)
     services = load_services(args.input_file)
 
-    model = init_chat_model(model="o4-mini", model_provider="openai")
+    model = init_chat_model(model=args.model, model_provider=args.model_provider)
 
     with open(args.output_file, "w", encoding="utf-8") as output_file:
         for i, service in enumerate(services, start=1):
