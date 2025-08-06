@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: ["main", "master"]
+    branches: ["**"]
   pull_request:
 
 jobs:
@@ -16,10 +16,16 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install black ruff pytest
+          pip install black ruff pytest mypy bandit pip-audit
       - name: Check formatting
         run: black --check .
       - name: Lint
         run: ruff check .
+      - name: Type check
+        run: mypy .
+      - name: Security scan
+        run: bandit -r . -ll
+      - name: Dependency audit
+        run: pip-audit
       - name: Run tests
         run: pytest
