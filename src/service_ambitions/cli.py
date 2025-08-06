@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 def main() -> None:
     """Parse arguments and generate ambitions for each service."""
 
+    load_dotenv()
+
     parser = argparse.ArgumentParser(description="Generate service ambitions")
     parser.add_argument(
         "--prompt-file", default="prompt.md", help="Path to the system prompt file"
@@ -65,8 +67,6 @@ def main() -> None:
     args = parser.parse_args()
 
     logging.basicConfig(level=getattr(logging, args.log_level.upper(), logging.INFO))
-
-    load_dotenv()
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError(

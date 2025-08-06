@@ -6,14 +6,16 @@ The CLI requires an OpenAI API key available in the `OPENAI_API_KEY` environment
 variable. The key is loaded after `.env` files are processed and the application
 will exit if the variable is missing.
 
-Create a `.env` file in the project root with:
+An example configuration is provided in `.env.example`. Copy it to `.env` and
+fill in your credentials:
 
-```
-OPENAI_API_KEY=your_api_key_here
+```bash
+cp .env.example .env
 ```
 
-For production deployments, inject the variable using your platform's secret
-manager instead of committing keys to source control.
+Update the `OPENAI_API_KEY` value and any optional settings. For production
+deployments, inject the variable using your platform's secret manager instead of
+committing keys to source control.
 
 The chat model can be set with the `--model` flag or the `MODEL` environment
 variable. Additional parameters such as the desired `response_format` may be
@@ -27,16 +29,12 @@ project name via `--langsmith-project`.
 ## Installation
 
 Dependencies are managed with [Poetry](https://python-poetry.org/). Install the
-tool and then install the project's dependencies with:
+tool and then either run the project directly through Poetry or use the provided
+`run.sh` helper script, which installs dependencies, loads environment variables
+from `.env` and launches the CLI:
 
 ```bash
-poetry install
-```
-
-Run the CLI through Poetry to ensure it uses the managed environment:
-
-```bash
-poetry run python -m service_ambitions.cli --input-file sample-services.jsonl --output-file ambitions.jsonl
+./run.sh --input-file sample-services.jsonl --output-file ambitions.jsonl
 ```
 
 ## Usage
