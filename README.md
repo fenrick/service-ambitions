@@ -15,6 +15,11 @@ OPENAI_API_KEY=your_api_key_here
 For production deployments, inject the variable using your platform's secret
 manager instead of committing keys to source control.
 
+The chat model can be set with the `--model` flag or the `MODEL` environment
+variable. Additional parameters such as the desired `response_format` may be
+provided with the `--response-format` flag or the `RESPONSE_FORMAT` environment
+variable.
+
 ## Installation
 
 Dependencies are managed with [Poetry](https://python-poetry.org/). Install the
