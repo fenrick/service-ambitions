@@ -1,9 +1,8 @@
+import asyncio
 import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
-
-import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import service_ambitions.generator as generator
@@ -19,8 +18,7 @@ class DummyPromptTemplate:
         return other
 
 
-@pytest.mark.asyncio
-async def test_process_service_async(monkeypatch):
+def test_process_service_async(monkeypatch):
     monkeypatch.setattr(generator, "ChatPromptTemplate", DummyPromptTemplate)
 
     class DummyModel:
@@ -37,6 +35,6 @@ async def test_process_service_async(monkeypatch):
     service = {"name": "alpha"}
 
     gen = generator.ServiceAmbitionGenerator(model)
-    result = await gen.process_service(service, "prompt")
+    result = asyncio.run(gen.process_service(service, "prompt"))
 
     assert result == {"service": json.dumps(service)}
