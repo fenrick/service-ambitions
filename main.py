@@ -1,7 +1,6 @@
 """Command-line tool for generating service ambitions using a chat model."""
 
 import argparse
-import getpass
 import json
 import os
 from typing import Dict, Any, Iterator
@@ -115,8 +114,11 @@ def main() -> None:
     args = parser.parse_args()
 
     load_dotenv()
-    if not os.environ.get("OPENAI_API_KEY"):
-        os.environ["OPENAI_API_KEY"] = getpass.getpass("Enter API key for OpenAI: ")
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "OPENAI_API_KEY is not set. Provide it via a .env file or a secret manager."
+        )
 
     system_prompt = load_prompt(args.prompt_file)
     services = load_services(args.input_file)

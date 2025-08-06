@@ -3,6 +3,8 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import main
 
@@ -45,3 +47,10 @@ def test_cli_generates_output(tmp_path, monkeypatch):
         {"service": "alpha", "prompt": "You"},
         {"service": "beta", "prompt": "You"},
     ]
+
+
+def test_cli_requires_api_key(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(sys, "argv", ["main"])
+    with pytest.raises(RuntimeError):
+        main.main()
