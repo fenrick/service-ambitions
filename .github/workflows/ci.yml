@@ -22,10 +22,10 @@ jobs:
       - name: Lint
         run: poetry run ruff check .
       - name: Type check
-        run: mypy .
+        run: poetry run mypy .
       - name: Security scan
-        run: bandit -r . -ll
+        run: poetry run bandit -r src -ll
       - name: Dependency audit
-        run: pip-audit
+        run: poetry run pip-audit
       - name: Run tests
         run: poetry run pytest
