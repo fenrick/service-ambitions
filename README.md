@@ -32,7 +32,7 @@ poetry install
 Run the CLI through Poetry to ensure it uses the managed environment:
 
 ```bash
-poetry run python main.py --input-file sample-services.jsonl --output-file ambitions.jsonl
+poetry run python -m service_ambitions.cli --input-file sample-services.jsonl --output-file ambitions.jsonl
 ```
 
 ## Usage
