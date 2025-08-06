@@ -2,13 +2,17 @@
 
 import argparse
 import json
+import logging
 import os
-from typing import Dict, Any, Iterator
+from typing import Any, Dict, Iterator
 
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.utils.json import parse_json_markdown
+
+
+logger = logging.getLogger(__name__)
 
 
 def load_prompt(path: str) -> str:
@@ -29,10 +33,12 @@ def load_prompt(path: str) -> str:
         with open(path, "r", encoding="utf-8") as file:
             return file.read()
     except FileNotFoundError:
+        logger.error("Prompt file not found: %s", path)
         raise FileNotFoundError(
             f"Prompt file not found. Please create a {path} file in the current directory."
         ) from None
     except Exception as exc:  # pylint: disable=broad-except
+        logger.error("Error reading prompt file %s: %s", path, exc)
         raise RuntimeError(
             f"An error occurred while reading the prompt file: {exc}"
         ) from exc
@@ -60,10 +66,12 @@ def load_services(path: str) -> Iterator[Dict[str, Any]]:
                     continue
                 yield json.loads(line)
     except FileNotFoundError:
+        logger.error("Services file not found: %s", path)
         raise FileNotFoundError(
             f"Services file not found. Please create a {path} file in the current directory."
         ) from None
     except Exception as exc:  # pylint: disable=broad-except
+        logger.error("Error reading services file %s: %s", path, exc)
         raise RuntimeError(
             f"An error occurred while reading the services file: {exc}"
         ) from exc
@@ -92,7 +100,15 @@ def process_service(service: Dict[str, Any], model, prompt: str) -> Dict[str, An
     prompt_message = prompt_template.invoke(
         {"system_prompt": prompt, "user_prompt": service_details}
     )
-    response = model.invoke(prompt_message)
+    try:
+        response = model.invoke(prompt_message)
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.error(
+            "Model invocation failed for service %s: %s",
+            service.get("name", "unknown"),
+            exc,
+        )
+        raise
     return parse_json_markdown(response.content)
 
 
@@ -125,7 +141,14 @@ def main() -> None:
         default=os.getenv("MODEL_PROVIDER", "openai"),
         help="Chat model provider. Can also be set via the MODEL_PROVIDER env variable.",
     )
+    parser.add_argument(
+        "--log-level",
+        default=os.getenv("LOG_LEVEL", "INFO"),
+        help="Logging level. Can also be set via the LOG_LEVEL env variable.",
+    )
     args = parser.parse_args()
+
+    logging.basicConfig(level=getattr(logging, args.log_level.upper(), logging.INFO))
 
     load_dotenv()
     api_key = os.getenv("OPENAI_API_KEY")
@@ -140,19 +163,36 @@ def main() -> None:
     system_prompt = load_prompt(prompt_file)
     services = load_services(args.input_file)
 
-    model = init_chat_model(model=args.model, model_provider=args.model_provider)
+    try:
+        model = init_chat_model(model=args.model, model_provider=args.model_provider)
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.error(
+            "Failed to initialize model %s from provider %s: %s",
+            args.model,
+            args.model_provider,
+            exc,
+        )
+        raise
 
-    with open(args.output_file, "w", encoding="utf-8") as output_file:
-        for i, service in enumerate(services, start=1):
-            print(f"Processing service {i}: {service.get('name', 'unknown')}")
-            try:
-                result = process_service(service, model, system_prompt)
-            except Exception as exc:  # pylint: disable=broad-except
-                print(
-                    f"Failed to process service {service.get('name', 'unknown')}: {exc}"
+    try:
+        with open(args.output_file, "w", encoding="utf-8") as output_file:
+            for i, service in enumerate(services, start=1):
+                logger.info(
+                    "Processing service %d: %s", i, service.get("name", "unknown")
                 )
-                continue
-            output_file.write(f"{json.dumps(result)}\n")
+                try:
+                    result = process_service(service, model, system_prompt)
+                except Exception as exc:  # pylint: disable=broad-except
+                    logger.error(
+                        "Failed to process service %s: %s",
+                        service.get("name", "unknown"),
+                        exc,
+                    )
+                    continue
+                output_file.write(f"{json.dumps(result)}\n")
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.error("Failed to write results to %s: %s", args.output_file, exc)
+        raise
 
 
 if __name__ == "__main__":
