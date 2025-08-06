@@ -1,6 +1,29 @@
-[project]
+[tool.poetry]
 name = "service-ambitions"
 version = "0.1.0"
+description = "Command-line tool for generating service ambitions using a chat model."
+readme = "README.md"
+authors = ["Maintainers <maintainers@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+openai = "1.86.0"
+langchain = "0.3.27"
+"langchain-core" = "0.3.72"
+"langchain-openai" = "0.3.28"
+"python-dotenv" = "1.1.1"
+
+[tool.poetry.group.dev.dependencies]
+black = "*"
+ruff = "*"
+mypy = "*"
+bandit = "*"
+"pip-audit" = "*"
+pytest = "*"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
 
 [tool.black]
 line-length = 88
@@ -12,3 +35,4 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
+

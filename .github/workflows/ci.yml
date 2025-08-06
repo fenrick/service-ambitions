@@ -15,12 +15,12 @@ jobs:
           python-version: '3.11'
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
-          pip install black ruff pytest mypy bandit pip-audit
+          pip install poetry
+          poetry install
       - name: Check formatting
-        run: black --check .
+        run: poetry run black --check .
       - name: Lint
-        run: ruff check .
+        run: poetry run ruff check .
       - name: Type check
         run: mypy .
       - name: Security scan
@@ -28,4 +28,4 @@ jobs:
       - name: Dependency audit
         run: pip-audit
       - name: Run tests
-        run: pytest
+        run: poetry run pytest
