@@ -175,24 +175,29 @@ def main() -> None:
         raise
 
     try:
-        with open(args.output_file, "w", encoding="utf-8") as output_file:
-            for i, service in enumerate(services, start=1):
-                logger.info(
-                    "Processing service %d: %s", i, service.get("name", "unknown")
+        output_file = open(args.output_file, "w", encoding="utf-8")
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.error("Failed to open %s: %s", args.output_file, exc)
+        raise
+
+    try:
+        for i, service in enumerate(services, start=1):
+            logger.info("Processing service %d: %s", i, service.get("name", "unknown"))
+            try:
+                result = process_service(service, model, system_prompt)
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.error(
+                    "Failed to process service %s: %s",
+                    service.get("name", "unknown"),
+                    exc,
                 )
-                try:
-                    result = process_service(service, model, system_prompt)
-                except Exception as exc:  # pylint: disable=broad-except
-                    logger.error(
-                        "Failed to process service %s: %s",
-                        service.get("name", "unknown"),
-                        exc,
-                    )
-                    continue
-                output_file.write(f"{json.dumps(result)}\n")
+                continue
+            output_file.write(f"{json.dumps(result)}\n")
     except Exception as exc:  # pylint: disable=broad-except
         logger.error("Failed to write results to %s: %s", args.output_file, exc)
         raise
+    finally:
+        output_file.close()
 
 
 if __name__ == "__main__":
