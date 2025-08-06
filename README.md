@@ -20,6 +20,10 @@ variable. Additional parameters such as the desired `response_format` may be
 provided with the `--response-format` flag or the `RESPONSE_FORMAT` environment
 variable.
 
+To collect detailed traces with [LangSmith](https://docs.smith.langchain.com/),
+set the `LANGSMITH_API_KEY` environment variable and optionally supply a
+project name via `--langsmith-project`.
+
 ## Installation
 
 Dependencies are managed with [Poetry](https://python-poetry.org/). Install the

@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 
 from .generator import ServiceAmbitionGenerator, build_model
 from .loader import load_prompt, load_services
+from .monitoring import init_langsmith
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,10 @@ def main() -> None:
         default=5,
         help="Number of services to process concurrently",
     )
+    parser.add_argument(
+        "--langsmith-project",
+        help="Enable LangSmith tracing for the given project",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=getattr(logging, args.log_level.upper(), logging.INFO))
@@ -67,6 +72,9 @@ def main() -> None:
         raise RuntimeError(
             "OPENAI_API_KEY is not set. Provide it via a .env file or a secret manager."
         )
+
+    if os.getenv("LANGSMITH_API_KEY") or args.langsmith_project:
+        init_langsmith(args.langsmith_project)
 
     prompt_file = args.prompt_file
     if args.prompt_id:
