@@ -11,7 +11,6 @@ from langchain.chat_models import init_chat_model
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.utils.json import parse_json_markdown
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -35,7 +34,8 @@ def load_prompt(path: str) -> str:
     except FileNotFoundError:
         logger.error("Prompt file not found: %s", path)
         raise FileNotFoundError(
-            f"Prompt file not found. Please create a {path} file in the current directory."
+            f"Prompt file not found. Please create a {path} file in the current "
+            "directory."
         ) from None
     except Exception as exc:  # pylint: disable=broad-except
         logger.error("Error reading prompt file %s: %s", path, exc)
@@ -68,7 +68,8 @@ def load_services(path: str) -> Iterator[Dict[str, Any]]:
     except FileNotFoundError:
         logger.error("Services file not found: %s", path)
         raise FileNotFoundError(
-            f"Services file not found. Please create a {path} file in the current directory."
+            f"Services file not found. Please create a {path} file in the current "
+            "directory."
         ) from None
     except Exception as exc:  # pylint: disable=broad-except
         logger.error("Error reading services file %s: %s", path, exc)
@@ -139,7 +140,10 @@ def main() -> None:
     parser.add_argument(
         "--model-provider",
         default=os.getenv("MODEL_PROVIDER", "openai"),
-        help="Chat model provider. Can also be set via the MODEL_PROVIDER env variable.",
+        help=(
+            "Chat model provider. Can also be set via the "
+            "MODEL_PROVIDER env variable."
+        ),
     )
     parser.add_argument(
         "--log-level",
