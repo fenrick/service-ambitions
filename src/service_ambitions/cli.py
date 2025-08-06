@@ -20,11 +20,19 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="Generate service ambitions")
     parser.add_argument(
-        "--prompt-file", default="prompt.md", help="Path to the system prompt file"
+        "--prompt-dir",
+        default="prompts",
+        help="Directory containing prompt components",
     )
     parser.add_argument(
-        "--prompt-id",
-        help="Prompt template identifier. Overrides --prompt-file when provided.",
+        "--context-id",
+        default="university",
+        help="Situational context identifier",
+    )
+    parser.add_argument(
+        "--inspirations-id",
+        default="general",
+        help="Inspirations identifier",
     )
     parser.add_argument(
         "--input-file",
@@ -76,10 +84,7 @@ def main() -> None:
     if os.getenv("LANGSMITH_API_KEY") or args.langsmith_project:
         init_langsmith(args.langsmith_project)
 
-    prompt_file = args.prompt_file
-    if args.prompt_id:
-        prompt_file = f"prompt-{args.prompt_id}.md"
-    system_prompt = load_prompt(prompt_file)
+    system_prompt = load_prompt(args.prompt_dir, args.context_id, args.inspirations_id)
     services = list(load_services(args.input_file))
 
     try:

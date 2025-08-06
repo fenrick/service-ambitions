@@ -20,6 +20,12 @@ variable. Additional parameters such as the desired `response_format` may be
 provided with the `--response-format` flag or the `RESPONSE_FORMAT` environment
 variable.
 
+System prompts are assembled from modular markdown components located in the
+`prompts/` directory. Use `--prompt-dir` to point at an alternate component
+directory, `--context-id` to select a situational context, and
+`--inspirations-id` to choose a list of future inspirations. This structure
+supports swapping sections to suit different industries.
+
 To collect detailed traces with [LangSmith](https://docs.smith.langchain.com/),
 set the `LANGSMITH_API_KEY` environment variable and optionally supply a
 project name via `--langsmith-project`.

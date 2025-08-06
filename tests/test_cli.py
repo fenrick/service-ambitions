@@ -13,8 +13,17 @@ from service_ambitions.generator import ServiceAmbitionGenerator
 
 
 def test_cli_generates_output(tmp_path, monkeypatch):
-    prompt_file = tmp_path / "prompt.md"
-    prompt_file.write_text("You are a helpful assistant.")
+    base = tmp_path / "prompts"
+    (base / "situational_context").mkdir(parents=True)
+    (base / "inspirations").mkdir(parents=True)
+    (base / "situational_context" / "ctx.md").write_text(
+        "You are a helpful assistant.", encoding="utf-8"
+    )
+    (base / "service_feature_plateaus.md").write_text("p", encoding="utf-8")
+    (base / "definitions.md").write_text("d", encoding="utf-8")
+    (base / "inspirations" / "insp.md").write_text("i", encoding="utf-8")
+    (base / "task_definition.md").write_text("t", encoding="utf-8")
+    (base / "response_structure.md").write_text("r", encoding="utf-8")
 
     input_file = tmp_path / "services.jsonl"
     input_file.write_text('{"name": "alpha"}\n{"name": "beta"}\n')
@@ -33,8 +42,12 @@ def test_cli_generates_output(tmp_path, monkeypatch):
 
     argv = [
         "main",
-        "--prompt-file",
-        str(prompt_file),
+        "--prompt-dir",
+        str(base),
+        "--context-id",
+        "ctx",
+        "--inspirations-id",
+        "insp",
         "--input-file",
         str(input_file),
         "--output-file",
@@ -60,9 +73,18 @@ def test_cli_requires_api_key(monkeypatch):
         cli.main()
 
 
-def test_cli_uses_prompt_id(tmp_path, monkeypatch):
+def test_cli_switches_context(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    (tmp_path / "prompt-special.md").write_text("Special prompt")
+    base = tmp_path / "prompts"
+    (base / "situational_context").mkdir(parents=True)
+    (base / "inspirations").mkdir(parents=True)
+    (base / "situational_context" / "alpha.md").write_text("Alpha", encoding="utf-8")
+    (base / "situational_context" / "beta.md").write_text("Beta", encoding="utf-8")
+    (base / "service_feature_plateaus.md").write_text("p", encoding="utf-8")
+    (base / "definitions.md").write_text("d", encoding="utf-8")
+    (base / "inspirations" / "general.md").write_text("i", encoding="utf-8")
+    (base / "task_definition.md").write_text("t", encoding="utf-8")
+    (base / "response_structure.md").write_text("r", encoding="utf-8")
     input_file = tmp_path / "services.jsonl"
     input_file.write_text('{"name": "alpha"}\n')
     output_file = tmp_path / "output.jsonl"
@@ -79,8 +101,8 @@ def test_cli_uses_prompt_id(tmp_path, monkeypatch):
 
     argv = [
         "main",
-        "--prompt-id",
-        "special",
+        "--context-id",
+        "beta",
         "--input-file",
         str(input_file),
         "--output-file",
@@ -91,12 +113,20 @@ def test_cli_uses_prompt_id(tmp_path, monkeypatch):
     cli.main()
 
     line = json.loads(output_file.read_text().strip())
-    assert line["prompt"] == "Special prompt"
+    assert line["prompt"].startswith("Beta")
 
 
 def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    (tmp_path / "prompt.md").write_text("Prompt")
+    base = tmp_path / "prompts"
+    (base / "situational_context").mkdir(parents=True)
+    (base / "inspirations").mkdir(parents=True)
+    (base / "situational_context" / "university.md").write_text("ctx", encoding="utf-8")
+    (base / "service_feature_plateaus.md").write_text("p", encoding="utf-8")
+    (base / "definitions.md").write_text("d", encoding="utf-8")
+    (base / "inspirations" / "general.md").write_text("i", encoding="utf-8")
+    (base / "task_definition.md").write_text("t", encoding="utf-8")
+    (base / "response_structure.md").write_text("r", encoding="utf-8")
     input_file = tmp_path / "services.jsonl"
     input_file.write_text('{"name": "alpha"}\n')
     output_file = tmp_path / "output.jsonl"
@@ -138,7 +168,15 @@ def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
 
 def test_cli_response_format_flag(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    (tmp_path / "prompt.md").write_text("Prompt")
+    base = tmp_path / "prompts"
+    (base / "situational_context").mkdir(parents=True)
+    (base / "inspirations").mkdir(parents=True)
+    (base / "situational_context" / "university.md").write_text("ctx", encoding="utf-8")
+    (base / "service_feature_plateaus.md").write_text("p", encoding="utf-8")
+    (base / "definitions.md").write_text("d", encoding="utf-8")
+    (base / "inspirations" / "general.md").write_text("i", encoding="utf-8")
+    (base / "task_definition.md").write_text("t", encoding="utf-8")
+    (base / "response_structure.md").write_text("r", encoding="utf-8")
     input_file = tmp_path / "services.jsonl"
     input_file.write_text('{"name": "alpha"}\n')
     output_file = tmp_path / "output.jsonl"
@@ -178,7 +216,15 @@ def test_cli_response_format_flag(tmp_path, monkeypatch):
 
 def test_cli_enables_langsmith(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    (tmp_path / "prompt.md").write_text("Prompt")
+    base = tmp_path / "prompts"
+    (base / "situational_context").mkdir(parents=True)
+    (base / "inspirations").mkdir(parents=True)
+    (base / "situational_context" / "university.md").write_text("ctx", encoding="utf-8")
+    (base / "service_feature_plateaus.md").write_text("p", encoding="utf-8")
+    (base / "definitions.md").write_text("d", encoding="utf-8")
+    (base / "inspirations" / "general.md").write_text("i", encoding="utf-8")
+    (base / "task_definition.md").write_text("t", encoding="utf-8")
+    (base / "response_structure.md").write_text("r", encoding="utf-8")
     input_file = tmp_path / "services.jsonl"
     input_file.write_text('{"name": "alpha"}\n')
     output_file = tmp_path / "output.jsonl"
