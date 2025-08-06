@@ -10,9 +10,15 @@ from typing import Any, Dict, Iterator
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.utils.json import parse_json_markdown
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+
+
+class AmbitionModel(BaseModel):
+    """Structured ambitions response allowing arbitrary keys."""
+
+    model_config = {"extra": "allow"}
 
 
 def load_prompt(path: str) -> str:
@@ -99,13 +105,14 @@ async def process_service(
             ("user", "{user_prompt}"),
         ]
     )
+    chain = prompt_template | model.with_structured_output(AmbitionModel)
 
     service_details = json.dumps(service)
-    prompt_message = prompt_template.invoke(
-        {"system_prompt": prompt, "user_prompt": service_details}
-    )
     try:
-        response = await model.ainvoke(prompt_message)
+        result = await asyncio.to_thread(
+            chain.invoke,
+            {"system_prompt": prompt, "user_prompt": service_details},
+        )
     except Exception as exc:  # pylint: disable=broad-except
         logger.error(
             "Model invocation failed for service %s: %s",
@@ -113,7 +120,7 @@ async def process_service(
             exc,
         )
         raise
-    return parse_json_markdown(response.content)
+    return result.model_dump()
 
 
 def main() -> None:

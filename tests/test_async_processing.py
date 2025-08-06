@@ -10,23 +10,30 @@ import main
 
 
 class DummyPromptTemplate:
-    """Minimal prompt template returning user input."""
+    """Minimal prompt template that forwards to the next runnable."""
 
     def __init__(self, *args, **kwargs):
         pass
 
-    def invoke(self, inputs):
-        return inputs["user_prompt"]
+    def __or__(self, other):  # pragma: no cover - trivial forwarding
+        return other
 
 
 @pytest.mark.asyncio
 async def test_process_service_async(monkeypatch):
     monkeypatch.setattr(main, "ChatPromptTemplate", DummyPromptTemplate)
 
-    async def fake_ainvoke(prompt_message):
-        return SimpleNamespace(content={"service": prompt_message})
+    class DummyModel:
+        def with_structured_output(self, _):  # pragma: no cover - simple stub
+            class DummyChain:
+                def invoke(self, inputs):
+                    return SimpleNamespace(
+                        model_dump=lambda: {"service": inputs["user_prompt"]}
+                    )
 
-    model = SimpleNamespace(ainvoke=fake_ainvoke)
+            return DummyChain()
+
+    model = DummyModel()
     service = {"name": "alpha"}
 
     result = await main.process_service(service, model, "prompt")
