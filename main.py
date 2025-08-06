@@ -1,68 +1,144 @@
+"""Command-line tool for generating service ambitions using a chat model."""
+
+import argparse
 import getpass
-import os
 import json
+import os
+from typing import Iterable, List, Dict, Any
+
+from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.utils.json import (parse_json_markdown)
-from dotenv import load_dotenv
+from langchain_core.utils.json import parse_json_markdown
 
-# Load environment variables from .env file
-load_dotenv()
 
-# Check if the environment variable is set, if not prompt for it
-if not os.environ.get("OPENAI_API_KEY"):
-  os.environ["OPENAI_API_KEY"] = getpass.getpass("Enter API key for OpenAI: ")
+def load_prompt(path: str) -> str:
+    """Return the system prompt from ``path``.
 
-# Load the system prompt from a markdown file
-try:
-  with open("prompt.md",'r', encoding='utf-8') as file:
-    system_prompt = file.read()
-except FileNotFoundError:
-  print("Prompt file not found. Please create a prompt.md file in the current directory.")
-  exit(1)
-except Exception as e:
-  print(f"An error occurred while reading the prompt file: {e}")
-  exit(1)
+    Args:
+        path: Location of the prompt markdown file.
 
-# Load the services from a JSON file
-try:
-  with open("sample-services.json", 'r', encoding='utf-8') as file:
-    services = json.load(file)
-except FileNotFoundError:
-  print("Services file not found. Please create a services.json file in the current directory.")
-  exit(1)
-except Exception as e:
-  print(f"An error occurred while reading the services file: {e}")
-  exit(1)
+    Returns:
+        The contents of the prompt file.
 
-# Initialize the chat model
-prompt_template = ChatPromptTemplate([
-  ("system", "{system_prompt}"),
-  ("user", "{user_prompt}"),
-])
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        RuntimeError: If the file cannot be read.
+    """
 
-# Initialize the chat model with the specified parameters
-model = init_chat_model(model="o4-mini", model_provider="openai")
+    try:
+        with open(path, "r", encoding="utf-8") as file:
+            return file.read()
+    except FileNotFoundError:
+        raise FileNotFoundError(
+            f"Prompt file not found. Please create a {path} file in the current directory."
+        ) from None
+    except Exception as exc:  # pylint: disable=broad-except
+        raise RuntimeError(
+            f"An error occurred while reading the prompt file: {exc}"
+        ) from exc
 
-# Process each service
-for i, service in enumerate(services, start=1):
-  print(f"Processing service {i}: {service['name']}")
 
-  # Convert the service details to a JSON string
-  service_details = json.dumps(service)
+def load_services(path: str) -> List[Dict[str, Any]]:
+    """Return a list of services from ``path``.
 
-  # Create the prompt using the template and the system prompt
-  prompt = prompt_template.invoke({"system_prompt": system_prompt, "user_prompt": service_details})
+    Args:
+        path: Location of the services JSON file.
 
-  # Invoke the model with the prompt
-  response = model.invoke(prompt)
+    Returns:
+        Parsed JSON data describing the services.
 
-  # Parse the response a json parser
-  parsed_response = parse_json_markdown(response.content)
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        RuntimeError: If the file cannot be parsed.
+    """
 
-  response_string = json.dumps(parsed_response)
+    try:
+        with open(path, "r", encoding="utf-8") as file:
+            return json.load(file)
+    except FileNotFoundError:
+        raise FileNotFoundError(
+            f"Services file not found. Please create a {path} file in the current directory."
+        ) from None
+    except Exception as exc:  # pylint: disable=broad-except
+        raise RuntimeError(
+            f"An error occurred while reading the services file: {exc}"
+        ) from exc
 
-  # Output the response in to ambitions.json
-  with open("ambitions.json", 'a', encoding='utf-8') as file:
-    # Write the service name and response to the file
-    file.write(f"{response_string}\n")
+
+def process_service(service: Dict[str, Any], model, prompt: str) -> Dict[str, Any]:
+    """Generate ambitions for ``service``.
+
+    Args:
+        service: Service definition.
+        model: Chat model used to generate ambitions.
+        prompt: System prompt string.
+
+    Returns:
+        Parsed JSON response from the model.
+    """
+
+    prompt_template = ChatPromptTemplate(
+        [
+            ("system", "{system_prompt}"),
+            ("user", "{user_prompt}"),
+        ]
+    )
+
+    service_details = json.dumps(service)
+    prompt_message = prompt_template.invoke(
+        {"system_prompt": prompt, "user_prompt": service_details}
+    )
+    response = model.invoke(prompt_message)
+    return parse_json_markdown(response.content)
+
+
+def write_output(results: Iterable[Dict[str, Any]], path: str) -> None:
+    """Write ``results`` to ``path`` as newline-delimited JSON."""
+
+    with open(path, "w", encoding="utf-8") as file:
+        for result in results:
+            file.write(f"{json.dumps(result)}\n")
+
+
+def main() -> None:
+    """Parse arguments and generate ambitions for each service."""
+
+    parser = argparse.ArgumentParser(description="Generate service ambitions")
+    parser.add_argument(
+        "--prompt-path", default="prompt.md", help="Path to the system prompt file"
+    )
+    parser.add_argument(
+        "--services-path",
+        default="sample-services.json",
+        help="Path to the services JSON file",
+    )
+    parser.add_argument(
+        "--output-path", default="ambitions.json", help="File to write the results"
+    )
+    args = parser.parse_args()
+
+    load_dotenv()
+    if not os.environ.get("OPENAI_API_KEY"):
+        os.environ["OPENAI_API_KEY"] = getpass.getpass("Enter API key for OpenAI: ")
+
+    system_prompt = load_prompt(args.prompt_path)
+    services = load_services(args.services_path)
+
+    model = init_chat_model(model="o4-mini", model_provider="openai")
+
+    results: List[Dict[str, Any]] = []
+    for i, service in enumerate(services, start=1):
+        print(f"Processing service {i}: {service.get('name', 'unknown')}")
+        try:
+            result = process_service(service, model, system_prompt)
+        except Exception as exc:  # pylint: disable=broad-except
+            print(f"Failed to process service {service.get('name', 'unknown')}: {exc}")
+            continue
+        results.append(result)
+
+    write_output(results, args.output_path)
+
+
+if __name__ == "__main__":
+    main()
