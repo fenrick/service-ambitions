@@ -5,8 +5,8 @@ from types import SimpleNamespace
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import main
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+import service_ambitions.generator as generator
 
 
 class DummyPromptTemplate:
@@ -21,7 +21,7 @@ class DummyPromptTemplate:
 
 @pytest.mark.asyncio
 async def test_process_service_async(monkeypatch):
-    monkeypatch.setattr(main, "ChatPromptTemplate", DummyPromptTemplate)
+    monkeypatch.setattr(generator, "ChatPromptTemplate", DummyPromptTemplate)
 
     class DummyModel:
         def with_structured_output(self, _):  # pragma: no cover - simple stub
@@ -36,6 +36,7 @@ async def test_process_service_async(monkeypatch):
     model = DummyModel()
     service = {"name": "alpha"}
 
-    result = await main.process_service(service, model, "prompt")
+    gen = generator.ServiceAmbitionGenerator(model)
+    result = await gen.process_service(service, "prompt")
 
     assert result == {"service": json.dumps(service)}

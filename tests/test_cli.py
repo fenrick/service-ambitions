@@ -5,8 +5,10 @@ from types import SimpleNamespace
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import main
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+import service_ambitions.cli as cli
+import service_ambitions.generator as generator
+from service_ambitions.generator import ServiceAmbitionGenerator
 
 
 def test_cli_generates_output(tmp_path, monkeypatch):
@@ -19,12 +21,14 @@ def test_cli_generates_output(tmp_path, monkeypatch):
     output_file = tmp_path / "output.jsonl"
 
     monkeypatch.setenv("OPENAI_API_KEY", "dummy")
-    monkeypatch.setattr(main, "ChatOpenAI", lambda **_: SimpleNamespace())
+    monkeypatch.setattr(generator, "ChatOpenAI", lambda **_: SimpleNamespace())
 
-    async def fake_process_service(service, model, prompt):
+    async def fake_process_service(self, service, prompt):
         return {"service": service["name"], "prompt": prompt[:3]}
 
-    monkeypatch.setattr(main, "process_service", fake_process_service)
+    monkeypatch.setattr(
+        ServiceAmbitionGenerator, "process_service", fake_process_service
+    )
 
     argv = [
         "main",
@@ -39,7 +43,7 @@ def test_cli_generates_output(tmp_path, monkeypatch):
     ]
     monkeypatch.setattr(sys, "argv", argv)
 
-    main.main()
+    cli.main()
 
     lines = output_file.read_text().strip().splitlines()
     assert [json.loads(line) for line in lines] == [
@@ -52,7 +56,7 @@ def test_cli_requires_api_key(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setattr(sys, "argv", ["main"])
     with pytest.raises(RuntimeError):
-        main.main()
+        cli.main()
 
 
 def test_cli_uses_prompt_id(tmp_path, monkeypatch):
@@ -63,12 +67,14 @@ def test_cli_uses_prompt_id(tmp_path, monkeypatch):
     output_file = tmp_path / "output.jsonl"
 
     monkeypatch.setenv("OPENAI_API_KEY", "dummy")
-    monkeypatch.setattr(main, "ChatOpenAI", lambda **_: SimpleNamespace())
+    monkeypatch.setattr(generator, "ChatOpenAI", lambda **_: SimpleNamespace())
 
-    async def fake_process_service(service, model, prompt):
+    async def fake_process_service(self, service, prompt):
         return {"prompt": prompt}
 
-    monkeypatch.setattr(main, "process_service", fake_process_service)
+    monkeypatch.setattr(
+        ServiceAmbitionGenerator, "process_service", fake_process_service
+    )
 
     argv = [
         "main",
@@ -81,7 +87,7 @@ def test_cli_uses_prompt_id(tmp_path, monkeypatch):
     ]
     monkeypatch.setattr(sys, "argv", argv)
 
-    main.main()
+    cli.main()
 
     line = json.loads(output_file.read_text().strip())
     assert line["prompt"] == "Special prompt"
@@ -104,12 +110,14 @@ def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
         captured.update(kwargs)
         return SimpleNamespace()
 
-    monkeypatch.setattr(main, "ChatOpenAI", fake_chat_openai)
+    monkeypatch.setattr(generator, "ChatOpenAI", fake_chat_openai)
 
-    async def fake_process_service(service, model, prompt):
+    async def fake_process_service(self, service, prompt):
         return {"ok": True}
 
-    monkeypatch.setattr(main, "process_service", fake_process_service)
+    monkeypatch.setattr(
+        ServiceAmbitionGenerator, "process_service", fake_process_service
+    )
 
     argv = [
         "main",
@@ -120,7 +128,7 @@ def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
     ]
     monkeypatch.setattr(sys, "argv", argv)
 
-    main.main()
+    cli.main()
 
     assert captured["model"] == "test-model"
     assert captured["api_key"] == "dummy"
@@ -142,12 +150,14 @@ def test_cli_response_format_flag(tmp_path, monkeypatch):
         captured.update(kwargs)
         return SimpleNamespace()
 
-    monkeypatch.setattr(main, "ChatOpenAI", fake_chat_openai)
+    monkeypatch.setattr(generator, "ChatOpenAI", fake_chat_openai)
 
-    async def fake_process_service(service, model, prompt):
+    async def fake_process_service(self, service, prompt):
         return {"ok": True}
 
-    monkeypatch.setattr(main, "process_service", fake_process_service)
+    monkeypatch.setattr(
+        ServiceAmbitionGenerator, "process_service", fake_process_service
+    )
 
     argv = [
         "main",
@@ -160,6 +170,6 @@ def test_cli_response_format_flag(tmp_path, monkeypatch):
     ]
     monkeypatch.setattr(sys, "argv", argv)
 
-    main.main()
+    cli.main()
 
     assert captured["response_format"] == "json_schema"

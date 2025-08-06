@@ -1,8 +1,10 @@
+import sys
 from pathlib import Path
 
 import pytest
 
-from main import load_prompt, load_services
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from service_ambitions.loader import load_prompt, load_services
 
 
 def test_load_prompt_reads_file(tmp_path):
