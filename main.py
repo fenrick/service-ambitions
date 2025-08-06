@@ -1,6 +1,7 @@
 """Command-line tool for generating service ambitions using a chat model."""
 
 import argparse
+import asyncio
 import json
 import logging
 import os
@@ -78,8 +79,10 @@ def load_services(path: str) -> Iterator[Dict[str, Any]]:
         ) from exc
 
 
-def process_service(service: Dict[str, Any], model, prompt: str) -> Dict[str, Any]:
-    """Generate ambitions for ``service``.
+async def process_service(
+    service: Dict[str, Any], model, prompt: str
+) -> Dict[str, Any]:
+    """Generate ambitions for ``service`` asynchronously.
 
     Args:
         service: Service definition.
@@ -102,7 +105,7 @@ def process_service(service: Dict[str, Any], model, prompt: str) -> Dict[str, An
         {"system_prompt": prompt, "user_prompt": service_details}
     )
     try:
-        response = model.invoke(prompt_message)
+        response = await model.ainvoke(prompt_message)
     except Exception as exc:  # pylint: disable=broad-except
         logger.error(
             "Model invocation failed for service %s: %s",
@@ -150,6 +153,12 @@ def main() -> None:
         default=os.getenv("LOG_LEVEL", "INFO"),
         help="Logging level. Can also be set via the LOG_LEVEL env variable.",
     )
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=5,
+        help="Number of services to process concurrently",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=getattr(logging, args.log_level.upper(), logging.INFO))
@@ -165,7 +174,7 @@ def main() -> None:
     if args.prompt_id:
         prompt_file = f"prompt-{args.prompt_id}.md"
     system_prompt = load_prompt(prompt_file)
-    services = load_services(args.input_file)
+    services = list(load_services(args.input_file))
 
     try:
         model = init_chat_model(model=args.model, model_provider=args.model_provider)
@@ -184,19 +193,27 @@ def main() -> None:
         logger.error("Failed to open %s: %s", args.output_file, exc)
         raise
 
+    async def process_all() -> None:
+        semaphore = asyncio.Semaphore(args.concurrency)
+
+        async def worker(service: Dict[str, Any]) -> None:
+            async with semaphore:
+                logger.info("Processing service %s", service.get("name", "unknown"))
+                try:
+                    result = await process_service(service, model, system_prompt)
+                except Exception as exc:  # pylint: disable=broad-except
+                    logger.error(
+                        "Failed to process service %s: %s",
+                        service.get("name", "unknown"),
+                        exc,
+                    )
+                    return
+                output_file.write(f"{json.dumps(result)}\n")
+
+        await asyncio.gather(*(worker(service) for service in services))
+
     try:
-        for i, service in enumerate(services, start=1):
-            logger.info("Processing service %d: %s", i, service.get("name", "unknown"))
-            try:
-                result = process_service(service, model, system_prompt)
-            except Exception as exc:  # pylint: disable=broad-except
-                logger.error(
-                    "Failed to process service %s: %s",
-                    service.get("name", "unknown"),
-                    exc,
-                )
-                continue
-            output_file.write(f"{json.dumps(result)}\n")
+        asyncio.run(process_all())
     except Exception as exc:  # pylint: disable=broad-except
         logger.error("Failed to write results to %s: %s", args.output_file, exc)
         raise

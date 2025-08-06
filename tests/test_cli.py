@@ -20,14 +20,11 @@ def test_cli_generates_output(tmp_path, monkeypatch):
 
     monkeypatch.setenv("OPENAI_API_KEY", "dummy")
     monkeypatch.setattr(main, "init_chat_model", lambda **_: SimpleNamespace())
-    monkeypatch.setattr(
-        main,
-        "process_service",
-        lambda service, model, prompt: {
-            "service": service["name"],
-            "prompt": prompt[:3],
-        },
-    )
+
+    async def fake_process_service(service, model, prompt):
+        return {"service": service["name"], "prompt": prompt[:3]}
+
+    monkeypatch.setattr(main, "process_service", fake_process_service)
 
     argv = [
         "main",
@@ -37,6 +34,8 @@ def test_cli_generates_output(tmp_path, monkeypatch):
         str(input_file),
         "--output-file",
         str(output_file),
+        "--concurrency",
+        "2",
     ]
     monkeypatch.setattr(sys, "argv", argv)
 
@@ -65,11 +64,11 @@ def test_cli_uses_prompt_id(tmp_path, monkeypatch):
 
     monkeypatch.setenv("OPENAI_API_KEY", "dummy")
     monkeypatch.setattr(main, "init_chat_model", lambda **_: SimpleNamespace())
-    monkeypatch.setattr(
-        main,
-        "process_service",
-        lambda service, model, prompt: {"prompt": prompt},
-    )
+
+    async def fake_process_service(service, model, prompt):
+        return {"prompt": prompt}
+
+    monkeypatch.setattr(main, "process_service", fake_process_service)
 
     argv = [
         "main",
@@ -106,9 +105,11 @@ def test_cli_model_parameters_from_env(tmp_path, monkeypatch):
         return SimpleNamespace()
 
     monkeypatch.setattr(main, "init_chat_model", fake_init_chat_model)
-    monkeypatch.setattr(
-        main, "process_service", lambda service, model, prompt: {"ok": True}
-    )
+
+    async def fake_process_service(service, model, prompt):
+        return {"ok": True}
+
+    monkeypatch.setattr(main, "process_service", fake_process_service)
 
     argv = [
         "main",
