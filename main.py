@@ -7,13 +7,13 @@ import logging
 import os
 from typing import Any, Dict, Iterator
 
-from dotenv import load_dotenv  # type: ignore[import-not-found]
-from langchain.chat_models import init_chat_model  # type: ignore[import-not-found]
-from langchain_core.language_models.chat_models import (  # type: ignore[import-not-found]
+from dotenv import load_dotenv  
+from langchain.chat_models import init_chat_model 
+from langchain_core.language_models.chat_models import ( 
     BaseChatModel,
 )
-from langchain_core.prompts import ChatPromptTemplate  # type: ignore[import-not-found]
-from pydantic import BaseModel  # type: ignore[import-not-found]
+from langchain_core.prompts import ChatPromptTemplate  
+from pydantic import BaseModel 
 
 logger = logging.getLogger(__name__)
 
@@ -151,11 +151,11 @@ def main() -> None:
         help="Chat model name. Can also be set via the MODEL env variable.",
     )
     parser.add_argument(
-        "--model-provider",
-        default=os.getenv("MODEL_PROVIDER", "openai"),
+        "--response-format",
+        default=os.getenv("RESPONSE_FORMAT"),
         help=(
-            "Chat model provider. Can also be set via the "
-            "MODEL_PROVIDER env variable."
+            "Optional response format passed to ChatOpenAI. "
+            "Can also be set via the RESPONSE_FORMAT env variable."
         ),
     )
     parser.add_argument(
@@ -187,14 +187,12 @@ def main() -> None:
     services = list(load_services(args.input_file))
 
     try:
-        model = init_chat_model(model=args.model, model_provider=args.model_provider)
+        model_kwargs = {"model": args.model, "api_key": api_key}
+        if args.response_format:
+            model_kwargs["response_format"] = args.response_format
+        model = ChatOpenAI(**model_kwargs)
     except Exception as exc:  # pylint: disable=broad-except
-        logger.error(
-            "Failed to initialize model %s from provider %s: %s",
-            args.model,
-            args.model_provider,
-            exc,
-        )
+        logger.error("Failed to initialize model %s: %s", args.model, exc)
         raise
 
     try:

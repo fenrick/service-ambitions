@@ -19,7 +19,7 @@ def test_cli_generates_output(tmp_path, monkeypatch):
     output_file = tmp_path / "output.jsonl"
 
     monkeypatch.setenv("OPENAI_API_KEY", "dummy")
-    monkeypatch.setattr(main, "init_chat_model", lambda **_: SimpleNamespace())
+    monkeypatch.setattr(main, "ChatOpenAI", lambda **_: SimpleNamespace())
 
     async def fake_process_service(service, model, prompt):
         return {"service": service["name"], "prompt": prompt[:3]}
@@ -63,7 +63,7 @@ def test_cli_uses_prompt_id(tmp_path, monkeypatch):
     output_file = tmp_path / "output.jsonl"
 
     monkeypatch.setenv("OPENAI_API_KEY", "dummy")
-    monkeypatch.setattr(main, "init_chat_model", lambda **_: SimpleNamespace())
+    monkeypatch.setattr(main, "ChatOpenAI", lambda **_: SimpleNamespace())
 
     async def fake_process_service(service, model, prompt):
         return {"prompt": prompt}
@@ -87,7 +87,7 @@ def test_cli_uses_prompt_id(tmp_path, monkeypatch):
     assert line["prompt"] == "Special prompt"
 
 
-def test_cli_model_parameters_from_env(tmp_path, monkeypatch):
+def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "prompt.md").write_text("Prompt")
     input_file = tmp_path / "services.jsonl"
@@ -96,15 +96,15 @@ def test_cli_model_parameters_from_env(tmp_path, monkeypatch):
 
     monkeypatch.setenv("OPENAI_API_KEY", "dummy")
     monkeypatch.setenv("MODEL", "test-model")
-    monkeypatch.setenv("MODEL_PROVIDER", "acme")
+    monkeypatch.setenv("RESPONSE_FORMAT", "json_schema")
 
     captured = {}
 
-    def fake_init_chat_model(**kwargs):
+    def fake_chat_openai(**kwargs):
         captured.update(kwargs)
         return SimpleNamespace()
 
-    monkeypatch.setattr(main, "init_chat_model", fake_init_chat_model)
+    monkeypatch.setattr(main, "ChatOpenAI", fake_chat_openai)
 
     async def fake_process_service(service, model, prompt):
         return {"ok": True}
@@ -123,4 +123,43 @@ def test_cli_model_parameters_from_env(tmp_path, monkeypatch):
     main.main()
 
     assert captured["model"] == "test-model"
-    assert captured["model_provider"] == "acme"
+    assert captured["api_key"] == "dummy"
+    assert captured["response_format"] == "json_schema"
+
+
+def test_cli_response_format_flag(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "prompt.md").write_text("Prompt")
+    input_file = tmp_path / "services.jsonl"
+    input_file.write_text('{"name": "alpha"}\n')
+    output_file = tmp_path / "output.jsonl"
+
+    monkeypatch.setenv("OPENAI_API_KEY", "dummy")
+
+    captured = {}
+
+    def fake_chat_openai(**kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace()
+
+    monkeypatch.setattr(main, "ChatOpenAI", fake_chat_openai)
+
+    async def fake_process_service(service, model, prompt):
+        return {"ok": True}
+
+    monkeypatch.setattr(main, "process_service", fake_process_service)
+
+    argv = [
+        "main",
+        "--input-file",
+        str(input_file),
+        "--output-file",
+        str(output_file),
+        "--response-format",
+        "json_schema",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+
+    main.main()
+
+    assert captured["response_format"] == "json_schema"

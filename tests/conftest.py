@@ -27,8 +27,10 @@ langchain_core_language_models_chat_models = types.ModuleType(
 )
 langchain_core_language_models_chat_models.BaseChatModel = object  # type: ignore[attr-defined]
 
+langchain_openai = types.ModuleType("langchain_openai")
+langchain_openai.ChatOpenAI = lambda **kwargs: None  # type: ignore[attr-defined]
+
 sys.modules.setdefault("langchain", types.ModuleType("langchain"))
-sys.modules.setdefault("langchain.chat_models", langchain_chat_models)
 sys.modules.setdefault("langchain_core", types.ModuleType("langchain_core"))
 sys.modules.setdefault("langchain_core.prompts", langchain_core_prompts)
 sys.modules.setdefault(
@@ -41,3 +43,4 @@ sys.modules.setdefault(
 )
 sys.modules.setdefault("langchain_core.utils", types.ModuleType("langchain_core.utils"))
 sys.modules.setdefault("langchain_core.utils.json", langchain_core_utils_json)
+sys.modules.setdefault("langchain_openai", langchain_openai)
