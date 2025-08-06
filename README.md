@@ -12,3 +12,14 @@ OPENAI_API_KEY=your_api_key_here
 
 For production deployments, inject the variable using your platform's secret manager instead of committing keys to source control.
 
+
+## Usage
+
+`sample-services.jsonl` contains example services in [JSON Lines](https://jsonlines.org/) format, with one JSON object per line.
+Generate ambitions for these services with:
+
+```bash
+python main.py --input-file sample-services.jsonl --output-file ambitions.jsonl
+```
+
+The output file will also be in JSON Lines format.
