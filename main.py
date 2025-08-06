@@ -7,10 +7,13 @@ import logging
 import os
 from typing import Any, Dict, Iterator
 
-from dotenv import load_dotenv
-from langchain.chat_models import init_chat_model
-from langchain_core.prompts import ChatPromptTemplate
-from pydantic import BaseModel
+from dotenv import load_dotenv  # type: ignore[import-not-found]
+from langchain.chat_models import init_chat_model  # type: ignore[import-not-found]
+from langchain_core.language_models.chat_models import (  # type: ignore[import-not-found]
+    BaseChatModel,
+)
+from langchain_core.prompts import ChatPromptTemplate  # type: ignore[import-not-found]
+from pydantic import BaseModel  # type: ignore[import-not-found]
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +89,7 @@ def load_services(path: str) -> Iterator[Dict[str, Any]]:
 
 
 async def process_service(
-    service: Dict[str, Any], model, prompt: str
+    service: Dict[str, Any], model: BaseChatModel, prompt: str
 ) -> Dict[str, Any]:
     """Generate ambitions for ``service`` asynchronously.
 
