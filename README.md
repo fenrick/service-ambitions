@@ -34,4 +34,5 @@ poetry run python main.py --input-file sample-services.jsonl --output-file ambit
 
 `sample-services.jsonl` contains example services in
 [JSON Lines](https://jsonlines.org/) format, with one JSON object per line. The
-output file will also be in JSON Lines format.
+output file will also be in JSON Lines format. Use the `--concurrency` option to
+control how many services are processed in parallel.

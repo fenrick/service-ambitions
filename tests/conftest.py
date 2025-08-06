@@ -1,7 +1,8 @@
 import sys
 import types
 
-# Stub external dependencies so tests can import `main` without installing heavy packages.
+# Stub external dependencies so tests can import `main` without installing
+# heavy packages.
 dotenv_stub = types.ModuleType("dotenv")
 dotenv_stub.load_dotenv = lambda *args, **kwargs: None
 sys.modules.setdefault("dotenv", dotenv_stub)
