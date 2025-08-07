@@ -6,9 +6,9 @@ from types import SimpleNamespace
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-import service_ambitions.cli as cli
-import service_ambitions.generator as generator
-from service_ambitions.generator import ServiceAmbitionGenerator
+import cli
+import generator
+from generator import ServiceAmbitionGenerator
 
 
 def test_cli_generates_output(tmp_path, monkeypatch):
