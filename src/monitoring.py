@@ -17,8 +17,9 @@ def init_logfire(service: str | None = None, token: str | None = None) -> None:
         token: Logfire API token. Falls back to ``LOGFIRE_TOKEN`` env var.
 
     When the token is provided and the ``logfire`` package is installed this
-    function configures the Logfire SDK and attaches a Logfire logging handler
-    to the root logger. If either condition is not met the setup is skipped.
+    function configures the Logfire SDK, instruments Pydantic, Pydantic AI,
+    OpenAI and system metrics, and attaches a Logfire logging handler to the
+    root logger. If either condition is not met the setup is skipped.
     """
 
     key = token or os.getenv("LOGFIRE_TOKEN")
@@ -36,6 +37,7 @@ def init_logfire(service: str | None = None, token: str | None = None) -> None:
     for name in (
         "instrument_pydantic_ai",
         "instrument_pydantic",
+        "instrument_openai",
         "instrument_system_metrics",
     ):
         instrument = getattr(logfire, name, None)
