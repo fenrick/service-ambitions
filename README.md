@@ -44,6 +44,12 @@ Run the CLI through Poetry to ensure it uses the managed environment:
 poetry run python -m service_ambitions.cli --input-file sample-services.jsonl --output-file ambitions.jsonl
 ```
 
+Alternatively, use the provided shell script which forwards all arguments to the CLI:
+
+```bash
+./run.sh --input-file sample-services.jsonl --output-file ambitions.jsonl
+```
+
 ## Usage
 
 `sample-services.jsonl` contains example services in
