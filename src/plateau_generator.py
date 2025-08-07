@@ -7,7 +7,7 @@ import logging
 
 from conversation import ConversationSession
 from loader import load_plateau_prompt
-from mapping import map_feature
+from mapping import map_features
 from models import PlateauFeature, PlateauResult, ServiceEvolution, ServiceInput
 
 logger = logging.getLogger(__name__)
@@ -64,8 +64,8 @@ class PlateauGenerator:
         The function requests a plateau-specific service description, then
         issues a single prompt asking for features for learners, staff and
         community. The response must provide at least ``required_count``
-        features for each customer type. Each feature is enriched using
-        :func:`map_feature` before being returned as part of a
+        features for each customer type. The list of features is enriched using
+        :func:`map_features` before being returned as part of a
         :class:`PlateauResult`.
         """
         if self._service is None:
@@ -100,17 +100,18 @@ class PlateauGenerator:
                     f"Insufficient number of features returned for {customer}"
                 )
             for item in raw_features:
-                feature = PlateauFeature(
-                    feature_id=item["feature_id"],
-                    name=item["name"],
-                    description=item["description"],
-                    score=float(item["score"]),
-                    customer_type=customer,
+                features.append(
+                    PlateauFeature(
+                        feature_id=item["feature_id"],
+                        name=item["name"],
+                        description=item["description"],
+                        score=float(item["score"]),
+                        customer_type=customer,
+                    )
                 )
-                mapped = map_feature(session, feature, self.prompt_dir)
-                features.append(mapped)
+        mapped = map_features(session, features)
         return PlateauResult(
-            plateau=level, service_description=description, features=features
+            plateau=level, service_description=description, features=mapped
         )
 
     def generate_service_evolution(
