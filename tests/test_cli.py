@@ -69,8 +69,9 @@ def test_cli_generates_output(tmp_path, monkeypatch):
 def test_cli_requires_api_key(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setattr(sys, "argv", ["main"])
-    with pytest.raises(RuntimeError):
+    with pytest.raises(RuntimeError) as excinfo:
         cli.main()
+    assert "openai_api_key" in str(excinfo.value)
 
 
 def test_cli_switches_context(tmp_path, monkeypatch):
@@ -217,3 +218,25 @@ def test_cli_enables_logfire(tmp_path, monkeypatch):
 
     assert captured["token"] == "lf-key"
     assert captured["service_name"] == "demo"
+
+
+def test_cli_rejects_invalid_concurrency(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "dummy")
+    monkeypatch.setattr(cli, "load_prompt", lambda *a, **k: "prompt")
+    monkeypatch.setattr(cli, "load_services", lambda *a, **k: [])
+    monkeypatch.setattr(cli, "build_model", lambda *a, **k: object())
+
+    argv = ["main", "--concurrency", "0", "--model", "test"]
+    monkeypatch.setattr(sys, "argv", argv)
+
+    with pytest.raises(ValueError, match="concurrency must be a positive integer"):
+        cli.main()
+
+
+def test_cli_help_shows_parameters(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["main", "--help"])
+    with pytest.raises(SystemExit):
+        cli.main()
+    out = capsys.readouterr().out
+    assert "Generate service ambitions" in out
+    assert "--concurrency" in out

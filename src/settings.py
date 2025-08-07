@@ -30,6 +30,8 @@ def load_settings() -> Settings:
     try:
         return Settings()  # type: ignore[call-arg]
     except ValidationError as exc:  # pragma: no cover - exercised in tests
-        raise RuntimeError(
-            "OPENAI_API_KEY is not set. Provide it via a .env file or a secret manager."
-        ) from exc
+        details = "; ".join(
+            f"{'.'.join(map(str, error['loc']))}: {error['msg']}"
+            for error in exc.errors()
+        )
+        raise RuntimeError(f"Invalid configuration: {details}") from exc

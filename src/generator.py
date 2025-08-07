@@ -24,6 +24,18 @@ class ServiceAmbitionGenerator:
     """Generate ambitions for services using a Pydantic AI model."""
 
     def __init__(self, model: models.Model, concurrency: int = 5) -> None:
+        """Initialize the generator.
+
+        Args:
+            model: Model used for ambition generation.
+            concurrency: Maximum number of concurrent requests.
+
+        Raises:
+            ValueError: If ``concurrency`` is less than one.
+        """
+
+        if concurrency < 1:
+            raise ValueError("concurrency must be a positive integer")
         self.model = model
         self.concurrency = concurrency
 
