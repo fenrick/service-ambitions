@@ -1,6 +1,6 @@
 """Tests for feature mapping."""
 
-import asyncio
+import json
 import sys
 from pathlib import Path
 
@@ -26,30 +26,47 @@ def test_map_feature_returns_mappings() -> None:
 
     session = DummySession(
         [
-            '{"mappings": [{"item": "API", "contribution": "Enables integration."}]}',
-            '{"mappings": []}',
-            '{"mappings": []}',
+            json.dumps(
+                {"data": [{"type": "User Data", "contribution": "Personalises."}]}
+            ),
+            json.dumps(
+                {
+                    "applications": [
+                        {"type": "Learning Platform", "contribution": "Delivers."}
+                    ]
+                }
+            ),
+            json.dumps(
+                {"technology": [{"type": "AI Engine", "contribution": "Enhances."}]}
+            ),
         ]
     )
     feature = PlateauFeature(
         feature_id="f1", name="Integration", description="Allows external access"
     )
 
-    result = asyncio.run(map_feature(session, feature))  # type: ignore[arg-type]
+    result = map_feature(session, feature)  # type: ignore[arg-type]
 
     assert isinstance(result, MappedPlateauFeature)
-    assert result.mappings[0].item == "API"
-    assert result.mappings[0].contribution == "Enables integration."
+    assert result.data[0].type == "User Data"
+    assert result.applications[0].type == "Learning Platform"
+    assert result.technology[0].type == "AI Engine"
 
 
 def test_map_feature_injects_reference_data() -> None:
     """The mapping prompts should include reference data lists."""
 
-    session = DummySession(['{"mappings": []}'] * 3)
+    session = DummySession(
+        [
+            json.dumps({"data": [{"type": "User", "contribution": "c"}]}),
+            json.dumps({"applications": [{"type": "App", "contribution": "c"}]}),
+            json.dumps({"technology": [{"type": "Tech", "contribution": "c"}]}),
+        ]
+    )
     feature = PlateauFeature(
         feature_id="f1", name="Integration", description="Allows external access"
     )
-    asyncio.run(map_feature(session, feature))  # type: ignore[arg-type]
+    map_feature(session, feature)  # type: ignore[arg-type]
 
     assert len(session.prompts) == 3
     assert "User Data" in session.prompts[0]

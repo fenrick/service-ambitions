@@ -9,7 +9,7 @@ from typing import Iterable
 
 from conversation import ConversationSession
 from loader import load_plateau_prompt
-from mapping import MappedPlateauFeature, map_feature
+from mapping import map_feature
 from models import PlateauFeature, PlateauResult, ServiceEvolution, ServiceInput
 
 logger = logging.getLogger(__name__)
@@ -87,9 +87,7 @@ class PlateauGenerator:
                 name=item["name"],
                 description=item["description"],
             )
-            mapped: MappedPlateauFeature = await map_feature(
-                self.session, feature, self.prompt_dir
-            )
+            mapped = map_feature(self.session, feature, self.prompt_dir)
             results.append(PlateauResult(feature=mapped, score=float(item["score"])))
         return results
 

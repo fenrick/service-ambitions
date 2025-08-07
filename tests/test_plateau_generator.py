@@ -38,7 +38,16 @@ def _feature_payload(count: int) -> str:
 
 
 def test_generate_plateau_returns_results() -> None:
-    responses = [_feature_payload(5)] + ['{"mappings": []}'] * 15
+    mapping_responses = []
+    for _ in range(5):
+        mapping_responses.extend(
+            [
+                json.dumps({"data": [{"type": "d", "contribution": "c"}]}),
+                json.dumps({"applications": [{"type": "a", "contribution": "c"}]}),
+                json.dumps({"technology": [{"type": "t", "contribution": "c"}]}),
+            ]
+        )
+    responses = [_feature_payload(5)] + mapping_responses
     session = DummySession(responses)
     generator = PlateauGenerator(cast(ConversationSession, session))
     service = ServiceInput(name="svc", customer_type="retail", description="desc")

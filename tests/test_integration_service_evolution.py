@@ -29,10 +29,15 @@ class DummySession:
         return self._responses.pop(0)
 
 
-async def _fake_map_feature(session, feature, prompt_dir):  # pragma: no cover - stub
-    from mapping import MappedPlateauFeature
+def _fake_map_feature(session, feature, prompt_dir):  # pragma: no cover - stub
+    from mapping import MappedPlateauFeature, TypeContribution
 
-    return MappedPlateauFeature(**feature.model_dump(), mappings=[])
+    return MappedPlateauFeature(
+        **feature.model_dump(),
+        data=[TypeContribution(type="d", contribution="c")],
+        applications=[TypeContribution(type="a", contribution="c")],
+        technology=[TypeContribution(type="t", contribution="c")],
+    )
 
 
 def _feature_payload() -> str:
