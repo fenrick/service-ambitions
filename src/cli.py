@@ -16,7 +16,10 @@ logger = logging.getLogger(__name__)
 def main() -> None:
     """Parse arguments and generate ambitions for each service."""
 
-    parser = argparse.ArgumentParser(description="Generate service ambitions")
+    parser = argparse.ArgumentParser(
+        description="Generate service ambitions",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     parser.add_argument(
         "--prompt-dir",
         default="prompts",
@@ -52,7 +55,7 @@ def main() -> None:
         "--concurrency",
         type=int,
         default=5,
-        help="Number of services to process concurrently",
+        help="Number of services to process concurrently (must be > 0)",
     )
     parser.add_argument(
         "--logfire-service",

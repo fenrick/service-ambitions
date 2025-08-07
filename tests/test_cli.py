@@ -231,3 +231,12 @@ def test_cli_rejects_invalid_concurrency(monkeypatch):
 
     with pytest.raises(ValueError, match="concurrency must be a positive integer"):
         cli.main()
+
+
+def test_cli_help_shows_parameters(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["main", "--help"])
+    with pytest.raises(SystemExit):
+        cli.main()
+    out = capsys.readouterr().out
+    assert "Generate service ambitions" in out
+    assert "--concurrency" in out
