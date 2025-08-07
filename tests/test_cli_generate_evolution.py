@@ -28,9 +28,7 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         def __init__(self, model: object) -> None:  # noqa: D401 - no behaviour
             self.model = model
 
-    async def fake_generate(
-        self, service: ServiceInput, plateaus, customers
-    ) -> ServiceEvolution:
+    def fake_generate(self, service: ServiceInput) -> ServiceEvolution:
         return ServiceEvolution(service=service, results=[])
 
     monkeypatch.setattr("cli.build_model", fake_build_model)

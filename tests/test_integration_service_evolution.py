@@ -1,22 +1,21 @@
 """Integration test for four-plateau service evolution."""
 
-import asyncio
 import json
 import sys
 from pathlib import Path
 from typing import cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from conversation import (  # noqa: E402  pylint: disable=wrong-import-position
+from conversation import (
     ConversationSession,
-)
-from models import (  # noqa: E402  pylint: disable=wrong-import-position
+)  # noqa: E402  pylint: disable=wrong-import-position
+from models import (
     ServiceEvolution,
     ServiceInput,
-)
-from plateau_generator import (  # noqa: E402  pylint: disable=wrong-import-position
+)  # noqa: E402  pylint: disable=wrong-import-position
+from plateau_generator import (
     PlateauGenerator,
-)
+)  # noqa: E402  pylint: disable=wrong-import-position
 
 
 class DummySession:
@@ -27,6 +26,11 @@ class DummySession:
 
     def ask(self, prompt: str) -> str:  # pragma: no cover - trivial
         return self._responses.pop(0)
+
+    def add_parent_materials(
+        self, service_input: ServiceInput
+    ) -> None:  # pragma: no cover - simple stub
+        pass
 
 
 def _fake_map_feature(session, feature, prompt_dir):  # pragma: no cover - stub
@@ -58,16 +62,17 @@ def _feature_payload() -> str:
 def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
     """``generate_service_evolution`` should aggregate all plateaus."""
 
-    responses = [_feature_payload() for _ in range(4)]
+    responses: list[str] = []
+    for _ in range(4):
+        responses.append(json.dumps({"description": "desc"}))
+        responses.extend([_feature_payload() for _ in range(3)])
     session = DummySession(responses)
     generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
 
     monkeypatch.setattr("plateau_generator.map_feature", _fake_map_feature)
 
     service = ServiceInput(name="svc", customer_type="retail", description="desc")
-    evolution = asyncio.run(
-        generator.generate_service_evolution(service, ["a", "b", "c", "d"], ["retail"])
-    )
+    evolution = generator.generate_service_evolution(service)
 
     assert isinstance(evolution, ServiceEvolution)
-    assert len(evolution.results) == 4
+    assert len(evolution.results) == 12
