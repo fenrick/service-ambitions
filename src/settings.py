@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
-from pydantic import ValidationError
+from pydantic import Field, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Environment-driven settings for the CLI."""
 
-    model: str = "o4-mini"
+    model: str = Field(
+        "openai:gpt-4o-mini",
+        description="Chat model in '<provider>:<model>' format.",
+    )
     log_level: str = "INFO"
     openai_api_key: str
     logfire_token: str | None = None

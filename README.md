@@ -17,7 +17,8 @@ For production deployments, inject the variable using your platform's secret
 manager instead of committing keys to source control.
 
 The chat model can be set with the `--model` flag or the `MODEL` environment
-variable.
+variable. Model identifiers must include a provider prefix, in the form
+`<provider>:<model>`. The default is `openai:gpt-4o-mini`.
 
 System prompts are assembled from modular markdown components located in the
 `prompts/` directory. Use `--prompt-dir` to point at an alternate component
