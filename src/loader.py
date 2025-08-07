@@ -7,9 +7,12 @@ import logging
 import os
 from typing import Any, Dict, Iterator
 
+import logfire
+
 logger = logging.getLogger(__name__)
 
 
+@logfire.instrument()
 def _read_file(path: str) -> str:
     """Return the contents of ``path``.
 
@@ -37,6 +40,7 @@ def _read_file(path: str) -> str:
         ) from exc
 
 
+@logfire.instrument()
 def load_prompt(
     base_dir: str,
     context_id: str,
@@ -79,6 +83,7 @@ def load_prompt(
     return "\n\n".join(parts)
 
 
+@logfire.instrument()
 def load_services(path: str) -> Iterator[Dict[str, Any]]:
     """Yield services from ``path`` in JSON Lines format.
 

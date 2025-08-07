@@ -8,6 +8,7 @@ import logging
 import os
 from typing import Any, Dict, Iterable
 
+import logfire
 from pydantic import BaseModel
 from pydantic_ai import Agent, models
 
@@ -23,6 +24,7 @@ class AmbitionModel(BaseModel):
 class ServiceAmbitionGenerator:
     """Generate ambitions for services using a Pydantic AI model."""
 
+    @logfire.instrument()
     def __init__(self, model: models.Model, concurrency: int = 5) -> None:
         """Initialize the generator.
 
@@ -39,6 +41,7 @@ class ServiceAmbitionGenerator:
         self.model = model
         self.concurrency = concurrency
 
+    @logfire.instrument()
     async def process_service(
         self, service: Dict[str, Any], prompt: str
     ) -> Dict[str, Any]:
@@ -49,6 +52,7 @@ class ServiceAmbitionGenerator:
         result = await agent.run(service_details, output_type=AmbitionModel)
         return result.output.model_dump()
 
+    @logfire.instrument()
     async def _worker(
         self,
         service: Dict[str, Any],
@@ -69,6 +73,7 @@ class ServiceAmbitionGenerator:
                 return
             output_file.write(f"{json.dumps(result)}\n")
 
+    @logfire.instrument()
     async def _process_all(
         self,
         services: Iterable[Dict[str, Any]],
@@ -83,6 +88,7 @@ class ServiceAmbitionGenerator:
             )
         )
 
+    @logfire.instrument()
     def generate(
         self,
         services: Iterable[Dict[str, Any]],
@@ -99,6 +105,7 @@ class ServiceAmbitionGenerator:
             raise
 
 
+@logfire.instrument()
 def build_model(model_name: str, api_key: str) -> models.Model:
     """Return a configured Pydantic AI model."""
 

@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import logging
 
+import logfire
+
 from generator import ServiceAmbitionGenerator, build_model
 from loader import load_prompt, load_services
 from monitoring import init_logfire
@@ -102,6 +104,7 @@ def main() -> None:
     generator = ServiceAmbitionGenerator(model, concurrency=args.concurrency)
     generator.generate(services, system_prompt, args.output_file)
     logger.info("Results written to %s", args.output_file)
+    logfire.force_flush()
 
 
 if __name__ == "__main__":

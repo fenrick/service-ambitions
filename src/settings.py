@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logfire
 from pydantic import Field, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
