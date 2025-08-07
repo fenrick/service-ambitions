@@ -36,7 +36,7 @@ def init_logfire(service: str | None = None, token: str | None = None) -> None:
         return
 
     logfire.configure(token=key, service_name=service)
-    logfire.install_auto_tracing()
+    logfire.install_auto_tracing([], min_duration=0, check_imported_modules="ignore")
     logfire.instrument_system_metrics(base="full")
 
     for name in (
