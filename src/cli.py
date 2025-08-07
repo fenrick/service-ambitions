@@ -5,10 +5,10 @@ from __future__ import annotations
 import argparse
 import logging
 
-from .generator import ServiceAmbitionGenerator, build_model
-from .loader import load_prompt, load_services
-from .monitoring import init_logfire
-from .settings import load_settings
+from generator import ServiceAmbitionGenerator, build_model
+from loader import load_prompt, load_services
+from monitoring import init_logfire
+from settings import load_settings
 
 logger = logging.getLogger(__name__)
 
@@ -83,3 +83,7 @@ def main() -> None:
 
     generator = ServiceAmbitionGenerator(model, concurrency=args.concurrency)
     generator.generate(services, system_prompt, args.output_file)
+
+
+if __name__ == "__main__":
+    main()
