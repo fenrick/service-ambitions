@@ -55,7 +55,8 @@ def _feature_payload(count: int) -> str:
         }
         for i in range(count)
     ]
-    return json.dumps({"features": items})
+    payload = {"learners": items, "staff": items, "community": items}
+    return json.dumps(payload)
 
 
 def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
@@ -64,15 +65,12 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
     responses: list[str] = []
     for _ in range(4):
         responses.append(json.dumps({"description": "desc"}))
-        responses.extend([_feature_payload(5) for _ in range(3)])
+        responses.append(_feature_payload(5))
     session = DummySession(responses)
     generator = PlateauGenerator(cast(ConversationSession, session), required_count=5)
 
     monkeypatch.setattr("plateau_generator.map_feature", _fake_map_feature)
-    template = (
-        "{required_count} {service_name} {service_description} "
-        "{plateau} {customer_type}"
-    )
+    template = "{required_count} {service_name} {service_description} {plateau}"
     monkeypatch.setattr(
         "plateau_generator.load_plateau_prompt", lambda *a, **k: template
     )

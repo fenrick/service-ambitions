@@ -62,8 +62,9 @@ class PlateauGenerator:
         """Return mapped plateau features for ``level``.
 
         The function requests a plateau-specific service description, then
-        generates at least ``required_count`` features for each customer type:
-        learners, staff and community. Each feature is enriched using
+        issues a single prompt asking for features for learners, staff and
+        community. The response must provide at least ``required_count``
+        features for each customer type. Each feature is enriched using
         :func:`map_feature` before being returned as part of a
         :class:`PlateauResult`.
         """
@@ -74,31 +75,30 @@ class PlateauGenerator:
 
         description = self._request_description(session, level)
         template = load_plateau_prompt(self.prompt_dir)
+        prompt = template.format(
+            required_count=self.required_count,
+            service_name=self._service.name,
+            service_description=description,
+            plateau=str(level),
+        )
+        logger.info("Requesting features for level=%s", level)
+        response = session.ask(prompt)
+        try:
+            payload = json.loads(response)
+        except json.JSONDecodeError as exc:  # pragma: no cover - logging
+            logger.error("Invalid JSON from feature response: %s", exc)
+            raise ValueError("Agent returned invalid JSON") from exc
 
         features: list[PlateauFeature] = []
         for customer in ("learners", "staff", "community"):
-            prompt = template.format(
-                required_count=self.required_count,
-                service_name=self._service.name,
-                service_description=description,
-                plateau=str(level),
-                customer_type=customer,
-            )
-            logger.info("Requesting features for level=%s customer=%s", level, customer)
-            response = session.ask(prompt)
-            try:
-                payload = json.loads(response)
-            except json.JSONDecodeError as exc:  # pragma: no cover - logging
-                logger.error("Invalid JSON from feature response: %s", exc)
-                raise ValueError("Agent returned invalid JSON") from exc
-
-            raw_features = payload.get("features")
+            raw_features = payload.get(customer)
             if (
                 not isinstance(raw_features, list)
                 or len(raw_features) < self.required_count
             ):
-                raise ValueError("Insufficient number of features returned")
-
+                raise ValueError(
+                    f"Insufficient number of features returned for {customer}"
+                )
             for item in raw_features:
                 feature = PlateauFeature(
                     feature_id=item["feature_id"],
