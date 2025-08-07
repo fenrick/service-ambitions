@@ -26,8 +26,10 @@ class DummySession:
 
     def __init__(self, responses: list[str]) -> None:
         self._responses = responses
+        self.prompts: list[str] = []
 
     def ask(self, prompt: str) -> str:  # pragma: no cover - simple proxy
+        self.prompts.append(prompt)
         return self._responses.pop(0)
 
 
@@ -74,6 +76,7 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
     assert isinstance(plateau, PlateauResult)
     assert len(plateau.features) == 3
     assert call["n"] == 1
+    assert len(session.prompts) == 2
 
 
 def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> None:
