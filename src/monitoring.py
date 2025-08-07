@@ -38,6 +38,10 @@ def init_logfire(service: str | None = None, token: str | None = None) -> None:
     logfire.configure(token=key, service_name=service)
     logfire.instrument_system_metrics(base="full")
 
+    install = getattr(logfire, "install_auto_tracing", None)
+    if install:
+        install(modules=[], min_duration=0)
+
     for name in (
         "instrument_pydantic_ai",
         "instrument_pydantic",
