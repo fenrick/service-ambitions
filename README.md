@@ -64,6 +64,19 @@ output file will also be in JSON Lines format. Use the `--concurrency` option to
 control how many services are processed in parallel when running
 `generate-ambitions`.
 
+## Plateau-first workflow
+
+Each service is evaluated through a 12-call sequence that generates and then
+maps features for successive plateaus:
+
+1. Generate features for the **Foundational**, **Enhanced** and
+   **Experimental** plateaus (3 calls).
+2. For each plateau, map the features to reference Data, Applications and
+   Technologies lists (9 calls).
+
+This plateau-first approach ensures features are produced before any mapping and
+forms a complete `ServiceEvolution` record for every service.
+
 ### Generating service evolutions
 
 Use the `generate-evolution` subcommand to score each service against plateau
@@ -84,7 +97,7 @@ Restrict evaluation to specific plateaus or customer types as needed:
   --input-file sample-services.jsonl --output-file evolution.jsonl
 ```
 
-## ServiceEvolution schema
+## ServiceEvolution JSON schema
 
 Each JSON line in the output file follows the `ServiceEvolution` schema:
 
@@ -107,8 +120,8 @@ Each JSON line in the output file follows the `ServiceEvolution` schema:
           "score": 0.0,
           "customer_type": "string",
           "data": [{"item": "string", "contribution": "string"}],
-          "applications": [{"item": "string", "contribution": "string"}],
-          "technology": [{"item": "string", "contribution": "string"}]
+"applications": [{"item": "string", "contribution": "string"}],
+"technology": [{"item": "string", "contribution": "string"}]
         }
       ]
     }
@@ -139,6 +152,46 @@ injected into mapping prompts so that features can be matched against consistent
 options. Mapping prompts run separately for information, applications and
 technologies to keep each decision focused.
 
+## Prompt examples
+
+### Plateau prompt
+
+```markdown
+# Plateau feature generation
+
+Generate service features for the {service_name} service at plateau {plateau}.
+
+## Instructions
+- Use the service description: {service_description}.
+- Return a single JSON object with three keys: "learners", "staff" and
+  "community".
+- Each key must map to an array containing at least {required_count} feature
+  objects.
+- Every feature must provide:
+  - "feature_id": unique string identifier.
+  - "name": short feature title.
+  - "description": explanation of the feature.
+  - "score": floating-point maturity between 0 and 1.
+- Do not include any text outside the JSON object.
+```
+
+### Mapping prompt
+
+```markdown
+# Feature mapping
+
+Map each feature to relevant Data, Applications and Technologies from the lists
+below.
+
+## Instructions
+- Return a JSON object with a top-level "features" array.
+- Each element must include "feature_id", "data", "applications" and
+  "technology" arrays.
+- Items in these arrays must provide "item" and "contribution" fields.
+- Use only identifiers from the provided lists.
+- Do not include any text outside the JSON object.
+```
+
 ## Testing
 
 Run the following checks before committing:
@@ -150,3 +203,8 @@ mypy .
 bandit -r src -ll
 pip-audit
 ```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines and mandatory
+quality checks.
