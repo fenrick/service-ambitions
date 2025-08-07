@@ -72,11 +72,6 @@ def main() -> None:
 
     settings = load_settings()
 
-    if settings.logfire_token or args.logfire_service:
-        init_logfire(args.logfire_service, settings.logfire_token)
-
-    logger = logging.getLogger(__name__)
-
     log_level_name = args.log_level or settings.log_level
     if args.verbose == 1:
         log_level_name = "INFO"
@@ -85,6 +80,9 @@ def main() -> None:
     logging.basicConfig(
         level=getattr(logging, log_level_name.upper(), logging.INFO), force=True
     )
+
+    if settings.logfire_token or args.logfire_service:
+        init_logfire(args.logfire_service, settings.logfire_token)
 
     api_key = settings.openai_api_key
 

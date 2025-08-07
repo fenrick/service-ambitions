@@ -27,8 +27,9 @@ directory, `--context-id` to select a situational context, and
 supports swapping sections to suit different industries.
 
 To collect detailed traces with [Pydantic Logfire](https://logfire.pydantic.dev/),
-set the `LOGFIRE_TOKEN` environment variable and optionally supply a
-service name via `--logfire-service`.
+set the `LOGFIRE_TOKEN` environment variable and optionally supply a service
+name via `--logfire-service`. The CLI automatically instruments Pydantic,
+Pydantic AI, OpenAI, and system metrics when Logfire is enabled.
 
 ## Installation
 
