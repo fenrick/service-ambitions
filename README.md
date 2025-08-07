@@ -66,6 +66,31 @@ control how many services are processed in parallel when running
 
 The `generate-evolution` subcommand produces plateau feature evolutions for each
 service. Pass `-v` for informative logs or `-vv` for detailed debugging output.
+Use `--plateaus` and `--customers` to control what is evaluated:
+
+```bash
+./run.sh generate-evolution --plateaus Foundational Enhanced --customers retail enterprise
+```
+
+## Output schema
+
+Each JSON line is a service evolution record:
+
+```json
+{
+  "service": {"name": "string", "description": "string"},
+  "results": [
+    {
+      "feature": {
+        "feature_id": "string",
+        "name": "string",
+        "description": "string"
+      },
+      "score": 0.0
+    }
+  ]
+}
+```
 
 ## Reference Data
 
@@ -75,3 +100,15 @@ contains items with identifiers, names, and descriptions. These lists are
 injected into mapping prompts so that features can be matched against consistent
 options. Mapping prompts run separately for information, applications and
 technologies to keep each decision focused.
+
+## Testing
+
+Run the following checks before committing:
+
+```bash
+black .
+ruff .
+mypy .
+bandit -r src -ll
+pip-audit
+```
