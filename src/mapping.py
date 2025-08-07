@@ -92,6 +92,7 @@ def map_feature(
             feature_description=feature.description,
             category_label=label,
             category_items=_render_items(mapping_items[item_key]),
+            category_key=key,
         )
         logger.debug("Requesting %s mappings for feature %s", key, feature.feature_id)
         response = session.ask(prompt)

@@ -42,8 +42,13 @@ def _read_file(path: str) -> str:
 
 
 @logfire.instrument()
-def load_plateau_prompt(base_dir: str, filename: str = "plateau_prompt.md") -> str:
+def load_plateau_prompt(
+    base_dir: str = "prompts", filename: str = "plateau_prompt.md"
+) -> str:
     """Return the plateau feature generation prompt template.
+
+    The template includes detailed instructions and an example of the expected
+    JSON response to guide the agent.
 
     Args:
         base_dir: Directory containing prompt templates.
@@ -61,8 +66,13 @@ def load_plateau_prompt(base_dir: str, filename: str = "plateau_prompt.md") -> s
 
 
 @logfire.instrument()
-def load_mapping_prompt(base_dir: str, filename: str = "mapping_prompt.md") -> str:
+def load_mapping_prompt(
+    base_dir: str = "prompts", filename: str = "mapping_prompt.md"
+) -> str:
     """Return the feature mapping prompt template.
+
+    The template instructs the agent to create category-specific mappings and
+    shows the required JSON structure.
 
     Args:
         base_dir: Directory containing prompt templates.
