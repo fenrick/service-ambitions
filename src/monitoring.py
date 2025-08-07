@@ -17,9 +17,10 @@ def init_logfire(service: str | None = None, token: str | None = None) -> None:
         token: Logfire API token. Falls back to ``LOGFIRE_TOKEN`` env var.
 
     When the token is provided and the ``logfire`` package is installed this
-    function configures the Logfire SDK, instruments Pydantic, Pydantic AI,
-    OpenAI and system metrics, and attaches a Logfire logging handler to the
-    root logger, replacing existing handlers to avoid duplicate output. If either
+    function configures the Logfire SDK, enables auto tracing, instruments
+    Pydantic, Pydantic AI, OpenAI and system metrics, and attaches a Logfire
+    logging handler to the root logger, replacing existing handlers to avoid
+    duplicate output. If either
     condition is not met the setup is skipped.
     """
 
@@ -35,7 +36,8 @@ def init_logfire(service: str | None = None, token: str | None = None) -> None:
         return
 
     logfire.configure(token=key, service_name=service)
-    logfire.instrument_system_metrics(base='full')
+    logfire.install_auto_tracing()
+    logfire.instrument_system_metrics(base="full")
 
     for name in (
         "instrument_pydantic_ai",

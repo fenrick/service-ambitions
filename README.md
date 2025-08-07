@@ -28,8 +28,9 @@ supports swapping sections to suit different industries.
 
 To collect detailed traces with [Pydantic Logfire](https://logfire.pydantic.dev/),
 set the `LOGFIRE_TOKEN` environment variable and optionally supply a service
-name via `--logfire-service`. The CLI automatically instruments Pydantic,
-Pydantic AI, OpenAI, and system metrics when Logfire is enabled.
+ name via `--logfire-service`. The CLI automatically installs Logfire auto
+ tracing and instruments Pydantic, Pydantic AI, OpenAI, and system metrics when
+ Logfire is enabled.
 
 ## Installation
 

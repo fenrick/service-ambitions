@@ -194,11 +194,19 @@ def test_cli_enables_logfire(tmp_path, monkeypatch):
     )
 
     captured: dict[str, str | None] = {}
+    called: dict[str, bool] = {"installed": False}
 
     def fake_configure(**kwargs):  # type: ignore[no-untyped-def]
         captured.update(kwargs)
 
-    dummy_module = SimpleNamespace(configure=fake_configure)
+    def fake_install() -> None:  # type: ignore[no-untyped-def]
+        called["installed"] = True
+
+    dummy_module = SimpleNamespace(
+        configure=fake_configure,
+        instrument_system_metrics=lambda **kwargs: None,
+        install_auto_tracing=fake_install,
+    )
     monkeypatch.setitem(sys.modules, "logfire", dummy_module)
 
     argv = [
@@ -218,6 +226,7 @@ def test_cli_enables_logfire(tmp_path, monkeypatch):
 
     assert captured["token"] == "lf-key"
     assert captured["service_name"] == "demo"
+    assert called["installed"]
 
 
 def test_cli_rejects_invalid_concurrency(monkeypatch):
