@@ -16,7 +16,7 @@ class DummySession:
         self._responses = iter(responses)
         self.prompts: list[str] = []
 
-    async def ask(self, prompt: str) -> str:  # pragma: no cover - trivial
+    def ask(self, prompt: str) -> str:  # pragma: no cover - trivial
         self.prompts.append(prompt)
         return next(self._responses)
 

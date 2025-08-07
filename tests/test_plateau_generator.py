@@ -20,7 +20,7 @@ class DummySession:
     def __init__(self, responses: list[str]) -> None:
         self._responses = responses
 
-    async def ask(self, prompt: str) -> str:  # pragma: no cover - simple proxy
+    def ask(self, prompt: str) -> str:  # pragma: no cover - simple proxy
         return self._responses.pop(0)
 
 

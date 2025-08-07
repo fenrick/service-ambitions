@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import TYPE_CHECKING, Any
@@ -86,7 +87,7 @@ async def map_feature(
         )
 
         logger.debug("Requesting %s mappings for feature %s", key, feature.feature_id)
-        response = await session.ask(prompt)
+        response = await asyncio.to_thread(session.ask, prompt)
         logger.debug("Raw %s mapping response: %s", key, response)
 
         try:
