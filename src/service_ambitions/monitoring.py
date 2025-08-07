@@ -1,39 +1,39 @@
-"""Helpers for enabling LangSmith tracing."""
+"""Helpers for enabling Pydantic Logfire telemetry."""
 
 from __future__ import annotations
 
+import importlib
 import logging
 import os
-
-from langsmith import Client
 
 logger = logging.getLogger(__name__)
 
 
-def init_langsmith(project: str | None = None) -> None:
-    """Enable LangSmith tracing if configured.
+def init_logfire(service: str | None = None, token: str | None = None) -> None:
+    """Configure Logfire if a token is available.
 
     Args:
-        project: Optional name for the LangSmith project.
+        service: Optional service name to associate with traces.
+        token: Logfire API token. Falls back to ``LOGFIRE_TOKEN`` env var.
 
-    When the ``LANGSMITH_API_KEY`` environment variable is present this
-    function activates LangSmith's tracing support by setting the appropriate
-    environment variables. If ``project`` is given, traces are grouped under
-    that project.
+    When the token is provided and the ``logfire`` package is installed this
+    function configures the Logfire SDK. If either condition is not met the
+    setup is skipped.
     """
 
-    api_key = os.getenv("LANGSMITH_API_KEY")
-    if not api_key:
-        logger.debug("LANGSMITH_API_KEY not set; skipping LangSmith setup")
+    key = token or os.getenv("LOGFIRE_TOKEN")
+    if not key:
+        logger.debug("LOGFIRE_TOKEN not set; skipping Logfire setup")
         return
 
-    os.environ["LANGCHAIN_TRACING_V2"] = "true"
-    os.environ["LANGCHAIN_API_KEY"] = api_key
-    if project:
-        os.environ["LANGCHAIN_PROJECT"] = project
+    try:
+        logfire = importlib.import_module("logfire")
+    except ImportError:  # pragma: no cover - depends on optional package
+        logger.warning("logfire package not installed; skipping Logfire setup")
+        return
 
-    Client()
+    logfire.configure(token=key, service_name=service)
     logger.info(
-        "LangSmith tracing enabled%s",
-        f" for project {project}" if project else "",
+        "Logfire telemetry enabled%s",
+        f" for service {service}" if service else "",
     )

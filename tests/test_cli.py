@@ -1,5 +1,4 @@
 import json
-import os
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -13,8 +12,17 @@ from service_ambitions.generator import ServiceAmbitionGenerator
 
 
 def test_cli_generates_output(tmp_path, monkeypatch):
-    prompt_file = tmp_path / "prompt.md"
-    prompt_file.write_text("You are a helpful assistant.")
+    base = tmp_path / "prompts"
+    (base / "situational_context").mkdir(parents=True)
+    (base / "inspirations").mkdir(parents=True)
+    (base / "situational_context" / "ctx.md").write_text(
+        "You are a helpful assistant.", encoding="utf-8"
+    )
+    (base / "service_feature_plateaus.md").write_text("p", encoding="utf-8")
+    (base / "definitions.md").write_text("d", encoding="utf-8")
+    (base / "inspirations" / "insp.md").write_text("i", encoding="utf-8")
+    (base / "task_definition.md").write_text("t", encoding="utf-8")
+    (base / "response_structure.md").write_text("r", encoding="utf-8")
 
     input_file = tmp_path / "services.jsonl"
     input_file.write_text('{"name": "alpha"}\n{"name": "beta"}\n')
@@ -22,7 +30,6 @@ def test_cli_generates_output(tmp_path, monkeypatch):
     output_file = tmp_path / "output.jsonl"
 
     monkeypatch.setenv("OPENAI_API_KEY", "dummy")
-    monkeypatch.setattr(generator, "ChatOpenAI", lambda **_: SimpleNamespace())
 
     async def fake_process_service(self, service, prompt):
         return {"service": service["name"], "prompt": prompt[:3]}
@@ -33,14 +40,20 @@ def test_cli_generates_output(tmp_path, monkeypatch):
 
     argv = [
         "main",
-        "--prompt-file",
-        str(prompt_file),
+        "--prompt-dir",
+        str(base),
+        "--context-id",
+        "ctx",
+        "--inspirations-id",
+        "insp",
         "--input-file",
         str(input_file),
         "--output-file",
         str(output_file),
         "--concurrency",
         "2",
+        "--model",
+        "test",
     ]
     monkeypatch.setattr(sys, "argv", argv)
 
@@ -60,15 +73,23 @@ def test_cli_requires_api_key(monkeypatch):
         cli.main()
 
 
-def test_cli_uses_prompt_id(tmp_path, monkeypatch):
+def test_cli_switches_context(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    (tmp_path / "prompt-special.md").write_text("Special prompt")
+    base = tmp_path / "prompts"
+    (base / "situational_context").mkdir(parents=True)
+    (base / "inspirations").mkdir(parents=True)
+    (base / "situational_context" / "alpha.md").write_text("Alpha", encoding="utf-8")
+    (base / "situational_context" / "beta.md").write_text("Beta", encoding="utf-8")
+    (base / "service_feature_plateaus.md").write_text("p", encoding="utf-8")
+    (base / "definitions.md").write_text("d", encoding="utf-8")
+    (base / "inspirations" / "general.md").write_text("i", encoding="utf-8")
+    (base / "task_definition.md").write_text("t", encoding="utf-8")
+    (base / "response_structure.md").write_text("r", encoding="utf-8")
     input_file = tmp_path / "services.jsonl"
     input_file.write_text('{"name": "alpha"}\n')
     output_file = tmp_path / "output.jsonl"
 
     monkeypatch.setenv("OPENAI_API_KEY", "dummy")
-    monkeypatch.setattr(generator, "ChatOpenAI", lambda **_: SimpleNamespace())
 
     async def fake_process_service(self, service, prompt):
         return {"prompt": prompt}
@@ -79,39 +100,50 @@ def test_cli_uses_prompt_id(tmp_path, monkeypatch):
 
     argv = [
         "main",
-        "--prompt-id",
-        "special",
+        "--context-id",
+        "beta",
         "--input-file",
         str(input_file),
         "--output-file",
         str(output_file),
+        "--model",
+        "test",
     ]
     monkeypatch.setattr(sys, "argv", argv)
 
     cli.main()
 
     line = json.loads(output_file.read_text().strip())
-    assert line["prompt"] == "Special prompt"
+    assert line["prompt"].startswith("Beta")
 
 
 def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    (tmp_path / "prompt.md").write_text("Prompt")
+    base = tmp_path / "prompts"
+    (base / "situational_context").mkdir(parents=True)
+    (base / "inspirations").mkdir(parents=True)
+    (base / "situational_context" / "university.md").write_text("ctx", encoding="utf-8")
+    (base / "service_feature_plateaus.md").write_text("p", encoding="utf-8")
+    (base / "definitions.md").write_text("d", encoding="utf-8")
+    (base / "inspirations" / "general.md").write_text("i", encoding="utf-8")
+    (base / "task_definition.md").write_text("t", encoding="utf-8")
+    (base / "response_structure.md").write_text("r", encoding="utf-8")
     input_file = tmp_path / "services.jsonl"
     input_file.write_text('{"name": "alpha"}\n')
     output_file = tmp_path / "output.jsonl"
 
     monkeypatch.setenv("OPENAI_API_KEY", "dummy")
     monkeypatch.setenv("MODEL", "test-model")
-    monkeypatch.setenv("RESPONSE_FORMAT", "json_schema")
 
-    captured = {}
+    captured: dict[str, str] = {}
 
-    def fake_chat_openai(**kwargs):
-        captured.update(kwargs)
-        return SimpleNamespace()
+    def fake_build_model(model_name: str, api_key: str):
+        captured["model"] = model_name
+        captured["api_key"] = api_key
+        return "test"
 
-    monkeypatch.setattr(generator, "ChatOpenAI", fake_chat_openai)
+    monkeypatch.setattr(generator, "build_model", fake_build_model)
+    monkeypatch.setattr(cli, "build_model", fake_build_model)
 
     async def fake_process_service(self, service, prompt):
         return {"ok": True}
@@ -133,32 +165,40 @@ def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
 
     assert captured["model"] == "test-model"
     assert captured["api_key"] == "dummy"
-    assert captured["response_format"] == "json_schema"
 
 
-def test_cli_response_format_flag(tmp_path, monkeypatch):
+def test_cli_enables_logfire(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    (tmp_path / "prompt.md").write_text("Prompt")
+    base = tmp_path / "prompts"
+    (base / "situational_context").mkdir(parents=True)
+    (base / "inspirations").mkdir(parents=True)
+    (base / "situational_context" / "university.md").write_text("ctx", encoding="utf-8")
+    (base / "service_feature_plateaus.md").write_text("p", encoding="utf-8")
+    (base / "definitions.md").write_text("d", encoding="utf-8")
+    (base / "inspirations" / "general.md").write_text("i", encoding="utf-8")
+    (base / "task_definition.md").write_text("t", encoding="utf-8")
+    (base / "response_structure.md").write_text("r", encoding="utf-8")
     input_file = tmp_path / "services.jsonl"
     input_file.write_text('{"name": "alpha"}\n')
     output_file = tmp_path / "output.jsonl"
 
     monkeypatch.setenv("OPENAI_API_KEY", "dummy")
+    monkeypatch.setenv("LOGFIRE_TOKEN", "lf-key")
 
-    captured = {}
+    async def fake_process_service(self, service, prompt):
+        return {"ok": True}
 
-    def fake_chat_openai(**kwargs):
+    monkeypatch.setattr(
+        ServiceAmbitionGenerator, "process_service", fake_process_service
+    )
+
+    captured: dict[str, str | None] = {}
+
+    def fake_configure(**kwargs):  # type: ignore[no-untyped-def]
         captured.update(kwargs)
-        return SimpleNamespace()
 
-    monkeypatch.setattr(generator, "ChatOpenAI", fake_chat_openai)
-
-    async def fake_process_service(self, service, prompt):
-        return {"ok": True}
-
-    monkeypatch.setattr(
-        ServiceAmbitionGenerator, "process_service", fake_process_service
-    )
+    dummy_module = SimpleNamespace(configure=fake_configure)
+    monkeypatch.setitem(sys.modules, "logfire", dummy_module)
 
     argv = [
         "main",
@@ -166,55 +206,14 @@ def test_cli_response_format_flag(tmp_path, monkeypatch):
         str(input_file),
         "--output-file",
         str(output_file),
-        "--response-format",
-        "json_schema",
-    ]
-    monkeypatch.setattr(sys, "argv", argv)
-
-    cli.main()
-
-    assert captured["response_format"] == "json_schema"
-
-
-def test_cli_enables_langsmith(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / "prompt.md").write_text("Prompt")
-    input_file = tmp_path / "services.jsonl"
-    input_file.write_text('{"name": "alpha"}\n')
-    output_file = tmp_path / "output.jsonl"
-
-    monkeypatch.setenv("OPENAI_API_KEY", "dummy")
-    monkeypatch.setenv("LANGSMITH_API_KEY", "ls-key")
-    monkeypatch.delenv("LANGCHAIN_TRACING_V2", raising=False)
-    monkeypatch.delenv("LANGCHAIN_API_KEY", raising=False)
-    monkeypatch.delenv("LANGCHAIN_PROJECT", raising=False)
-
-    monkeypatch.setattr(generator, "ChatOpenAI", lambda **_: SimpleNamespace())
-
-    async def fake_process_service(self, service, prompt):
-        return {"ok": True}
-
-    monkeypatch.setattr(
-        ServiceAmbitionGenerator, "process_service", fake_process_service
-    )
-
-    monkeypatch.setattr(
-        "service_ambitions.monitoring.Client", lambda: SimpleNamespace()
-    )
-
-    argv = [
-        "main",
-        "--input-file",
-        str(input_file),
-        "--output-file",
-        str(output_file),
-        "--langsmith-project",
+        "--logfire-service",
         "demo",
+        "--model",
+        "test",
     ]
     monkeypatch.setattr(sys, "argv", argv)
 
     cli.main()
 
-    assert os.environ["LANGCHAIN_TRACING_V2"] == "true"
-    assert os.environ["LANGCHAIN_API_KEY"] == "ls-key"
-    assert os.environ["LANGCHAIN_PROJECT"] == "demo"
+    assert captured["token"] == "lf-key"
+    assert captured["service_name"] == "demo"

@@ -9,11 +9,10 @@ authors = [
 requires-python = ">= 3.11,<4"
 dependencies = [
 "openai" ,
-"langchain" ,
-"langchain-core" ,
-"langchain-openai",
-"langsmith",
-"python-dotenv",
+"pydantic-ai",
+"logfire",
+"pydantic",
+"pydantic-settings",
 ]
 
 [tool.poetry.group.dev.dependencies]

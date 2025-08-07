@@ -3,8 +3,9 @@
 ## Configuration
 
 The CLI requires an OpenAI API key available in the `OPENAI_API_KEY` environment
-variable. The key is loaded after `.env` files are processed and the application
-will exit if the variable is missing.
+variable. Settings are loaded via Pydantic, which reads from a `.env` file if
+present. The application will exit if the key is missing. LLM interactions are
+handled via [Pydantic AI](https://pydantic.dev/pydantic-ai/).
 
 Create a `.env` file in the project root with:
 
@@ -16,13 +17,17 @@ For production deployments, inject the variable using your platform's secret
 manager instead of committing keys to source control.
 
 The chat model can be set with the `--model` flag or the `MODEL` environment
-variable. Additional parameters such as the desired `response_format` may be
-provided with the `--response-format` flag or the `RESPONSE_FORMAT` environment
 variable.
 
-To collect detailed traces with [LangSmith](https://docs.smith.langchain.com/),
-set the `LANGSMITH_API_KEY` environment variable and optionally supply a
-project name via `--langsmith-project`.
+System prompts are assembled from modular markdown components located in the
+`prompts/` directory. Use `--prompt-dir` to point at an alternate component
+directory, `--context-id` to select a situational context, and
+`--inspirations-id` to choose a list of future inspirations. This structure
+supports swapping sections to suit different industries.
+
+To collect detailed traces with [Pydantic Logfire](https://logfire.pydantic.dev/),
+set the `LOGFIRE_TOKEN` environment variable and optionally supply a
+service name via `--logfire-service`.
 
 ## Installation
 

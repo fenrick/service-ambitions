@@ -1,16 +1,15 @@
-"""Async ambition generation using chat models."""
+"""Async ambition generation using Pydantic AI."""
 
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
-from typing import Any, Dict, Iterable, cast
+import os
+from typing import Any, Dict, Iterable
 
-from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
+from pydantic_ai import Agent, models
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +21,9 @@ class AmbitionModel(BaseModel):
 
 
 class ServiceAmbitionGenerator:
-    """Generate ambitions for services using a chat model."""
+    """Generate ambitions for services using a Pydantic AI model."""
 
-    def __init__(self, model: BaseChatModel, concurrency: int = 5) -> None:
+    def __init__(self, model: models.Model, concurrency: int = 5) -> None:
         self.model = model
         self.concurrency = concurrency
 
@@ -33,18 +32,10 @@ class ServiceAmbitionGenerator:
     ) -> Dict[str, Any]:
         """Generate ambitions for ``service`` asynchronously."""
 
-        prompt_template = ChatPromptTemplate(
-            [("system", "{system_prompt}"), ("user", "{user_prompt}")]
-        )
-        chain = cast(
-            Any, prompt_template | self.model.with_structured_output(AmbitionModel)
-        )
+        agent = Agent(self.model, instructions=prompt)
         service_details = json.dumps(service)
-        result: BaseModel = await asyncio.to_thread(
-            chain.invoke,
-            {"system_prompt": prompt, "user_prompt": service_details},
-        )
-        return result.model_dump()
+        result = await agent.run(service_details, output_type=AmbitionModel)
+        return result.output.model_dump()
 
     async def _worker(
         self,
@@ -96,12 +87,9 @@ class ServiceAmbitionGenerator:
             raise
 
 
-def build_model(
-    model_name: str, api_key: str, response_format: str | None
-) -> ChatOpenAI:
-    """Return a configured :class:`ChatOpenAI` instance."""
+def build_model(model_name: str, api_key: str) -> models.Model:
+    """Return a configured Pydantic AI model."""
 
-    model_kwargs: Dict[str, Any] = {"model": model_name, "api_key": api_key}
-    if response_format:
-        model_kwargs["response_format"] = response_format
-    return ChatOpenAI(**model_kwargs)
+    if api_key:
+        os.environ.setdefault("OPENAI_API_KEY", api_key)
+    return models.infer_model(model_name)
