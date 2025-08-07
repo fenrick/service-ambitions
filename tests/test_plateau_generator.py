@@ -40,14 +40,12 @@ def _feature_payload(count: int) -> str:
         }
         for i in range(count)
     ]
-    return json.dumps({"features": items})
+    payload = {"learners": items, "staff": items, "community": items}
+    return json.dumps(payload)
 
 
 def test_generate_plateau_returns_results(monkeypatch) -> None:
-    template = (
-        "{required_count} {service_name} {service_description} "
-        "{plateau} {customer_type}"
-    )
+    template = "{required_count} {service_name} {service_description} {plateau}"
     monkeypatch.setattr(
         "plateau_generator.load_plateau_prompt", lambda *a, **k: template
     )
@@ -56,16 +54,15 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
         "{category_items} {category_key}"
     )
     monkeypatch.setattr("mapping.load_mapping_prompt", lambda *a, **k: mapping_template)
-    responses = [json.dumps({"description": "desc"})]
-    for _ in range(3):
-        responses.append(_feature_payload(1))
-        responses.extend(
-            [
-                json.dumps({"data": [{"item": "d", "contribution": "c"}]}),
-                json.dumps({"applications": [{"item": "a", "contribution": "c"}]}),
-                json.dumps({"technology": [{"item": "t", "contribution": "c"}]}),
-            ]
-        )
+    responses = [json.dumps({"description": "desc"}), _feature_payload(1)]
+    responses.extend(
+        [
+            json.dumps({"data": [{"item": "d", "contribution": "c"}]}),
+            json.dumps({"applications": [{"item": "a", "contribution": "c"}]}),
+            json.dumps({"technology": [{"item": "t", "contribution": "c"}]}),
+        ]
+        * 3
+    )
     session = DummySession(responses)
     generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
     service = ServiceInput(name="svc", customer_type="retail", description="desc")
@@ -78,10 +75,7 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
 
 
 def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> None:
-    template = (
-        "{required_count} {service_name} {service_description} "
-        "{plateau} {customer_type}"
-    )
+    template = "{required_count} {service_name} {service_description} {plateau}"
     monkeypatch.setattr(
         "plateau_generator.load_plateau_prompt", lambda *a, **k: template
     )
@@ -96,10 +90,7 @@ def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> None:
 
 
 def test_request_description_invalid_json(monkeypatch) -> None:
-    template = (
-        "{required_count} {service_name} {service_description} "
-        "{plateau} {customer_type}"
-    )
+    template = "{required_count} {service_name} {service_description} {plateau}"
     monkeypatch.setattr(
         "plateau_generator.load_plateau_prompt", lambda *a, **k: template
     )
