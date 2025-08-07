@@ -33,6 +33,13 @@ def init_logfire(service: str | None = None, token: str | None = None) -> None:
         return
 
     logfire.configure(token=key, service_name=service)
+    logfire.instrument_pydantic_ai()
+    logfire.instrument_pydantic()
+    logfire.instrument_system_metrics()
+
+    logging.basicConfig(handlers=[logfire.LogfireLoggingHandler()])
+    logger = logging.getLogger(__name__)
+
     logger.info(
         "Logfire telemetry enabled%s",
         f" for service {service}" if service else "",
