@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 
-from loader import load_mapping_prompt
+from loader import load_mapping_items, load_mapping_prompt
 from models import PlateauFeature
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
@@ -35,6 +35,14 @@ class MappedPlateauFeature(PlateauFeature):
     )
 
 
+def _render_items(items: list[dict[str, str]]) -> str:
+    """Return a bullet list representation of mapping items."""
+
+    return "\n".join(
+        f"- {entry['id']}: {entry['name']} - {entry['description']}" for entry in items
+    )
+
+
 async def map_feature(
     session: ConversationSession,
     feature: PlateauFeature,
@@ -42,10 +50,10 @@ async def map_feature(
 ) -> MappedPlateauFeature:
     """Return ``feature`` augmented with contribution mappings.
 
-    The function prompts the provided ``session`` to generate mapping data for the
-    given ``feature``. The agent is expected to respond with JSON containing a
-    ``mappings`` key whose value is a list of objects with ``item`` and
-    ``contribution`` fields.
+    The function prompts the provided ``session`` three times to generate mapping
+    data for the given ``feature``—once each for information, applications and
+    technologies. Each agent response must contain a ``mappings`` key whose value
+    is a list of objects with ``item`` and ``contribution`` fields.
 
     Args:
         session: Active conversation session used to query the agent.
@@ -61,25 +69,38 @@ async def map_feature(
     """
 
     template = load_mapping_prompt(prompt_dir)
-    prompt = template.format(
-        feature_name=feature.name, feature_description=feature.description
+    mapping_items = load_mapping_items()
+    mappings: list[MappingItem] = []
+    categories = (
+        ("information", "Information"),
+        ("applications", "Applications"),
+        ("technologies", "Technologies"),
     )
 
-    logger.debug("Requesting mappings for feature %s", feature.feature_id)
-    response = await session.ask(prompt)
-    logger.debug("Raw mapping response: %s", response)
+    for key, label in categories:
+        prompt = template.format(
+            feature_name=feature.name,
+            feature_description=feature.description,
+            category_label=label,
+            category_items=_render_items(mapping_items[key]),
+        )
 
-    try:
-        payload: dict[str, Any] = json.loads(response)
-    except json.JSONDecodeError as exc:  # pragma: no cover - logging
-        logger.error("Invalid JSON from mapping response: %s", exc)
-        raise ValueError("Agent returned invalid JSON") from exc
+        logger.debug("Requesting %s mappings for feature %s", key, feature.feature_id)
+        response = await session.ask(prompt)
+        logger.debug("Raw %s mapping response: %s", key, response)
 
-    raw_mappings = payload.get("mappings", [])
-    if not isinstance(raw_mappings, list):
-        raise ValueError("'mappings' key missing or not a list")
+        try:
+            payload: dict[str, Any] = json.loads(response)
+        except json.JSONDecodeError as exc:  # pragma: no cover - logging
+            logger.error("Invalid JSON from mapping response: %s", exc)
+            raise ValueError("Agent returned invalid JSON") from exc
 
-    mappings = [MappingItem(**item) for item in raw_mappings]
+        raw_mappings = payload.get("mappings", [])
+        if not isinstance(raw_mappings, list):
+            raise ValueError("'mappings' key missing or not a list")
+
+        mappings.extend(MappingItem(**item) for item in raw_mappings)
+
     return MappedPlateauFeature(**feature.model_dump(), mappings=mappings)
 
 
