@@ -25,8 +25,10 @@ class DummySession:
 
     def __init__(self, responses: list[str]) -> None:
         self._responses = responses
+        self.prompts: list[str] = []
 
     def ask(self, prompt: str) -> str:  # pragma: no cover - trivial
+        self.prompts.append(prompt)
         return self._responses.pop(0)
 
     def add_parent_materials(
@@ -86,3 +88,9 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
     assert len(evolution.plateaus) == 4
     assert sum(len(p.features) for p in evolution.plateaus) == 60
     assert all(len(p.features) >= 15 for p in evolution.plateaus)
+    assert len(session.prompts) == 8
+    for plateau in evolution.plateaus:
+        for feature in plateau.features:
+            assert feature.data
+            assert feature.applications
+            assert feature.technology
