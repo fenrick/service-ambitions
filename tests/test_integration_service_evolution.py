@@ -9,13 +9,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from conversation import (
     ConversationSession,
 )  # noqa: E402  pylint: disable=wrong-import-position
-from models import (
+from models import (  # noqa: E402  pylint: disable=wrong-import-position
+    Contribution,
+    PlateauFeature,
     ServiceEvolution,
     ServiceInput,
-)  # noqa: E402  pylint: disable=wrong-import-position
-from plateau_generator import (
+)
+from plateau_generator import (  # noqa: E402  pylint: disable=wrong-import-position
     PlateauGenerator,
-)  # noqa: E402  pylint: disable=wrong-import-position
+)
 
 
 class DummySession:
@@ -34,14 +36,13 @@ class DummySession:
 
 
 def _fake_map_feature(session, feature, prompt_dir):  # pragma: no cover - stub
-    from mapping import MappedPlateauFeature, TypeContribution
-
-    return MappedPlateauFeature(
-        **feature.model_dump(),
-        data=[TypeContribution(type="d", contribution="c")],
-        applications=[TypeContribution(type="a", contribution="c")],
-        technology=[TypeContribution(type="t", contribution="c")],
+    payload = feature.model_dump()
+    payload.update(
+        data=[Contribution(item="d", contribution="c")],
+        applications=[Contribution(item="a", contribution="c")],
+        technology=[Contribution(item="t", contribution="c")],
     )
+    return PlateauFeature(**payload)
 
 
 def _feature_payload(count: int) -> str:
@@ -79,5 +80,6 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
     service = ServiceInput(name="svc", customer_type="retail", description="desc")
     evolution = generator.generate_service_evolution(service)
     assert isinstance(evolution, ServiceEvolution)
-    assert len(evolution.results) == 60
-    assert len(evolution.results) // 4 >= 15
+    assert len(evolution.plateaus) == 4
+    assert sum(len(p.features) for p in evolution.plateaus) == 60
+    assert all(len(p.features) >= 15 for p in evolution.plateaus)

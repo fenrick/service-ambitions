@@ -6,41 +6,13 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, Field
-
 from loader import load_mapping_items, load_mapping_prompt
-from models import PlateauFeature
+from models import Contribution, PlateauFeature
 
 if TYPE_CHECKING:  # pragma: no cover - import for type checking only
     from conversation import ConversationSession
 
 logger = logging.getLogger(__name__)
-
-
-class TypeContribution(BaseModel):
-    """Mapping item describing how a type supports the feature."""
-
-    type: str = Field(..., description="Name of the mapped type.")
-    contribution: str = Field(
-        ..., description="Explanation of how the type contributes to the feature."
-    )
-
-
-class MappedPlateauFeature(PlateauFeature):
-    """Extension of :class:`PlateauFeature` including mapping lists."""
-
-    data: list[TypeContribution] = Field(
-        default_factory=list,
-        description="Conceptual data types related to the feature.",
-    )
-    applications: list[TypeContribution] = Field(
-        default_factory=list,
-        description="Applications relevant to the feature.",
-    )
-    technology: list[TypeContribution] = Field(
-        default_factory=list,
-        description="Supporting technologies for the feature.",
-    )
 
 
 def _render_items(items: list[dict[str, str]]) -> str:
@@ -61,7 +33,7 @@ def map_feature(
     The function prompts ``session`` three times using a mapping template: once
     each for data, applications and technology. The agent must respond with JSON
     containing a list for the requested category. Each element of the list must
-    provide ``type`` and ``contribution`` fields. If any list is missing or
+    provide ``item`` and ``contribution`` fields. If any list is missing or
     empty, a :class:`ValueError` is raised.
 
     Args:
@@ -70,7 +42,7 @@ def map_feature(
         prompt_dir: Directory containing prompt templates.
 
     Returns:
-        A :class:`MappedPlateauFeature` with mapping information applied.
+        A :class:`PlateauFeature` with mapping information applied.
 
     Raises:
         ValueError: If a response cannot be parsed or a required list is empty.
@@ -85,7 +57,7 @@ def map_feature(
         ("technology", "Technologies", "technologies"),
     )
 
-    mapped: dict[str, list[TypeContribution]] = {}
+    mapped: dict[str, list[Contribution]] = {}
     for key, label, item_key in categories:
         prompt = template.format(
             feature_name=feature.name,
@@ -108,10 +80,10 @@ def map_feature(
         if not isinstance(raw_items, list) or not raw_items:
             raise ValueError(f"'{key}' key missing or empty")
 
-        mapped[key] = [TypeContribution(**item) for item in raw_items]
+        mapped[key] = [Contribution(**item) for item in raw_items]
 
     merged = {**feature.model_dump(), **mapped}
-    return MappedPlateauFeature(**merged)
+    return PlateauFeature(**merged)
 
 
-__all__ = ["TypeContribution", "MappedPlateauFeature", "map_feature"]
+__all__ = ["map_feature"]

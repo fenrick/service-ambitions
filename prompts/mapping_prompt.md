@@ -8,7 +8,7 @@ Associate the feature with relevant {category_label} from the list below.
 ## Instructions
 - Return a JSON object with a "{category_key}" array.
 - Each item in the array must include:
-  - "type": identifier from the list.
+  - "item": identifier from the list.
   - "contribution": brief explanation of how it supports the feature.
 - Use only items provided above.
 - Do not include any text outside the JSON object.
@@ -21,7 +21,7 @@ Feature description: {feature_description}
 {
   "{category_key}": [
     {
-      "type": "INF-1",
+      "item": "INF-1",
       "contribution": "Explanation"
     }
   ]

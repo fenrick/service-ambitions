@@ -16,26 +16,35 @@ from models import (  # noqa: E402  pylint: disable=wrong-import-position
 )
 
 
-def test_service_evolution_contains_results() -> None:
+def test_service_evolution_contains_plateaus() -> None:
     """Constructing a ServiceEvolution should retain nested models."""
 
     service = ServiceInput(name="svc", customer_type="retail", description="desc")
-    feature = PlateauFeature(feature_id="f1", name="Feat", description="D")
-    contrib = Contribution(item="data", contribution="used")
-    result = PlateauResult(feature=feature, score=0.75, conceptual_data_types=[contrib])
+    feature = PlateauFeature(
+        feature_id="f1",
+        name="Feat",
+        description="D",
+        score=0.75,
+        customer_type="learners",
+    )
+    plateau = PlateauResult(plateau=1, service_description="desc", features=[feature])
 
-    evolution = ServiceEvolution(service=service, results=[result])
+    evolution = ServiceEvolution(service=service, plateaus=[plateau])
 
-    assert evolution.results[0].feature.name == "Feat"
+    assert evolution.plateaus[0].features[0].name == "Feat"
 
 
-def test_plateau_result_validates_score() -> None:
+def test_plateau_feature_validates_score() -> None:
     """Scores must lie within the inclusive range [0, 1]."""
 
-    feature = PlateauFeature(feature_id="f1", name="Feat", description="D")
-
     with pytest.raises(ValidationError):
-        PlateauResult(feature=feature, score=2.0)
+        PlateauFeature(
+            feature_id="f1",
+            name="Feat",
+            description="D",
+            score=2.0,
+            customer_type="learners",
+        )
 
 
 def test_contribution_requires_fields() -> None:

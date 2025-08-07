@@ -30,35 +30,44 @@ class PlateauFeature(BaseModel):
     feature_id: str = Field(..., description="Unique identifier for the feature.")
     name: str = Field(..., description="Feature name.")
     description: str = Field(..., description="Explanation of the feature.")
-
-
-class PlateauResult(BaseModel):
-    """Result of evaluating a particular plateau feature."""
-
-    feature: PlateauFeature = Field(..., description="The assessed feature.")
     score: float = Field(
         ..., ge=0.0, le=1.0, description="Normalised performance score between 0 and 1."
     )
-    conceptual_data_types: list[Contribution] = Field(
+    customer_type: str = Field(
+        ..., description="Audience that benefits from the feature."
+    )
+    data: list[Contribution] = Field(
         default_factory=list,
         description="Conceptual data types related to the feature.",
     )
-    logical_application_types: list[Contribution] = Field(
-        default_factory=list,
-        description="Logical application types relevant to the feature.",
+    applications: list[Contribution] = Field(
+        default_factory=list, description="Applications relevant to the feature."
     )
-    logical_technology_types: list[Contribution] = Field(
+    technology: list[Contribution] = Field(
         default_factory=list,
-        description="Logical technology types supporting the feature.",
+        description="Supporting technologies for the feature.",
+    )
+
+
+class PlateauResult(BaseModel):
+    """Collection of features describing a service at a plateau level."""
+
+    plateau: int = Field(..., ge=1, description="Plateau level evaluated.")
+    service_description: str = Field(
+        ..., description="Description of the service at this plateau."
+    )
+    features: list[PlateauFeature] = Field(
+        default_factory=list,
+        description="Features identified for this plateau level.",
     )
 
 
 class ServiceEvolution(BaseModel):
-    """Summary of a service's progress across plateau features."""
+    """Summary of a service's progress across plateaus."""
 
     service: ServiceInput = Field(..., description="Service being evaluated.")
-    results: list[PlateauResult] = Field(
-        default_factory=list, description="Outcomes for evaluated plateau features."
+    plateaus: list[PlateauResult] = Field(
+        default_factory=list, description="Evaluated plateaus for the service."
     )
 
 

@@ -95,17 +95,22 @@ Each JSON line in the output file follows the `ServiceEvolution` schema:
     "description": "string",
     "customer_type": "string"
   },
-  "results": [
+  "plateaus": [
     {
-      "feature": {
-        "feature_id": "string",
-        "name": "string",
-        "description": "string"
-      },
-      "score": 0.0,
-      "conceptual_data_types": [{"item": "string", "contribution": "string"}],
-      "logical_application_types": [{"item": "string", "contribution": "string"}],
-      "logical_technology_types": [{"item": "string", "contribution": "string"}]
+      "plateau": 1,
+      "service_description": "string",
+      "features": [
+        {
+          "feature_id": "string",
+          "name": "string",
+          "description": "string",
+          "score": 0.0,
+          "customer_type": "string",
+          "data": [{"item": "string", "contribution": "string"}],
+          "applications": [{"item": "string", "contribution": "string"}],
+          "technology": [{"item": "string", "contribution": "string"}]
+        }
+      ]
     }
   ]
 }
@@ -115,12 +120,15 @@ Fields in the schema:
 
 - `service`: `ServiceInput` with `name`, optional `customer_type`, and
   `description`.
-- `results`: list of `PlateauResult` entries, each containing:
-  - `feature`: `PlateauFeature` with `feature_id`, `name`, and `description`.
-  - `score`: float between `0.0` and `1.0`.
-  - `conceptual_data_types`, `logical_application_types`,
-    `logical_technology_types`: lists of `Contribution` objects describing why a
-    mapped item supports the feature.
+- `plateaus`: list of `PlateauResult` entries, each containing:
+  - `plateau`: integer plateau level.
+  - `service_description`: narrative for the service at that plateau.
+  - `features`: list of `PlateauFeature` entries with:
+    - `feature_id`, `name`, and `description`.
+    - `score`: float between `0.0` and `1.0`.
+    - `customer_type`: audience benefiting from the feature.
+    - `data`, `applications`, `technology`: lists of `Contribution` objects
+      describing why a mapped item supports the feature.
 
 ## Reference Data
 
