@@ -34,11 +34,12 @@ def init_logfire(service: str | None = None, token: str | None = None) -> None:
         return
 
     logfire.configure(token=key, service_name=service)
+    logfire.instrument_system_metrics(base='full')
+
     for name in (
         "instrument_pydantic_ai",
         "instrument_pydantic",
         "instrument_openai",
-        "instrument_system_metrics",
     ):
         instrument = getattr(logfire, name, None)
         if instrument:
