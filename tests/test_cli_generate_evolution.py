@@ -29,7 +29,7 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
             self.model = model
 
     def fake_generate(self, service: ServiceInput) -> ServiceEvolution:
-        return ServiceEvolution(service=service, results=[])
+        return ServiceEvolution(service=service, plateaus=[])
 
     monkeypatch.setattr("cli.build_model", fake_build_model)
     monkeypatch.setattr("cli.Agent", DummyAgent)
@@ -81,7 +81,7 @@ def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> None:
             captured["agent_model"] = model
 
     def fake_generate(self, service: ServiceInput) -> ServiceEvolution:
-        return ServiceEvolution(service=service, results=[])
+        return ServiceEvolution(service=service, plateaus=[])
 
     monkeypatch.setattr("cli.build_model", fake_build_model)
     monkeypatch.setattr("cli.Agent", DummyAgent)

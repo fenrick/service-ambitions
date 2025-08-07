@@ -4,18 +4,11 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import cast
 
 from conversation import ConversationSession
 from loader import load_plateau_prompt
-from mapping import MappedPlateauFeature, map_feature
-from models import (
-    Contribution,
-    PlateauFeature,
-    PlateauResult,
-    ServiceEvolution,
-    ServiceInput,
-)
+from mapping import map_feature
+from models import PlateauFeature, PlateauResult, ServiceEvolution, ServiceInput
 
 logger = logging.getLogger(__name__)
 
@@ -65,13 +58,14 @@ class PlateauGenerator:
 
     def generate_plateau(
         self, session: ConversationSession, level: int
-    ) -> list[PlateauResult]:
+    ) -> PlateauResult:
         """Return mapped plateau features for ``level``.
 
         The function requests a plateau-specific service description, then
         generates at least ``required_count`` features for each customer type:
         learners, staff and community. Each feature is enriched using
-        :func:`map_feature` before being returned as :class:`PlateauResult`.
+        :func:`map_feature` before being returned as part of a
+        :class:`PlateauResult`.
         """
         if self._service is None:
             raise ValueError(
@@ -81,7 +75,7 @@ class PlateauGenerator:
         description = self._request_description(session, level)
         template = load_plateau_prompt(self.prompt_dir)
 
-        results: list[PlateauResult] = []
+        features: list[PlateauFeature] = []
         for customer in ("learners", "staff", "community"):
             prompt = template.format(
                 required_count=self.required_count,
@@ -110,29 +104,14 @@ class PlateauGenerator:
                     feature_id=item["feature_id"],
                     name=item["name"],
                     description=item["description"],
-                )
-                mapped = cast(
-                    MappedPlateauFeature,
-                    map_feature(session, feature, self.prompt_dir),
-                )
-                result = PlateauResult(
-                    feature=mapped,
                     score=float(item["score"]),
-                    conceptual_data_types=[
-                        Contribution(item=c.type, contribution=c.contribution)
-                        for c in mapped.data
-                    ],
-                    logical_application_types=[
-                        Contribution(item=c.type, contribution=c.contribution)
-                        for c in mapped.applications
-                    ],
-                    logical_technology_types=[
-                        Contribution(item=c.type, contribution=c.contribution)
-                        for c in mapped.technology
-                    ],
+                    customer_type=customer,
                 )
-                results.append(result)
-        return results
+                mapped = map_feature(session, feature, self.prompt_dir)
+                features.append(mapped)
+        return PlateauResult(
+            plateau=level, service_description=description, features=features
+        )
 
     def generate_service_evolution(
         self, service_input: ServiceInput
@@ -141,10 +120,10 @@ class PlateauGenerator:
         self._service = service_input
         self.session.add_parent_materials(service_input)
 
-        all_results: list[PlateauResult] = []
+        plateaus: list[PlateauResult] = []
         for level in range(1, 5):
-            all_results.extend(self.generate_plateau(self.session, level))
-        return ServiceEvolution(service=service_input, results=all_results)
+            plateaus.append(self.generate_plateau(self.session, level))
+        return ServiceEvolution(service=service_input, plateaus=plateaus)
 
 
 __all__ = ["PlateauGenerator"]

@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from mapping import MappedPlateauFeature, map_feature
+from mapping import map_feature
 from models import PlateauFeature
 
 
@@ -34,30 +34,34 @@ def test_map_feature_returns_mappings(monkeypatch) -> None:
     session = DummySession(
         [
             json.dumps(
-                {"data": [{"type": "User Data", "contribution": "Personalises."}]}
+                {"data": [{"item": "User Data", "contribution": "Personalises."}]}
             ),
             json.dumps(
                 {
                     "applications": [
-                        {"type": "Learning Platform", "contribution": "Delivers."}
+                        {"item": "Learning Platform", "contribution": "Delivers."}
                     ]
                 }
             ),
             json.dumps(
-                {"technology": [{"type": "AI Engine", "contribution": "Enhances."}]}
+                {"technology": [{"item": "AI Engine", "contribution": "Enhances."}]}
             ),
         ]
     )
     feature = PlateauFeature(
-        feature_id="f1", name="Integration", description="Allows external access"
+        feature_id="f1",
+        name="Integration",
+        description="Allows external access",
+        score=0.5,
+        customer_type="learners",
     )
 
     result = map_feature(session, feature)  # type: ignore[arg-type]
 
-    assert isinstance(result, MappedPlateauFeature)
-    assert result.data[0].type == "User Data"
-    assert result.applications[0].type == "Learning Platform"
-    assert result.technology[0].type == "AI Engine"
+    assert isinstance(result, PlateauFeature)
+    assert result.data[0].item == "User Data"
+    assert result.applications[0].item == "Learning Platform"
+    assert result.technology[0].item == "AI Engine"
 
 
 def test_map_feature_injects_reference_data(monkeypatch) -> None:
@@ -70,13 +74,17 @@ def test_map_feature_injects_reference_data(monkeypatch) -> None:
 
     session = DummySession(
         [
-            json.dumps({"data": [{"type": "User", "contribution": "c"}]}),
-            json.dumps({"applications": [{"type": "App", "contribution": "c"}]}),
-            json.dumps({"technology": [{"type": "Tech", "contribution": "c"}]}),
+            json.dumps({"data": [{"item": "User", "contribution": "c"}]}),
+            json.dumps({"applications": [{"item": "App", "contribution": "c"}]}),
+            json.dumps({"technology": [{"item": "Tech", "contribution": "c"}]}),
         ]
     )
     feature = PlateauFeature(
-        feature_id="f1", name="Integration", description="Allows external access"
+        feature_id="f1",
+        name="Integration",
+        description="Allows external access",
+        score=0.5,
+        customer_type="learners",
     )
     map_feature(session, feature)  # type: ignore[arg-type]
 
@@ -94,6 +102,12 @@ def test_map_feature_rejects_invalid_json(monkeypatch) -> None:
     monkeypatch.setattr("mapping.load_mapping_prompt", lambda *a, **k: template)
     """Invalid JSON responses should raise a ``ValueError``."""
     session = DummySession(["not-json"])
-    feature = PlateauFeature(feature_id="f1", name="Integration", description="desc")
+    feature = PlateauFeature(
+        feature_id="f1",
+        name="Integration",
+        description="desc",
+        score=0.5,
+        customer_type="learners",
+    )
     with pytest.raises(ValueError):
         map_feature(session, feature)  # type: ignore[arg-type]
