@@ -35,14 +35,17 @@ class DummySession:
         pass
 
 
-def _fake_map_feature(session, feature, prompt_dir):  # pragma: no cover - stub
-    payload = feature.model_dump()
-    payload.update(
-        data=[Contribution(item="d", contribution="c")],
-        applications=[Contribution(item="a", contribution="c")],
-        technology=[Contribution(item="t", contribution="c")],
-    )
-    return PlateauFeature(**payload)
+def _fake_map_features(session, features, prompt_dir="prompts"):  # pragma: no cover - stub
+    results = []
+    for feature in features:
+        payload = feature.model_dump()
+        payload.update(
+            data=[Contribution(item="d", contribution="c")],
+            applications=[Contribution(item="a", contribution="c")],
+            technology=[Contribution(item="t", contribution="c")],
+        )
+        results.append(PlateauFeature(**payload))
+    return results
 
 
 def _feature_payload(count: int) -> str:
@@ -69,7 +72,7 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
     session = DummySession(responses)
     generator = PlateauGenerator(cast(ConversationSession, session), required_count=5)
 
-    monkeypatch.setattr("plateau_generator.map_feature", _fake_map_feature)
+    monkeypatch.setattr("plateau_generator.map_features", _fake_map_features)
     template = "{required_count} {service_name} {service_description} {plateau}"
     monkeypatch.setattr(
         "plateau_generator.load_plateau_prompt", lambda *a, **k: template

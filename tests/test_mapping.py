@@ -24,28 +24,32 @@ class DummySession:
 
 
 def test_map_feature_returns_mappings(monkeypatch) -> None:
-    template = (
-        "{feature_name} {feature_description} {category_label} "
-        "{category_items} {category_key}"
-    )
+    template = "{data_items} {application_items} {technology_items} {features}"
     monkeypatch.setattr("mapping.load_mapping_prompt", lambda *a, **k: template)
-    """``map_feature`` should populate mapping items with contributions."""
-
+    monkeypatch.setattr(
+        "mapping.load_mapping_items",
+        lambda *a, **k: {
+            "information": [{"id": "INF-1", "name": "User Data", "description": "d"}],
+            "applications": [
+                {"id": "APP-1", "name": "Learning Platform", "description": "d"}
+            ],
+            "technologies": [{"id": "TEC-1", "name": "AI Engine", "description": "d"}],
+        },
+    )
     session = DummySession(
         [
             json.dumps(
-                {"data": [{"item": "User Data", "contribution": "Personalises."}]}
-            ),
-            json.dumps(
                 {
-                    "applications": [
-                        {"item": "Learning Platform", "contribution": "Delivers."}
+                    "features": [
+                        {
+                            "feature_id": "f1",
+                            "data": [{"item": "INF-1", "contribution": "c"}],
+                            "applications": [{"item": "APP-1", "contribution": "c"}],
+                            "technology": [{"item": "TEC-1", "contribution": "c"}],
+                        }
                     ]
                 }
-            ),
-            json.dumps(
-                {"technology": [{"item": "AI Engine", "contribution": "Enhances."}]}
-            ),
+            )
         ]
     )
     feature = PlateauFeature(
@@ -59,24 +63,38 @@ def test_map_feature_returns_mappings(monkeypatch) -> None:
     result = map_feature(session, feature)  # type: ignore[arg-type]
 
     assert isinstance(result, PlateauFeature)
-    assert result.data[0].item == "User Data"
-    assert result.applications[0].item == "Learning Platform"
-    assert result.technology[0].item == "AI Engine"
+    assert result.data[0].item == "INF-1"
+    assert result.applications[0].item == "APP-1"
+    assert result.technology[0].item == "TEC-1"
 
 
 def test_map_feature_injects_reference_data(monkeypatch) -> None:
-    template = (
-        "{feature_name} {feature_description} {category_label} "
-        "{category_items} {category_key}"
-    )
+    template = "{data_items} {application_items} {technology_items} {features}"
     monkeypatch.setattr("mapping.load_mapping_prompt", lambda *a, **k: template)
-    """The mapping prompts should include reference data lists."""
-
+    monkeypatch.setattr(
+        "mapping.load_mapping_items",
+        lambda *a, **k: {
+            "information": [{"id": "INF-1", "name": "User Data", "description": "d"}],
+            "applications": [
+                {"id": "APP-1", "name": "Learning Platform", "description": "d"}
+            ],
+            "technologies": [{"id": "TEC-1", "name": "AI Engine", "description": "d"}],
+        },
+    )
     session = DummySession(
         [
-            json.dumps({"data": [{"item": "User", "contribution": "c"}]}),
-            json.dumps({"applications": [{"item": "App", "contribution": "c"}]}),
-            json.dumps({"technology": [{"item": "Tech", "contribution": "c"}]}),
+            json.dumps(
+                {
+                    "features": [
+                        {
+                            "feature_id": "f1",
+                            "data": [{"item": "INF-1", "contribution": "c"}],
+                            "applications": [{"item": "APP-1", "contribution": "c"}],
+                            "technology": [{"item": "TEC-1", "contribution": "c"}],
+                        }
+                    ]
+                }
+            )
         ]
     )
     feature = PlateauFeature(
@@ -88,19 +106,23 @@ def test_map_feature_injects_reference_data(monkeypatch) -> None:
     )
     map_feature(session, feature)  # type: ignore[arg-type]
 
-    assert len(session.prompts) == 3
+    assert len(session.prompts) == 1
     assert "User Data" in session.prompts[0]
-    assert "Learning Platform" in session.prompts[1]
-    assert "AI Engine" in session.prompts[2]
+    assert "Learning Platform" in session.prompts[0]
+    assert "AI Engine" in session.prompts[0]
 
 
 def test_map_feature_rejects_invalid_json(monkeypatch) -> None:
-    template = (
-        "{feature_name} {feature_description} {category_label} "
-        "{category_items} {category_key}"
-    )
+    template = "{data_items} {application_items} {technology_items} {features}"
     monkeypatch.setattr("mapping.load_mapping_prompt", lambda *a, **k: template)
-    """Invalid JSON responses should raise a ``ValueError``."""
+    monkeypatch.setattr(
+        "mapping.load_mapping_items",
+        lambda *a, **k: {
+            "information": [],
+            "applications": [],
+            "technologies": [],
+        },
+    )
     session = DummySession(["not-json"])
     feature = PlateauFeature(
         feature_id="f1",
@@ -114,6 +136,8 @@ def test_map_feature_rejects_invalid_json(monkeypatch) -> None:
 
 
 def test_map_features_returns_mappings(monkeypatch) -> None:
+    template = "{data_items} {application_items} {technology_items} {features}"
+    monkeypatch.setattr("mapping.load_mapping_prompt", lambda *a, **k: template)
     monkeypatch.setattr(
         "mapping.load_mapping_items",
         lambda *a, **k: {
@@ -154,6 +178,8 @@ def test_map_features_returns_mappings(monkeypatch) -> None:
 
 
 def test_map_features_validates_lists(monkeypatch) -> None:
+    template = "{data_items} {application_items} {technology_items} {features}"
+    monkeypatch.setattr("mapping.load_mapping_prompt", lambda *a, **k: template)
     monkeypatch.setattr(
         "mapping.load_mapping_items",
         lambda *a, **k: {
