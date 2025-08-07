@@ -35,7 +35,9 @@ class DummySession:
         pass
 
 
-def _fake_map_features(session, features, prompt_dir="prompts"):  # pragma: no cover - stub
+def _fake_map_features(
+    session, features, prompt_dir="prompts"
+):  # pragma: no cover - stub
     results = []
     for feature in features:
         payload = feature.model_dump()

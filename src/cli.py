@@ -56,12 +56,13 @@ def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
 
     model_name = args.model or settings.model
     model = build_model(model_name, settings.openai_api_key)
-    session = ConversationSession(Agent(model))
-    generator = PlateauGenerator(session)
+    agent = Agent(model)
 
     with open(args.output_file, "w", encoding="utf-8") as output:
         for raw in load_services(args.input_file):
             service = ServiceInput(**raw)
+            session = ConversationSession(agent)
+            generator = PlateauGenerator(session)
             evolution = generator.generate_service_evolution(service)
             output.write(f"{evolution.model_dump_json()}\n")
             logger.info("Generated evolution for %s", service.name)
