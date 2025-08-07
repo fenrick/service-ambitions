@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 
+from loader import load_mapping_prompt
 from models import PlateauFeature
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
@@ -35,7 +36,9 @@ class MappedPlateauFeature(PlateauFeature):
 
 
 async def map_feature(
-    session: ConversationSession, feature: PlateauFeature
+    session: ConversationSession,
+    feature: PlateauFeature,
+    prompt_dir: str = "prompts",
 ) -> MappedPlateauFeature:
     """Return ``feature`` augmented with contribution mappings.
 
@@ -47,6 +50,7 @@ async def map_feature(
     Args:
         session: Active conversation session used to query the agent.
         feature: Plateau feature to map.
+        prompt_dir: Directory containing prompt templates.
 
     Returns:
         A new :class:`MappedPlateauFeature` including any mappings returned by the
@@ -56,11 +60,9 @@ async def map_feature(
         ValueError: If the agent response cannot be parsed or lacks mapping data.
     """
 
-    prompt = (
-        "Provide mapping items for the following feature. "
-        "Respond in JSON with a 'mappings' key where each item has 'item' and "
-        "'contribution' fields.\n"
-        f"Feature name: {feature.name}\nDescription: {feature.description}"
+    template = load_mapping_prompt(prompt_dir)
+    prompt = template.format(
+        feature_name=feature.name, feature_description=feature.description
     )
 
     logger.debug("Requesting mappings for feature %s", feature.feature_id)
