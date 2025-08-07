@@ -36,3 +36,9 @@ def test_plateau_result_validates_score() -> None:
 
     with pytest.raises(ValidationError):
         PlateauResult(feature=feature, score=2.0)
+
+
+def test_contribution_requires_fields() -> None:
+    """Missing fields should trigger a ``ValidationError``."""
+    with pytest.raises(ValidationError):
+        Contribution()  # type: ignore[call-arg]

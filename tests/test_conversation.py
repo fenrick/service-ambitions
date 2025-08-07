@@ -50,3 +50,11 @@ def test_ask_adds_responses_to_history() -> None:
 
     assert reply == "pong"
     assert session._history[-1] == "msg"  # noqa: SLF001 - accessing test-only attribute
+
+
+def test_ask_forwards_prompt_to_agent() -> None:
+    """``ask`` should delegate to the underlying agent."""
+    agent = DummyAgent()
+    session = ConversationSession(cast(Agent[None, str], agent))
+    session.ask("hello")
+    assert agent.called_with == ["hello"]
