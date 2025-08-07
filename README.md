@@ -4,7 +4,8 @@
 
 The CLI requires an OpenAI API key available in the `OPENAI_API_KEY` environment
 variable. Settings are loaded via Pydantic, which reads from a `.env` file if
-present. The application will exit if the key is missing.
+present. The application will exit if the key is missing. LLM interactions are
+handled via [Pydantic AI](https://pydantic.dev/pydantic-ai/).
 
 Create a `.env` file in the project root with:
 
@@ -16,8 +17,6 @@ For production deployments, inject the variable using your platform's secret
 manager instead of committing keys to source control.
 
 The chat model can be set with the `--model` flag or the `MODEL` environment
-variable. Additional parameters such as the desired `response_format` may be
-provided with the `--response-format` flag or the `RESPONSE_FORMAT` environment
 variable.
 
 System prompts are assembled from modular markdown components located in the

@@ -9,9 +9,7 @@ authors = [
 requires-python = ">= 3.11,<4"
 dependencies = [
 "openai" ,
-"langchain" ,
-"langchain-core" ,
-"langchain-openai",
+"pydantic-ai",
 "langsmith",
 "pydantic",
 "pydantic-settings",

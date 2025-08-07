@@ -31,7 +31,6 @@ def test_cli_generates_output(tmp_path, monkeypatch):
     output_file = tmp_path / "output.jsonl"
 
     monkeypatch.setenv("OPENAI_API_KEY", "dummy")
-    monkeypatch.setattr(generator, "ChatOpenAI", lambda **_: SimpleNamespace())
 
     async def fake_process_service(self, service, prompt):
         return {"service": service["name"], "prompt": prompt[:3]}
@@ -54,6 +53,8 @@ def test_cli_generates_output(tmp_path, monkeypatch):
         str(output_file),
         "--concurrency",
         "2",
+        "--model",
+        "test",
     ]
     monkeypatch.setattr(sys, "argv", argv)
 
@@ -90,7 +91,6 @@ def test_cli_switches_context(tmp_path, monkeypatch):
     output_file = tmp_path / "output.jsonl"
 
     monkeypatch.setenv("OPENAI_API_KEY", "dummy")
-    monkeypatch.setattr(generator, "ChatOpenAI", lambda **_: SimpleNamespace())
 
     async def fake_process_service(self, service, prompt):
         return {"prompt": prompt}
@@ -107,6 +107,8 @@ def test_cli_switches_context(tmp_path, monkeypatch):
         str(input_file),
         "--output-file",
         str(output_file),
+        "--model",
+        "test",
     ]
     monkeypatch.setattr(sys, "argv", argv)
 
@@ -133,15 +135,16 @@ def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
 
     monkeypatch.setenv("OPENAI_API_KEY", "dummy")
     monkeypatch.setenv("MODEL", "test-model")
-    monkeypatch.setenv("RESPONSE_FORMAT", "json_schema")
 
-    captured = {}
+    captured: dict[str, str] = {}
 
-    def fake_chat_openai(**kwargs):
-        captured.update(kwargs)
-        return SimpleNamespace()
+    def fake_build_model(model_name: str, api_key: str):
+        captured["model"] = model_name
+        captured["api_key"] = api_key
+        return "test"
 
-    monkeypatch.setattr(generator, "ChatOpenAI", fake_chat_openai)
+    monkeypatch.setattr(generator, "build_model", fake_build_model)
+    monkeypatch.setattr(cli, "build_model", fake_build_model)
 
     async def fake_process_service(self, service, prompt):
         return {"ok": True}
@@ -163,55 +166,6 @@ def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
 
     assert captured["model"] == "test-model"
     assert captured["api_key"] == "dummy"
-    assert captured["response_format"] == "json_schema"
-
-
-def test_cli_response_format_flag(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    base = tmp_path / "prompts"
-    (base / "situational_context").mkdir(parents=True)
-    (base / "inspirations").mkdir(parents=True)
-    (base / "situational_context" / "university.md").write_text("ctx", encoding="utf-8")
-    (base / "service_feature_plateaus.md").write_text("p", encoding="utf-8")
-    (base / "definitions.md").write_text("d", encoding="utf-8")
-    (base / "inspirations" / "general.md").write_text("i", encoding="utf-8")
-    (base / "task_definition.md").write_text("t", encoding="utf-8")
-    (base / "response_structure.md").write_text("r", encoding="utf-8")
-    input_file = tmp_path / "services.jsonl"
-    input_file.write_text('{"name": "alpha"}\n')
-    output_file = tmp_path / "output.jsonl"
-
-    monkeypatch.setenv("OPENAI_API_KEY", "dummy")
-
-    captured = {}
-
-    def fake_chat_openai(**kwargs):
-        captured.update(kwargs)
-        return SimpleNamespace()
-
-    monkeypatch.setattr(generator, "ChatOpenAI", fake_chat_openai)
-
-    async def fake_process_service(self, service, prompt):
-        return {"ok": True}
-
-    monkeypatch.setattr(
-        ServiceAmbitionGenerator, "process_service", fake_process_service
-    )
-
-    argv = [
-        "main",
-        "--input-file",
-        str(input_file),
-        "--output-file",
-        str(output_file),
-        "--response-format",
-        "json_schema",
-    ]
-    monkeypatch.setattr(sys, "argv", argv)
-
-    cli.main()
-
-    assert captured["response_format"] == "json_schema"
 
 
 def test_cli_enables_langsmith(tmp_path, monkeypatch):
@@ -235,8 +189,6 @@ def test_cli_enables_langsmith(tmp_path, monkeypatch):
     monkeypatch.delenv("LANGCHAIN_API_KEY", raising=False)
     monkeypatch.delenv("LANGCHAIN_PROJECT", raising=False)
 
-    monkeypatch.setattr(generator, "ChatOpenAI", lambda **_: SimpleNamespace())
-
     async def fake_process_service(self, service, prompt):
         return {"ok": True}
 
@@ -256,6 +208,8 @@ def test_cli_enables_langsmith(tmp_path, monkeypatch):
         str(output_file),
         "--langsmith-project",
         "demo",
+        "--model",
+        "test",
     ]
     monkeypatch.setattr(sys, "argv", argv)
 

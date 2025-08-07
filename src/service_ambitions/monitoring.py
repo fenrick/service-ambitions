@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import os
 
-from langsmith import Client
+from langsmith import Client  # type: ignore[import-not-found]
 
 logger = logging.getLogger(__name__)
 

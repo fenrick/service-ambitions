@@ -10,7 +10,6 @@ class Settings(BaseSettings):
     """Environment-driven settings for the CLI."""
 
     model: str = "o4-mini"
-    response_format: str | None = None
     log_level: str = "INFO"
     openai_api_key: str
     langsmith_api_key: str | None = None

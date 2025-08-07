@@ -45,13 +45,6 @@ def main() -> None:
         help="Chat model name. Can also be set via the MODEL env variable.",
     )
     parser.add_argument(
-        "--response-format",
-        help=(
-            "Optional response format passed to ChatOpenAI. "
-            "Can also be set via the RESPONSE_FORMAT env variable."
-        ),
-    )
-    parser.add_argument(
         "--log-level",
         help="Logging level. Can also be set via the LOG_LEVEL env variable.",
     )
@@ -81,10 +74,9 @@ def main() -> None:
     services = list(load_services(args.input_file))
 
     model_name = args.model or settings.model
-    response_format = args.response_format or settings.response_format
 
     try:
-        model = build_model(model_name, api_key, response_format)
+        model = build_model(model_name, api_key)
     except Exception as exc:  # pylint: disable=broad-except
         logger.error("Failed to initialize model %s: %s", model_name, exc)
         raise
