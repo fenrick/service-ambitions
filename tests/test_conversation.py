@@ -6,7 +6,9 @@ from pathlib import Path
 from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from pydantic_ai import messages  # noqa: E402  pylint: disable=wrong-import-position
+from typing import cast
+
+from pydantic_ai import Agent, messages  # noqa: E402  pylint: disable=wrong-import-position
 
 from conversation import (
     ConversationSession,
@@ -29,7 +31,7 @@ class DummyAgent:
 def test_add_parent_materials_records_history() -> None:
     """``add_parent_materials`` should append system prompts to history."""
 
-    session = ConversationSession(DummyAgent())
+    session = ConversationSession(cast(Agent[None, str], DummyAgent()))
     session.add_parent_materials(["alpha", "beta"])
 
     assert len(session._history) == 2  # noqa: SLF001 - accessing test-only attribute
@@ -39,7 +41,7 @@ def test_add_parent_materials_records_history() -> None:
 def test_ask_adds_responses_to_history() -> None:
     """``ask`` should forward prompts and store new messages."""
 
-    session = ConversationSession(DummyAgent())
+    session = ConversationSession(cast(Agent[None, str], DummyAgent()))
     reply = asyncio.run(session.ask("ping"))
 
     assert reply == "pong"
