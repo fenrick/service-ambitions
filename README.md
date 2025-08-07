@@ -64,17 +64,29 @@ output file will also be in JSON Lines format. Use the `--concurrency` option to
 control how many services are processed in parallel when running
 `generate-ambitions`.
 
-The `generate-evolution` subcommand produces plateau feature evolutions for each
-service. Pass `-v` for informative logs or `-vv` for detailed debugging output.
-Use `--plateaus` and `--customers` to control what is evaluated:
+### Generating service evolutions
+
+Use the `generate-evolution` subcommand to score each service against plateau
+features. It reads services from an input JSON Lines file and writes a
+`ServiceEvolution` record for each line in the output file. Enable verbose logs
+with `-v` or `-vv`.
+
+Basic invocation:
 
 ```bash
-./run.sh generate-evolution --plateaus Foundational Enhanced --customers retail enterprise
+./run.sh generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl
 ```
 
-## Output schema
+Restrict evaluation to specific plateaus or customer types as needed:
 
-Each JSON line is a service evolution record:
+```bash
+./run.sh generate-evolution --plateaus Foundational Enhanced --customers retail enterprise \
+  --input-file sample-services.jsonl --output-file evolution.jsonl
+```
+
+## ServiceEvolution schema
+
+Each JSON line in the output file follows the `ServiceEvolution` schema:
 
 ```json
 {
@@ -98,6 +110,17 @@ Each JSON line is a service evolution record:
   ]
 }
 ```
+
+Fields in the schema:
+
+- `service`: `ServiceInput` with `name`, optional `customer_type`, and
+  `description`.
+- `results`: list of `PlateauResult` entries, each containing:
+  - `feature`: `PlateauFeature` with `feature_id`, `name`, and `description`.
+  - `score`: float between `0.0` and `1.0`.
+  - `conceptual_data_types`, `logical_application_types`,
+    `logical_technology_types`: lists of `Contribution` objects describing why a
+    mapped item supports the feature.
 
 ## Reference Data
 
