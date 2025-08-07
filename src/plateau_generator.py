@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Iterable
@@ -59,7 +60,7 @@ class PlateauGenerator:
             plateau,
             customer_type,
         )
-        response = await self.session.ask(prompt)
+        response = await asyncio.to_thread(self.session.ask, prompt)
         logger.debug("Raw feature response: %s", response)
 
         try:

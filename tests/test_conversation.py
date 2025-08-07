@@ -1,6 +1,5 @@
 """Unit tests for the :mod:`conversation` module."""
 
-import asyncio
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -8,11 +7,15 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from typing import cast
 
-from pydantic_ai import Agent, messages  # noqa: E402  pylint: disable=wrong-import-position
+from pydantic_ai import (
+    Agent,
+    messages,
+)  # noqa: E402  pylint: disable=wrong-import-position
 
 from conversation import (
     ConversationSession,
 )  # noqa: E402  pylint: disable=wrong-import-position
+from models import ServiceInput  # noqa: E402  pylint: disable=wrong-import-position
 
 
 class DummyAgent:
@@ -29,12 +32,13 @@ class DummyAgent:
 
 
 def test_add_parent_materials_records_history() -> None:
-    """``add_parent_materials`` should append system prompts to history."""
+    """``add_parent_materials`` should append service info to history."""
 
     session = ConversationSession(cast(Agent[None, str], DummyAgent()))
-    session.add_parent_materials(["alpha", "beta"])
+    service = ServiceInput(name="svc", customer_type=None, description="desc")
+    session.add_parent_materials(service)
 
-    assert len(session._history) == 2  # noqa: SLF001 - accessing test-only attribute
+    assert len(session._history) == 1  # noqa: SLF001 - accessing test-only attribute
     assert isinstance(session._history[0], messages.ModelRequest)
 
 
@@ -42,7 +46,7 @@ def test_ask_adds_responses_to_history() -> None:
     """``ask`` should forward prompts and store new messages."""
 
     session = ConversationSession(cast(Agent[None, str], DummyAgent()))
-    reply = asyncio.run(session.ask("ping"))
+    reply = session.ask("ping")
 
     assert reply == "pong"
     assert session._history[-1] == "msg"  # noqa: SLF001 - accessing test-only attribute
