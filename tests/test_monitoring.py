@@ -18,12 +18,19 @@ def test_init_logfire_replaces_root_handlers(monkeypatch):
         def emit(self, record):  # pragma: no cover - no output
             pass
 
+    installed = False
+
+    def install() -> None:
+        nonlocal installed
+        installed = True
+
     dummy_module = SimpleNamespace(
         configure=lambda **kwargs: None,
         instrument_pydantic_ai=lambda: None,
         instrument_pydantic=lambda: None,
         instrument_openai=lambda: None,
-        instrument_system_metrics=lambda: None,
+        instrument_system_metrics=lambda **kwargs: None,
+        install_auto_tracing=install,
         LogfireLoggingHandler=LFHandler,
     )
     monkeypatch.setitem(sys.modules, "logfire", dummy_module)
@@ -34,5 +41,6 @@ def test_init_logfire_replaces_root_handlers(monkeypatch):
     handlers = logging.getLogger().handlers
     assert len(handlers) == 1
     assert isinstance(handlers[0], LFHandler)
+    assert installed
 
     root_logger.handlers.clear()
