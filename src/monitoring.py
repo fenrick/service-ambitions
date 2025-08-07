@@ -19,7 +19,8 @@ def init_logfire(service: str | None = None, token: str | None = None) -> None:
     When the token is provided and the ``logfire`` package is installed this
     function configures the Logfire SDK, instruments Pydantic, Pydantic AI,
     OpenAI and system metrics, and attaches a Logfire logging handler to the
-    root logger. If either condition is not met the setup is skipped.
+    root logger, replacing existing handlers to avoid duplicate output. If either
+    condition is not met the setup is skipped.
     """
 
     key = token or os.getenv("LOGFIRE_TOKEN")
@@ -48,6 +49,7 @@ def init_logfire(service: str | None = None, token: str | None = None) -> None:
     handler_cls = getattr(logfire, "LogfireLoggingHandler", None)
     if handler_cls:
         root_logger = logging.getLogger()
+        root_logger.handlers.clear()  # avoid duplicate output from existing handlers
         root_logger.addHandler(handler_cls())
 
     logger.info(
