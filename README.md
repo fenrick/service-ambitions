@@ -66,3 +66,12 @@ control how many services are processed in parallel when running
 
 The `generate-evolution` subcommand produces plateau feature evolutions for each
 service. Pass `-v` for informative logs or `-vv` for detailed debugging output.
+
+## Reference Data
+
+Feature mapping uses cached reference lists stored in the `data/` directory.
+Each of `information.json`, `applications.json`, and `technologies.json`
+contains items with identifiers, names, and descriptions. These lists are
+injected into mapping prompts so that features can be matched against consistent
+options. Mapping prompts run separately for information, applications and
+technologies to keep each decision focused.

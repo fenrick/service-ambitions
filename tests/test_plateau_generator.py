@@ -38,7 +38,7 @@ def _feature_payload(count: int) -> str:
 
 
 def test_generate_plateau_returns_results() -> None:
-    responses = [_feature_payload(5)] + ['{"mappings": []}'] * 5
+    responses = [_feature_payload(5)] + ['{"mappings": []}'] * 15
     session = DummySession(responses)
     generator = PlateauGenerator(cast(ConversationSession, session))
     service = ServiceInput(name="svc", description="desc")

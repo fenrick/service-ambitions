@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from functools import lru_cache
 from typing import Any, Dict, Iterator
 
 import logfire
@@ -76,6 +77,43 @@ def load_mapping_prompt(base_dir: str, filename: str = "mapping_prompt.md") -> s
     """
 
     return _read_file(os.path.join(base_dir, filename))
+
+
+@logfire.instrument()
+@lru_cache(maxsize=None)
+def load_mapping_items(base_dir: str = "data") -> Dict[str, list[Dict[str, str]]]:
+    """Return mapping reference data from ``base_dir``.
+
+    Args:
+        base_dir: Directory containing mapping data files.
+
+    Returns:
+        A dictionary with keys ``information``, ``applications``, and
+        ``technologies`` mapping to lists of item dictionaries.
+
+    Raises:
+        FileNotFoundError: If a required file is missing.
+        RuntimeError: If a file cannot be read or parsed.
+    """
+
+    files = {
+        "information": "information.json",
+        "applications": "applications.json",
+        "technologies": "technologies.json",
+    }
+    data: Dict[str, list[Dict[str, str]]] = {}
+    for key, filename in files.items():
+        path = os.path.join(base_dir, filename)
+        try:
+            data[key] = json.loads(_read_file(path))
+        except FileNotFoundError:
+            raise
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.error("Error reading mapping data file %s: %s", path, exc)
+            raise RuntimeError(
+                f"An error occurred while reading the mapping data file: {exc}"
+            ) from exc
+    return data
 
 
 @logfire.instrument()
