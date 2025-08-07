@@ -78,7 +78,11 @@ Each JSON line is a service evolution record:
 
 ```json
 {
-  "service": {"name": "string", "description": "string"},
+  "service": {
+    "name": "string",
+    "description": "string",
+    "customer_type": "string"
+  },
   "results": [
     {
       "feature": {
@@ -86,7 +90,10 @@ Each JSON line is a service evolution record:
         "name": "string",
         "description": "string"
       },
-      "score": 0.0
+      "score": 0.0,
+      "conceptual_data_types": [{"item": "string", "contribution": "string"}],
+      "logical_application_types": [{"item": "string", "contribution": "string"}],
+      "logical_technology_types": [{"item": "string", "contribution": "string"}]
     }
   ]
 }

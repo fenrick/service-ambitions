@@ -14,7 +14,10 @@ from models import ServiceEvolution, ServiceInput
 def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
     input_path = tmp_path / "services.jsonl"
     output_path = tmp_path / "out.jsonl"
-    input_path.write_text(json.dumps({"name": "svc", "description": "desc"}) + "\n")
+    input_path.write_text(
+        json.dumps({"name": "svc", "description": "desc", "customer_type": "retail"})
+        + "\n"
+    )
 
     def fake_build_model(
         model_name: str, api_key: str

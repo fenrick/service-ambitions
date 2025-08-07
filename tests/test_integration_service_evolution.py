@@ -59,7 +59,7 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
 
     monkeypatch.setattr("plateau_generator.map_feature", _fake_map_feature)
 
-    service = ServiceInput(name="svc", description="desc")
+    service = ServiceInput(name="svc", customer_type="retail", description="desc")
     evolution = asyncio.run(
         generator.generate_service_evolution(service, ["a", "b", "c", "d"], ["retail"])
     )

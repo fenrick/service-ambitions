@@ -41,7 +41,7 @@ def test_generate_plateau_returns_results() -> None:
     responses = [_feature_payload(5)] + ['{"mappings": []}'] * 15
     session = DummySession(responses)
     generator = PlateauGenerator(cast(ConversationSession, session))
-    service = ServiceInput(name="svc", description="desc")
+    service = ServiceInput(name="svc", customer_type="retail", description="desc")
 
     results = asyncio.run(
         generator.generate_plateau(service, "alpha", "retail")
@@ -53,7 +53,7 @@ def test_generate_plateau_returns_results() -> None:
 def test_generate_plateau_raises_on_insufficient_features() -> None:
     session = DummySession([_feature_payload(3)])
     generator = PlateauGenerator(cast(ConversationSession, session))
-    service = ServiceInput(name="svc", description="desc")
+    service = ServiceInput(name="svc", customer_type="retail", description="desc")
 
     with pytest.raises(ValueError):
         asyncio.run(
