@@ -240,3 +240,50 @@ def test_cli_help_shows_parameters(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "Generate service ambitions" in out
     assert "--concurrency" in out
+
+
+def test_cli_verbose_logging(tmp_path, monkeypatch, capsys):
+    base = tmp_path / "prompts"
+    (base / "situational_context").mkdir(parents=True)
+    (base / "inspirations").mkdir(parents=True)
+    (base / "situational_context" / "ctx.md").write_text("c", encoding="utf-8")
+    (base / "service_feature_plateaus.md").write_text("p", encoding="utf-8")
+    (base / "definitions.md").write_text("d", encoding="utf-8")
+    (base / "inspirations" / "insp.md").write_text("i", encoding="utf-8")
+    (base / "task_definition.md").write_text("t", encoding="utf-8")
+    (base / "response_structure.md").write_text("r", encoding="utf-8")
+
+    input_file = tmp_path / "services.jsonl"
+    input_file.write_text('{"name": "alpha"}\n', encoding="utf-8")
+    output_file = tmp_path / "output.jsonl"
+
+    monkeypatch.setenv("OPENAI_API_KEY", "dummy")
+
+    async def fake_process_service(self, service, prompt):
+        return {"ok": True}
+
+    monkeypatch.setattr(
+        ServiceAmbitionGenerator, "process_service", fake_process_service
+    )
+
+    argv = [
+        "main",
+        "--prompt-dir",
+        str(base),
+        "--context-id",
+        "ctx",
+        "--inspirations-id",
+        "insp",
+        "--input-file",
+        str(input_file),
+        "--output-file",
+        str(output_file),
+        "--model",
+        "test",
+        "-v",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+
+    cli.main()
+
+    assert "Processing service alpha" in capsys.readouterr().err

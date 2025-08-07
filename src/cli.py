@@ -52,6 +52,13 @@ def main() -> None:
         help="Logging level. Can also be set via the LOG_LEVEL env variable.",
     )
     parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase logging verbosity (-v for info, -vv for debug)",
+    )
+    parser.add_argument(
         "--concurrency",
         type=int,
         default=5,
@@ -65,8 +72,14 @@ def main() -> None:
 
     settings = load_settings()
 
-    log_level = args.log_level or settings.log_level
-    logging.basicConfig(level=getattr(logging, log_level.upper(), logging.INFO))
+    log_level_name = args.log_level or settings.log_level
+    if args.verbose == 1:
+        log_level_name = "INFO"
+    elif args.verbose >= 2:
+        log_level_name = "DEBUG"
+    logging.basicConfig(
+        level=getattr(logging, log_level_name.upper(), logging.INFO), force=True
+    )
 
     api_key = settings.openai_api_key
 
@@ -75,8 +88,10 @@ def main() -> None:
 
     system_prompt = load_prompt(args.prompt_dir, args.context_id, args.inspirations_id)
     services = list(load_services(args.input_file))
+    logger.debug("Loaded %d services from %s", len(services), args.input_file)
 
     model_name = args.model or settings.model
+    logger.info("Generating ambitions using model %s", model_name)
 
     try:
         model = build_model(model_name, api_key)
@@ -86,6 +101,7 @@ def main() -> None:
 
     generator = ServiceAmbitionGenerator(model, concurrency=args.concurrency)
     generator.generate(services, system_prompt, args.output_file)
+    logger.info("Results written to %s", args.output_file)
 
 
 if __name__ == "__main__":
