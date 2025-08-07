@@ -7,7 +7,7 @@ import logging
 
 from .generator import ServiceAmbitionGenerator, build_model
 from .loader import load_prompt, load_services
-from .monitoring import init_langsmith
+from .monitoring import init_logfire
 from .settings import load_settings
 
 logger = logging.getLogger(__name__)
@@ -55,8 +55,8 @@ def main() -> None:
         help="Number of services to process concurrently",
     )
     parser.add_argument(
-        "--langsmith-project",
-        help="Enable LangSmith tracing for the given project",
+        "--logfire-service",
+        help="Enable Logfire telemetry for the given service name",
     )
     args = parser.parse_args()
 
@@ -67,8 +67,8 @@ def main() -> None:
 
     api_key = settings.openai_api_key
 
-    if settings.langsmith_api_key or args.langsmith_project:
-        init_langsmith(args.langsmith_project, settings.langsmith_api_key)
+    if settings.logfire_token or args.logfire_service:
+        init_logfire(args.logfire_service, settings.logfire_token)
 
     system_prompt = load_prompt(args.prompt_dir, args.context_id, args.inspirations_id)
     services = list(load_services(args.input_file))

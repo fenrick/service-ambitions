@@ -25,9 +25,9 @@ directory, `--context-id` to select a situational context, and
 `--inspirations-id` to choose a list of future inspirations. This structure
 supports swapping sections to suit different industries.
 
-To collect detailed traces with [LangSmith](https://docs.smith.langchain.com/),
-set the `LANGSMITH_API_KEY` environment variable and optionally supply a
-project name via `--langsmith-project`.
+To collect detailed traces with [Pydantic Logfire](https://logfire.pydantic.dev/),
+set the `LOGFIRE_TOKEN` environment variable and optionally supply a
+service name via `--logfire-service`.
 
 ## Installation
 

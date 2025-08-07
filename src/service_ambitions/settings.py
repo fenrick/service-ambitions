@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     model: str = "o4-mini"
     log_level: str = "INFO"
     openai_api_key: str
-    langsmith_api_key: str | None = None
+    logfire_token: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

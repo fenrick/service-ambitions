@@ -1,5 +1,4 @@
 import json
-import os
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -168,7 +167,7 @@ def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
     assert captured["api_key"] == "dummy"
 
 
-def test_cli_enables_langsmith(tmp_path, monkeypatch):
+def test_cli_enables_logfire(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     base = tmp_path / "prompts"
     (base / "situational_context").mkdir(parents=True)
@@ -184,10 +183,7 @@ def test_cli_enables_langsmith(tmp_path, monkeypatch):
     output_file = tmp_path / "output.jsonl"
 
     monkeypatch.setenv("OPENAI_API_KEY", "dummy")
-    monkeypatch.setenv("LANGSMITH_API_KEY", "ls-key")
-    monkeypatch.delenv("LANGCHAIN_TRACING_V2", raising=False)
-    monkeypatch.delenv("LANGCHAIN_API_KEY", raising=False)
-    monkeypatch.delenv("LANGCHAIN_PROJECT", raising=False)
+    monkeypatch.setenv("LOGFIRE_TOKEN", "lf-key")
 
     async def fake_process_service(self, service, prompt):
         return {"ok": True}
@@ -196,9 +192,13 @@ def test_cli_enables_langsmith(tmp_path, monkeypatch):
         ServiceAmbitionGenerator, "process_service", fake_process_service
     )
 
-    monkeypatch.setattr(
-        "service_ambitions.monitoring.Client", lambda: SimpleNamespace()
-    )
+    captured: dict[str, str | None] = {}
+
+    def fake_configure(**kwargs):  # type: ignore[no-untyped-def]
+        captured.update(kwargs)
+
+    dummy_module = SimpleNamespace(configure=fake_configure)
+    monkeypatch.setitem(sys.modules, "logfire", dummy_module)
 
     argv = [
         "main",
@@ -206,7 +206,7 @@ def test_cli_enables_langsmith(tmp_path, monkeypatch):
         str(input_file),
         "--output-file",
         str(output_file),
-        "--langsmith-project",
+        "--logfire-service",
         "demo",
         "--model",
         "test",
@@ -215,6 +215,5 @@ def test_cli_enables_langsmith(tmp_path, monkeypatch):
 
     cli.main()
 
-    assert os.environ["LANGCHAIN_TRACING_V2"] == "true"
-    assert os.environ["LANGCHAIN_API_KEY"] == "ls-key"
-    assert os.environ["LANGCHAIN_PROJECT"] == "demo"
+    assert captured["token"] == "lf-key"
+    assert captured["service_name"] == "demo"
