@@ -4,6 +4,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from mapping import MappedPlateauFeature, map_feature
 from models import PlateauFeature
@@ -21,7 +23,12 @@ class DummySession:
         return next(self._responses)
 
 
-def test_map_feature_returns_mappings() -> None:
+def test_map_feature_returns_mappings(monkeypatch) -> None:
+    template = (
+        "{feature_name} {feature_description} {category_label} "
+        "{category_items} {category_key}"
+    )
+    monkeypatch.setattr("mapping.load_mapping_prompt", lambda *a, **k: template)
     """``map_feature`` should populate mapping items with contributions."""
 
     session = DummySession(
@@ -53,7 +60,12 @@ def test_map_feature_returns_mappings() -> None:
     assert result.technology[0].type == "AI Engine"
 
 
-def test_map_feature_injects_reference_data() -> None:
+def test_map_feature_injects_reference_data(monkeypatch) -> None:
+    template = (
+        "{feature_name} {feature_description} {category_label} "
+        "{category_items} {category_key}"
+    )
+    monkeypatch.setattr("mapping.load_mapping_prompt", lambda *a, **k: template)
     """The mapping prompts should include reference data lists."""
 
     session = DummySession(
@@ -72,3 +84,16 @@ def test_map_feature_injects_reference_data() -> None:
     assert "User Data" in session.prompts[0]
     assert "Learning Platform" in session.prompts[1]
     assert "AI Engine" in session.prompts[2]
+
+
+def test_map_feature_rejects_invalid_json(monkeypatch) -> None:
+    template = (
+        "{feature_name} {feature_description} {category_label} "
+        "{category_items} {category_key}"
+    )
+    monkeypatch.setattr("mapping.load_mapping_prompt", lambda *a, **k: template)
+    """Invalid JSON responses should raise a ``ValueError``."""
+    session = DummySession(["not-json"])
+    feature = PlateauFeature(feature_id="f1", name="Integration", description="desc")
+    with pytest.raises(ValueError):
+        map_feature(session, feature)  # type: ignore[arg-type]

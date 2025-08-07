@@ -40,7 +40,19 @@ def _feature_payload(count: int) -> str:
     return json.dumps({"features": items})
 
 
-def test_generate_plateau_returns_results() -> None:
+def test_generate_plateau_returns_results(monkeypatch) -> None:
+    template = (
+        "{required_count} {service_name} {service_description} "
+        "{plateau} {customer_type}"
+    )
+    monkeypatch.setattr(
+        "plateau_generator.load_plateau_prompt", lambda *a, **k: template
+    )
+    mapping_template = (
+        "{feature_name} {feature_description} {category_label} "
+        "{category_items} {category_key}"
+    )
+    monkeypatch.setattr("mapping.load_mapping_prompt", lambda *a, **k: mapping_template)
     responses = [json.dumps({"description": "desc"})]
     for _ in range(3):
         responses.append(_feature_payload(1))
@@ -61,7 +73,14 @@ def test_generate_plateau_returns_results() -> None:
     assert len(results) == 3
 
 
-def test_generate_plateau_raises_on_insufficient_features() -> None:
+def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> None:
+    template = (
+        "{required_count} {service_name} {service_description} "
+        "{plateau} {customer_type}"
+    )
+    monkeypatch.setattr(
+        "plateau_generator.load_plateau_prompt", lambda *a, **k: template
+    )
     responses = [json.dumps({"description": "desc"}), _feature_payload(1)]
     session = DummySession(responses)
     generator = PlateauGenerator(cast(ConversationSession, session), required_count=2)
@@ -70,3 +89,18 @@ def test_generate_plateau_raises_on_insufficient_features() -> None:
 
     with pytest.raises(ValueError):
         generator.generate_plateau(cast(ConversationSession, session), 1)
+
+
+def test_request_description_invalid_json(monkeypatch) -> None:
+    template = (
+        "{required_count} {service_name} {service_description} "
+        "{plateau} {customer_type}"
+    )
+    monkeypatch.setattr(
+        "plateau_generator.load_plateau_prompt", lambda *a, **k: template
+    )
+    """Invalid description payloads should raise ``ValueError``."""
+    session = DummySession(["not json"])
+    generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
+    with pytest.raises(ValueError):
+        generator._request_description(cast(ConversationSession, session), 1)
