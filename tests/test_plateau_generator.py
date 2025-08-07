@@ -1,6 +1,5 @@
 """Tests for plateau feature generation."""
 
-import asyncio
 import json
 import sys
 from pathlib import Path
@@ -9,9 +8,13 @@ from typing import cast
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from conversation import ConversationSession
-from models import ServiceInput
-from plateau_generator import PlateauGenerator
+from conversation import (
+    ConversationSession,
+)  # noqa: E402  pylint: disable=wrong-import-position
+from models import ServiceInput  # noqa: E402  pylint: disable=wrong-import-position
+from plateau_generator import (
+    PlateauGenerator,
+)  # noqa: E402  pylint: disable=wrong-import-position
 
 
 class DummySession:
@@ -38,33 +41,32 @@ def _feature_payload(count: int) -> str:
 
 
 def test_generate_plateau_returns_results() -> None:
-    mapping_responses = []
-    for _ in range(5):
-        mapping_responses.extend(
+    responses = [json.dumps({"description": "desc"})]
+    for _ in range(3):
+        responses.append(_feature_payload(1))
+        responses.extend(
             [
                 json.dumps({"data": [{"type": "d", "contribution": "c"}]}),
                 json.dumps({"applications": [{"type": "a", "contribution": "c"}]}),
                 json.dumps({"technology": [{"type": "t", "contribution": "c"}]}),
             ]
         )
-    responses = [_feature_payload(5)] + mapping_responses
     session = DummySession(responses)
-    generator = PlateauGenerator(cast(ConversationSession, session))
+    generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
     service = ServiceInput(name="svc", customer_type="retail", description="desc")
+    generator._service = service  # type: ignore[attr-defined]
 
-    results = asyncio.run(
-        generator.generate_plateau(service, "alpha", "retail")
-    )  # type: ignore[arg-type]
+    results = generator.generate_plateau(cast(ConversationSession, session), 1)
 
-    assert len(results) == 5
+    assert len(results) == 3
 
 
 def test_generate_plateau_raises_on_insufficient_features() -> None:
-    session = DummySession([_feature_payload(3)])
-    generator = PlateauGenerator(cast(ConversationSession, session))
+    responses = [json.dumps({"description": "desc"}), _feature_payload(1)]
+    session = DummySession(responses)
+    generator = PlateauGenerator(cast(ConversationSession, session), required_count=2)
     service = ServiceInput(name="svc", customer_type="retail", description="desc")
+    generator._service = service  # type: ignore[attr-defined]
 
     with pytest.raises(ValueError):
-        asyncio.run(
-            generator.generate_plateau(service, "alpha", "retail")
-        )  # type: ignore[arg-type]
+        generator.generate_plateau(cast(ConversationSession, session), 1)

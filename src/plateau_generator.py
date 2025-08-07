@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
-from typing import Iterable
+from typing import cast
 
 from conversation import ConversationSession
 from loader import load_plateau_prompt
-from mapping import map_feature
-from models import PlateauFeature, PlateauResult, ServiceEvolution, ServiceInput
+from mapping import MappedPlateauFeature, map_feature
+from models import (
+    Contribution,
+    PlateauFeature,
+    PlateauResult,
+    ServiceEvolution,
+    ServiceInput,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,103 +29,122 @@ class PlateauGenerator:
         prompt_dir: str = "prompts",
         required_count: int = 5,
     ) -> None:
-        """Initialize the generator.
+        """Initialise the generator.
 
         Args:
             session: Active conversation session for agent queries.
             prompt_dir: Directory containing prompt templates.
-            required_count: Minimum number of features per plateau.
+            required_count: Minimum number of features per customer type.
         """
         if required_count < 1:
             raise ValueError("required_count must be positive")
         self.session = session
         self.prompt_dir = prompt_dir
         self.required_count = required_count
+        self._service: ServiceInput | None = None
 
-    async def generate_plateau(
-        self, service: ServiceInput, plateau: str, customer_type: str
-    ) -> list[PlateauResult]:
-        """Return plateau results for ``service`` and ``customer_type``.
+    def _request_description(self, session: ConversationSession, level: int) -> str:
+        """Return the service description for ``level``.
 
-        Requests at least ``required_count`` features for the specified plateau
-        and customer type, mapping each feature using :func:`map_feature`.
+        The agent must respond with JSON containing a ``description`` field.
         """
-
-        template = load_plateau_prompt(self.prompt_dir)
-        prompt = template.format(
-            required_count=self.required_count,
-            service_name=service.name,
-            service_description=service.description,
-            plateau=plateau,
-            customer_type=customer_type,
+        prompt = (
+            "Provide JSON with a 'description' field describing the service "
+            f"at plateau level {level}."
         )
-        logger.info(
-            "Requesting features for service=%s plateau=%s customer=%s",
-            service.name,
-            plateau,
-            customer_type,
-        )
-        response = await asyncio.to_thread(self.session.ask, prompt)
-        logger.debug("Raw feature response: %s", response)
-
+        response = session.ask(prompt)
         try:
             payload = json.loads(response)
-        except json.JSONDecodeError as exc:  # pragma: no cover - logging
-            logger.error("Invalid JSON from feature response: %s", exc)
-            raise ValueError("Agent returned invalid JSON") from exc
+            description = payload["description"]
+        except (json.JSONDecodeError, KeyError) as exc:  # pragma: no cover - logging
+            logger.error("Invalid plateau description: %s", exc)
+            raise ValueError("Agent returned invalid plateau description") from exc
+        if not isinstance(description, str) or not description:
+            raise ValueError("'description' must be a non-empty string")
+        return description
 
-        raw_features = payload.get("features")
-        if not isinstance(raw_features, list):
-            raise ValueError("'features' key missing or not a list")
-        if len(raw_features) < self.required_count:
-            logger.error(
-                "Expected at least %s features, received %s",
-                self.required_count,
-                len(raw_features),
+    def generate_plateau(
+        self, session: ConversationSession, level: int
+    ) -> list[PlateauResult]:
+        """Return mapped plateau features for ``level``.
+
+        The function requests a plateau-specific service description, then
+        generates at least ``required_count`` features for each customer type:
+        learners, staff and community. Each feature is enriched using
+        :func:`map_feature` before being returned as :class:`PlateauResult`.
+        """
+        if self._service is None:
+            raise ValueError(
+                "ServiceInput not set. Call generate_service_evolution first."
             )
-            raise ValueError("Insufficient number of features returned")
+
+        description = self._request_description(session, level)
+        template = load_plateau_prompt(self.prompt_dir)
 
         results: list[PlateauResult] = []
-        for item in raw_features:
-            feature = PlateauFeature(
-                feature_id=item["feature_id"],
-                name=item["name"],
-                description=item["description"],
+        for customer in ("learners", "staff", "community"):
+            prompt = template.format(
+                required_count=self.required_count,
+                service_name=self._service.name,
+                service_description=description,
+                plateau=str(level),
+                customer_type=customer,
             )
-            mapped = map_feature(self.session, feature, self.prompt_dir)
-            results.append(PlateauResult(feature=mapped, score=float(item["score"])))
+            logger.info("Requesting features for level=%s customer=%s", level, customer)
+            response = session.ask(prompt)
+            try:
+                payload = json.loads(response)
+            except json.JSONDecodeError as exc:  # pragma: no cover - logging
+                logger.error("Invalid JSON from feature response: %s", exc)
+                raise ValueError("Agent returned invalid JSON") from exc
+
+            raw_features = payload.get("features")
+            if (
+                not isinstance(raw_features, list)
+                or len(raw_features) < self.required_count
+            ):
+                raise ValueError("Insufficient number of features returned")
+
+            for item in raw_features:
+                feature = PlateauFeature(
+                    feature_id=item["feature_id"],
+                    name=item["name"],
+                    description=item["description"],
+                )
+                mapped = cast(
+                    MappedPlateauFeature,
+                    map_feature(session, feature, self.prompt_dir),
+                )
+                result = PlateauResult(
+                    feature=mapped,
+                    score=float(item["score"]),
+                    conceptual_data_types=[
+                        Contribution(item=c.type, contribution=c.contribution)
+                        for c in mapped.data
+                    ],
+                    logical_application_types=[
+                        Contribution(item=c.type, contribution=c.contribution)
+                        for c in mapped.applications
+                    ],
+                    logical_technology_types=[
+                        Contribution(item=c.type, contribution=c.contribution)
+                        for c in mapped.technology
+                    ],
+                )
+                results.append(result)
         return results
 
-    async def generate_service_evolution(
-        self,
-        service: ServiceInput,
-        plateaus: Iterable[str],
-        customer_types: Iterable[str],
+    def generate_service_evolution(
+        self, service_input: ServiceInput
     ) -> ServiceEvolution:
-        """Return aggregated service evolution across ``plateaus``.
-
-        Each plateau is processed for every customer type using
-        :meth:`generate_plateau`.
-        """
+        """Return aggregated service evolution across plateaus 1-4."""
+        self._service = service_input
+        self.session.add_parent_materials(service_input)
 
         all_results: list[PlateauResult] = []
-        for plateau in plateaus:
-            for customer in customer_types:
-                logger.debug("Processing plateau=%s for customer=%s", plateau, customer)
-                try:
-                    plateau_results = await self.generate_plateau(
-                        service, plateau, customer
-                    )
-                except ValueError as exc:
-                    logger.error(
-                        "Failed to generate plateau %s for customer %s: %s",
-                        plateau,
-                        customer,
-                        exc,
-                    )
-                    raise
-                all_results.extend(plateau_results)
-        return ServiceEvolution(service=service, results=all_results)
+        for level in range(1, 5):
+            all_results.extend(self.generate_plateau(self.session, level))
+        return ServiceEvolution(service=service_input, results=all_results)
 
 
 __all__ = ["PlateauGenerator"]

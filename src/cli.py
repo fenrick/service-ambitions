@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
 import logging
-from typing import Iterable
 
 import logfire
 from pydantic_ai import Agent
@@ -53,18 +51,6 @@ def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
     logfire.force_flush()
 
 
-async def _evolution_for_service(
-    generator: PlateauGenerator,
-    service: ServiceInput,
-    plateaus: Iterable[str],
-    customers: Iterable[str],
-) -> str:
-    """Return JSON representation of a service's evolution."""
-
-    evolution = await generator.generate_service_evolution(service, plateaus, customers)
-    return evolution.model_dump_json()
-
-
 def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
     """Generate service evolution summaries."""
 
@@ -76,12 +62,8 @@ def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
 
     with open(args.output_file, "w", encoding="utf-8") as output:
         for service in services:
-            payload = asyncio.run(
-                _evolution_for_service(
-                    generator, service, args.plateaus, args.customers
-                )
-            )
-            output.write(f"{payload}\n")
+            evolution = generator.generate_service_evolution(service)
+            output.write(f"{evolution.model_dump_json()}\n")
             logger.info("Generated evolution for %s", service.name)
     logfire.force_flush()
 
