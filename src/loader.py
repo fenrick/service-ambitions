@@ -41,6 +41,44 @@ def _read_file(path: str) -> str:
 
 
 @logfire.instrument()
+def load_plateau_prompt(base_dir: str, filename: str = "plateau_prompt.md") -> str:
+    """Return the plateau feature generation prompt template.
+
+    Args:
+        base_dir: Directory containing prompt templates.
+        filename: Plateau prompt file name.
+
+    Returns:
+        Prompt template text.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        RuntimeError: If the file cannot be read.
+    """
+
+    return _read_file(os.path.join(base_dir, filename))
+
+
+@logfire.instrument()
+def load_mapping_prompt(base_dir: str, filename: str = "mapping_prompt.md") -> str:
+    """Return the feature mapping prompt template.
+
+    Args:
+        base_dir: Directory containing prompt templates.
+        filename: Mapping prompt file name.
+
+    Returns:
+        Prompt template text.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        RuntimeError: If the file cannot be read.
+    """
+
+    return _read_file(os.path.join(base_dir, filename))
+
+
+@logfire.instrument()
 def load_prompt(
     base_dir: str,
     context_id: str,

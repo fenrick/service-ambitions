@@ -4,7 +4,12 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from loader import load_prompt, load_services
+from loader import (
+    load_mapping_prompt,
+    load_plateau_prompt,
+    load_prompt,
+    load_services,
+)
 
 
 def test_load_prompt_assembles_components(tmp_path):
@@ -26,6 +31,20 @@ def test_load_prompt_missing_component(tmp_path):
     base.mkdir()
     with pytest.raises(FileNotFoundError):
         load_prompt(str(base), "ctx", "insp")
+
+
+def test_load_plateau_prompt(tmp_path):
+    base = tmp_path / "prompts"
+    base.mkdir()
+    (base / "plateau_prompt.md").write_text("content", encoding="utf-8")
+    assert load_plateau_prompt(str(base)) == "content"
+
+
+def test_load_mapping_prompt(tmp_path):
+    base = tmp_path / "prompts"
+    base.mkdir()
+    (base / "mapping_prompt.md").write_text("map", encoding="utf-8")
+    assert load_mapping_prompt(str(base)) == "map"
 
 
 def test_load_services_reads_jsonl(tmp_path):

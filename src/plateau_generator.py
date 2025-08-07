@@ -7,6 +7,7 @@ import logging
 from typing import Iterable
 
 from conversation import ConversationSession
+from loader import load_plateau_prompt
 from mapping import MappedPlateauFeature, map_feature
 from models import PlateauFeature, PlateauResult, ServiceEvolution, ServiceInput
 
@@ -16,16 +17,23 @@ logger = logging.getLogger(__name__)
 class PlateauGenerator:
     """Generate plateau features and service evolution summaries."""
 
-    def __init__(self, session: ConversationSession, required_count: int = 5) -> None:
+    def __init__(
+        self,
+        session: ConversationSession,
+        prompt_dir: str = "prompts",
+        required_count: int = 5,
+    ) -> None:
         """Initialize the generator.
 
         Args:
             session: Active conversation session for agent queries.
+            prompt_dir: Directory containing prompt templates.
             required_count: Minimum number of features per plateau.
         """
         if required_count < 1:
             raise ValueError("required_count must be positive")
         self.session = session
+        self.prompt_dir = prompt_dir
         self.required_count = required_count
 
     async def generate_plateau(
@@ -37,13 +45,13 @@ class PlateauGenerator:
         and customer type, mapping each feature using :func:`map_feature`.
         """
 
-        prompt = (
-            "Provide JSON with a 'features' key containing at least "
-            f"{self.required_count} items. Each item must include 'feature_id', "
-            "'name', 'description', and 'score' between 0 and 1.\n"
-            f"Service name: {service.name}\n"
-            f"Service description: {service.description}\n"
-            f"Plateau: {plateau}\nCustomer type: {customer_type}"
+        template = load_plateau_prompt(self.prompt_dir)
+        prompt = template.format(
+            required_count=self.required_count,
+            service_name=service.name,
+            service_description=service.description,
+            plateau=plateau,
+            customer_type=customer_type,
         )
         logger.info(
             "Requesting features for service=%s plateau=%s customer=%s",
@@ -78,7 +86,9 @@ class PlateauGenerator:
                 name=item["name"],
                 description=item["description"],
             )
-            mapped: MappedPlateauFeature = await map_feature(self.session, feature)
+            mapped: MappedPlateauFeature = await map_feature(
+                self.session, feature, self.prompt_dir
+            )
             results.append(PlateauResult(feature=mapped, score=float(item["score"])))
         return results
 
