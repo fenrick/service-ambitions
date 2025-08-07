@@ -36,13 +36,10 @@ def map_feature(
     feature: PlateauFeature,
     prompt_dir: str = "prompts",
 ) -> PlateauFeature:
-    """Return ``feature`` augmented with data, application and technology mappings.
+    """Return ``feature`` augmented with mapping information.
 
-    The function prompts ``session`` three times using a mapping template: once
-    each for data, applications and technology. The agent must respond with JSON
-    containing a list for the requested category. Each element of the list must
-    provide ``item`` and ``contribution`` fields. If any list is missing or
-    empty, a :class:`ValueError` is raised.
+    This is a convenience wrapper around :func:`map_features` for mapping a
+    single feature.
 
     Args:
         session: Active conversation session used to query the agent.
@@ -51,51 +48,15 @@ def map_feature(
 
     Returns:
         A :class:`PlateauFeature` with mapping information applied.
-
-    Raises:
-        ValueError: If a response cannot be parsed or a required list is empty.
     """
 
-    template = load_mapping_prompt(prompt_dir)
-    mapping_items = load_mapping_items()
-
-    categories = (
-        ("data", "Information", "information"),
-        ("applications", "Applications", "applications"),
-        ("technology", "Technologies", "technologies"),
-    )
-
-    mapped: dict[str, list[Contribution]] = {}
-    for key, label, item_key in categories:
-        prompt = template.format(
-            feature_name=feature.name,
-            feature_description=feature.description,
-            category_label=label,
-            category_items=_render_items(mapping_items[item_key]),
-            category_key=key,
-        )
-        logger.debug("Requesting %s mappings for feature %s", key, feature.feature_id)
-        response = session.ask(prompt)
-        logger.debug("Raw %s mapping response: %s", key, response)
-
-        try:
-            payload: dict[str, Any] = json.loads(response)
-        except json.JSONDecodeError as exc:  # pragma: no cover - logging
-            logger.error("Invalid JSON from mapping response: %s", exc)
-            raise ValueError("Agent returned invalid JSON") from exc
-
-        raw_items = payload.get(key)
-        if not isinstance(raw_items, list) or not raw_items:
-            raise ValueError(f"'{key}' key missing or empty")
-
-        mapped[key] = [Contribution(**item) for item in raw_items]
-
-    merged = {**feature.model_dump(), **mapped}
-    return PlateauFeature(**merged)
+    return map_features(session, [feature], prompt_dir)[0]
 
 
 def map_features(
-    session: ConversationSession, features: Sequence[PlateauFeature]
+    session: ConversationSession,
+    features: Sequence[PlateauFeature],
+    prompt_dir: str = "prompts",
 ) -> list[PlateauFeature]:
     """Return ``features`` augmented with data, application and technology mappings.
 
@@ -118,23 +79,13 @@ def map_features(
         missing.
     """
 
+    template = load_mapping_prompt(prompt_dir)
     mapping_items = load_mapping_items()
-    prompt = (
-        "Map each feature to relevant Data, Applications and Technologies from"
-        " the lists below.\n\n"
-        "## Available Data\n"
-        f"{_render_items(mapping_items['information'])}\n\n"
-        "## Available Applications\n"
-        f"{_render_items(mapping_items['applications'])}\n\n"
-        "## Available Technologies\n"
-        f"{_render_items(mapping_items['technologies'])}\n\n"
-        "## Features\n"
-        f"{_render_features(features)}\n\n"
-        "Return JSON with a 'features' array. Each element must include\n"
-        "'feature_id', 'data', 'applications' and 'technology' arrays. Each\n"
-        "array must contain at least one object with 'item' and 'contribution'.\n"
-        "Use only items from the provided lists. Do not include any text"
-        " outside the JSON object."
+    prompt = template.format(
+        data_items=_render_items(mapping_items["information"]),
+        application_items=_render_items(mapping_items["applications"]),
+        technology_items=_render_items(mapping_items["technologies"]),
+        features=_render_features(features),
     )
     logger.debug("Requesting mappings for %s features", len(features))
     response = session.ask(prompt)
