@@ -54,14 +54,14 @@ def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
 def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
     """Generate service evolution summaries."""
 
-    services = [ServiceInput(**svc) for svc in load_services(args.input_file)]
     model_name = args.model or settings.model
     model = build_model(model_name, settings.openai_api_key)
     session = ConversationSession(Agent(model))
     generator = PlateauGenerator(session)
 
     with open(args.output_file, "w", encoding="utf-8") as output:
-        for service in services:
+        for raw in load_services(args.input_file):
+            service = ServiceInput(**raw)
             evolution = generator.generate_service_evolution(service)
             output.write(f"{evolution.model_dump_json()}\n")
             logger.info("Generated evolution for %s", service.name)
