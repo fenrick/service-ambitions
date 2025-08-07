@@ -10,25 +10,25 @@ from langsmith import Client
 logger = logging.getLogger(__name__)
 
 
-def init_langsmith(project: str | None = None) -> None:
+def init_langsmith(project: str | None = None, api_key: str | None = None) -> None:
     """Enable LangSmith tracing if configured.
 
     Args:
         project: Optional name for the LangSmith project.
+        api_key: LangSmith API key. Falls back to ``LANGSMITH_API_KEY`` env var.
 
-    When the ``LANGSMITH_API_KEY`` environment variable is present this
-    function activates LangSmith's tracing support by setting the appropriate
-    environment variables. If ``project`` is given, traces are grouped under
-    that project.
+    When the API key is available this function activates LangSmith's tracing
+    support by setting the appropriate environment variables. If ``project`` is
+    given, traces are grouped under that project.
     """
 
-    api_key = os.getenv("LANGSMITH_API_KEY")
-    if not api_key:
+    key = api_key or os.getenv("LANGSMITH_API_KEY")
+    if not key:
         logger.debug("LANGSMITH_API_KEY not set; skipping LangSmith setup")
         return
 
     os.environ["LANGCHAIN_TRACING_V2"] = "true"
-    os.environ["LANGCHAIN_API_KEY"] = api_key
+    os.environ["LANGCHAIN_API_KEY"] = key
     if project:
         os.environ["LANGCHAIN_PROJECT"] = project
 

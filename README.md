@@ -3,8 +3,8 @@
 ## Configuration
 
 The CLI requires an OpenAI API key available in the `OPENAI_API_KEY` environment
-variable. The key is loaded after `.env` files are processed and the application
-will exit if the variable is missing.
+variable. Settings are loaded via Pydantic, which reads from a `.env` file if
+present. The application will exit if the key is missing.
 
 Create a `.env` file in the project root with:
 

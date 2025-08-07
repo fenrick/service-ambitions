@@ -4,13 +4,11 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
-
-from dotenv import load_dotenv
 
 from .generator import ServiceAmbitionGenerator, build_model
 from .loader import load_prompt, load_services
 from .monitoring import init_langsmith
+from .settings import load_settings
 
 logger = logging.getLogger(__name__)
 
@@ -44,12 +42,10 @@ def main() -> None:
     )
     parser.add_argument(
         "--model",
-        default=os.getenv("MODEL", "o4-mini"),
         help="Chat model name. Can also be set via the MODEL env variable.",
     )
     parser.add_argument(
         "--response-format",
-        default=os.getenv("RESPONSE_FORMAT"),
         help=(
             "Optional response format passed to ChatOpenAI. "
             "Can also be set via the RESPONSE_FORMAT env variable."
@@ -57,7 +53,6 @@ def main() -> None:
     )
     parser.add_argument(
         "--log-level",
-        default=os.getenv("LOG_LEVEL", "INFO"),
         help="Logging level. Can also be set via the LOG_LEVEL env variable.",
     )
     parser.add_argument(
@@ -72,25 +67,26 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    logging.basicConfig(level=getattr(logging, args.log_level.upper(), logging.INFO))
+    settings = load_settings()
 
-    load_dotenv()
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError(
-            "OPENAI_API_KEY is not set. Provide it via a .env file or a secret manager."
-        )
+    log_level = args.log_level or settings.log_level
+    logging.basicConfig(level=getattr(logging, log_level.upper(), logging.INFO))
 
-    if os.getenv("LANGSMITH_API_KEY") or args.langsmith_project:
-        init_langsmith(args.langsmith_project)
+    api_key = settings.openai_api_key
+
+    if settings.langsmith_api_key or args.langsmith_project:
+        init_langsmith(args.langsmith_project, settings.langsmith_api_key)
 
     system_prompt = load_prompt(args.prompt_dir, args.context_id, args.inspirations_id)
     services = list(load_services(args.input_file))
 
+    model_name = args.model or settings.model
+    response_format = args.response_format or settings.response_format
+
     try:
-        model = build_model(args.model, api_key, args.response_format)
+        model = build_model(model_name, api_key, response_format)
     except Exception as exc:  # pylint: disable=broad-except
-        logger.error("Failed to initialize model %s: %s", args.model, exc)
+        logger.error("Failed to initialize model %s: %s", model_name, exc)
         raise
 
     generator = ServiceAmbitionGenerator(model, concurrency=args.concurrency)

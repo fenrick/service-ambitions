@@ -3,14 +3,6 @@ import types
 
 # Stub external dependencies so tests can import `main` without installing
 # heavy packages.
-dotenv_stub = types.ModuleType("dotenv")
-dotenv_stub.load_dotenv = lambda *args, **kwargs: None  # type: ignore[attr-defined]
-sys.modules.setdefault("dotenv", dotenv_stub)
-
-pydantic_stub = types.ModuleType("pydantic")
-pydantic_stub.BaseModel = object  # type: ignore[attr-defined]
-sys.modules.setdefault("pydantic", pydantic_stub)
-
 langchain_chat_models = types.ModuleType("langchain.chat_models")
 langchain_chat_models.init_chat_model = (  # type: ignore[attr-defined]
     lambda **kwargs: None

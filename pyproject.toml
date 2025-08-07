@@ -13,7 +13,8 @@ dependencies = [
 "langchain-core" ,
 "langchain-openai",
 "langsmith",
-"python-dotenv",
+"pydantic",
+"pydantic-settings",
 ]
 
 [tool.poetry.group.dev.dependencies]
