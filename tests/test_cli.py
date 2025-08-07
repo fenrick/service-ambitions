@@ -193,14 +193,19 @@ def test_cli_enables_logfire(tmp_path, monkeypatch):
         ServiceAmbitionGenerator, "process_service", fake_process_service
     )
 
-    captured: dict[str, str | None] = {}
+    captured: dict[str, object] = {}
     called: dict[str, bool] = {"installed": False}
 
     def fake_configure(**kwargs):  # type: ignore[no-untyped-def]
         captured.update(kwargs)
 
-    def fake_install() -> None:  # type: ignore[no-untyped-def]
+    def fake_install(
+        modules, *, min_duration, check_imported_modules="error"
+    ):  # type: ignore[no-untyped-def]
         called["installed"] = True
+        captured["modules"] = modules
+        captured["min_duration"] = min_duration
+        captured["check"] = check_imported_modules
 
     dummy_module = SimpleNamespace(
         configure=fake_configure,
@@ -226,6 +231,8 @@ def test_cli_enables_logfire(tmp_path, monkeypatch):
 
     assert captured["token"] == "lf-key"
     assert captured["service_name"] == "demo"
+    assert captured["modules"] == []
+    assert captured["min_duration"] == 0
     assert called["installed"]
 
 
