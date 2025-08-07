@@ -40,6 +40,7 @@ def test_cli_generates_output(tmp_path, monkeypatch):
 
     argv = [
         "main",
+        "generate-ambitions",
         "--prompt-dir",
         str(base),
         "--context-id",
@@ -68,7 +69,7 @@ def test_cli_generates_output(tmp_path, monkeypatch):
 
 def test_cli_requires_api_key(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.setattr(sys, "argv", ["main"])
+    monkeypatch.setattr(sys, "argv", ["main", "generate-ambitions"])
     with pytest.raises(RuntimeError) as excinfo:
         cli.main()
     assert "openai_api_key" in str(excinfo.value)
@@ -101,6 +102,7 @@ def test_cli_switches_context(tmp_path, monkeypatch):
 
     argv = [
         "main",
+        "generate-ambitions",
         "--context-id",
         "beta",
         "--input-file",
@@ -155,6 +157,7 @@ def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
 
     argv = [
         "main",
+        "generate-ambitions",
         "--input-file",
         str(input_file),
         "--output-file",
@@ -216,6 +219,7 @@ def test_cli_enables_logfire(tmp_path, monkeypatch):
 
     argv = [
         "main",
+        "generate-ambitions",
         "--input-file",
         str(input_file),
         "--output-file",
@@ -242,7 +246,7 @@ def test_cli_rejects_invalid_concurrency(monkeypatch):
     monkeypatch.setattr(cli, "load_services", lambda *a, **k: [])
     monkeypatch.setattr(cli, "build_model", lambda *a, **k: object())
 
-    argv = ["main", "--concurrency", "0", "--model", "test"]
+    argv = ["main", "generate-ambitions", "--concurrency", "0", "--model", "test"]
     monkeypatch.setattr(sys, "argv", argv)
 
     with pytest.raises(ValueError, match="concurrency must be a positive integer"):
@@ -250,7 +254,7 @@ def test_cli_rejects_invalid_concurrency(monkeypatch):
 
 
 def test_cli_help_shows_parameters(monkeypatch, capsys):
-    monkeypatch.setattr(sys, "argv", ["main", "--help"])
+    monkeypatch.setattr(sys, "argv", ["main", "generate-ambitions", "--help"])
     with pytest.raises(SystemExit):
         cli.main()
     out = capsys.readouterr().out
@@ -284,6 +288,7 @@ def test_cli_verbose_logging(tmp_path, monkeypatch, capsys):
 
     argv = [
         "main",
+        "generate-ambitions",
         "--prompt-dir",
         str(base),
         "--context-id",

@@ -41,16 +41,19 @@ tool and then install the project's dependencies with:
 poetry install
 ```
 
-Run the CLI through Poetry to ensure it uses the managed environment:
+Run the CLI through Poetry to ensure it uses the managed environment. Use
+subcommands to select the desired operation:
 
 ```bash
-poetry run python src/cli.py --input-file sample-services.jsonl --output-file ambitions.jsonl
+poetry run python src/cli.py generate-ambitions --input-file sample-services.jsonl --output-file ambitions.jsonl
+poetry run python src/cli.py generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl
 ```
 
 Alternatively, use the provided shell script which forwards all arguments to the CLI:
 
 ```bash
-./run.sh --input-file sample-services.jsonl --output-file ambitions.jsonl
+./run.sh generate-ambitions --input-file sample-services.jsonl --output-file ambitions.jsonl
+./run.sh generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl
 ```
 
 ## Usage
@@ -58,5 +61,8 @@ Alternatively, use the provided shell script which forwards all arguments to the
 `sample-services.jsonl` contains example services in
 [JSON Lines](https://jsonlines.org/) format, with one JSON object per line. The
 output file will also be in JSON Lines format. Use the `--concurrency` option to
-control how many services are processed in parallel.
-Pass `-v` for informative logs or `-vv` for detailed debugging output.
+control how many services are processed in parallel when running
+`generate-ambitions`.
+
+The `generate-evolution` subcommand produces plateau feature evolutions for each
+service. Pass `-v` for informative logs or `-vv` for detailed debugging output.
