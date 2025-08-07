@@ -4,6 +4,8 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import generator
 
@@ -25,3 +27,8 @@ def test_process_service_async(monkeypatch):
     gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
     result = asyncio.run(gen.process_service(service, "prompt"))
     assert result == {"service": json.dumps(service)}
+
+
+def test_generator_rejects_invalid_concurrency():
+    with pytest.raises(ValueError):
+        generator.ServiceAmbitionGenerator(SimpleNamespace(), concurrency=0)
