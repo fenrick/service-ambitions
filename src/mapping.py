@@ -1,8 +1,7 @@
-"""Feature mapping utilities via Pydantic AI."""
+"""Utilities for enriching plateau features with mapping data."""
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 from typing import TYPE_CHECKING, Any
@@ -12,49 +11,58 @@ from pydantic import BaseModel, Field
 from loader import load_mapping_items, load_mapping_prompt
 from models import PlateauFeature
 
-if TYPE_CHECKING:  # pragma: no cover - type checking only
+if TYPE_CHECKING:  # pragma: no cover - import for type checking only
     from conversation import ConversationSession
 
 logger = logging.getLogger(__name__)
 
 
-class MappingItem(BaseModel):
-    """Single mapping entry describing a contribution."""
+class TypeContribution(BaseModel):
+    """Mapping item describing how a type supports the feature."""
 
-    item: str = Field(..., description="Name of the mapped element.")
+    type: str = Field(..., description="Name of the mapped type.")
     contribution: str = Field(
-        ..., description="Explanation of how the item contributes to the feature."
+        ..., description="Explanation of how the type contributes to the feature."
     )
 
 
 class MappedPlateauFeature(PlateauFeature):
-    """Extension of :class:`PlateauFeature` including mapping information."""
+    """Extension of :class:`PlateauFeature` including mapping lists."""
 
-    mappings: list[MappingItem] = Field(
+    data: list[TypeContribution] = Field(
         default_factory=list,
-        description="List of related items and their contributions.",
+        description="Conceptual data types related to the feature.",
+    )
+    applications: list[TypeContribution] = Field(
+        default_factory=list,
+        description="Applications relevant to the feature.",
+    )
+    technology: list[TypeContribution] = Field(
+        default_factory=list,
+        description="Supporting technologies for the feature.",
     )
 
 
 def _render_items(items: list[dict[str, str]]) -> str:
-    """Return a bullet list representation of mapping items."""
+    """Return a bullet list representation of mapping reference items."""
 
     return "\n".join(
         f"- {entry['id']}: {entry['name']} - {entry['description']}" for entry in items
     )
 
 
-async def map_feature(
+def map_feature(
     session: ConversationSession,
     feature: PlateauFeature,
     prompt_dir: str = "prompts",
-) -> MappedPlateauFeature:
-    """Return ``feature`` augmented with contribution mappings.
+) -> PlateauFeature:
+    """Return ``feature`` augmented with data, application and technology mappings.
 
-    The function prompts the provided ``session`` three times to generate mapping
-    data for the given ``feature``—once each for information, applications and
-    technologies. Each agent response must contain a ``mappings`` key whose value
-    is a list of objects with ``item`` and ``contribution`` fields.
+    The function prompts ``session`` three times using a mapping template: once
+    each for data, applications and technology. The agent must respond with JSON
+    containing a list for the requested category. Each element of the list must
+    provide ``type`` and ``contribution`` fields. If any list is missing or
+    empty, a :class:`ValueError` is raised.
 
     Args:
         session: Active conversation session used to query the agent.
@@ -62,32 +70,31 @@ async def map_feature(
         prompt_dir: Directory containing prompt templates.
 
     Returns:
-        A new :class:`MappedPlateauFeature` including any mappings returned by the
-        agent.
+        A :class:`MappedPlateauFeature` with mapping information applied.
 
     Raises:
-        ValueError: If the agent response cannot be parsed or lacks mapping data.
+        ValueError: If a response cannot be parsed or a required list is empty.
     """
 
     template = load_mapping_prompt(prompt_dir)
     mapping_items = load_mapping_items()
-    mappings: list[MappingItem] = []
+
     categories = (
-        ("information", "Information"),
-        ("applications", "Applications"),
-        ("technologies", "Technologies"),
+        ("data", "Information", "information"),
+        ("applications", "Applications", "applications"),
+        ("technology", "Technologies", "technologies"),
     )
 
-    for key, label in categories:
+    mapped: dict[str, list[TypeContribution]] = {}
+    for key, label, item_key in categories:
         prompt = template.format(
             feature_name=feature.name,
             feature_description=feature.description,
             category_label=label,
-            category_items=_render_items(mapping_items[key]),
+            category_items=_render_items(mapping_items[item_key]),
         )
-
         logger.debug("Requesting %s mappings for feature %s", key, feature.feature_id)
-        response = await asyncio.to_thread(session.ask, prompt)
+        response = session.ask(prompt)
         logger.debug("Raw %s mapping response: %s", key, response)
 
         try:
@@ -96,17 +103,14 @@ async def map_feature(
             logger.error("Invalid JSON from mapping response: %s", exc)
             raise ValueError("Agent returned invalid JSON") from exc
 
-        raw_mappings = payload.get("mappings", [])
-        if not isinstance(raw_mappings, list):
-            raise ValueError("'mappings' key missing or not a list")
+        raw_items = payload.get(key)
+        if not isinstance(raw_items, list) or not raw_items:
+            raise ValueError(f"'{key}' key missing or empty")
 
-        mappings.extend(MappingItem(**item) for item in raw_mappings)
+        mapped[key] = [TypeContribution(**item) for item in raw_items]
 
-    return MappedPlateauFeature(**feature.model_dump(), mappings=mappings)
+    merged = {**feature.model_dump(), **mapped}
+    return MappedPlateauFeature(**merged)
 
 
-__all__ = [
-    "MappingItem",
-    "MappedPlateauFeature",
-    "map_feature",
-]
+__all__ = ["TypeContribution", "MappedPlateauFeature", "map_feature"]
