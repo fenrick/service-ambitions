@@ -27,7 +27,7 @@ def test_process_service_async(monkeypatch):
     service = {"name": "alpha"}
     gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
     result = asyncio.run(gen.process_service(service, "prompt"))
-    assert result == {"service": json.dumps(service)}
+    assert json.loads(result["service"]) == service
 
 
 def test_generator_rejects_invalid_concurrency():

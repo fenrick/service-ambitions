@@ -32,7 +32,8 @@ def test_cli_generates_output(tmp_path, monkeypatch):
 
     monkeypatch.setenv("OPENAI_API_KEY", "dummy")
 
-    async def fake_process_service(self, service, prompt):
+    async def fake_process_service(self, service, prompt=None):
+        assert prompt is not None
         return {"service": service["name"], "prompt": prompt[:3]}
 
     monkeypatch.setattr(
@@ -94,7 +95,8 @@ def test_cli_switches_context(tmp_path, monkeypatch):
 
     monkeypatch.setenv("OPENAI_API_KEY", "dummy")
 
-    async def fake_process_service(self, service, prompt):
+    async def fake_process_service(self, service, prompt=None):
+        assert prompt is not None
         return {"prompt": prompt}
 
     monkeypatch.setattr(
@@ -149,7 +151,7 @@ def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
     monkeypatch.setattr(generator, "build_model", fake_build_model)
     monkeypatch.setattr(cli, "build_model", fake_build_model)
 
-    async def fake_process_service(self, service, prompt):
+    async def fake_process_service(self, service, prompt=None):
         return {"ok": True}
 
     monkeypatch.setattr(
@@ -190,7 +192,7 @@ def test_cli_enables_logfire(tmp_path, monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "dummy")
     monkeypatch.setenv("LOGFIRE_TOKEN", "lf-key")
 
-    async def fake_process_service(self, service, prompt):
+    async def fake_process_service(self, service, prompt=None):
         return {"ok": True}
 
     monkeypatch.setattr(
@@ -280,7 +282,7 @@ def test_cli_verbose_logging(tmp_path, monkeypatch, capsys):
 
     monkeypatch.setenv("OPENAI_API_KEY", "dummy")
 
-    async def fake_process_service(self, service, prompt):
+    async def fake_process_service(self, service, prompt=None):
         return {"ok": True}
 
     monkeypatch.setattr(

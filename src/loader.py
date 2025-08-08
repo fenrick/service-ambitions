@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 from functools import lru_cache
-from typing import Any, Dict, Iterator, List
+from typing import Any, Dict, Iterator, List, TypeVar
 
 import logfire
+from pydantic import TypeAdapter
 
 from models import ServiceFeaturePlateau
 
@@ -50,6 +50,25 @@ def _read_file(path: str) -> str:
         logger.error("Error reading prompt file %s: %s", path, exc)
         raise RuntimeError(
             f"An error occurred while reading the prompt file: {exc}"
+        ) from exc
+
+
+T = TypeVar("T")
+
+
+@logfire.instrument()
+def _read_json_file(path: str, schema: type[T]) -> T:
+    """Return JSON data loaded from ``path`` validated against ``schema``."""
+
+    try:
+        adapter = TypeAdapter(schema)
+        return adapter.validate_json(_read_file(path))
+    except FileNotFoundError:
+        raise
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.error("Error reading JSON file %s: %s", path, exc)
+        raise RuntimeError(
+            f"An error occurred while reading the JSON file: {exc}"
         ) from exc
 
 
@@ -103,15 +122,7 @@ def load_mapping_items(base_dir: str = "data") -> Dict[str, list[Dict[str, str]]
     data: Dict[str, list[Dict[str, str]]] = {}
     for key, filename in files.items():
         path = os.path.join(base_dir, filename)
-        try:
-            data[key] = json.loads(_read_file(path))
-        except FileNotFoundError:
-            raise
-        except Exception as exc:  # pylint: disable=broad-except
-            logger.error("Error reading mapping data file %s: %s", path, exc)
-            raise RuntimeError(
-                f"An error occurred while reading the mapping data file: {exc}"
-            ) from exc
+        data[key] = _read_json_file(path, list[Dict[str, str]])
     return data
 
 
@@ -136,17 +147,7 @@ def load_plateau_definitions(
 
     path = os.path.join(base_dir, filename)
     try:
-        raw = json.loads(_read_file(path))
-    except FileNotFoundError:
-        raise
-    except Exception as exc:  # pylint: disable=broad-except
-        logger.error("Error reading plateau definitions file %s: %s", path, exc)
-        raise RuntimeError(
-            "An error occurred while reading the plateau definitions file: %s",
-            exc,
-        ) from exc
-    try:
-        return [ServiceFeaturePlateau(**item) for item in raw]
+        return _read_json_file(path, list[ServiceFeaturePlateau])
     except Exception as exc:  # pylint: disable=broad-except
         logger.error("Invalid plateau definition data in %s: %s", path, exc)
         raise RuntimeError(f"Invalid plateau definitions: {exc}") from exc
@@ -198,40 +199,29 @@ def load_prompt(
 
 @logfire.instrument()
 def load_services(path: str) -> Iterator[Dict[str, Any]]:
-    """Yield services from ``path`` in JSON Lines format.
+    """Yield services from ``path`` in JSON Lines format."""
 
-    Each line is parsed as JSON and returned as a dictionary. The function
-    validates that ``service_id`` is a string and ``jobs_to_be_done`` is a list
-    of strings if provided.
-
-    Args:
-        path: Location of the services JSONL file.
-
-    Yields:
-        Parsed service definitions.
-
-    Raises:
-        FileNotFoundError: If the file does not exist.
-        RuntimeError: If any line cannot be parsed as JSON or contains invalid
-            fields.
-    """
-
+    adapter = TypeAdapter(Dict[str, Any])
     try:
         with open(path, "r", encoding="utf-8") as file:
             for line in file:
                 line = line.strip()
                 if not line:
                     continue
-                raw = json.loads(line)
-                service_id = raw.get("service_id")
+                try:
+                    service = adapter.validate_json(line)
+                except Exception as exc:  # pragma: no cover - logging
+                    logger.error("Invalid service entry in %s: %s", path, exc)
+                    raise RuntimeError("Invalid service definition") from exc
+                service_id = service.get("service_id")
                 if service_id is not None and not isinstance(service_id, str):
                     logger.error("service_id must be a string: %s", service_id)
                     raise RuntimeError("service_id must be a string")
-                jobs = raw.get("jobs_to_be_done")
+                jobs = service.get("jobs_to_be_done")
                 if jobs is not None and not isinstance(jobs, list):
                     logger.error("jobs_to_be_done must be a list: %s", jobs)
                     raise RuntimeError("jobs_to_be_done must be a list")
-                yield raw
+                yield service
     except FileNotFoundError:  # pragma: no cover - logging
         logger.error("Services file not found: %s", path)
         raise FileNotFoundError(
