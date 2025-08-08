@@ -6,7 +6,7 @@ import json
 import logging
 
 from conversation import ConversationSession
-from loader import load_prompt_text
+from loader import load_app_config, load_prompt_text
 from mapping import map_features
 from models import (
     DescriptionResponse,
@@ -19,6 +19,13 @@ from models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+DEFAULT_PLATEAU_MAP: dict[str, int] = load_app_config().plateau_map
+DEFAULT_PLATEAU_NAMES: list[str] = [
+    name for name, _ in sorted(DEFAULT_PLATEAU_MAP.items(), key=lambda item: item[1])
+]
+DEFAULT_CUSTOMER_TYPES: list[str] = ["learners", "staff", "community"]
 
 
 class PlateauGenerator:
@@ -75,8 +82,12 @@ class PlateauGenerator:
             customer_type=customer,
         )
 
-    def generate_plateau(self, level: int) -> PlateauResult:
+    def generate_plateau(self, level: int, plateau_name: str) -> PlateauResult:
         """Return mapped plateau features for ``level``.
+
+        Args:
+            level: Numeric identifier for the plateau.
+            plateau_name: Human readable name of the plateau.
 
         The function requests a plateau-specific service description, then
         issues a single prompt asking for features for learners, staff and
@@ -122,21 +133,26 @@ class PlateauGenerator:
         # Enrich the raw features with mapping information before returning.
         mapped = map_features(self.session, features)
         return PlateauResult(
-            plateau=level, service_description=description, features=mapped
+            plateau=level,
+            plateau_name=plateau_name,
+            service_description=description,
+            features=mapped,
         )
 
     def generate_service_evolution(
         self,
         service_input: ServiceInput,
-        plateau_names: list[str],
-        customer_types: list[str],
+        plateau_names: list[str] | None = None,
+        customer_types: list[str] | None = None,
     ) -> ServiceEvolution:
         """Return service evolution for selected plateaus and customers.
 
         Args:
             service_input: Service under evaluation.
-            plateau_names: Ordered plateau identifiers to process.
-            customer_types: Customer segments to include in results.
+            plateau_names: Ordered plateau names to process. Defaults to
+                :data:`DEFAULT_PLATEAU_NAMES`.
+            customer_types: Customer segments to include in results. Defaults to
+                :data:`DEFAULT_CUSTOMER_TYPES`.
 
         Returns:
             Combined evolution limited to the requested plateaus and customers.
@@ -149,16 +165,24 @@ class PlateauGenerator:
         # Seed the conversation so later model queries have the service context.
         self.session.add_parent_materials(service_input)
 
+        plateau_names = plateau_names or DEFAULT_PLATEAU_NAMES
+        customer_types = customer_types or DEFAULT_CUSTOMER_TYPES
+
         plateaus: list[PlateauResult] = []
-        for level, _name in enumerate(plateau_names, start=1):
+        for name in plateau_names:
+            try:
+                level = DEFAULT_PLATEAU_MAP[name]
+            except KeyError as exc:  # pragma: no cover - checked by tests
+                raise ValueError(f"Unknown plateau name: {name}") from exc
             # Generate features for each plateau level in turn.
-            result = self.generate_plateau(level)
+            result = self.generate_plateau(level, name)
             filtered = [
                 feat for feat in result.features if feat.customer_type in customer_types
             ]
             plateaus.append(
                 PlateauResult(
                     plateau=result.plateau,
+                    plateau_name=result.plateau_name,
                     service_description=result.service_description,
                     features=filtered,
                 )
@@ -166,4 +190,9 @@ class PlateauGenerator:
         return ServiceEvolution(service=service_input, plateaus=plateaus)
 
 
-__all__ = ["PlateauGenerator"]
+__all__ = [
+    "PlateauGenerator",
+    "DEFAULT_PLATEAU_MAP",
+    "DEFAULT_PLATEAU_NAMES",
+    "DEFAULT_CUSTOMER_TYPES",
+]

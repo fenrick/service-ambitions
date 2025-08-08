@@ -5,5 +5,11 @@
     "data": {"dataset": "information", "label": "Data"},
     "applications": {"dataset": "applications", "label": "Applications"},
     "technology": {"dataset": "technologies", "label": "Technologies"}
+  },
+  "plateau_map": {
+    "Foundational": 1,
+    "Enhanced": 2,
+    "Experimental": 3,
+    "Disruptive": 4
   }
 }

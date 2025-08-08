@@ -94,7 +94,7 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
     )
     evolution = generator.generate_service_evolution(
         service,
-        ["Foundational", "Emerging", "Strategic", "Visionary"],
+        ["Foundational", "Enhanced", "Experimental", "Disruptive"],
         ["learners", "staff", "community"],
     )
     assert isinstance(evolution, ServiceEvolution)
