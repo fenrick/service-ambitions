@@ -3,19 +3,19 @@
 import sys
 from pathlib import Path
 from types import SimpleNamespace
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from typing import cast
 
-from pydantic_ai import (
+from pydantic_ai import (  # noqa: E402  pylint: disable=wrong-import-position
     Agent,
     messages,
-)  # noqa: E402  pylint: disable=wrong-import-position
+)
 
-from conversation import (
+from conversation import (  # noqa: E402  pylint: disable=wrong-import-position
     ConversationSession,
-)  # noqa: E402  pylint: disable=wrong-import-position
+)
 from models import ServiceInput  # noqa: E402  pylint: disable=wrong-import-position
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
 class DummyAgent:

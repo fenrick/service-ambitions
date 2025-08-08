@@ -5,10 +5,11 @@ from types import SimpleNamespace
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import cli
 import generator
 from generator import ServiceAmbitionGenerator
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
 def test_cli_generates_output(tmp_path, monkeypatch):

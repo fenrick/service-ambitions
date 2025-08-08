@@ -5,10 +5,9 @@ import sys
 from pathlib import Path
 from typing import cast
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from conversation import (
+from conversation import (  # noqa: E402  pylint: disable=wrong-import-position
     ConversationSession,
-)  # noqa: E402  pylint: disable=wrong-import-position
+)
 from models import (  # noqa: E402  pylint: disable=wrong-import-position
     Contribution,
     PlateauFeature,
@@ -18,6 +17,8 @@ from models import (  # noqa: E402  pylint: disable=wrong-import-position
 from plateau_generator import (  # noqa: E402  pylint: disable=wrong-import-position
     PlateauGenerator,
 )
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
 class DummySession:

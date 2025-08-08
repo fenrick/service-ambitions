@@ -6,9 +6,10 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from mapping import map_feature, map_features
 from models import PlateauFeature
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
 class DummySession:

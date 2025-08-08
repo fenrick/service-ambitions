@@ -5,8 +5,9 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from settings import load_settings  # noqa: E402  pylint: disable=wrong-import-position
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
 def test_load_settings_reads_env(monkeypatch) -> None:

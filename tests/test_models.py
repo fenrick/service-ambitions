@@ -6,7 +6,6 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from models import (  # noqa: E402  pylint: disable=wrong-import-position
     Contribution,
     PlateauFeature,
@@ -14,6 +13,8 @@ from models import (  # noqa: E402  pylint: disable=wrong-import-position
     ServiceEvolution,
     ServiceInput,
 )
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
 def test_service_evolution_contains_plateaus() -> None:

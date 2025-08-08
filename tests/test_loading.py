@@ -3,13 +3,14 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from loader import (
     load_mapping_prompt,
     load_plateau_prompt,
     load_prompt,
     load_services,
 )
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
 def test_load_prompt_assembles_components(tmp_path):
@@ -72,7 +73,7 @@ def test_load_services_missing(tmp_path):
 def test_load_services_invalid_json(tmp_path):
     bad = tmp_path / "bad.jsonl"
     bad.write_text(
-        '{"service_id": "a1", "name": "alpha", "jobs_to_be_done": []}' "\n{invalid}\n",
+        '{"service_id": "a1", "name": "alpha", "jobs_to_be_done": []}\n{invalid}\n',
         encoding="utf-8",
     )
     with pytest.raises(RuntimeError):

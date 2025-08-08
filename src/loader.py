@@ -208,10 +208,7 @@ def load_services(path: str) -> Iterator[Dict[str, Any]]:
     except FileNotFoundError:  # pragma: no cover - logging
         logger.error("Services file not found: %s", path)
         raise FileNotFoundError(
-            (
-                "Services file not found. Please create a %s file in the current "
-                "directory."
-            )
+            "Services file not found. Please create a %s file in the current directory."
             % path
         ) from None
     except Exception as exc:  # pylint: disable=broad-except

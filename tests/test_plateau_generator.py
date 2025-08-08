@@ -7,19 +7,20 @@ from typing import cast
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from conversation import (
+from conversation import (  # noqa: E402  pylint: disable=wrong-import-position
     ConversationSession,
-)  # noqa: E402  pylint: disable=wrong-import-position
-from models import (
+)
+from models import (  # noqa: E402  pylint: disable=wrong-import-position
     Contribution,
     PlateauFeature,
     PlateauResult,
     ServiceInput,
-)  # noqa: E402  pylint: disable=wrong-import-position
-from plateau_generator import (
+)
+from plateau_generator import (  # noqa: E402  pylint: disable=wrong-import-position
     PlateauGenerator,
-)  # noqa: E402  pylint: disable=wrong-import-position
+)
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
 class DummySession:
