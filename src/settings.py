@@ -13,6 +13,12 @@ class Settings(BaseSettings):
 
     model: str = Field(..., description="Chat model in '<provider>:<model>' format.")
     log_level: str = Field(..., description="Logging verbosity level.")
+    prompt_dir: str = Field(..., description="Directory containing prompt components.")
+    context_id: str = Field(..., description="Situational context identifier.")
+    inspiration: str = Field(..., description="Inspirations identifier.")
+    concurrency: int = Field(
+        ..., ge=1, description="Number of services to process concurrently."
+    )
     openai_api_key: str = Field(..., description="OpenAI API access token.")
     logfire_token: str | None = Field(
         None, description="Logfire authentication token, if available."
@@ -32,7 +38,14 @@ def load_settings() -> Settings:
     """
 
     config = load_app_config()
-    data = {"model": config.model, "log_level": config.log_level}
+    data = {
+        "model": config.model,
+        "log_level": config.log_level,
+        "prompt_dir": config.prompt_dir,
+        "context_id": config.context_id,
+        "inspiration": config.inspiration,
+        "concurrency": config.concurrency,
+    }
     try:
         return Settings(**data)  # type: ignore[arg-type]
     except ValidationError as exc:  # pragma: no cover - exercised in tests

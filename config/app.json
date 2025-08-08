@@ -2,10 +2,23 @@
   "model": "openai:gpt-4o-mini",
   "log_level": "INFO",
   "mapping_types": {
-    "data": {"dataset": "information", "label": "Data"},
-    "applications": {"dataset": "applications", "label": "Applications"},
-    "technology": {"dataset": "technologies", "label": "Technologies"}
+    "data": {
+      "dataset": "information",
+      "label": "Data"
+    },
+    "applications": {
+      "dataset": "applications",
+      "label": "Applications"
+    },
+    "technology": {
+      "dataset": "technologies",
+      "label": "Technologies"
+    }
   },
+  "prompt_dir": "prompts",
+  "context_id": "university",
+  "inspiration": "general",
+  "concurrency": 5,
   "plateau_map": {
     "Foundational": 1,
     "Enhanced": 2,

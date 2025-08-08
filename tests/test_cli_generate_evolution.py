@@ -68,7 +68,6 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         input_file=str(input_path),
         output_file=str(output_path),
         plateaus=plateaus,
-        customers=["learners", "staff", "community"],
         model=None,
         logfire_service=None,
         log_level=None,
@@ -137,7 +136,6 @@ def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> None:
         input_file=str(input_path),
         output_file=str(output_path),
         plateaus=plateaus,
-        customers=["learners", "staff", "community"],
         model="special",  # override default
         logfire_service=None,
         log_level=None,
