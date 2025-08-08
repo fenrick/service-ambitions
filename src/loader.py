@@ -1,4 +1,10 @@
-"""Utilities for loading prompts and services."""
+"""Utilities for loading prompts, configuration and data files.
+
+The helpers in this module centralise file-system access for prompts, mapping
+metadata and service definitions. Several functions are cached to avoid
+re-reading static content, and many include lightweight error handling so
+callers receive concise exceptions.
+"""
 
 from __future__ import annotations
 
@@ -31,8 +37,8 @@ def configure_prompt_dir(path: str) -> None:
 
     Side Effects:
         Updates the module-level :data:`PROMPT_DIR` used by other loading
-        helpers.  This allows tests or CLI options to override where templates
-        are sourced from.
+        helpers so tests or CLI options may override where templates are sourced
+        from.
     """
 
     global PROMPT_DIR
@@ -72,7 +78,11 @@ T = TypeVar("T")
 
 @logfire.instrument()
 def _read_json_file(path: str, schema: type[T]) -> T:
-    """Return JSON data loaded from ``path`` validated against ``schema``."""
+    """Return JSON data loaded from ``path`` validated against ``schema``.
+
+    ``schema`` may be any type understood by :class:`pydantic.TypeAdapter`, such
+    as a Pydantic model or standard container type.
+    """
 
     try:
         adapter = TypeAdapter(schema)
@@ -92,7 +102,8 @@ def load_prompt_text(prompt_name: str, base_dir: str | None = None) -> str:
 
     The function locates ``prompt_name`` within ``base_dir`` (defaulting to the
     globally configured :data:`PROMPT_DIR`) and returns the stripped file
-    contents. The ``.md`` suffix is added automatically if missing.
+    contents. The ``.md`` suffix is added automatically if missing. Results are
+    not cached so callers should apply their own caching where appropriate.
 
     Args:
         prompt_name: Name of the prompt file without directory components.
@@ -120,8 +131,8 @@ def load_mapping_items(
     """Return mapping reference data for ``mapping_types`` from ``base_dir``.
 
     Args:
-        mapping_types: Mapping dataset names to load. Defaults to
-            ``("information", "applications", "technologies")``.
+        mapping_types: Mapping dataset names to load. Defaults to the standard
+            information, applications and technologies datasets.
         base_dir: Directory containing mapping data files.
 
     Returns:
@@ -145,7 +156,10 @@ def load_mapping_items(
 @logfire.instrument()
 @lru_cache(maxsize=None)
 def load_app_config(base_dir: str = "config", filename: str = "app.json") -> AppConfig:
-    """Return application configuration from ``base_dir``."""
+    """Return application configuration from ``base_dir``.
+
+    Results are cached for the lifetime of the process.
+    """
 
     path = os.path.join(base_dir, filename)
     return _read_json_file(path, AppConfig)
@@ -157,7 +171,10 @@ def load_mapping_type_config(
     base_dir: str = "config",
     filename: str = "app.json",
 ) -> Dict[str, MappingTypeConfig]:
-    """Return mapping type configuration from ``base_dir``."""
+    """Return mapping type configuration from ``base_dir``.
+
+    Results are cached for the lifetime of the process.
+    """
 
     return load_app_config(base_dir, filename).mapping_types
 
@@ -238,9 +255,7 @@ def load_prompt(
 def load_services(path: str) -> Iterator[Iterator[ServiceInput]]:
     """Yield services from ``path`` in JSON Lines format.
 
-    Each line is parsed as JSON and returned as a dictionary. The function
-    validates that ``service_id`` is a string and ``jobs_to_be_done`` is a list
-    of strings if provided.
+    Each line is parsed as JSON and validated against :class:`ServiceInput`.
 
     Args:
         path: Location of the services JSONL file.

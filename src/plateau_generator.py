@@ -1,4 +1,11 @@
-"""Plateau feature generation and service evolution utilities."""
+"""Plateau feature generation and service evolution utilities.
+
+The :class:`PlateauGenerator` coordinates prompt construction, model
+interaction and mapping enrichment to evolve a ``ServiceInput`` across the
+defined maturity plateaus. Each plateau is described and its features mapped in
+the context of a shared conversation session so that responses build upon prior
+interactions.
+"""
 
 from __future__ import annotations
 
@@ -50,7 +57,10 @@ class PlateauGenerator:
     def _request_description(self, level: int) -> str:
         """Return the service description for ``level``.
 
-        The agent must respond with JSON containing a ``description`` field.
+        A description template is loaded from disk and rendered with the target
+        ``level``. The prompt is sent to the agent via the stored conversation
+        session and the JSON response parsed. A :class:`ValueError` is raised if
+        the response cannot be validated or the description field is empty.
         """
         template = load_prompt_text("description_prompt")
         schema = json.dumps(DescriptionResponse.model_json_schema(), indent=2)
@@ -72,7 +82,15 @@ class PlateauGenerator:
         return description
 
     def _to_feature(self, item: FeatureItem, customer: str) -> PlateauFeature:
-        """Return a :class:`PlateauFeature` built from ``item``."""
+        """Return a :class:`PlateauFeature` built from ``item``.
+
+        Args:
+            item: Raw feature details returned by the agent.
+            customer: Customer segment the feature applies to.
+
+        Returns:
+            Plateau feature populated with the provided metadata.
+        """
 
         return PlateauFeature(
             feature_id=item.feature_id,
@@ -89,12 +107,13 @@ class PlateauGenerator:
             level: Numeric identifier for the plateau.
             plateau_name: Human readable name of the plateau.
 
-        The function requests a plateau-specific service description, then
-        issues a single prompt asking for features for learners, staff and
-        community. The response must provide at least ``required_count``
-        features for each customer type. The list of features is enriched using
+        The function requests a plateau-specific service description and a list
+        of features for learners, staff and community. Responses must contain at
+        least ``required_count`` features for each customer type. Raw features
+        are converted to :class:`PlateauFeature` objects and enriched using
         :func:`map_features` before being returned as part of a
-        :class:`PlateauResult`.
+        :class:`PlateauResult`. A :class:`ValueError` is raised if the agent
+        returns invalid JSON or an insufficient number of features.
         """
         if self._service is None:
             raise ValueError(
@@ -150,13 +169,10 @@ class PlateauGenerator:
 
         Args:
             service_input: Service under evaluation.
-            plateau_names: Ordered plateau names to process. Defaults to
-                :data:`DEFAULT_PLATEAU_NAMES`.
-            customer_types: Customer segments to include in results. Defaults to
-                :data:`DEFAULT_CUSTOMER_TYPES`.
 
         Returns:
-            Combined evolution limited to the requested plateaus and customers.
+            Combined evolution limited to the default plateaus and customer
+            types.
 
         Side Effects:
             Stores ``service_input`` for subsequent plateau generation and seeds

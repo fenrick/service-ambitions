@@ -1,4 +1,10 @@
-"""Application configuration loaded from config files and environment variables."""
+"""Centralised application configuration management.
+
+This module exposes :class:`Settings`, a ``pydantic-settings`` model that
+combines values sourced from JSON configuration files and environment
+variables. Environment variables take precedence over file-based values and
+the merged configuration is validated before use.
+"""
 
 from __future__ import annotations
 
@@ -28,10 +34,15 @@ class Settings(BaseSettings):
 
 
 def load_settings() -> Settings:
-    """Load settings from configuration files and environment variables.
+    """Load and validate application settings.
+
+    Configuration values are read from the application configuration file and
+    then merged with environment variables using ``pydantic-settings``. When a
+    value is provided in both sources the environment variable wins. The final
+    configuration is validated and returned to the caller.
 
     Returns:
-        Settings: Validated application configuration.
+        Settings: Fully validated application configuration.
 
     Raises:
         RuntimeError: If required configuration values are missing or invalid.

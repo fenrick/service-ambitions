@@ -1,4 +1,10 @@
-"""Utilities for enriching plateau features with mapping data."""
+"""Utilities for enriching plateau features with mapping data.
+
+Mapping information such as related applications or technologies is gathered by
+querying the language model with a consolidated prompt. The helper functions
+here prepare prompt content, validate responses and merge the returned
+contributions back into :class:`PlateauFeature` objects.
+"""
 
 from __future__ import annotations
 
@@ -26,7 +32,11 @@ logger = logging.getLogger(__name__)
 
 
 def _render_items(items: list[MappingItem]) -> str:
-    """Return a bullet list representation of mapping reference items."""
+    """Return a bullet list representation of mapping reference items.
+
+    Each entry is formatted as ``<id>: <name> - <description>`` so the string
+    can be embedded directly within agent prompts.
+    """
 
     # Present each mapping reference item on a separate line so it can be
     # directly inserted into the agent prompt as a bullet list.
@@ -36,7 +46,12 @@ def _render_items(items: list[MappingItem]) -> str:
 
 
 def _render_features(features: Sequence[PlateauFeature]) -> str:
-    """Return a bullet list of feature details for prompt construction."""
+    """Return a bullet list of feature details for prompt construction.
+
+    Features are presented using their ID, name and description to provide the
+    agent with enough context for mapping decisions while keeping prompts
+    compact.
+    """
 
     # The agent prompt expects a concise summary of each feature, therefore we
     # format the feature ID, name and description on a single line.
@@ -53,7 +68,7 @@ def map_feature(
     """Return ``feature`` augmented with mapping information.
 
     This is a convenience wrapper around :func:`map_features` for mapping a
-    single feature.
+    single feature while preserving the interface of the bulk function.
 
     Args:
         session: Active conversation session used to query the agent.
@@ -77,9 +92,10 @@ def map_features(
 
     The function sends a single prompt containing all features and mapping
     reference lists. The agent must respond with JSON containing a ``features``
-    array. Each feature in the array must provide non-empty lists for each
-    configured mapping type. A :class:`ValueError` is raised if the response
-    cannot be parsed, a feature is missing or any list is empty.
+    array where each entry corresponds to one of the requested features. Each
+    feature must provide non-empty lists for every configured mapping type. A
+    :class:`ValueError` is raised if the response cannot be parsed, a feature is
+    missing or any list is empty.
 
     Args:
         session: Active conversation session used to query the agent.
