@@ -58,6 +58,7 @@ class PlateauGenerator:
             plateau=level,
             schema=str(schema),
         )
+
         # Query the model using the stored conversation session so the
         # description becomes part of the evolving chat history.
         response = self.session.ask(prompt)
@@ -99,6 +100,7 @@ class PlateauGenerator:
             raise ValueError(
                 "ServiceInput not set. Call generate_service_evolution first."
             )
+
         # Ask the model to describe the service at the specified plateau level.
         description = self._request_description(level)
         schema = json.dumps(PlateauFeaturesResponse.model_json_schema(), indent=2)
@@ -111,6 +113,7 @@ class PlateauGenerator:
             schema=str(schema),
         )
         logger.info("Requesting features for level=%s", level)
+
         # Using the shared conversation session ensures features are generated
         # in the same context as previous interactions.
         response = self.session.ask(prompt)
@@ -129,6 +132,7 @@ class PlateauGenerator:
                 )
             for item in raw_features:
                 features.append(self._to_feature(item, customer))
+
         # Enrich the raw features with mapping information before returning.
         mapped = map_features(self.session, features)
         return PlateauResult(
@@ -158,6 +162,7 @@ class PlateauGenerator:
             the conversation session with its details.
         """
         self._service = service_input
+
         # Seed the conversation so later model queries have the service context.
         self.session.add_parent_materials(service_input)
 
@@ -170,6 +175,7 @@ class PlateauGenerator:
                 level = DEFAULT_PLATEAU_MAP[name]
             except KeyError as exc:  # pragma: no cover - checked by tests
                 raise ValueError(f"Unknown plateau name: {name}") from exc
+
             # Generate features for each plateau level in turn.
             result = self.generate_plateau(level, name)
             filtered = [

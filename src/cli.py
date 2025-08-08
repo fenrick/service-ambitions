@@ -35,12 +35,14 @@ def _configure_logging(args: argparse.Namespace, settings) -> None:
 
     # CLI-specified level takes precedence over configured default
     level_name = settings.log_level
+
     if args.verbose == 1:
         # Single -v flag bumps log level to INFO for clearer output
         level_name = "INFO"
     elif args.verbose >= 2:
         # Two or more -v flags enable DEBUG for deep troubleshooting
         level_name = "DEBUG"
+
     logging.basicConfig(
         level=getattr(logging, level_name.upper(), logging.INFO), force=True
     )
@@ -154,10 +156,13 @@ def main() -> None:
 
     # Parse the user's command-line selections
     args = parser.parse_args()
+
     # Configure logging prior to executing the command
     _configure_logging(args, settings)
+
     # Execute the requested subcommand function
     args.func(args, settings)
+
     # Flush telemetry once the command completes
     logfire.force_flush()
 
