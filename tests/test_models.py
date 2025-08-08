@@ -34,7 +34,12 @@ def test_service_evolution_contains_plateaus() -> None:
         score=0.75,
         customer_type="learners",
     )
-    plateau = PlateauResult(plateau=1, service_description="desc", features=[feature])
+    plateau = PlateauResult(
+        plateau=1,
+        plateau_name="Foundational",
+        service_description="desc",
+        features=[feature],
+    )
 
     evolution = ServiceEvolution(service=service, plateaus=[plateau])
 

@@ -88,7 +88,7 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
     )
     generator._service = service  # type: ignore[attr-defined]
 
-    plateau = generator.generate_plateau(1)
+    plateau = generator.generate_plateau(1, "Foundational")
 
     assert isinstance(plateau, PlateauResult)
     assert len(plateau.features) == 3
@@ -116,7 +116,7 @@ def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> None:
     generator._service = service  # type: ignore[attr-defined]
 
     with pytest.raises(ValueError):
-        generator.generate_plateau(1)
+        generator.generate_plateau(1, "Foundational")
 
 
 def test_request_description_invalid_json(monkeypatch) -> None:
@@ -148,7 +148,7 @@ def test_generate_service_evolution_filters(monkeypatch) -> None:
 
     called: list[int] = []
 
-    def fake_generate_plateau(self, level):
+    def fake_generate_plateau(self, level, plateau_name):
         called.append(level)
         feats = [
             PlateauFeature(
@@ -173,7 +173,12 @@ def test_generate_service_evolution_filters(monkeypatch) -> None:
                 customer_type="community",
             ),
         ]
-        return PlateauResult(plateau=level, service_description="d", features=feats)
+        return PlateauResult(
+            plateau=level,
+            plateau_name=plateau_name,
+            service_description="d",
+            features=feats,
+        )
 
     monkeypatch.setattr(
         PlateauGenerator, "generate_plateau", fake_generate_plateau, raising=False

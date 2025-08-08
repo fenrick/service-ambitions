@@ -68,6 +68,10 @@ class AppConfig(BaseModel):
         default_factory=dict,
         description="Mapping type definitions keyed by field name.",
     )
+    plateau_map: dict[str, int] = Field(
+        default_factory=dict,
+        description="Mapping from plateau names to numeric identifiers.",
+    )
 
 
 class PlateauFeature(BaseModel):
@@ -92,6 +96,7 @@ class PlateauResult(BaseModel):
     """Collection of features describing a service at a plateau level."""
 
     plateau: int = Field(..., ge=1, description="Plateau level evaluated.")
+    plateau_name: str = Field(..., description="Human readable name for the plateau.")
     service_description: str = Field(
         ..., description="Description of the service at this plateau."
     )
