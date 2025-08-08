@@ -6,7 +6,7 @@ import logging
 import os
 from contextlib import closing, contextmanager
 from functools import lru_cache
-from typing import Dict, Iterator, List, Sequence, TypeVar
+from typing import Dict, Generator, Iterator, List, Sequence, TypeVar
 
 import logfire
 from pydantic import TypeAdapter
@@ -235,7 +235,7 @@ def load_prompt(
 
 
 @contextmanager
-def load_services(path: str) -> Iterator[ServiceInput]:
+def load_services(path: str) -> Iterator[Iterator[ServiceInput]]:
     """Yield services from ``path`` in JSON Lines format.
 
     Each line is parsed as JSON and returned as a dictionary. The function
@@ -254,7 +254,7 @@ def load_services(path: str) -> Iterator[ServiceInput]:
             fields.
     """
 
-    def load_services_int(path: str) -> Iterator[ServiceInput]:
+    def load_services_int(path: str) -> Generator[ServiceInput, None, None]:
         with logfire.span("Calling loader.load_services"):
             adapter = TypeAdapter(ServiceInput)
             try:
