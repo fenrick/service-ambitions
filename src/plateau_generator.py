@@ -8,7 +8,14 @@ import logging
 from conversation import ConversationSession
 from loader import load_description_prompt, load_plateau_prompt
 from mapping import map_features
-from models import PlateauFeature, PlateauResult, ServiceEvolution, ServiceInput
+from models import (
+    DescriptionResponse,
+    PlateauFeature,
+    PlateauFeaturesResponse,
+    PlateauResult,
+    ServiceEvolution,
+    ServiceInput,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +50,8 @@ class PlateauGenerator:
         """
         template = load_description_prompt(self.prompt_dir)
         prompt = template.format(plateau=level)
+        schema = json.dumps(DescriptionResponse.model_json_schema(), indent=2)
+        prompt = f"{prompt}\n\nJSON schema:\n{schema}"
         response = session.ask(prompt)
         try:
             payload = json.loads(response)
@@ -79,6 +88,8 @@ class PlateauGenerator:
             service_description=description,
             plateau=str(level),
         )
+        schema = json.dumps(PlateauFeaturesResponse.model_json_schema(), indent=2)
+        prompt = f"{prompt}\n\nJSON schema:\n{schema}"
         logger.info("Requesting features for level=%s", level)
         response = session.ask(prompt)
         try:
