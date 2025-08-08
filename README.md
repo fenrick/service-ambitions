@@ -66,16 +66,17 @@ control how many services are processed in parallel when running
 
 ## Plateau-first workflow
 
-Each service is evaluated through a 12-call sequence that generates and then
-maps features for successive plateaus:
+Each service is evaluated across **four** plateaus – **Foundational**,
+**Enhanced**, **Experimental** and **Disruptive**. Every plateau requires three
+sequential calls:
 
-1. Generate features for the **Foundational**, **Enhanced** and
-   **Experimental** plateaus (3 calls).
-2. For each plateau, map the features to reference Data, Applications and
-   Technologies lists (9 calls).
+1. **Description** – request a plateau-specific service narrative.
+2. **Features** – generate learner, staff and community features.
+3. **Mapping** – link each feature to reference Data, Applications and
+   Technologies.
 
-This plateau-first approach ensures features are produced before any mapping and
-forms a complete `ServiceEvolution` record for every service.
+The 4 × 3 workflow totals 12 calls and produces a complete `ServiceEvolution`
+record for every service.
 
 ### Generating service evolutions
 
@@ -93,9 +94,25 @@ Basic invocation:
 Restrict evaluation to specific plateaus or customer types as needed:
 
 ```bash
-./run.sh generate-evolution --plateaus Foundational Enhanced --customers retail enterprise \
+./run.sh generate-evolution --plateaus Foundational Enhanced Experimental Disruptive --customers retail enterprise \
   --input-file sample-services.jsonl --output-file evolution.jsonl
 ```
+
+### Conversation seed
+
+The model conversation is seeded with service metadata so each request retains
+context. The seed includes the service ID and jobs to be done:
+
+```text
+Service ID: S01
+Service name: Learning & Teaching
+Customer type: retail
+Description: Delivers a holistic educational framework ...
+Jobs to be done: Access an engaging curriculum, Continually update skills
+```
+
+`ConversationSession.add_parent_materials` assembles this seed before any
+plateau requests are made.
 
 ## ServiceEvolution JSON schema
 
@@ -104,9 +121,11 @@ Each JSON line in the output file follows the `ServiceEvolution` schema:
 ```json
 {
   "service": {
+    "service_id": "string",
     "name": "string",
     "description": "string",
-    "customer_type": "string"
+    "customer_type": "string",
+    "jobs_to_be_done": ["string"]
   },
   "plateaus": [
     {
@@ -131,8 +150,8 @@ Each JSON line in the output file follows the `ServiceEvolution` schema:
 
 Fields in the schema:
 
-- `service`: `ServiceInput` with `name`, optional `customer_type`, and
-  `description`.
+- `service`: `ServiceInput` with `service_id`, `name`, `description`, optional
+  `customer_type`, and `jobs_to_be_done`.
 - `plateaus`: list of `PlateauResult` entries, each containing:
   - `plateau`: integer plateau level.
   - `service_description`: narrative for the service at that plateau.
