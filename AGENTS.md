@@ -23,6 +23,7 @@ This repository uses automated code quality tooling for all Python sources.
 - Refactor for readability and performance.
 - Keep functions small (cyclomatic complexity < 8).
 - Comment and extensively document files, functions and logic flows.
+- Provide inline comments for all branching logic and any logic with a cyclomatic complexity above 2.
 - Fix all issues from linting and static analysis.
 
 ## Documentation
