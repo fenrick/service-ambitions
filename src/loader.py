@@ -199,7 +199,7 @@ def load_prompt(
 
 
 @contextmanager
-def load_services(path: str) -> iterator[ServiceInput]:
+def load_services(path: str) -> Iterator[ServiceInput]:
     """Yield services from ``path`` in JSON Lines format.
 
     Each line is parsed as JSON and returned as a dictionary. The function
@@ -220,30 +220,29 @@ def load_services(path: str) -> iterator[ServiceInput]:
 
     def load_services_int(path: str) -> Iterator[ServiceInput]:
         with logfire.span("Calling loader.load_services"):
-
-        adapter = TypeAdapter(ServiceInput)
-        try:
-            with open(path, "r", encoding="utf-8") as file:
-                for line in file:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        yield adapter.validate_json(line)
-                    except Exception as exc:  # pragma: no cover - logging
-                        logger.error("Invalid service entry in %s: %s", path, exc)
-                        raise RuntimeError("Invalid service definition") from exc
-        except FileNotFoundError:  # pragma: no cover - logging
-            logger.error("Services file not found: %s", path)
-            raise FileNotFoundError(
-                "Services file not found. Please create a %s file in the current directory."
-                % path
-            ) from None
-        except Exception as exc:  # pylint: disable=broad-except
-            logger.error("Error reading services file %s: %s", path, exc)
-            raise RuntimeError(
-                f"An error occurred while reading the services file: {exc}"
-            ) from exc
+            adapter = TypeAdapter(ServiceInput)
+            try:
+                with open(path, "r", encoding="utf-8") as file:
+                    for line in file:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            yield adapter.validate_json(line)
+                        except Exception as exc:  # pragma: no cover - logging
+                            logger.error("Invalid service entry in %s: %s", path, exc)
+                            raise RuntimeError("Invalid service definition") from exc
+            except FileNotFoundError:  # pragma: no cover - logging
+                logger.error("Services file not found: %s", path)
+                raise FileNotFoundError(
+                    "Services file not found. Please create a %s file in the current"
+                    " directory." % path
+                ) from None
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.error("Error reading services file %s: %s", path, exc)
+                raise RuntimeError(
+                    f"An error occurred while reading the services file: {exc}"
+                ) from exc
 
     with closing(load_services_int(path)) as items:
         yield items
