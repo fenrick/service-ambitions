@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 import logfire
 from pydantic_ai import Agent
@@ -74,20 +75,25 @@ def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
     # Allow CLI model override, defaulting to configured model
     model_name = args.model or settings.model
     model = build_model(model_name, settings.openai_api_key)
-    agent = Agent(model)
 
-    # Stream generated evolutions to the output file
-    with open(args.output_file, "w", encoding="utf-8") as output:
-        # Iterate through each service definition in order
-        for service in load_services(args.input_file):
-            # Start a fresh conversation for each service
-            session = ConversationSession(agent)
-            # Generate plateau-specific evolution from the conversation
-            generator = PlateauGenerator(session)
-            evolution = generator.generate_service_evolution(service)
-            # Persist evolution as a JSON line
-            output.write(f"{evolution.model_dump_json()}\n")
-            logger.info("Generated evolution for %s", service.name)
+    if settings.concurrency < 1:
+        raise ValueError("concurrency must be a positive integer")
+
+    def process_service(service):
+        agent = Agent(model)
+        session = ConversationSession(agent)
+        generator = PlateauGenerator(session)
+        evolution = generator.generate_service_evolution(service)
+        return service.name, evolution.model_dump_json()
+
+    with (
+        load_services(args.input_file) as services,
+        open(args.output_file, "w", encoding="utf-8") as output,
+    ):
+        with ThreadPoolExecutor(max_workers=settings.concurrency) as executor:
+            for name, payload in executor.map(process_service, services):
+                output.write(f"{payload}\n")
+                logger.info("Generated evolution for %s", name)
 
 
 def main() -> None:
