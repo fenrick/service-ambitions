@@ -47,8 +47,10 @@ def load_settings() -> Settings:
         "concurrency": config.concurrency,
     }
     try:
+        # Validate and merge configuration from file and environment.
         return Settings(**data)  # type: ignore[arg-type]
     except ValidationError as exc:  # pragma: no cover - exercised in tests
+        # Summarise validation issues so the caller receives clear feedback.
         details = "; ".join(
             f"{'.'.join(map(str, error['loc']))}: {error['msg']}"
             for error in exc.errors()

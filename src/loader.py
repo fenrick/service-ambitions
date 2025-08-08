@@ -21,12 +21,19 @@ from models import (
 
 logger = logging.getLogger(__name__)
 
-# Directory containing prompt templates. Updated via ``configure_prompt_dir``.
+# Directory containing prompt templates.  Mutable so tests or callers may point
+# to alternative directories via ``configure_prompt_dir``.
 PROMPT_DIR = "prompts"
 
 
 def configure_prompt_dir(path: str) -> None:
-    """Set the base directory for prompt templates."""
+    """Set the base directory for prompt templates.
+
+    Side Effects:
+        Updates the module-level :data:`PROMPT_DIR` used by other loading
+        helpers.  This allows tests or CLI options to override where templates
+        are sourced from.
+    """
 
     global PROMPT_DIR
     PROMPT_DIR = path
