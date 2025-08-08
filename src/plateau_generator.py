@@ -20,7 +20,6 @@ from models import (
 
 logger = logging.getLogger(__name__)
 
-
 DEFAULT_PLATEAU_MAP: dict[str, int] = load_app_config().plateau_map
 DEFAULT_PLATEAU_NAMES: list[str] = [
     name for name, _ in sorted(DEFAULT_PLATEAU_MAP.items(), key=lambda item: item[1])

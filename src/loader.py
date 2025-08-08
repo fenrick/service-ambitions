@@ -107,7 +107,8 @@ def load_prompt_text(prompt_name: str, base_dir: str | None = None) -> str:
 @logfire.instrument()
 @lru_cache(maxsize=None)
 def load_mapping_items(
-    mapping_types: Sequence[str] | None = None, base_dir: str = "data"
+    mapping_types: Sequence[str] | None = None,
+    base_dir: str = "data",
 ) -> Dict[str, list[MappingItem]]:
     """Return mapping reference data for ``mapping_types`` from ``base_dir``.
 
@@ -146,7 +147,8 @@ def load_app_config(base_dir: str = "config", filename: str = "app.json") -> App
 @logfire.instrument()
 @lru_cache(maxsize=None)
 def load_mapping_type_config(
-    base_dir: str = "config", filename: str = "app.json"
+    base_dir: str = "config",
+    filename: str = "app.json",
 ) -> Dict[str, MappingTypeConfig]:
     """Return mapping type configuration from ``base_dir``."""
 
