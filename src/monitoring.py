@@ -60,6 +60,7 @@ def init_logfire(token: str | None = None) -> None:
     handler_cls = getattr(logfire, "LogfireLoggingHandler", None)
     if handler_cls:
         root_logger = logging.getLogger()
+
         # Replace any existing handlers to prevent duplicate log output.
         root_logger.handlers.clear()
         root_logger.addHandler(handler_cls())
