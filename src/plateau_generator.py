@@ -110,6 +110,47 @@ class PlateauGenerator:
             customer_type=customer,
         )
 
+    def _build_plateau_prompt(self, level: int, description: str) -> str:
+        """Return a prompt requesting features for ``level``."""
+
+        schema = json.dumps(PlateauFeaturesResponse.model_json_schema(), indent=2)
+        template = load_prompt_text("plateau_prompt")
+        return template.format(
+            required_count=self.required_count,
+            service_name=self._service.name if self._service else "",
+            service_description=description,
+            plateau=str(level),
+            schema=str(schema),
+        )
+
+    @staticmethod
+    def _parse_feature_payload(response: str) -> PlateauFeaturesResponse:
+        """Return validated plateau feature details."""
+
+        try:
+            return PlateauFeaturesResponse.model_validate_json(response)
+        except Exception as exc:  # pragma: no cover - logging
+            logger.error("Invalid JSON from feature response: %s", exc)
+            raise ValueError("Agent returned invalid JSON") from exc
+
+    def _collect_features(
+        self, payload: PlateauFeaturesResponse
+    ) -> list[PlateauFeature]:
+        """Return PlateauFeature records extracted from ``payload``."""
+
+        features: list[PlateauFeature] = []
+        for customer in ("learners", "staff", "community"):
+            raw_features = getattr(payload, customer)
+            if len(raw_features) < self.required_count:
+                # Enforce minimum feature count for each customer segment.
+                raise ValueError(
+                    f"Insufficient number of features returned for {customer}"
+                )
+            for item in raw_features:
+                # Convert each raw item into a structured plateau feature.
+                features.append(self._to_feature(item, customer))
+        return features
+
     def generate_plateau(self, level: int, plateau_name: str) -> PlateauResult:
         """Return mapped plateau features for ``level``.
 
@@ -132,36 +173,14 @@ class PlateauGenerator:
 
         # Ask the model to describe the service at the specified plateau level.
         description = self._request_description(level)
-        schema = json.dumps(PlateauFeaturesResponse.model_json_schema(), indent=2)
-        template = load_prompt_text("plateau_prompt")
-        prompt = template.format(
-            required_count=self.required_count,
-            service_name=self._service.name,
-            service_description=description,
-            plateau=str(level),
-            schema=str(schema),
-        )
+        prompt = self._build_plateau_prompt(level, description)
         logger.info("Requesting features for level=%s", level)
 
         # Using the shared conversation session ensures features are generated
         # in the same context as previous interactions.
         response = self.session.ask(prompt)
-        try:
-            payload = PlateauFeaturesResponse.model_validate_json(response)
-        except Exception as exc:  # pragma: no cover - logging
-            logger.error("Invalid JSON from feature response: %s", exc)
-            raise ValueError("Agent returned invalid JSON") from exc
-
-        features: list[PlateauFeature] = []
-        for customer in ("learners", "staff", "community"):
-            raw_features = getattr(payload, customer)
-            if len(raw_features) < self.required_count:
-                raise ValueError(
-                    f"Insufficient number of features returned for {customer}"
-                )
-            for item in raw_features:
-                features.append(self._to_feature(item, customer))
-
+        payload = self._parse_feature_payload(response)
+        features = self._collect_features(payload)
         # Enrich the raw features with mapping information before returning.
         mapped = map_features(self.session, features)
         return PlateauResult(
@@ -201,10 +220,12 @@ class PlateauGenerator:
             try:
                 level = DEFAULT_PLATEAU_MAP[name]
             except KeyError as exc:  # pragma: no cover - checked by tests
+                # Fail fast when configuration references an unknown plateau.
                 raise ValueError(f"Unknown plateau name: {name}") from exc
 
             # Generate features for each plateau level in turn.
             result = self.generate_plateau(level, name)
+            # Restrict features to the requested customer segments only.
             filtered = [
                 feat for feat in result.features if feat.customer_type in customer_types
             ]

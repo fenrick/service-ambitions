@@ -251,6 +251,37 @@ def load_prompt(
     return "\n\n".join(parts)
 
 
+@logfire.instrument()
+def _load_service_entries(path: str) -> Generator[ServiceInput, None, None]:
+    """Yield services from ``path`` while validating each JSON line."""
+
+    with logfire.span("Calling loader.load_services"):
+        adapter = TypeAdapter(ServiceInput)
+        try:
+            with open(path, "r", encoding="utf-8") as file:
+                for line in file:
+                    line = line.strip()
+                    if not line:
+                        continue  # Skip blank lines.
+                    try:
+                        # Validate each line against the schema before yielding.
+                        yield adapter.validate_json(line)
+                    except Exception as exc:  # pragma: no cover - logging
+                        logger.error("Invalid service entry in %s: %s", path, exc)
+                        raise RuntimeError("Invalid service definition") from exc
+        except FileNotFoundError:  # pragma: no cover - logging
+            logger.error("Services file not found: %s", path)
+            raise FileNotFoundError(
+                "Services file not found. Please create a %s file in the current"
+                " directory." % path
+            ) from None
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.error("Error reading services file %s: %s", path, exc)
+            raise RuntimeError(
+                f"An error occurred while reading the services file: {exc}"
+            ) from exc
+
+
 @contextmanager
 def load_services(path: str) -> Iterator[Iterator[ServiceInput]]:
     """Yield services from ``path`` in JSON Lines format.
@@ -269,42 +300,6 @@ def load_services(path: str) -> Iterator[Iterator[ServiceInput]]:
             fields.
     """
 
-    def load_services_int(path: str) -> Generator[ServiceInput, None, None]:
-        """Yield services from ``path`` while validating each JSON line.
-
-        Side Effects:
-            Logs any invalid entries before raising the corresponding error.
-
-        Raises:
-            FileNotFoundError: If the services file does not exist.
-            RuntimeError: If a line cannot be parsed or validated against the
-                :class:`ServiceInput` schema.
-        """
-
-        with logfire.span("Calling loader.load_services"):
-            adapter = TypeAdapter(ServiceInput)
-            try:
-                with open(path, "r", encoding="utf-8") as file:
-                    for line in file:
-                        line = line.strip()
-                        if not line:
-                            continue
-                        try:
-                            yield adapter.validate_json(line)
-                        except Exception as exc:  # pragma: no cover - logging
-                            logger.error("Invalid service entry in %s: %s", path, exc)
-                            raise RuntimeError("Invalid service definition") from exc
-            except FileNotFoundError:  # pragma: no cover - logging
-                logger.error("Services file not found: %s", path)
-                raise FileNotFoundError(
-                    "Services file not found. Please create a %s file in the current"
-                    " directory." % path
-                ) from None
-            except Exception as exc:  # pylint: disable=broad-except
-                logger.error("Error reading services file %s: %s", path, exc)
-                raise RuntimeError(
-                    f"An error occurred while reading the services file: {exc}"
-                ) from exc
-
-    with closing(load_services_int(path)) as items:
+    # Delegate to the generator so callers can iterate within a context manager.
+    with closing(_load_service_entries(path)) as items:
         yield items

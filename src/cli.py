@@ -59,7 +59,8 @@ def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
     # Load prompt components from the configured directory
     configure_prompt_dir(settings.prompt_dir)
     system_prompt = load_prompt(settings.context_id, settings.inspiration)
-    services = list(load_services(args.input_file))
+    with load_services(args.input_file) as service_iter:
+        services = list(service_iter)
     logger.debug("Loaded %d services from %s", len(services), args.input_file)
 
     # Prefer model specified on the CLI, falling back to settings
