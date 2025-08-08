@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Sequence
 
 from loader import load_mapping_items, load_prompt_text
-from models import MappingResponse, PlateauFeature
+from models import MappingItem, MappingResponse, PlateauFeature
 
 if TYPE_CHECKING:  # pragma: no cover - import for type checking only
     from conversation import ConversationSession
@@ -15,13 +15,13 @@ if TYPE_CHECKING:  # pragma: no cover - import for type checking only
 logger = logging.getLogger(__name__)
 
 
-def _render_items(items: list[dict[str, str]]) -> str:
+def _render_items(items: list[MappingItem]) -> str:
     """Return a bullet list representation of mapping reference items."""
 
     # Present each mapping reference item on a separate line so it can be
     # directly inserted into the agent prompt as a bullet list.
     return "\n".join(
-        f"- {entry['id']}: {entry['name']} - {entry['description']}" for entry in items
+        f"- {entry.id}: {entry.name} - {entry.description}" for entry in items
     )
 
 
@@ -82,7 +82,7 @@ def map_features(
 
     template = load_prompt_text("mapping_prompt")
     schema = json.dumps(MappingResponse.model_json_schema(), indent=2)
-    mapping_items = load_mapping_items()
+    mapping_items: dict[str, list[MappingItem]] = load_mapping_items()
     prompt = template.format(
         data_items=_render_items(mapping_items["information"]),
         application_items=_render_items(mapping_items["applications"]),

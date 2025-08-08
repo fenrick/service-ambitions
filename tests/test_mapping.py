@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from mapping import map_feature, map_features
-from models import PlateauFeature
+from models import MappingItem, PlateauFeature
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -34,11 +34,13 @@ def test_map_feature_returns_mappings(monkeypatch) -> None:
     monkeypatch.setattr(
         "mapping.load_mapping_items",
         lambda *a, **k: {
-            "information": [{"id": "INF-1", "name": "User Data", "description": "d"}],
+            "information": [MappingItem(id="INF-1", name="User Data", description="d")],
             "applications": [
-                {"id": "APP-1", "name": "Learning Platform", "description": "d"}
+                MappingItem(id="APP-1", name="Learning Platform", description="d")
             ],
-            "technologies": [{"id": "TEC-1", "name": "AI Engine", "description": "d"}],
+            "technologies": [
+                MappingItem(id="TEC-1", name="AI Engine", description="d")
+            ],
         },
     )
     session = DummySession(
@@ -83,11 +85,13 @@ def test_map_feature_injects_reference_data(monkeypatch) -> None:
     monkeypatch.setattr(
         "mapping.load_mapping_items",
         lambda *a, **k: {
-            "information": [{"id": "INF-1", "name": "User Data", "description": "d"}],
+            "information": [MappingItem(id="INF-1", name="User Data", description="d")],
             "applications": [
-                {"id": "APP-1", "name": "Learning Platform", "description": "d"}
+                MappingItem(id="APP-1", name="Learning Platform", description="d")
             ],
-            "technologies": [{"id": "TEC-1", "name": "AI Engine", "description": "d"}],
+            "technologies": [
+                MappingItem(id="TEC-1", name="AI Engine", description="d")
+            ],
         },
     )
     session = DummySession(
@@ -158,9 +162,9 @@ def test_map_features_returns_mappings(monkeypatch) -> None:
     monkeypatch.setattr(
         "mapping.load_mapping_items",
         lambda *a, **k: {
-            "information": [{"id": "INF-1", "name": "User Data", "description": "d"}],
-            "applications": [{"id": "APP-1", "name": "App", "description": "d"}],
-            "technologies": [{"id": "TEC-1", "name": "Tech", "description": "d"}],
+            "information": [MappingItem(id="INF-1", name="User Data", description="d")],
+            "applications": [MappingItem(id="APP-1", name="App", description="d")],
+            "technologies": [MappingItem(id="TEC-1", name="Tech", description="d")],
         },
     )
 
@@ -204,9 +208,9 @@ def test_map_features_validates_lists(monkeypatch) -> None:
     monkeypatch.setattr(
         "mapping.load_mapping_items",
         lambda *a, **k: {
-            "information": [{"id": "INF-1", "name": "User Data", "description": "d"}],
-            "applications": [{"id": "APP-1", "name": "App", "description": "d"}],
-            "technologies": [{"id": "TEC-1", "name": "Tech", "description": "d"}],
+            "information": [MappingItem(id="INF-1", name="User Data", description="d")],
+            "applications": [MappingItem(id="APP-1", name="App", description="d")],
+            "technologies": [MappingItem(id="TEC-1", name="Tech", description="d")],
         },
     )
 

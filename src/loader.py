@@ -5,12 +5,12 @@ from __future__ import annotations
 import logging
 import os
 from functools import lru_cache
-from typing import Any, Dict, Iterator, List, TypeVar
+from typing import Dict, Iterator, List, TypeVar
 
 import logfire
 from pydantic import TypeAdapter
 
-from models import ServiceFeaturePlateau
+from models import MappingItem, ServiceFeaturePlateau, ServiceInput
 
 logger = logging.getLogger(__name__)
 
@@ -99,15 +99,15 @@ def load_prompt_text(prompt_name: str, base_dir: str | None = None) -> str:
 
 @logfire.instrument()
 @lru_cache(maxsize=None)
-def load_mapping_items(base_dir: str = "data") -> Dict[str, list[Dict[str, str]]]:
+def load_mapping_items(base_dir: str = "data") -> Dict[str, list[MappingItem]]:
     """Return mapping reference data from ``base_dir``.
 
     Args:
         base_dir: Directory containing mapping data files.
 
     Returns:
-        A dictionary with keys ``information``, ``applications``, and
-        ``technologies`` mapping to lists of item dictionaries.
+        A dictionary with keys ``information``, ``applications`` and
+        ``technologies`` mapping to lists of :class:`MappingItem`.
 
     Raises:
         FileNotFoundError: If a required file is missing.
@@ -119,10 +119,10 @@ def load_mapping_items(base_dir: str = "data") -> Dict[str, list[Dict[str, str]]
         "applications": "applications.json",
         "technologies": "technologies.json",
     }
-    data: Dict[str, list[Dict[str, str]]] = {}
+    data: Dict[str, list[MappingItem]] = {}
     for key, filename in files.items():
         path = os.path.join(base_dir, filename)
-        data[key] = _read_json_file(path, list[Dict[str, str]])
+        data[key] = _read_json_file(path, list[MappingItem])
     return data
 
 
@@ -198,10 +198,10 @@ def load_prompt(
 
 
 @logfire.instrument()
-def load_services(path: str) -> Iterator[Dict[str, Any]]:
-    """Yield services from ``path`` in JSON Lines format."""
+def load_services(path: str) -> Iterator[ServiceInput]:
+    """Yield :class:`ServiceInput` records from ``path`` in JSON Lines format."""
 
-    adapter = TypeAdapter(Dict[str, Any])
+    adapter = TypeAdapter(ServiceInput)
     try:
         with open(path, "r", encoding="utf-8") as file:
             for line in file:
@@ -209,19 +209,10 @@ def load_services(path: str) -> Iterator[Dict[str, Any]]:
                 if not line:
                     continue
                 try:
-                    service = adapter.validate_json(line)
+                    yield adapter.validate_json(line)
                 except Exception as exc:  # pragma: no cover - logging
                     logger.error("Invalid service entry in %s: %s", path, exc)
                     raise RuntimeError("Invalid service definition") from exc
-                service_id = service.get("service_id")
-                if service_id is not None and not isinstance(service_id, str):
-                    logger.error("service_id must be a string: %s", service_id)
-                    raise RuntimeError("service_id must be a string")
-                jobs = service.get("jobs_to_be_done")
-                if jobs is not None and not isinstance(jobs, list):
-                    logger.error("jobs_to_be_done must be a list: %s", jobs)
-                    raise RuntimeError("jobs_to_be_done must be a list")
-                yield service
     except FileNotFoundError:  # pragma: no cover - logging
         logger.error("Services file not found: %s", path)
         raise FileNotFoundError(

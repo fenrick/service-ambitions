@@ -16,7 +16,6 @@ from loader import (
     load_prompt,
     load_services,
 )
-from models import ServiceInput
 from monitoring import init_logfire
 from plateau_generator import PlateauGenerator
 from settings import load_settings
@@ -71,8 +70,7 @@ def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
     agent = Agent(model)
 
     with open(args.output_file, "w", encoding="utf-8") as output:
-        for raw in load_services(args.input_file):
-            service = ServiceInput(**raw)
+        for service in load_services(args.input_file):
             session = ConversationSession(agent)
             generator = PlateauGenerator(session)
             evolution = generator.generate_service_evolution(
