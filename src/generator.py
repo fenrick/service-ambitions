@@ -122,7 +122,7 @@ class ServiceAmbitionGenerator:
 
         self._prompt = prompt
         try:
-            with open(output_path, "w", encoding="utf-8") as output_file:
+            with open(output_path, "a", encoding="utf-8") as output_file:
                 # Run the async processing loop and stream results directly to
                 # disk to avoid storing large intermediate data sets.
                 asyncio.run(self._process_all(services, output_file))
