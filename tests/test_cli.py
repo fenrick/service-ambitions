@@ -30,7 +30,16 @@ def test_cli_generates_output(tmp_path, monkeypatch):
 
     output_file = tmp_path / "output.jsonl"
 
-    monkeypatch.setenv("OPENAI_API_KEY", "dummy")
+    settings = SimpleNamespace(
+        model="cfg",
+        log_level="INFO",
+        prompt_dir=str(base),
+        context_id="ctx",
+        inspiration="insp",
+        concurrency=2,
+        openai_api_key="dummy",
+        logfire_token=None,
+    )
 
     async def fake_process_service(self, service, prompt=None):
         assert prompt is not None
@@ -39,22 +48,15 @@ def test_cli_generates_output(tmp_path, monkeypatch):
     monkeypatch.setattr(
         ServiceAmbitionGenerator, "process_service", fake_process_service
     )
+    monkeypatch.setattr(cli, "load_settings", lambda: settings)
 
     argv = [
         "main",
         "generate-ambitions",
-        "--prompt-dir",
-        str(base),
-        "--context-id",
-        "ctx",
-        "--inspirations-id",
-        "insp",
         "--input-file",
         str(input_file),
         "--output-file",
         str(output_file),
-        "--concurrency",
-        "2",
         "--model",
         "test",
     ]
@@ -93,7 +95,16 @@ def test_cli_switches_context(tmp_path, monkeypatch):
     input_file.write_text('{"name": "alpha"}\n')
     output_file = tmp_path / "output.jsonl"
 
-    monkeypatch.setenv("OPENAI_API_KEY", "dummy")
+    settings = SimpleNamespace(
+        model="test",
+        log_level="INFO",
+        prompt_dir=str(base),
+        context_id="beta",
+        inspiration="general",
+        concurrency=1,
+        openai_api_key="dummy",
+        logfire_token=None,
+    )
 
     async def fake_process_service(self, service, prompt=None):
         assert prompt is not None
@@ -102,18 +113,15 @@ def test_cli_switches_context(tmp_path, monkeypatch):
     monkeypatch.setattr(
         ServiceAmbitionGenerator, "process_service", fake_process_service
     )
+    monkeypatch.setattr(cli, "load_settings", lambda: settings)
 
     argv = [
         "main",
         "generate-ambitions",
-        "--context-id",
-        "beta",
         "--input-file",
         str(input_file),
         "--output-file",
         str(output_file),
-        "--model",
-        "test",
     ]
     monkeypatch.setattr(sys, "argv", argv)
 
@@ -138,8 +146,16 @@ def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
     input_file.write_text('{"name": "alpha"}\n')
     output_file = tmp_path / "output.jsonl"
 
-    monkeypatch.setenv("OPENAI_API_KEY", "dummy")
-    monkeypatch.setenv("MODEL", "test-model")
+    settings = SimpleNamespace(
+        model="test-model",
+        log_level="INFO",
+        prompt_dir=str(base),
+        context_id="university",
+        inspiration="general",
+        concurrency=1,
+        openai_api_key="dummy",
+        logfire_token=None,
+    )
 
     captured: dict[str, str] = {}
 
@@ -157,6 +173,7 @@ def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
     monkeypatch.setattr(
         ServiceAmbitionGenerator, "process_service", fake_process_service
     )
+    monkeypatch.setattr(cli, "load_settings", lambda: settings)
 
     argv = [
         "main",
@@ -189,8 +206,16 @@ def test_cli_enables_logfire(tmp_path, monkeypatch):
     input_file.write_text('{"name": "alpha"}\n')
     output_file = tmp_path / "output.jsonl"
 
-    monkeypatch.setenv("OPENAI_API_KEY", "dummy")
-    monkeypatch.setenv("LOGFIRE_TOKEN", "lf-key")
+    settings = SimpleNamespace(
+        model="test",
+        log_level="INFO",
+        prompt_dir=str(base),
+        context_id="university",
+        inspiration="general",
+        concurrency=1,
+        openai_api_key="dummy",
+        logfire_token="lf-key",
+    )
 
     async def fake_process_service(self, service, prompt=None):
         return {"ok": True}
@@ -198,6 +223,7 @@ def test_cli_enables_logfire(tmp_path, monkeypatch):
     monkeypatch.setattr(
         ServiceAmbitionGenerator, "process_service", fake_process_service
     )
+    monkeypatch.setattr(cli, "load_settings", lambda: settings)
 
     captured: dict[str, object] = {}
     called: dict[str, bool] = {"installed": False}
@@ -229,8 +255,6 @@ def test_cli_enables_logfire(tmp_path, monkeypatch):
         str(output_file),
         "--logfire-service",
         "demo",
-        "--model",
-        "test",
     ]
     monkeypatch.setattr(sys, "argv", argv)
 
@@ -244,12 +268,23 @@ def test_cli_enables_logfire(tmp_path, monkeypatch):
 
 
 def test_cli_rejects_invalid_concurrency(monkeypatch):
-    monkeypatch.setenv("OPENAI_API_KEY", "dummy")
     monkeypatch.setattr(cli, "load_prompt", lambda *a, **k: "prompt")
     monkeypatch.setattr(cli, "load_services", lambda *a, **k: [])
     monkeypatch.setattr(cli, "build_model", lambda *a, **k: object())
 
-    argv = ["main", "generate-ambitions", "--concurrency", "0", "--model", "test"]
+    settings = SimpleNamespace(
+        model="test",
+        log_level="INFO",
+        prompt_dir="prompts",
+        context_id="ctx",
+        inspiration="insp",
+        concurrency=0,
+        openai_api_key="dummy",
+        logfire_token=None,
+    )
+    monkeypatch.setattr(cli, "load_settings", lambda: settings)
+
+    argv = ["main", "generate-ambitions", "--model", "test"]
     monkeypatch.setattr(sys, "argv", argv)
 
     with pytest.raises(ValueError, match="concurrency must be a positive integer"):
@@ -262,7 +297,7 @@ def test_cli_help_shows_parameters(monkeypatch, capsys):
         cli.main()
     out = capsys.readouterr().out
     assert "Generate service ambitions" in out
-    assert "--concurrency" in out
+    assert "--input-file" in out
 
 
 def test_cli_verbose_logging(tmp_path, monkeypatch, capsys):
@@ -280,7 +315,16 @@ def test_cli_verbose_logging(tmp_path, monkeypatch, capsys):
     input_file.write_text('{"name": "alpha"}\n', encoding="utf-8")
     output_file = tmp_path / "output.jsonl"
 
-    monkeypatch.setenv("OPENAI_API_KEY", "dummy")
+    settings = SimpleNamespace(
+        model="test",
+        log_level="INFO",
+        prompt_dir=str(base),
+        context_id="ctx",
+        inspiration="insp",
+        concurrency=1,
+        openai_api_key="dummy",
+        logfire_token=None,
+    )
 
     async def fake_process_service(self, service, prompt=None):
         return {"ok": True}
@@ -288,22 +332,15 @@ def test_cli_verbose_logging(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(
         ServiceAmbitionGenerator, "process_service", fake_process_service
     )
+    monkeypatch.setattr(cli, "load_settings", lambda: settings)
 
     argv = [
         "main",
         "generate-ambitions",
-        "--prompt-dir",
-        str(base),
-        "--context-id",
-        "ctx",
-        "--inspirations-id",
-        "insp",
         "--input-file",
         str(input_file),
         "--output-file",
         str(output_file),
-        "--model",
-        "test",
         "-v",
     ]
     monkeypatch.setattr(sys, "argv", argv)

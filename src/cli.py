@@ -52,9 +52,9 @@ def _configure_logging(args: argparse.Namespace, settings) -> None:
 def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
     """Generate service ambitions and write them to disk."""
 
-    # Load prompt components from the selected directory
-    configure_prompt_dir(args.prompt_dir)
-    system_prompt = load_prompt(args.context_id, args.inspirations_id)
+    # Load prompt components from the configured directory
+    configure_prompt_dir(settings.prompt_dir)
+    system_prompt = load_prompt(settings.context_id, settings.inspiration)
     services = list(load_services(args.input_file))
     logger.debug("Loaded %d services from %s", len(services), args.input_file)
 
@@ -63,7 +63,7 @@ def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
     logger.info("Generating ambitions using model %s", model_name)
 
     model = build_model(model_name, settings.openai_api_key)
-    generator = ServiceAmbitionGenerator(model, concurrency=args.concurrency)
+    generator = ServiceAmbitionGenerator(model, concurrency=settings.concurrency)
     generator.generate(services, system_prompt, args.output_file)
     logger.info("Results written to %s", args.output_file)
     # Ensure telemetry is persisted before exiting
@@ -87,7 +87,7 @@ def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
             # Generate plateau-specific evolution from the conversation
             generator = PlateauGenerator(session)
             evolution = generator.generate_service_evolution(
-                service, args.plateaus, args.customers
+                service, args.plateaus, ["learners", "staff", "community"]
             )
             # Persist evolution as a JSON line
             output.write(f"{evolution.model_dump_json()}\n")
@@ -134,15 +134,6 @@ def main() -> None:
         description="Generate service ambitions",
     )
     amb.add_argument(
-        "--prompt-dir", default="prompts", help="Directory containing prompt components"
-    )
-    amb.add_argument(
-        "--context-id", default="university", help="Situational context identifier"
-    )
-    amb.add_argument(
-        "--inspirations-id", default="general", help="Inspirations identifier"
-    )
-    amb.add_argument(
         "--input-file",
         default="sample-services.jsonl",
         help="Path to the services JSONL file",
@@ -151,12 +142,6 @@ def main() -> None:
         "--output-file",
         default="ambitions.jsonl",
         help="File to write the results",
-    )
-    amb.add_argument(
-        "--concurrency",
-        type=int,
-        default=5,
-        help="Number of services to process concurrently (must be > 0)",
     )
     amb.set_defaults(func=_cmd_generate_ambitions)
 
@@ -180,12 +165,6 @@ def main() -> None:
         nargs="+",
         default=_default_plateaus(),
         help="Plateau names to evaluate",
-    )
-    evo.add_argument(
-        "--customers",
-        nargs="+",
-        default=["learners", "staff", "community"],
-        help="Customer types to evaluate",
     )
     evo.set_defaults(func=_cmd_generate_evolution)
 

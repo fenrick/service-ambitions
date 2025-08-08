@@ -64,6 +64,23 @@ class AppConfig(BaseModel):
         "INFO",
         description="Logging verbosity level.",
     )
+    prompt_dir: str = Field(
+        "prompts",
+        description="Directory containing prompt components.",
+    )
+    context_id: str = Field(
+        "university",
+        description="Situational context identifier.",
+    )
+    inspiration: str = Field(
+        "general",
+        description="Inspirations identifier.",
+    )
+    concurrency: int = Field(
+        5,
+        ge=1,
+        description="Number of services to process concurrently.",
+    )
     mapping_types: dict[str, MappingTypeConfig] = Field(
         default_factory=dict,
         description="Mapping type definitions keyed by field name.",
