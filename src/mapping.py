@@ -6,7 +6,7 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any, Sequence
 
-from loader import load_mapping_items, load_mapping_prompt
+from loader import load_mapping_items, load_prompt_text
 from models import Contribution, MappingResponse, PlateauFeature
 
 if TYPE_CHECKING:  # pragma: no cover - import for type checking only
@@ -34,7 +34,6 @@ def _render_features(features: Sequence[PlateauFeature]) -> str:
 def map_feature(
     session: ConversationSession,
     feature: PlateauFeature,
-    prompt_dir: str = "prompts",
 ) -> PlateauFeature:
     """Return ``feature`` augmented with mapping information.
 
@@ -44,19 +43,17 @@ def map_feature(
     Args:
         session: Active conversation session used to query the agent.
         feature: Plateau feature to map.
-        prompt_dir: Directory containing prompt templates.
 
     Returns:
         A :class:`PlateauFeature` with mapping information applied.
     """
 
-    return map_features(session, [feature], prompt_dir)[0]
+    return map_features(session, [feature])[0]
 
 
 def map_features(
     session: ConversationSession,
     features: Sequence[PlateauFeature],
-    prompt_dir: str = "prompts",
 ) -> list[PlateauFeature]:
     """Return ``features`` augmented with data, application and technology mappings.
 
@@ -79,7 +76,7 @@ def map_features(
         missing.
     """
 
-    template = load_mapping_prompt(prompt_dir)
+    template = load_prompt_text("mapping_prompt")
     schema = json.dumps(MappingResponse.model_json_schema(), indent=2)
     mapping_items = load_mapping_items()
     prompt = template.format(

@@ -6,7 +6,7 @@ import json
 import logging
 
 from conversation import ConversationSession
-from loader import load_description_prompt, load_plateau_prompt
+from loader import load_prompt_text
 from mapping import map_features
 from models import (
     DescriptionResponse,
@@ -26,20 +26,17 @@ class PlateauGenerator:
     def __init__(
         self,
         session: ConversationSession,
-        prompt_dir: str = "prompts",
         required_count: int = 5,
     ) -> None:
         """Initialise the generator.
 
         Args:
             session: Active conversation session for agent queries.
-            prompt_dir: Directory containing prompt templates.
             required_count: Minimum number of features per customer type.
         """
         if required_count < 1:
             raise ValueError("required_count must be positive")
         self.session = session
-        self.prompt_dir = prompt_dir
         self.required_count = required_count
         self._service: ServiceInput | None = None
 
@@ -48,10 +45,12 @@ class PlateauGenerator:
 
         The agent must respond with JSON containing a ``description`` field.
         """
-        template = load_description_prompt(self.prompt_dir)
+        template = load_prompt_text("description_prompt")
         schema = json.dumps(DescriptionResponse.model_json_schema(), indent=2)
-        prompt = template.format(plateau=level,
-            schema=str(schema),)
+        prompt = template.format(
+            plateau=level,
+            schema=str(schema),
+        )
         response = session.ask(prompt)
         try:
             payload = json.loads(response)
@@ -82,7 +81,7 @@ class PlateauGenerator:
 
         description = self._request_description(session, level)
         schema = json.dumps(PlateauFeaturesResponse.model_json_schema(), indent=2)
-        template = load_plateau_prompt(self.prompt_dir)
+        template = load_prompt_text("plateau_prompt")
         prompt = template.format(
             required_count=self.required_count,
             service_name=self._service.name,

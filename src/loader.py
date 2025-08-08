@@ -14,6 +14,16 @@ from models import ServiceFeaturePlateau
 
 logger = logging.getLogger(__name__)
 
+# Directory containing prompt templates. Updated via ``configure_prompt_dir``.
+PROMPT_DIR = "prompts"
+
+
+def configure_prompt_dir(path: str) -> None:
+    """Set the base directory for prompt templates."""
+
+    global PROMPT_DIR
+    PROMPT_DIR = path
+
 
 @logfire.instrument()
 def _read_file(path: str) -> str:
@@ -44,17 +54,16 @@ def _read_file(path: str) -> str:
 
 
 @logfire.instrument()
-def load_plateau_prompt(
-    base_dir: str = "prompts", filename: str = "plateau_prompt.md"
-) -> str:
-    """Return the plateau feature generation prompt template.
+def load_prompt_text(prompt_name: str, base_dir: str | None = None) -> str:
+    """Return the contents of a prompt template.
 
-    The template includes detailed instructions and an example of the expected
-    JSON response to guide the agent.
+    The function locates ``prompt_name`` within ``base_dir`` (defaulting to the
+    globally configured :data:`PROMPT_DIR`) and returns the stripped file
+    contents. The ``.md`` suffix is added automatically if missing.
 
     Args:
-        base_dir: Directory containing prompt templates.
-        filename: Plateau prompt file name.
+        prompt_name: Name of the prompt file without directory components.
+        base_dir: Optional override for the base directory containing prompts.
 
     Returns:
         Prompt template text.
@@ -64,52 +73,9 @@ def load_plateau_prompt(
         RuntimeError: If the file cannot be read.
     """
 
-    return _read_file(os.path.join(base_dir, filename))
-
-
-@logfire.instrument()
-def load_description_prompt(
-    base_dir: str = "prompts", filename: str = "description_prompt.md"
-) -> str:
-    """Return the service description prompt template.
-
-    Args:
-        base_dir: Directory containing prompt templates.
-        filename: Description prompt file name.
-
-    Returns:
-        Prompt template text.
-
-    Raises:
-        FileNotFoundError: If the file does not exist.
-        RuntimeError: If the file cannot be read.
-    """
-
-    return _read_file(os.path.join(base_dir, filename))
-
-
-@logfire.instrument()
-def load_mapping_prompt(
-    base_dir: str = "prompts", filename: str = "mapping_prompt.md"
-) -> str:
-    """Return the feature mapping prompt template.
-
-    The template instructs the agent to create category-specific mappings and
-    shows the required JSON structure.
-
-    Args:
-        base_dir: Directory containing prompt templates.
-        filename: Mapping prompt file name.
-
-    Returns:
-        Prompt template text.
-
-    Raises:
-        FileNotFoundError: If the file does not exist.
-        RuntimeError: If the file cannot be read.
-    """
-
-    return _read_file(os.path.join(base_dir, filename))
+    directory = base_dir or PROMPT_DIR
+    filename = prompt_name if prompt_name.endswith(".md") else f"{prompt_name}.md"
+    return _read_file(os.path.join(directory, filename))
 
 
 @logfire.instrument()
@@ -188,9 +154,9 @@ def load_plateau_definitions(
 
 @logfire.instrument()
 def load_prompt(
-    base_dir: str,
     context_id: str,
     inspirations_id: str,
+    base_dir: str | None = None,
     plateaus_file: str = "service_feature_plateaus.md",
     definitions_file: str = "definitions.md",
     task_file: str = "task_definition.md",
@@ -199,11 +165,11 @@ def load_prompt(
     """Assemble the system prompt from modular components.
 
     Args:
-        base_dir: Directory containing prompt components.
-        context_id: Identifier for the situational context file within
-            ``base_dir/situational_context``.
-        inspirations_id: Identifier for the inspirations file within
-            ``base_dir/inspirations``.
+        context_id: Identifier for the situational context file within the
+            prompts directory.
+        inspirations_id: Identifier for the inspirations file within the
+            prompts directory.
+        base_dir: Optional override for the base prompts directory.
         plateaus_file: Filename of the service feature plateaus component.
         definitions_file: Filename of the definitions component.
         task_file: Filename of the task definition component.
@@ -217,13 +183,14 @@ def load_prompt(
         RuntimeError: If a component file cannot be read.
     """
 
+    directory = base_dir or PROMPT_DIR
     components = [
-        os.path.join(base_dir, "situational_context", f"{context_id}.md"),
-        os.path.join(base_dir, plateaus_file),
-        os.path.join(base_dir, definitions_file),
-        os.path.join(base_dir, "inspirations", f"{inspirations_id}.md"),
-        os.path.join(base_dir, task_file),
-        os.path.join(base_dir, response_file),
+        os.path.join(directory, "situational_context", f"{context_id}.md"),
+        os.path.join(directory, plateaus_file),
+        os.path.join(directory, definitions_file),
+        os.path.join(directory, "inspirations", f"{inspirations_id}.md"),
+        os.path.join(directory, task_file),
+        os.path.join(directory, response_file),
     ]
     parts = [_read_file(path) for path in components]
     return "\n\n".join(parts)

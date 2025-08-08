@@ -64,7 +64,7 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
 
     map_calls = {"n": 0}
 
-    def _fake_map_features(session, features, prompt_dir="prompts"):
+    def _fake_map_features(session, features):
         map_calls["n"] += 1
         results = []
         for feature in features:
@@ -79,9 +79,11 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
 
     monkeypatch.setattr("plateau_generator.map_features", _fake_map_features)
     template = "{required_count} {service_name} {service_description} {plateau}"
-    monkeypatch.setattr(
-        "plateau_generator.load_plateau_prompt", lambda *a, **k: template
-    )
+
+    def fake_loader(name, *_, **__):
+        return template if name == "plateau_prompt" else "desc {plateau}"
+
+    monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
 
     service = ServiceInput(
         service_id="svc-1",
