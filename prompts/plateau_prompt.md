@@ -5,6 +5,7 @@ Generate service features for the {service_name} service at plateau {plateau}.
 ## Instructions
 
 - Use the service description: {service_description}.
+- Reference the situational context, definitions and inspirations to maintain consistent terminology.
 - Return a single JSON object with three keys: "learners", "staff" and "community".
 - Each key must map to an array containing at least {required_count} feature objects.
 - Every feature must provide:
