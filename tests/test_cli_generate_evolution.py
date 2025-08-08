@@ -2,15 +2,10 @@
 
 import argparse
 import json
-import sys
-from pathlib import Path
 from types import SimpleNamespace
 
 from cli import _cmd_generate_evolution
-from loader import load_plateau_definitions
 from models import ServiceEvolution, ServiceInput
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
 def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
@@ -31,23 +26,14 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
 
     def fake_build_model(
         model_name: str, api_key: str
-    ) -> object:  # pragma: no cover - simple stub
+    ) -> object:  # pragma: no cover - stub
         return object()
 
     class DummyAgent:  # pragma: no cover - simple stub
-        def __init__(self, model: object) -> None:  # noqa: D401 - no behaviour
+        def __init__(self, model: object) -> None:
             self.model = model
 
-    captured: dict[str, list[str]] = {}
-
-    def fake_generate(
-        self,
-        service: ServiceInput,
-        plateaus: list[str] | None = None,
-        customers: list[str] | None = None,
-    ) -> ServiceEvolution:
-        captured["plateaus"] = plateaus or []
-        captured["customers"] = customers or []
+    def fake_generate(self, service: ServiceInput) -> ServiceEvolution:
         return ServiceEvolution(service=service, plateaus=[])
 
     monkeypatch.setattr("cli.build_model", fake_build_model)
@@ -62,12 +48,11 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         log_level="INFO",
         openai_api_key="key",
         logfire_token=None,
+        concurrency=2,
     )
-    plateaus = [p.name for p in load_plateau_definitions()[:4]]
     args = argparse.Namespace(
         input_file=str(input_path),
         output_file=str(output_path),
-        plateaus=plateaus,
         model=None,
         logfire_service=None,
         log_level=None,
@@ -79,8 +64,6 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
     payload = json.loads(output_path.read_text().strip())
     assert payload["service"]["name"] == "svc"
     assert payload["service"]["service_id"] == "svc-1"
-    assert captured["plateaus"] == plateaus
-    assert captured["customers"] == ["learners", "staff", "community"]
 
 
 def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> None:
@@ -110,12 +93,7 @@ def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> None:
         def __init__(self, model: object) -> None:  # pragma: no cover - simple init
             captured["agent_model"] = model
 
-    def fake_generate(
-        self,
-        service: ServiceInput,
-        plateaus: list[str] | None = None,
-        customers: list[str] | None = None,
-    ) -> ServiceEvolution:
+    def fake_generate(self, service: ServiceInput) -> ServiceEvolution:
         return ServiceEvolution(service=service, plateaus=[])
 
     monkeypatch.setattr("cli.build_model", fake_build_model)
@@ -130,12 +108,11 @@ def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> None:
         log_level="INFO",
         openai_api_key="key",
         logfire_token=None,
+        concurrency=1,
     )
-    plateaus = [p.name for p in load_plateau_definitions()[:4]]
     args = argparse.Namespace(
         input_file=str(input_path),
         output_file=str(output_path),
-        plateaus=plateaus,
         model="special",  # override default
         logfire_service=None,
         log_level=None,
@@ -146,3 +123,78 @@ def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> None:
 
     assert captured["model_name"] == "special"
     assert captured["agent_model"] == "model"
+
+
+def test_generate_evolution_respects_concurrency(tmp_path, monkeypatch) -> None:
+    input_path = tmp_path / "services.jsonl"
+    output_path = tmp_path / "out.jsonl"
+    input_path.write_text(
+        json.dumps(
+            {
+                "service_id": "s1",
+                "name": "svc",
+                "description": "d",
+                "customer_type": "retail",
+                "jobs_to_be_done": [],
+            }
+        )
+        + "\n"
+    )
+
+    class DummyAgent:
+        def __init__(self, model: object) -> None:  # pragma: no cover - simple init
+            self.model = model
+
+    def fake_build_model(
+        model_name: str, api_key: str
+    ) -> object:  # pragma: no cover - stub
+        return object()
+
+    def fake_generate(
+        self, service: ServiceInput
+    ) -> ServiceEvolution:  # pragma: no cover - stub
+        return ServiceEvolution(service=service, plateaus=[])
+
+    captured: dict[str, int] = {}
+
+    class DummyExecutor:
+        def __init__(self, max_workers: int) -> None:
+            captured["workers"] = max_workers
+
+        def __enter__(self):  # pragma: no cover - simple context
+            return self
+
+        def __exit__(self, exc_type, exc, tb):  # pragma: no cover - simple context
+            return False
+
+        def map(self, func, iterable):  # pragma: no cover - sequential map
+            for item in iterable:
+                yield func(item)
+
+    monkeypatch.setattr("cli.build_model", fake_build_model)
+    monkeypatch.setattr("cli.Agent", DummyAgent)
+    monkeypatch.setattr(
+        "cli.PlateauGenerator.generate_service_evolution", fake_generate
+    )
+    monkeypatch.setattr("cli.ThreadPoolExecutor", DummyExecutor)
+    monkeypatch.setattr("cli.logfire.force_flush", lambda: None)
+
+    settings = SimpleNamespace(
+        model="m",
+        log_level="INFO",
+        openai_api_key="k",
+        logfire_token=None,
+        concurrency=3,
+    )
+    args = argparse.Namespace(
+        input_file=str(input_path),
+        output_file=str(output_path),
+        model=None,
+        logfire_service=None,
+        log_level=None,
+        verbose=0,
+    )
+
+    _cmd_generate_evolution(args, settings)
+
+    assert captured["workers"] == 3
