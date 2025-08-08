@@ -157,7 +157,7 @@ Each JSON line in the output file follows the `ServiceEvolution` schema:
 Fields in the schema:
 
 - `service`: `ServiceInput` with `service_id`, `name`, `description`, optional
-  `customer_type`, and `jobs_to_be_done`.
+  `customer_type`, `jobs_to_be_done`, and existing `features`.
 - `plateaus`: list of `PlateauResult` entries, each containing:
     - `plateau`: integer plateau level.
     - `plateau_name`: descriptive plateau label.

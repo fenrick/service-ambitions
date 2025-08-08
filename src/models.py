@@ -24,6 +24,18 @@ class Contribution(BaseModel):
     )
 
 
+class ServiceFeature(BaseModel):
+    """Feature already delivered by the service.
+
+    Seed features provide additional context about existing capabilities prior to
+    plateau analysis.
+    """
+
+    feature_id: str = Field(..., description="Unique feature identifier.")
+    name: str = Field(..., description="Human readable feature name.")
+    description: str = Field(..., description="Explanation of the feature.")
+
+
 class ServiceInput(BaseModel):
     """Basic description of a service under consideration.
 
@@ -39,6 +51,10 @@ class ServiceInput(BaseModel):
     description: str = Field(..., description="Short explanation of the service.")
     jobs_to_be_done: list[str] = Field(
         ..., description="Customer jobs the service seeks to address."
+    )
+    features: list[ServiceFeature] = Field(
+        default_factory=list,
+        description="Existing features currently offered by the service.",
     )
 
 
@@ -245,6 +261,7 @@ class MappingResponse(BaseModel):
 
 __all__ = [
     "ServiceInput",
+    "ServiceFeature",
     "ServiceFeaturePlateau",
     "PlateauFeature",
     "Contribution",
