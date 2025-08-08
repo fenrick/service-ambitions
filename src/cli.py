@@ -84,9 +84,7 @@ def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
             session = ConversationSession(agent)
             # Generate plateau-specific evolution from the conversation
             generator = PlateauGenerator(session)
-            evolution = generator.generate_service_evolution(
-                service, args.plateaus, ["learners", "staff", "community"]
-            )
+            evolution = generator.generate_service_evolution(service)
             # Persist evolution as a JSON line
             output.write(f"{evolution.model_dump_json()}\n")
             logger.info("Generated evolution for %s", service.name)
@@ -151,12 +149,6 @@ def main() -> None:
         "--output-file",
         default="evolution.jsonl",
         help="File to write the results",
-    )
-    evo.add_argument(
-        "--plateaus",
-        nargs="+",
-        default=_default_plateaus(),
-        help="Plateau names to evaluate",
     )
     evo.set_defaults(func=_cmd_generate_evolution)
 

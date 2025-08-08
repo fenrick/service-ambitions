@@ -139,10 +139,7 @@ class PlateauGenerator:
         )
 
     def generate_service_evolution(
-        self,
-        service_input: ServiceInput,
-        plateau_names: list[str] | None = None,
-        customer_types: list[str] | None = None,
+        self, service_input: ServiceInput
     ) -> ServiceEvolution:
         """Return service evolution for selected plateaus and customers.
 
@@ -164,8 +161,8 @@ class PlateauGenerator:
         # Seed the conversation so later model queries have the service context.
         self.session.add_parent_materials(service_input)
 
-        plateau_names = plateau_names or DEFAULT_PLATEAU_NAMES
-        customer_types = customer_types or DEFAULT_CUSTOMER_TYPES
+        plateau_names = DEFAULT_PLATEAU_NAMES
+        customer_types = DEFAULT_CUSTOMER_TYPES
 
         plateaus: list[PlateauResult] = []
         for name in plateau_names:
