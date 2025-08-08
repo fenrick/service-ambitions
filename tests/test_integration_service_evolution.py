@@ -69,11 +69,11 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
         results = []
         for feature in features:
             payload = feature.model_dump()
-            payload.update(
-                data=[Contribution(item="d", contribution="c")],
-                applications=[Contribution(item="a", contribution="c")],
-                technology=[Contribution(item="t", contribution="c")],
-            )
+            payload["mappings"] = {
+                "data": [Contribution(item="d", contribution="c")],
+                "applications": [Contribution(item="a", contribution="c")],
+                "technology": [Contribution(item="t", contribution="c")],
+            }
             results.append(PlateauFeature(**payload))
         return results
 
@@ -106,6 +106,6 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
     assert len(session.prompts) + map_calls["n"] == 12
     for plateau in evolution.plateaus:
         for feature in plateau.features:
-            assert feature.data
-            assert feature.applications
-            assert feature.technology
+            assert feature.mappings["data"]
+            assert feature.mappings["applications"]
+            assert feature.mappings["technology"]

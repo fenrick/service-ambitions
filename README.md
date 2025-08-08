@@ -174,7 +174,10 @@ Each of `information.json`, `applications.json`, and `technologies.json`
 contains items with identifiers, names, and descriptions. These lists are
 injected into mapping prompts so that features can be matched against consistent
 options. Mapping prompts run separately for information, applications and
-technologies to keep each decision focused.
+technologies to keep each decision focused. All application configuration is
+stored in `config/app.json`; mapping types and their associated datasets live
+under the `mapping_types` section, allowing new categories to be added without
+code changes.
 
 ## Prompt examples
 

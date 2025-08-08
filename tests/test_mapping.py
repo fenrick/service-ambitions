@@ -25,7 +25,7 @@ class DummySession:
 
 
 def test_map_feature_returns_mappings(monkeypatch) -> None:
-    template = "{data_items} {application_items} {technology_items} {features}"
+    template = "{mapping_labels} {mapping_sections} {mapping_fields} {features}"
 
     def fake_loader(name, *_, **__):
         return template
@@ -33,7 +33,7 @@ def test_map_feature_returns_mappings(monkeypatch) -> None:
     monkeypatch.setattr("mapping.load_prompt_text", fake_loader)
     monkeypatch.setattr(
         "mapping.load_mapping_items",
-        lambda *a, **k: {
+        lambda types, *a, **k: {
             "information": [MappingItem(id="INF-1", name="User Data", description="d")],
             "applications": [
                 MappingItem(id="APP-1", name="Learning Platform", description="d")
@@ -70,13 +70,13 @@ def test_map_feature_returns_mappings(monkeypatch) -> None:
     result = map_feature(session, feature)  # type: ignore[arg-type]
 
     assert isinstance(result, PlateauFeature)
-    assert result.data[0].item == "INF-1"
-    assert result.applications[0].item == "APP-1"
-    assert result.technology[0].item == "TEC-1"
+    assert result.mappings["data"][0].item == "INF-1"
+    assert result.mappings["applications"][0].item == "APP-1"
+    assert result.mappings["technology"][0].item == "TEC-1"
 
 
 def test_map_feature_injects_reference_data(monkeypatch) -> None:
-    template = "{data_items} {application_items} {technology_items} {features}"
+    template = "{mapping_labels} {mapping_sections} {mapping_fields} {features}"
 
     def fake_loader(name, *_, **__):
         return template
@@ -84,7 +84,7 @@ def test_map_feature_injects_reference_data(monkeypatch) -> None:
     monkeypatch.setattr("mapping.load_prompt_text", fake_loader)
     monkeypatch.setattr(
         "mapping.load_mapping_items",
-        lambda *a, **k: {
+        lambda types, *a, **k: {
             "information": [MappingItem(id="INF-1", name="User Data", description="d")],
             "applications": [
                 MappingItem(id="APP-1", name="Learning Platform", description="d")
@@ -126,7 +126,7 @@ def test_map_feature_injects_reference_data(monkeypatch) -> None:
 
 
 def test_map_feature_rejects_invalid_json(monkeypatch) -> None:
-    template = "{data_items} {application_items} {technology_items} {features}"
+    template = "{mapping_labels} {mapping_sections} {mapping_fields} {features}"
 
     def fake_loader(name, *_, **__):
         return template
@@ -134,7 +134,7 @@ def test_map_feature_rejects_invalid_json(monkeypatch) -> None:
     monkeypatch.setattr("mapping.load_prompt_text", fake_loader)
     monkeypatch.setattr(
         "mapping.load_mapping_items",
-        lambda *a, **k: {
+        lambda types, *a, **k: {
             "information": [],
             "applications": [],
             "technologies": [],
@@ -153,7 +153,7 @@ def test_map_feature_rejects_invalid_json(monkeypatch) -> None:
 
 
 def test_map_features_returns_mappings(monkeypatch) -> None:
-    template = "{data_items} {application_items} {technology_items} {features}"
+    template = "{mapping_labels} {mapping_sections} {mapping_fields} {features}"
 
     def fake_loader(name, *_, **__):
         return template
@@ -161,7 +161,7 @@ def test_map_features_returns_mappings(monkeypatch) -> None:
     monkeypatch.setattr("mapping.load_prompt_text", fake_loader)
     monkeypatch.setattr(
         "mapping.load_mapping_items",
-        lambda *a, **k: {
+        lambda types, *a, **k: {
             "information": [MappingItem(id="INF-1", name="User Data", description="d")],
             "applications": [MappingItem(id="APP-1", name="App", description="d")],
             "technologies": [MappingItem(id="TEC-1", name="Tech", description="d")],
@@ -194,12 +194,12 @@ def test_map_features_returns_mappings(monkeypatch) -> None:
 
     result = map_features(session, [feature])  # type: ignore[arg-type]
 
-    assert result[0].data[0].item == "INF-1"
+    assert result[0].mappings["data"][0].item == "INF-1"
     assert "User Data" in session.prompts[0]
 
 
 def test_map_features_validates_lists(monkeypatch) -> None:
-    template = "{data_items} {application_items} {technology_items} {features}"
+    template = "{mapping_labels} {mapping_sections} {mapping_fields} {features}"
 
     def fake_loader(name, *_, **__):
         return template
@@ -207,7 +207,7 @@ def test_map_features_validates_lists(monkeypatch) -> None:
     monkeypatch.setattr("mapping.load_prompt_text", fake_loader)
     monkeypatch.setattr(
         "mapping.load_mapping_items",
-        lambda *a, **k: {
+        lambda types, *a, **k: {
             "information": [MappingItem(id="INF-1", name="User Data", description="d")],
             "applications": [MappingItem(id="APP-1", name="App", description="d")],
             "technologies": [MappingItem(id="TEC-1", name="Tech", description="d")],

@@ -1,18 +1,8 @@
 # Feature mapping
 
-Map each feature to relevant Data, Applications and Technologies from the lists below.
+Map each feature to relevant {mapping_labels} from the lists below.
 
-## Available Data
-
-{data_items}
-
-## Available Applications
-
-{application_items}
-
-## Available Technologies
-
-{technology_items}
+{mapping_sections}
 
 ## Features
 
@@ -21,7 +11,7 @@ Map each feature to relevant Data, Applications and Technologies from the lists 
 ## Instructions
 
 - Return a JSON object with a top-level "features" array.
-- Each element must include "feature_id", "data", "applications" and "technology" arrays.
+- Each element must include "feature_id" and the following arrays: {mapping_fields}.
 - Items in these arrays must provide "item" and "contribution" fields.
 - Use only identifiers from the provided lists.
 - Do not include any text outside the JSON object.

@@ -71,9 +71,9 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
     def dummy_map_features(sess, feats):
         call["n"] += 1
         for feat in feats:
-            feat.data = [Contribution(item="d", contribution="c")]
-            feat.applications = [Contribution(item="a", contribution="c")]
-            feat.technology = [Contribution(item="t", contribution="c")]
+            feat.mappings["data"] = [Contribution(item="d", contribution="c")]
+            feat.mappings["applications"] = [Contribution(item="a", contribution="c")]
+            feat.mappings["technology"] = [Contribution(item="t", contribution="c")]
         return feats
 
     monkeypatch.setattr("plateau_generator.map_features", dummy_map_features)

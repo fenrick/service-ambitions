@@ -4,6 +4,8 @@ from pathlib import Path
 import pytest
 
 from loader import (
+    load_app_config,
+    load_mapping_type_config,
     load_plateau_definitions,
     load_prompt,
     load_prompt_text,
@@ -107,3 +109,28 @@ def test_invalid_fixture_raises():
     path = Path(__file__).parent / "fixtures" / "services-invalid.jsonl"
     with pytest.raises(RuntimeError):
         list(load_services(str(path)))
+
+
+def test_load_mapping_type_config(tmp_path):
+    base = tmp_path / "config"
+    base.mkdir()
+    (base / "app.json").write_text(
+        '{"mapping_types": {"alpha": {"dataset": "ds", "label": "Alpha"}}}',
+        encoding="utf-8",
+    )
+    load_app_config.cache_clear()
+    load_mapping_type_config.cache_clear()
+    config = load_mapping_type_config(str(base))
+    assert config["alpha"].dataset == "ds"
+
+
+def test_load_app_config(tmp_path):
+    base = tmp_path / "config"
+    base.mkdir()
+    (base / "app.json").write_text(
+        '{"mapping_types": {"beta": {"dataset": "ds2", "label": "Beta"}}}',
+        encoding="utf-8",
+    )
+    load_app_config.cache_clear()
+    config = load_app_config(str(base))
+    assert "beta" in config.mapping_types

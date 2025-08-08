@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class Contribution(BaseModel):
@@ -44,6 +44,24 @@ class MappingItem(BaseModel):
     description: str = Field(..., description="Explanation of the item.")
 
 
+class MappingTypeConfig(BaseModel):
+    """Configuration for a feature mapping type."""
+
+    dataset: str = Field(
+        ..., description="Mapping dataset name without file extension."
+    )
+    label: str = Field(..., description="Human readable label for the mapping type.")
+
+
+class AppConfig(BaseModel):
+    """Top-level application configuration."""
+
+    mapping_types: dict[str, MappingTypeConfig] = Field(
+        default_factory=dict,
+        description="Mapping type definitions keyed by field name.",
+    )
+
+
 class PlateauFeature(BaseModel):
     """Feature assessed during a service plateau."""
 
@@ -56,16 +74,9 @@ class PlateauFeature(BaseModel):
     customer_type: str = Field(
         ..., description="Audience that benefits from the feature."
     )
-    data: list[Contribution] = Field(
-        default_factory=list,
-        description="Conceptual data types related to the feature.",
-    )
-    applications: list[Contribution] = Field(
-        default_factory=list, description="Applications relevant to the feature."
-    )
-    technology: list[Contribution] = Field(
-        default_factory=list,
-        description="Supporting technologies for the feature.",
+    mappings: dict[str, list[Contribution]] = Field(
+        default_factory=dict,
+        description="Mapping contributions keyed by mapping type.",
     )
 
 
@@ -123,12 +134,25 @@ class PlateauFeaturesResponse(BaseModel):
 
 
 class MappingFeature(BaseModel):
-    """Schema for mapped features."""
+    """Schema for mapped features with dynamic mapping types."""
 
     feature_id: str = Field(..., description="Feature identifier.")
-    data: list[Contribution] = Field(..., description="Related data items.")
-    applications: list[Contribution] = Field(..., description="Relevant applications.")
-    technology: list[Contribution] = Field(..., description="Supporting technologies.")
+    mappings: dict[str, list[Contribution]] = Field(
+        default_factory=dict, description="Mapping contributions by type."
+    )
+
+    model_config = ConfigDict(extra="allow")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _collect_mappings(cls, data: dict[str, object]) -> dict[str, object]:
+        """Collect arbitrary mapping lists into ``mappings``."""
+        mapping: dict[str, object] = {}
+        for key in list(data.keys()):
+            if key != "feature_id":
+                mapping[key] = data.pop(key)
+        data["mappings"] = mapping
+        return data
 
 
 class MappingResponse(BaseModel):
@@ -150,6 +174,8 @@ __all__ = [
     "FeatureItem",
     "PlateauFeaturesResponse",
     "MappingFeature",
+    "AppConfig",
     "MappingItem",
+    "MappingTypeConfig",
     "MappingResponse",
 ]

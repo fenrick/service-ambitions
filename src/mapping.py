@@ -4,10 +4,20 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, Mapping, Sequence
 
-from loader import load_mapping_items, load_prompt_text
-from models import MappingItem, MappingResponse, PlateauFeature
+from loader import (
+    load_mapping_items,
+    load_mapping_type_config,
+    load_prompt_text,
+)
+from models import (
+    Contribution,
+    MappingItem,
+    MappingResponse,
+    MappingTypeConfig,
+    PlateauFeature,
+)
 
 if TYPE_CHECKING:  # pragma: no cover - import for type checking only
     from conversation import ConversationSession
@@ -38,6 +48,7 @@ def _render_features(features: Sequence[PlateauFeature]) -> str:
 def map_feature(
     session: ConversationSession,
     feature: PlateauFeature,
+    mapping_types: Mapping[str, MappingTypeConfig] | None = None,
 ) -> PlateauFeature:
     """Return ``feature`` augmented with mapping information.
 
@@ -47,30 +58,34 @@ def map_feature(
     Args:
         session: Active conversation session used to query the agent.
         feature: Plateau feature to map.
+        mapping_types: Mapping configuration to apply. Defaults to
+            :func:`loader.load_mapping_type_config`.
 
     Returns:
         A :class:`PlateauFeature` with mapping information applied.
     """
 
-    return map_features(session, [feature])[0]
+    return map_features(session, [feature], mapping_types)[0]
 
 
 def map_features(
     session: ConversationSession,
     features: Sequence[PlateauFeature],
+    mapping_types: Mapping[str, MappingTypeConfig] | None = None,
 ) -> list[PlateauFeature]:
-    """Return ``features`` augmented with data, application and technology mappings.
+    """Return ``features`` augmented with mapping information.
 
     The function sends a single prompt containing all features and mapping
     reference lists. The agent must respond with JSON containing a ``features``
-    array. Each feature in the array must provide non-empty ``data``,
-    ``applications`` and ``technology`` lists. A :class:`ValueError` is raised
-    if the response cannot be parsed, a feature is missing or any list is
-    empty.
+    array. Each feature in the array must provide non-empty lists for each
+    configured mapping type. A :class:`ValueError` is raised if the response
+    cannot be parsed, a feature is missing or any list is empty.
 
     Args:
         session: Active conversation session used to query the agent.
         features: Plateau features to map.
+        mapping_types: Mapping configuration to apply. Defaults to
+            :func:`loader.load_mapping_type_config`.
 
     Returns:
         List of :class:`PlateauFeature` objects with mapping information applied.
@@ -80,15 +95,22 @@ def map_features(
         missing.
     """
 
+    mapping_types = mapping_types or load_mapping_type_config()
     template = load_prompt_text("mapping_prompt")
-    # The schema is appended verbatim to ensure the agent adheres exactly to the
-    # expected JSON structure.
     schema = json.dumps(MappingResponse.model_json_schema(), indent=2)
-    mapping_items: dict[str, list[MappingItem]] = load_mapping_items()
+    items = load_mapping_items([cfg.dataset for cfg in mapping_types.values()])
+    sections = []
+    for field, cfg in mapping_types.items():
+        sections.append(
+            f"## Available {cfg.label}\n\n{_render_items(items[cfg.dataset])}\n"
+        )
+    mapping_sections = "\n".join(sections)
+    mapping_labels = ", ".join(cfg.label for cfg in mapping_types.values())
+    mapping_fields = ", ".join(mapping_types.keys())
     prompt = template.format(
-        data_items=_render_items(mapping_items["information"]),
-        application_items=_render_items(mapping_items["applications"]),
-        technology_items=_render_items(mapping_items["technologies"]),
+        mapping_labels=mapping_labels,
+        mapping_sections=mapping_sections,
+        mapping_fields=mapping_fields,
         features=_render_features(features),
         schema=str(schema),
     )
@@ -101,25 +123,22 @@ def map_features(
         logger.error("Invalid JSON from mapping response: %s", exc)
         raise ValueError("Agent returned invalid JSON") from exc
 
-    mapped_lookup = {item.feature_id: item for item in payload.features}
+    mapped_lookup = {item.feature_id: item.mappings for item in payload.features}
 
     results: list[PlateauFeature] = []
     for feature in features:
         mapped = mapped_lookup.get(feature.feature_id)
         if mapped is None:
             raise ValueError(f"Missing mappings for feature {feature.feature_id}")
-        for key in ("data", "applications", "technology"):
-            if not getattr(mapped, key):
+        update_data: dict[str, list[Contribution]] = {}
+        for key in mapping_types.keys():
+            values = mapped.get(key)
+            if not values:
                 raise ValueError(
                     f"'{key}' key missing or empty for feature {feature.feature_id}"
                 )
-        merged = feature.model_copy(
-            update={
-                "data": mapped.data,
-                "applications": mapped.applications,
-                "technology": mapped.technology,
-            }
-        )
+            update_data[key] = values
+        merged = feature.model_copy(update={"mappings": feature.mappings | update_data})
         results.append(merged)
     return results
 
