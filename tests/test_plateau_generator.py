@@ -13,6 +13,7 @@ from conversation import (
 )  # noqa: E402  pylint: disable=wrong-import-position
 from models import (
     Contribution,
+    PlateauFeature,
     PlateauResult,
     ServiceInput,
 )  # noqa: E402  pylint: disable=wrong-import-position
@@ -31,6 +32,11 @@ class DummySession:
     def ask(self, prompt: str) -> str:  # pragma: no cover - simple proxy
         self.prompts.append(prompt)
         return self._responses.pop(0)
+
+    def add_parent_materials(
+        self, service_input: ServiceInput
+    ) -> None:  # pragma: no cover - simple stub
+        pass
 
 
 def _feature_payload(count: int) -> str:
@@ -116,3 +122,53 @@ def test_request_description_invalid_json(monkeypatch) -> None:
     generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
     with pytest.raises(ValueError):
         generator._request_description(cast(ConversationSession, session), 1)
+
+
+def test_generate_service_evolution_filters(monkeypatch) -> None:
+    service = ServiceInput(name="svc", customer_type="retail", description="d")
+    session = DummySession([])
+    generator = PlateauGenerator(cast(ConversationSession, session))
+
+    called: list[int] = []
+
+    def fake_generate_plateau(self, sess, level):
+        called.append(level)
+        feats = [
+            PlateauFeature(
+                feature_id=f"l{level}",
+                name="L",
+                description="d",
+                score=0.5,
+                customer_type="learners",
+            ),
+            PlateauFeature(
+                feature_id=f"s{level}",
+                name="S",
+                description="d",
+                score=0.5,
+                customer_type="staff",
+            ),
+            PlateauFeature(
+                feature_id=f"c{level}",
+                name="C",
+                description="d",
+                score=0.5,
+                customer_type="community",
+            ),
+        ]
+        return PlateauResult(plateau=level, service_description="d", features=feats)
+
+    monkeypatch.setattr(
+        PlateauGenerator, "generate_plateau", fake_generate_plateau, raising=False
+    )
+
+    evo = generator.generate_service_evolution(
+        service,
+        ["Foundational", "Enhanced"],
+        ["learners", "staff"],
+    )
+
+    assert called == [1, 2]
+    assert len(evo.plateaus) == 2
+    for plat in evo.plateaus:
+        assert {f.customer_type for f in plat.features} <= {"learners", "staff"}

@@ -36,7 +36,16 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         def __init__(self, model: object) -> None:  # noqa: D401 - no behaviour
             self.model = model
 
-    def fake_generate(self, service: ServiceInput) -> ServiceEvolution:
+    captured: dict[str, list[str]] = {}
+
+    def fake_generate(
+        self,
+        service: ServiceInput,
+        plateaus: list[str],
+        customers: list[str],
+    ) -> ServiceEvolution:
+        captured["plateaus"] = plateaus
+        captured["customers"] = customers
         return ServiceEvolution(service=service, plateaus=[])
 
     monkeypatch.setattr("cli.build_model", fake_build_model)
@@ -68,6 +77,8 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
     payload = json.loads(output_path.read_text().strip())
     assert payload["service"]["name"] == "svc"
     assert payload["service"]["service_id"] == "svc-1"
+    assert captured["plateaus"] == ["alpha"]
+    assert captured["customers"] == ["retail"]
 
 
 def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> None:
@@ -97,7 +108,12 @@ def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> None:
         def __init__(self, model: object) -> None:  # pragma: no cover - simple init
             captured["agent_model"] = model
 
-    def fake_generate(self, service: ServiceInput) -> ServiceEvolution:
+    def fake_generate(
+        self,
+        service: ServiceInput,
+        plateaus: list[str],
+        customers: list[str],
+    ) -> ServiceEvolution:
         return ServiceEvolution(service=service, plateaus=[])
 
     monkeypatch.setattr("cli.build_model", fake_build_model)

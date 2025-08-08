@@ -115,15 +115,37 @@ class PlateauGenerator:
         )
 
     def generate_service_evolution(
-        self, service_input: ServiceInput
+        self,
+        service_input: ServiceInput,
+        plateau_names: list[str],
+        customer_types: list[str],
     ) -> ServiceEvolution:
-        """Return aggregated service evolution across plateaus 1-4."""
+        """Return service evolution for selected plateaus and customers.
+
+        Args:
+            service_input: Service under evaluation.
+            plateau_names: Ordered plateau identifiers to process.
+            customer_types: Customer segments to include in results.
+
+        Returns:
+            Combined evolution limited to the requested plateaus and customers.
+        """
         self._service = service_input
         self.session.add_parent_materials(service_input)
 
         plateaus: list[PlateauResult] = []
-        for level in range(1, 5):
-            plateaus.append(self.generate_plateau(self.session, level))
+        for level, _name in enumerate(plateau_names, start=1):
+            result = self.generate_plateau(self.session, level)
+            filtered = [
+                feat for feat in result.features if feat.customer_type in customer_types
+            ]
+            plateaus.append(
+                PlateauResult(
+                    plateau=result.plateau,
+                    service_description=result.service_description,
+                    features=filtered,
+                )
+            )
         return ServiceEvolution(service=service_input, plateaus=plateaus)
 
 
