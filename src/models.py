@@ -56,6 +56,14 @@ class MappingTypeConfig(BaseModel):
 class AppConfig(BaseModel):
     """Top-level application configuration."""
 
+    model: str = Field(
+        "openai:gpt-4o-mini",
+        description="Chat model in '<provider>:<model>' format.",
+    )
+    log_level: str = Field(
+        "INFO",
+        description="Logging verbosity level.",
+    )
     mapping_types: dict[str, MappingTypeConfig] = Field(
         default_factory=dict,
         description="Mapping type definitions keyed by field name.",

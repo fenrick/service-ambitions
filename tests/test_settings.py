@@ -16,6 +16,8 @@ def test_load_settings_reads_env(monkeypatch) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "token")
     settings = load_settings()
     assert settings.openai_api_key == "token"
+    assert settings.model == "openai:gpt-4o-mini"
+    assert settings.log_level == "INFO"
 
 
 def test_load_settings_requires_key(monkeypatch) -> None:

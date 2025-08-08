@@ -1,37 +1,40 @@
-"""Application configuration loaded from environment variables."""
+"""Application configuration loaded from config files and environment variables."""
 
 from __future__ import annotations
 
 from pydantic import Field, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from loader import load_app_config
+
 
 class Settings(BaseSettings):
-    """Environment-driven settings for the CLI."""
+    """Application settings combining file-based and environment configuration."""
 
-    model: str = Field(
-        "openai:gpt-4o-mini",
-        description="Chat model in '<provider>:<model>' format.",
+    model: str = Field(..., description="Chat model in '<provider>:<model>' format.")
+    log_level: str = Field(..., description="Logging verbosity level.")
+    openai_api_key: str = Field(..., description="OpenAI API access token.")
+    logfire_token: str | None = Field(
+        None, description="Logfire authentication token, if available."
     )
-    log_level: str = "INFO"
-    openai_api_key: str
-    logfire_token: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
 def load_settings() -> Settings:
-    """Load settings from the environment.
+    """Load settings from configuration files and environment variables.
 
     Returns:
         Settings: Validated application configuration.
 
     Raises:
-        RuntimeError: If required environment variables are missing or invalid.
+        RuntimeError: If required configuration values are missing or invalid.
     """
 
+    config = load_app_config()
+    data = {"model": config.model, "log_level": config.log_level}
     try:
-        return Settings()  # type: ignore[call-arg]
+        return Settings(**data)  # type: ignore[arg-type]
     except ValidationError as exc:  # pragma: no cover - exercised in tests
         details = "; ".join(
             f"{'.'.join(map(str, error['loc']))}: {error['msg']}"
