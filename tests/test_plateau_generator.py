@@ -137,7 +137,13 @@ def test_request_description_invalid_json(monkeypatch) -> None:
 
 
 def test_generate_service_evolution_filters(monkeypatch) -> None:
-    service = ServiceInput(name="svc", customer_type="retail", description="d")
+    service = ServiceInput(
+        service_id="svc-1",
+        name="svc",
+        customer_type="retail",
+        description="d",
+        jobs_to_be_done=["job"],
+    )
     session = DummySession([])
     generator = PlateauGenerator(cast(ConversationSession, session))
 
