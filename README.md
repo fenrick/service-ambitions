@@ -28,9 +28,9 @@ supports swapping sections to suit different industries.
 
 To collect detailed traces with [Pydantic Logfire](https://logfire.pydantic.dev/),
 set the `LOGFIRE_TOKEN` environment variable and optionally supply a service
- name via `--logfire-service`. The CLI automatically installs Logfire auto
- tracing and instruments Pydantic, Pydantic AI, OpenAI, and system metrics when
- Logfire is enabled.
+name via `--logfire-service`. The CLI automatically installs Logfire auto
+tracing and instruments Pydantic, Pydantic AI, OpenAI, and system metrics when
+Logfire is enabled.
 
 ## Installation
 
@@ -138,9 +138,9 @@ Each JSON line in the output file follows the `ServiceEvolution` schema:
           "description": "string",
           "score": 0.0,
           "customer_type": "string",
-          "data": [{"item": "string", "contribution": "string"}],
-"applications": [{"item": "string", "contribution": "string"}],
-"technology": [{"item": "string", "contribution": "string"}]
+          "data": [{ "item": "string", "contribution": "string" }],
+          "applications": [{ "item": "string", "contribution": "string" }],
+          "technology": [{ "item": "string", "contribution": "string" }]
         }
       ]
     }
@@ -181,6 +181,7 @@ technologies to keep each decision focused.
 Generate service features for the {service_name} service at plateau {plateau}.
 
 ## Instructions
+
 - Use the service description: {service_description}.
 - Return a single JSON object with three keys: "learners", "staff" and
   "community".
@@ -203,6 +204,7 @@ Map each feature to relevant Data, Applications and Technologies from the lists
 below.
 
 ## Instructions
+
 - Return a JSON object with a top-level "features" array.
 - Each element must include "feature_id", "data", "applications" and
   "technology" arrays.
