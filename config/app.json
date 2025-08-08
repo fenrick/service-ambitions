@@ -1,4 +1,6 @@
 {
+  "model": "openai:gpt-4o-mini",
+  "log_level": "INFO",
   "mapping_types": {
     "data": {"dataset": "information", "label": "Data"},
     "applications": {"dataset": "applications", "label": "Applications"},
