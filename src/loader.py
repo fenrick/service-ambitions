@@ -6,9 +6,11 @@ import json
 import logging
 import os
 from functools import lru_cache
-from typing import Any, Dict, Iterator
+from typing import Any, Dict, Iterator, List
 
 import logfire
+
+from models import ServiceFeaturePlateau
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +147,43 @@ def load_mapping_items(base_dir: str = "data") -> Dict[str, list[Dict[str, str]]
                 f"An error occurred while reading the mapping data file: {exc}"
             ) from exc
     return data
+
+
+@logfire.instrument()
+@lru_cache(maxsize=None)
+def load_plateau_definitions(
+    base_dir: str = "data", filename: str = "service_feature_plateaus.json"
+) -> List[ServiceFeaturePlateau]:
+    """Return service feature plateau definitions from ``base_dir``.
+
+    Args:
+        base_dir: Directory containing data files.
+        filename: Plateau definitions file name.
+
+    Returns:
+        List of :class:`ServiceFeaturePlateau` records.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        RuntimeError: If the file cannot be read or parsed.
+    """
+
+    path = os.path.join(base_dir, filename)
+    try:
+        raw = json.loads(_read_file(path))
+    except FileNotFoundError:
+        raise
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.error("Error reading plateau definitions file %s: %s", path, exc)
+        raise RuntimeError(
+            "An error occurred while reading the plateau definitions file: %s",
+            exc,
+        ) from exc
+    try:
+        return [ServiceFeaturePlateau(**item) for item in raw]
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.error("Invalid plateau definition data in %s: %s", path, exc)
+        raise RuntimeError(f"Invalid plateau definitions: {exc}") from exc
 
 
 @logfire.instrument()

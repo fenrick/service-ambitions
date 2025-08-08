@@ -28,6 +28,14 @@ class ServiceInput(BaseModel):
     )
 
 
+class ServiceFeaturePlateau(BaseModel):
+    """Definition of a service feature plateau."""
+
+    id: str = Field(..., description="Unique plateau identifier.")
+    name: str = Field(..., description="Human readable plateau name.")
+    description: str = Field(..., description="Explanation of plateau characteristics.")
+
+
 class PlateauFeature(BaseModel):
     """Feature assessed during a service plateau."""
 
@@ -125,6 +133,7 @@ class MappingResponse(BaseModel):
 
 __all__ = [
     "ServiceInput",
+    "ServiceFeaturePlateau",
     "PlateauFeature",
     "Contribution",
     "PlateauResult",
