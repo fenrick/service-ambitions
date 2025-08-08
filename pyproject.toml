@@ -52,3 +52,6 @@ select = ["E", "F", "I"]
 
 [tool.isort]
 profile = "black"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
