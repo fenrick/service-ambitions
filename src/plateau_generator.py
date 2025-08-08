@@ -27,10 +27,20 @@ from models import (
 
 logger = logging.getLogger(__name__)
 
+# Snapshot of plateau name-to-level mapping loaded from application configuration.
+# Downstream callers may override these values when a different set of plateaus
+# is required, but keeping a module-level default allows CLI tools to operate
+# without additional configuration.
 DEFAULT_PLATEAU_MAP: dict[str, int] = load_app_config().plateau_map
+
+# Sorted list of plateau names used to iterate in ascending maturity order. The
+# ordering comes from the numeric levels in ``DEFAULT_PLATEAU_MAP``.
 DEFAULT_PLATEAU_NAMES: list[str] = [
     name for name, _ in sorted(DEFAULT_PLATEAU_MAP.items(), key=lambda item: item[1])
 ]
+
+# Core customer segments targeted during feature generation. These represent the
+# default audience slices and should be updated if new segments are introduced.
 DEFAULT_CUSTOMER_TYPES: list[str] = ["learners", "staff", "community"]
 
 

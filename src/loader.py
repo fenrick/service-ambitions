@@ -270,6 +270,17 @@ def load_services(path: str) -> Iterator[Iterator[ServiceInput]]:
     """
 
     def load_services_int(path: str) -> Generator[ServiceInput, None, None]:
+        """Yield services from ``path`` while validating each JSON line.
+
+        Side Effects:
+            Logs any invalid entries before raising the corresponding error.
+
+        Raises:
+            FileNotFoundError: If the services file does not exist.
+            RuntimeError: If a line cannot be parsed or validated against the
+                :class:`ServiceInput` schema.
+        """
+
         with logfire.span("Calling loader.load_services"):
             adapter = TypeAdapter(ServiceInput)
             try:
