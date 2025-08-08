@@ -8,10 +8,12 @@ import os
 from typing import Any, Dict, Iterable
 
 import logfire
-from pydantic import BaseModel, TypeAdapter
+from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.models import Model
 from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModelSettings
+
+from models import ServiceInput
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +47,7 @@ class ServiceAmbitionGenerator:
 
     @logfire.instrument()
     async def process_service(
-        self, service: Dict[str, Any], prompt: str | None = None
+        self, service: ServiceInput, prompt: str | None = None
     ) -> Dict[str, Any]:
         """Return ambitions for ``service``.
 
@@ -59,28 +61,28 @@ class ServiceAmbitionGenerator:
         if instructions is None:
             raise ValueError("prompt must be provided")
         agent = Agent(self.model, instructions=instructions)
-        service_details = TypeAdapter(Dict[str, Any]).dump_json(service).decode()
+        service_details = service.model_dump_json()
         result = await agent.run(service_details, output_type=AmbitionModel)
         return result.output.model_dump()
 
     @logfire.instrument()
     async def _worker(
         self,
-        service: Dict[str, Any],
+        service: ServiceInput,
         output_file,
         semaphore: asyncio.Semaphore,
     ) -> None:
         async with semaphore:
             # The semaphore keeps the number of in-flight requests under the
             # configured threshold, protecting the API from overload.
-            logger.info("Processing service %s", service.get("name", "unknown"))
+            logger.info("Processing service %s", service.name)
             try:
                 # Delegate to ``process_service`` for the actual model call.
                 result = await self.process_service(service)
             except Exception as exc:  # pylint: disable=broad-except
                 logger.error(
                     "Failed to process service %s: %s",
-                    service.get("name", "unknown"),
+                    service.name,
                     exc,
                 )
                 return
@@ -93,7 +95,7 @@ class ServiceAmbitionGenerator:
     @logfire.instrument()
     async def _process_all(
         self,
-        services: Iterable[Dict[str, Any]],
+        services: Iterable[ServiceInput],
         output_file,
     ) -> None:
         # Semaphore coordinates concurrent worker tasks so only ``concurrency``
@@ -106,7 +108,7 @@ class ServiceAmbitionGenerator:
     @logfire.instrument()
     def generate(
         self,
-        services: Iterable[Dict[str, Any]],
+        services: Iterable[ServiceInput],
         prompt: str,
         output_path: str,
     ) -> None:

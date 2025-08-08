@@ -36,6 +36,14 @@ class ServiceFeaturePlateau(BaseModel):
     description: str = Field(..., description="Explanation of plateau characteristics.")
 
 
+class MappingItem(BaseModel):
+    """Reference item used for feature mapping."""
+
+    id: str = Field(..., description="Unique identifier for the reference item.")
+    name: str = Field(..., description="Human readable item name.")
+    description: str = Field(..., description="Explanation of the item.")
+
+
 class PlateauFeature(BaseModel):
     """Feature assessed during a service plateau."""
 
@@ -142,5 +150,6 @@ __all__ = [
     "FeatureItem",
     "PlateauFeaturesResponse",
     "MappingFeature",
+    "MappingItem",
     "MappingResponse",
 ]

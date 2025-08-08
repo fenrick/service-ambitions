@@ -69,17 +69,14 @@ def test_load_plateau_definitions(tmp_path):
 def test_load_services_reads_jsonl(tmp_path):
     data = tmp_path / "services.jsonl"
     data.write_text(
-        '{"service_id": "a1", "name": "alpha", "jobs_to_be_done": []}'
-        "\n\n"
-        '{"service_id": "b2", "name": "beta", "jobs_to_be_done": []}'
-        "\n",
+        '{"service_id": "a1", "name": "alpha", "description": "d", "jobs_to_be_done":'
+        ' []}\n\n{"service_id": "b2", "name": "beta", "description": "d",'
+        ' "jobs_to_be_done": []}\n',
         encoding="utf-8",
     )
     services = list(load_services(str(data)))
-    assert services == [
-        {"service_id": "a1", "name": "alpha", "jobs_to_be_done": []},
-        {"service_id": "b2", "name": "beta", "jobs_to_be_done": []},
-    ]
+    assert services[0].service_id == "a1"
+    assert services[1].name == "beta"
 
 
 def test_load_services_missing(tmp_path):
@@ -101,9 +98,9 @@ def test_load_services_invalid_json(tmp_path):
 def test_valid_fixture_parses():
     path = Path(__file__).parent / "fixtures" / "services-valid.jsonl"
     services = list(load_services(str(path)))
-    assert services[0]["service_id"] == "svc1"
-    assert services[0]["jobs_to_be_done"] == ["job1"]
-    assert services[1]["description"] == "Test"
+    assert services[0].service_id == "svc1"
+    assert services[0].jobs_to_be_done == ["job1"]
+    assert services[1].description == "Test"
 
 
 def test_invalid_fixture_raises():
