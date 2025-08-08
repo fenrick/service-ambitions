@@ -72,13 +72,15 @@ def test_load_services_reads_jsonl(tmp_path):
     data = tmp_path / "services.jsonl"
     data.write_text(
         '{"service_id": "a1", "name": "alpha", "description": "d", "jobs_to_be_done":'
-        ' []}\n\n{"service_id": "b2", "name": "beta", "description": "d",'
+        ' [], "features": [{"feature_id": "F1", "name": "Feat", "description":'
+        ' "Desc"}]}\n\n{"service_id": "b2", "name": "beta", "description": "d",'
         ' "jobs_to_be_done": []}\n',
         encoding="utf-8",
     )
     services = list(load_services(str(data)))
     assert services[0].service_id == "a1"
     assert services[1].name == "beta"
+    assert services[0].features[0].name == "Feat"
 
 
 def test_load_services_missing(tmp_path):
@@ -103,6 +105,7 @@ def test_valid_fixture_parses():
     assert services[0].service_id == "svc1"
     assert services[0].jobs_to_be_done == ["job1"]
     assert services[1].description == "Test"
+    assert services[0].features[0].feature_id == "F1"
 
 
 def test_invalid_fixture_raises():

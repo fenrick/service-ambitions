@@ -49,6 +49,9 @@ class ConversationSession:
         """
 
         jobs = ", ".join(service_input.jobs_to_be_done)
+        features = "; ".join(
+            f"{feat.feature_id}: {feat.name}" for feat in service_input.features
+        )
         material = (
             f"Service ID: {service_input.service_id}\n"
             f"Service name: {service_input.name}\n"
@@ -56,6 +59,8 @@ class ConversationSession:
             f"Description: {service_input.description}\n"
             f"Jobs to be done: {jobs or 'N/A'}"
         )
+        if service_input.features:
+            material += f"\nExisting features: {features}"
         logger.debug("Adding service material to history: %s", material)
         self._history.append(
             messages.ModelRequest(parts=[messages.SystemPromptPart(material)])

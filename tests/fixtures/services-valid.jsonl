@@ -4,6 +4,13 @@
   "description": "First",
   "jobs_to_be_done": [
     "job1"
+  ],
+  "features": [
+    {
+      "feature_id": "F1",
+      "name": "FeatureA",
+      "description": "DescA"
+    }
   ]
 }
 {
@@ -12,5 +19,12 @@
   "description": "Test",
   "jobs_to_be_done": [
     "job2"
+  ],
+  "features": [
+    {
+      "feature_id": "F2",
+      "name": "FeatureB",
+      "description": "DescB"
+    }
   ]
 }
