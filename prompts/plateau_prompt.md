@@ -14,3 +14,7 @@ Generate service features for the {service_name} service at plateau {plateau}.
   - "score": floating-point maturity between 0 and 1.
 - Do not include any text outside the JSON object.
 - The response must adhere to the JSON schema provided below.
+
+## Response structure
+
+{schema}.

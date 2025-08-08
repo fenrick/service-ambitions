@@ -80,14 +80,15 @@ def map_features(
     """
 
     template = load_mapping_prompt(prompt_dir)
+    schema = json.dumps(MappingResponse.model_json_schema(), indent=2)
     mapping_items = load_mapping_items()
     prompt = template.format(
         data_items=_render_items(mapping_items["information"]),
         application_items=_render_items(mapping_items["applications"]),
         technology_items=_render_items(mapping_items["technologies"]),
         features=_render_features(features),
+        schema=str(schema),
     )
-    schema = json.dumps(MappingResponse.model_json_schema(), indent=2)
     prompt = f"{prompt}\n\nJSON schema:\n{schema}"
     logger.debug("Requesting mappings for %s features", len(features))
     response = session.ask(prompt)

@@ -26,3 +26,7 @@ Map each feature to relevant Data, Applications and Technologies from the lists 
 - Use only identifiers from the provided lists.
 - Do not include any text outside the JSON object.
 - The response must adhere to the JSON schema provided below.
+
+## Response structure
+
+{schema}.

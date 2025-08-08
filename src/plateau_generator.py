@@ -49,9 +49,9 @@ class PlateauGenerator:
         The agent must respond with JSON containing a ``description`` field.
         """
         template = load_description_prompt(self.prompt_dir)
-        prompt = template.format(plateau=level)
         schema = json.dumps(DescriptionResponse.model_json_schema(), indent=2)
-        prompt = f"{prompt}\n\nJSON schema:\n{schema}"
+        prompt = template.format(plateau=level,
+            schema=str(schema),)
         response = session.ask(prompt)
         try:
             payload = json.loads(response)
@@ -81,15 +81,15 @@ class PlateauGenerator:
             )
 
         description = self._request_description(session, level)
+        schema = json.dumps(PlateauFeaturesResponse.model_json_schema(), indent=2)
         template = load_plateau_prompt(self.prompt_dir)
         prompt = template.format(
             required_count=self.required_count,
             service_name=self._service.name,
             service_description=description,
             plateau=str(level),
+            schema=str(schema),
         )
-        schema = json.dumps(PlateauFeaturesResponse.model_json_schema(), indent=2)
-        prompt = f"{prompt}\n\nJSON schema:\n{schema}"
         logger.info("Requesting features for level=%s", level)
         response = session.ask(prompt)
         try:
