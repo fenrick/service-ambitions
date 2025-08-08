@@ -1,6 +1,7 @@
 # Service description generation
 
-Refer to the situational context, definitions and inspirations provided earlier to maintain consistent terminology across stages.
+Refer to the situational context, definitions and inspirations provided earlier to maintain consistent terminology
+across stages.
 
 Provide a description of the service at plateau {plateau}.
 
