@@ -56,12 +56,11 @@ def _feature_payload(count: int) -> str:
 
 def test_generate_plateau_returns_results(monkeypatch) -> None:
     template = "{required_count} {service_name} {service_description} {plateau}"
-    monkeypatch.setattr(
-        "plateau_generator.load_plateau_prompt", lambda *a, **k: template
-    )
-    monkeypatch.setattr(
-        "plateau_generator.load_description_prompt", lambda *a, **k: "desc {plateau}"
-    )
+
+    def fake_loader(name, *_, **__):
+        return template if name == "plateau_prompt" else "desc {plateau}"
+
+    monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
     responses = [json.dumps({"description": "desc"}), _feature_payload(1)]
     session = DummySession(responses)
 
@@ -97,12 +96,11 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
 
 def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> None:
     template = "{required_count} {service_name} {service_description} {plateau}"
-    monkeypatch.setattr(
-        "plateau_generator.load_plateau_prompt", lambda *a, **k: template
-    )
-    monkeypatch.setattr(
-        "plateau_generator.load_description_prompt", lambda *a, **k: "desc {plateau}"
-    )
+
+    def fake_loader(name, *_, **__):
+        return template if name == "plateau_prompt" else "desc {plateau}"
+
+    monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
     responses = [json.dumps({"description": "desc"}), _feature_payload(1)]
     session = DummySession(responses)
     generator = PlateauGenerator(cast(ConversationSession, session), required_count=2)
@@ -121,12 +119,11 @@ def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> None:
 
 def test_request_description_invalid_json(monkeypatch) -> None:
     template = "{required_count} {service_name} {service_description} {plateau}"
-    monkeypatch.setattr(
-        "plateau_generator.load_plateau_prompt", lambda *a, **k: template
-    )
-    monkeypatch.setattr(
-        "plateau_generator.load_description_prompt", lambda *a, **k: "desc {plateau}"
-    )
+
+    def fake_loader(name, *_, **__):
+        return template if name == "plateau_prompt" else "desc {plateau}"
+
+    monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
     """Invalid description payloads should raise ``ValueError``."""
     session = DummySession(["not json"])
     generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)

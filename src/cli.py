@@ -10,7 +10,12 @@ from pydantic_ai import Agent
 
 from conversation import ConversationSession
 from generator import ServiceAmbitionGenerator, build_model
-from loader import load_plateau_definitions, load_prompt, load_services
+from loader import (
+    configure_prompt_dir,
+    load_plateau_definitions,
+    load_prompt,
+    load_services,
+)
 from models import ServiceInput
 from monitoring import init_logfire
 from plateau_generator import PlateauGenerator
@@ -43,7 +48,8 @@ def _configure_logging(args: argparse.Namespace, settings) -> None:
 def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
     """Generate service ambitions and write them to disk."""
 
-    system_prompt = load_prompt(args.prompt_dir, args.context_id, args.inspirations_id)
+    configure_prompt_dir(args.prompt_dir)
+    system_prompt = load_prompt(args.context_id, args.inspirations_id)
     services = list(load_services(args.input_file))
     logger.debug("Loaded %d services from %s", len(services), args.input_file)
 

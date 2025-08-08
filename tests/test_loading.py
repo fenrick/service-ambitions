@@ -4,11 +4,9 @@ from pathlib import Path
 import pytest
 
 from loader import (
-    load_description_prompt,
-    load_mapping_prompt,
     load_plateau_definitions,
-    load_plateau_prompt,
     load_prompt,
+    load_prompt_text,
     load_services,
 )
 
@@ -25,7 +23,7 @@ def test_load_prompt_assembles_components(tmp_path):
     (base / "inspirations" / "insp.md").write_text("insp", encoding="utf-8")
     (base / "task_definition.md").write_text("task", encoding="utf-8")
     (base / "response_structure.md").write_text("resp", encoding="utf-8")
-    prompt = load_prompt(str(base), "ctx", "insp")
+    prompt = load_prompt("ctx", "insp", str(base))
     assert prompt == "ctx\n\nplat\n\ndefs\n\ninsp\n\ntask\n\nresp"
 
 
@@ -33,28 +31,28 @@ def test_load_prompt_missing_component(tmp_path):
     base = tmp_path / "prompts"
     base.mkdir()
     with pytest.raises(FileNotFoundError):
-        load_prompt(str(base), "ctx", "insp")
+        load_prompt("ctx", "insp", str(base))
 
 
-def test_load_plateau_prompt(tmp_path):
+def test_load_prompt_text_plateau(tmp_path):
     base = tmp_path / "prompts"
     base.mkdir()
     (base / "plateau_prompt.md").write_text("content", encoding="utf-8")
-    assert load_plateau_prompt(str(base)) == "content"
+    assert load_prompt_text("plateau_prompt", str(base)) == "content"
 
 
-def test_load_mapping_prompt(tmp_path):
+def test_load_prompt_text_mapping(tmp_path):
     base = tmp_path / "prompts"
     base.mkdir()
     (base / "mapping_prompt.md").write_text("map", encoding="utf-8")
-    assert load_mapping_prompt(str(base)) == "map"
+    assert load_prompt_text("mapping_prompt", str(base)) == "map"
 
 
-def test_load_description_prompt(tmp_path):
+def test_load_prompt_text_description(tmp_path):
     base = tmp_path / "prompts"
     base.mkdir()
     (base / "description_prompt.md").write_text("desc", encoding="utf-8")
-    assert load_description_prompt(str(base)) == "desc"
+    assert load_prompt_text("description_prompt", str(base)) == "desc"
 
 
 def test_load_plateau_definitions(tmp_path):

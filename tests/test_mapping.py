@@ -26,7 +26,11 @@ class DummySession:
 
 def test_map_feature_returns_mappings(monkeypatch) -> None:
     template = "{data_items} {application_items} {technology_items} {features}"
-    monkeypatch.setattr("mapping.load_mapping_prompt", lambda *a, **k: template)
+
+    def fake_loader(name, *_, **__):
+        return template
+
+    monkeypatch.setattr("mapping.load_prompt_text", fake_loader)
     monkeypatch.setattr(
         "mapping.load_mapping_items",
         lambda *a, **k: {
@@ -71,7 +75,11 @@ def test_map_feature_returns_mappings(monkeypatch) -> None:
 
 def test_map_feature_injects_reference_data(monkeypatch) -> None:
     template = "{data_items} {application_items} {technology_items} {features}"
-    monkeypatch.setattr("mapping.load_mapping_prompt", lambda *a, **k: template)
+
+    def fake_loader(name, *_, **__):
+        return template
+
+    monkeypatch.setattr("mapping.load_prompt_text", fake_loader)
     monkeypatch.setattr(
         "mapping.load_mapping_items",
         lambda *a, **k: {
@@ -115,7 +123,11 @@ def test_map_feature_injects_reference_data(monkeypatch) -> None:
 
 def test_map_feature_rejects_invalid_json(monkeypatch) -> None:
     template = "{data_items} {application_items} {technology_items} {features}"
-    monkeypatch.setattr("mapping.load_mapping_prompt", lambda *a, **k: template)
+
+    def fake_loader(name, *_, **__):
+        return template
+
+    monkeypatch.setattr("mapping.load_prompt_text", fake_loader)
     monkeypatch.setattr(
         "mapping.load_mapping_items",
         lambda *a, **k: {
@@ -138,7 +150,11 @@ def test_map_feature_rejects_invalid_json(monkeypatch) -> None:
 
 def test_map_features_returns_mappings(monkeypatch) -> None:
     template = "{data_items} {application_items} {technology_items} {features}"
-    monkeypatch.setattr("mapping.load_mapping_prompt", lambda *a, **k: template)
+
+    def fake_loader(name, *_, **__):
+        return template
+
+    monkeypatch.setattr("mapping.load_prompt_text", fake_loader)
     monkeypatch.setattr(
         "mapping.load_mapping_items",
         lambda *a, **k: {
@@ -180,7 +196,11 @@ def test_map_features_returns_mappings(monkeypatch) -> None:
 
 def test_map_features_validates_lists(monkeypatch) -> None:
     template = "{data_items} {application_items} {technology_items} {features}"
-    monkeypatch.setattr("mapping.load_mapping_prompt", lambda *a, **k: template)
+
+    def fake_loader(name, *_, **__):
+        return template
+
+    monkeypatch.setattr("mapping.load_prompt_text", fake_loader)
     monkeypatch.setattr(
         "mapping.load_mapping_items",
         lambda *a, **k: {
