@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 def _render_items(items: list[dict[str, str]]) -> str:
     """Return a bullet list representation of mapping reference items."""
 
+    # Present each mapping reference item on a separate line so it can be
+    # directly inserted into the agent prompt as a bullet list.
     return "\n".join(
         f"- {entry['id']}: {entry['name']} - {entry['description']}" for entry in items
     )
@@ -26,6 +28,8 @@ def _render_items(items: list[dict[str, str]]) -> str:
 def _render_features(features: Sequence[PlateauFeature]) -> str:
     """Return a bullet list of feature details for prompt construction."""
 
+    # The agent prompt expects a concise summary of each feature, therefore we
+    # format the feature ID, name and description on a single line.
     return "\n".join(
         f"- {feat.feature_id}: {feat.name} - {feat.description}" for feat in features
     )
@@ -86,6 +90,8 @@ def map_features(
         features=_render_features(features),
         schema=str(schema),
     )
+    # The schema is appended verbatim to ensure the agent adheres exactly to the
+    # expected JSON structure.
     prompt = f"{prompt}\n\nJSON schema:\n{schema}"
     logger.debug("Requesting mappings for %s features", len(features))
     response = session.ask(prompt)
@@ -99,6 +105,8 @@ def map_features(
     raw_features = payload.get("features")
     if not isinstance(raw_features, list):
         raise ValueError("'features' key missing or invalid")
+    # Build a lookup by ``feature_id`` for efficient merging below; this avoids
+    # repeatedly scanning the list for each feature.
     mapped_lookup = {item.get("feature_id"): item for item in raw_features}
 
     results: list[PlateauFeature] = []
@@ -113,6 +121,8 @@ def map_features(
                 raise ValueError(
                     f"'{key}' key missing or empty for feature {feature.feature_id}"
                 )
+            # Convert dictionaries from the agent into strongly typed records so
+            # callers always receive validated ``Contribution`` objects.
             mapped[key] = [Contribution(**item) for item in raw_list]
         merged = {**feature.model_dump(), **mapped}
         results.append(PlateauFeature(**merged))

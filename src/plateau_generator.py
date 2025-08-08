@@ -40,7 +40,7 @@ class PlateauGenerator:
         self.required_count = required_count
         self._service: ServiceInput | None = None
 
-    def _request_description(self, session: ConversationSession, level: int) -> str:
+    def _request_description(self, level: int) -> str:
         """Return the service description for ``level``.
 
         The agent must respond with JSON containing a ``description`` field.
@@ -51,7 +51,9 @@ class PlateauGenerator:
             plateau=level,
             schema=str(schema),
         )
-        response = session.ask(prompt)
+        # Query the model using the stored conversation session so the
+        # description becomes part of the evolving chat history.
+        response = self.session.ask(prompt)
         try:
             payload = json.loads(response)
             description = payload["description"]
@@ -62,9 +64,23 @@ class PlateauGenerator:
             raise ValueError("'description' must be a non-empty string")
         return description
 
-    def generate_plateau(
-        self, session: ConversationSession, level: int
-    ) -> PlateauResult:
+    def _to_feature(self, item: dict[str, str], customer: str) -> PlateauFeature:
+        """Return a :class:`PlateauFeature` built from ``item``.
+
+        Args:
+            item: Raw feature dictionary supplied by the agent.
+            customer: Customer type the feature addresses.
+        """
+
+        return PlateauFeature(
+            feature_id=item["feature_id"],
+            name=item["name"],
+            description=item["description"],
+            score=float(item["score"]),
+            customer_type=customer,
+        )
+
+    def generate_plateau(self, level: int) -> PlateauResult:
         """Return mapped plateau features for ``level``.
 
         The function requests a plateau-specific service description, then
@@ -78,8 +94,8 @@ class PlateauGenerator:
             raise ValueError(
                 "ServiceInput not set. Call generate_service_evolution first."
             )
-
-        description = self._request_description(session, level)
+        # Ask the model to describe the service at the specified plateau level.
+        description = self._request_description(level)
         schema = json.dumps(PlateauFeaturesResponse.model_json_schema(), indent=2)
         template = load_prompt_text("plateau_prompt")
         prompt = template.format(
@@ -90,7 +106,9 @@ class PlateauGenerator:
             schema=str(schema),
         )
         logger.info("Requesting features for level=%s", level)
-        response = session.ask(prompt)
+        # Using the shared conversation session ensures features are generated
+        # in the same context as previous interactions.
+        response = self.session.ask(prompt)
         try:
             payload = json.loads(response)
         except json.JSONDecodeError as exc:  # pragma: no cover - logging
@@ -108,16 +126,10 @@ class PlateauGenerator:
                     f"Insufficient number of features returned for {customer}"
                 )
             for item in raw_features:
-                features.append(
-                    PlateauFeature(
-                        feature_id=item["feature_id"],
-                        name=item["name"],
-                        description=item["description"],
-                        score=float(item["score"]),
-                        customer_type=customer,
-                    )
-                )
-        mapped = map_features(session, features)
+                # Normalise the raw dictionary into a strongly typed feature.
+                features.append(self._to_feature(item, customer))
+        # Enrich the raw features with mapping information before returning.
+        mapped = map_features(self.session, features)
         return PlateauResult(
             plateau=level, service_description=description, features=mapped
         )
@@ -137,13 +149,19 @@ class PlateauGenerator:
 
         Returns:
             Combined evolution limited to the requested plateaus and customers.
+
+        Side Effects:
+            Stores ``service_input`` for subsequent plateau generation and seeds
+            the conversation session with its details.
         """
         self._service = service_input
+        # Seed the conversation so later model queries have the service context.
         self.session.add_parent_materials(service_input)
 
         plateaus: list[PlateauResult] = []
         for level, _name in enumerate(plateau_names, start=1):
-            result = self.generate_plateau(self.session, level)
+            # Generate features for each plateau level in turn.
+            result = self.generate_plateau(level)
             filtered = [
                 feat for feat in result.features if feat.customer_type in customer_types
             ]

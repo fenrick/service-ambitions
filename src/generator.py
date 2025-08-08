@@ -47,7 +47,13 @@ class ServiceAmbitionGenerator:
     async def process_service(
         self, service: Dict[str, Any], prompt: str
     ) -> Dict[str, Any]:
-        """Generate ambitions for ``service`` asynchronously."""
+        """Return ambitions for ``service``.
+
+        The function spins up a fresh agent for each call to avoid sharing
+        mutable state across tasks. The JSON representation of ``service`` is
+        passed as the prompt input and the model response is converted back
+        into a standard dictionary for downstream processing.
+        """
 
         agent = Agent(self.model, instructions=prompt)
         service_details = json.dumps(service)
@@ -63,8 +69,11 @@ class ServiceAmbitionGenerator:
         semaphore: asyncio.Semaphore,
     ) -> None:
         async with semaphore:
+            # The semaphore keeps the number of in-flight requests under the
+            # configured threshold, protecting the API from overload.
             logger.info("Processing service %s", service.get("name", "unknown"))
             try:
+                # Delegate to ``process_service`` for the actual model call.
                 result = await self.process_service(service, prompt)
             except Exception as exc:  # pylint: disable=broad-except
                 logger.error(
@@ -73,6 +82,8 @@ class ServiceAmbitionGenerator:
                     exc,
                 )
                 return
+            # Persist each result on a single line so the file can be consumed
+            # using standard ``jsonlines`` tooling.
             output_file.write(f"{json.dumps(result)}\n")
 
     @logfire.instrument()
@@ -82,6 +93,8 @@ class ServiceAmbitionGenerator:
         prompt: str,
         output_file,
     ) -> None:
+        # Semaphore coordinates concurrent worker tasks so only ``concurrency``
+        # requests run at any given time.
         semaphore = asyncio.Semaphore(self.concurrency)
         await asyncio.gather(
             *(
@@ -97,10 +110,16 @@ class ServiceAmbitionGenerator:
         prompt: str,
         output_path: str,
     ) -> None:
-        """Process ``services`` and write ambitions to ``output_path``."""
+        """Process ``services`` and write ambitions to ``output_path``.
+
+        Side Effects:
+            Creates/overwrites ``output_path`` with one JSON record per line.
+        """
 
         try:
             with open(output_path, "w", encoding="utf-8") as output_file:
+                # Run the async processing loop and stream results directly to
+                # disk to avoid storing large intermediate data sets.
                 asyncio.run(self._process_all(services, prompt, output_file))
         except Exception as exc:  # pylint: disable=broad-except
             logger.error("Failed to write results to %s: %s", output_path, exc)
@@ -112,6 +131,8 @@ def build_model(model_name: str, api_key: str) -> Model:
     """Return a configured Pydantic AI model."""
 
     if api_key:
+        # Expose the key via environment variables for model libraries that
+        # expect it there rather than accepting it directly.
         os.environ.setdefault("OPENAI_API_KEY", api_key)
     model_name = model_name.split(":", 1)[-1]
     settings = OpenAIResponsesModelSettings(
@@ -120,3 +141,6 @@ def build_model(model_name: str, api_key: str) -> Model:
         openai_reasoning_effort="medium",
     )
     return OpenAIResponsesModel(model_name, settings=settings)
+
+
+__all__ = ["ServiceAmbitionGenerator", "build_model"]

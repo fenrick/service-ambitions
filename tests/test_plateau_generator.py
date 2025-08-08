@@ -32,6 +32,7 @@ class DummySession:
 
     def ask(self, prompt: str) -> str:  # pragma: no cover - simple proxy
         self.prompts.append(prompt)
+        # Pop from the front so responses are returned in the order queued.
         return self._responses.pop(0)
 
     def add_parent_materials(
@@ -41,6 +42,7 @@ class DummySession:
 
 
 def _feature_payload(count: int) -> str:
+    # Build a uniform payload with ``count`` features per customer type.
     items = [
         {
             "feature_id": f"f{i}",
@@ -86,7 +88,7 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
     )
     generator._service = service  # type: ignore[attr-defined]
 
-    plateau = generator.generate_plateau(cast(ConversationSession, session), 1)
+    plateau = generator.generate_plateau(1)
 
     assert isinstance(plateau, PlateauResult)
     assert len(plateau.features) == 3
@@ -114,7 +116,7 @@ def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> None:
     generator._service = service  # type: ignore[attr-defined]
 
     with pytest.raises(ValueError):
-        generator.generate_plateau(cast(ConversationSession, session), 1)
+        generator.generate_plateau(1)
 
 
 def test_request_description_invalid_json(monkeypatch) -> None:
@@ -128,7 +130,7 @@ def test_request_description_invalid_json(monkeypatch) -> None:
     session = DummySession(["not json"])
     generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
     with pytest.raises(ValueError):
-        generator._request_description(cast(ConversationSession, session), 1)
+        generator._request_description(1)
     assert len(session.prompts) == 1
     assert session.prompts[0].startswith("desc 1")
 
@@ -146,7 +148,7 @@ def test_generate_service_evolution_filters(monkeypatch) -> None:
 
     called: list[int] = []
 
-    def fake_generate_plateau(self, sess, level):
+    def fake_generate_plateau(self, level):
         called.append(level)
         feats = [
             PlateauFeature(
