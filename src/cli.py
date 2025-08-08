@@ -1,4 +1,4 @@
-"""Command-line interface for service ambitions and evolutions."""
+"""Command-line interface for generating service ambitions and evolutions."""
 
 from __future__ import annotations
 
