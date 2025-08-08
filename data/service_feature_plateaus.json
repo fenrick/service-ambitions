@@ -1,27 +1,27 @@
 [
   {
     "id": "PLAT001",
-    "name": "Foundational",
-    "description": "Represents widely adopted practices and technologies as of 2025, emphasising reliability, efficiency and adherence to established standards while balancing stability with current innovations."
+    "name": "Foundational (Operational Excellence)",
+    "description": "This plateau represents the standard practices and technologies widely adopted by organisations as of 2025. Emphasising reliability and efficiency, organisations at this level maintain stable operations using proven methods and technologies. They adhere to established best practices and industry standards, delivering consistent and dependable service. By balancing operational stability with adopting current innovations, they form a solid base for incremental improvements without venturing into untested territories."
   },
   {
     "id": "PLAT002",
-    "name": "Enhanced",
-    "description": "Focuses on advanced optimisation of existing technologies, adopting leading-edge tools and continuous improvements while managing early adoption risks."
+    "name": "Enhanced (Advanced Optimisation)",
+    "description": "Positioned between foundational practices and experimental approaches, the enhanced level focuses on pushing the boundaries of existing technologies and methodologies. Organisations at this stage adopt advanced tools and practices that are leading-edge but have demonstrated effectiveness. They proactively implement improvements and optimisations, positioning themselves as industry leaders in efficiency and effectiveness while carefully managing risks associated with early adoption. This level reflects a commitment to continuous improvement and staying ahead of industry standards without engaging in high-risk experimentation."
   },
   {
     "id": "PLAT003",
-    "name": "Experimental",
-    "description": "Explores and pilots cutting-edge technologies and methodologies not yet mainstream, prioritising agility, learning and potential competitive advantage."
+    "name": "Experimental (Emerging Technologies)",
+    "description": "At the experimental stage, organisations explore and pilot cutting-edge technologies and methodologies that are not yet mainstream. Emphasising agility and adaptability, they experiment with new solutions, accepting higher risks for potentially high rewards. The focus is on learning, iteration, staying ahead of industry trends, and seeking significant competitive advantages through innovation. Organisations here are willing to challenge the status quo to discover breakthrough opportunities."
   },
   {
     "id": "PLAT004",
-    "name": "Disruptive",
-    "description": "Develops innovative solutions capable of redefining markets, involving high-risk and high-reward scenarios to challenge conventional models."
+    "name": "Disruptive (Market Redefinition)",
+    "description": "Organisations operating at the disruptive level develop and implement innovative solutions with the potential to upend existing markets or create entirely new ones. They introduce breakthrough ideas that challenge conventional models and practices involving high-risk and high-reward scenarios. The aim is to position the organisation as a leader in innovation and market transformation, driving significant changes in how services are delivered and consumed. This level is characterised by bold moves that can redefine industry landscapes."
   },
   {
     "id": "PLAT005",
-    "name": "Transformative",
-    "description": "Redefines the ecosystem by integrating disruptive innovations with broader societal trends to drive large-scale industry or societal change."
+    "name": "Transformative (Ecosystem Evolution)",
+    "description": "The transformative plateau leads systemic change by redefining the entire ecosystem in which the organisation operates. Organisations create new paradigms and business models by integrating disruptive innovations with broader societal trends. The focus is on large-scale transformation impacting industries or society as a whole, driving evolution in service delivery and consumption patterns, and establishing new standards and frameworks for the industry. Organisations at this level don’t just adapt to change—they drive it on a fundamental level."
   }
 ]
