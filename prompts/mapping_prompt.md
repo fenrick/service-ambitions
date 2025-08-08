@@ -29,4 +29,4 @@ Map each feature to relevant Data, Applications and Technologies from the lists 
 
 ## Response structure
 
-{schema}.
+{schema}

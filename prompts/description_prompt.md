@@ -11,4 +11,4 @@ Provide a description of the service at plateau {plateau}.
 
 ## Response structure
 
-{schema}.
+{schema}

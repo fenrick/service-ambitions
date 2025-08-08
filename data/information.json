@@ -1,4 +1,12 @@
 [
-  {"id": "INFO001", "name": "User Data", "description": "Information about the user."},
-  {"id": "INFO002", "name": "Course Material", "description": "Content used for teaching."}
+  {
+    "id": "INFO001",
+    "name": "User Data",
+    "description": "Information about the user."
+  },
+  {
+    "id": "INFO002",
+    "name": "Course Material",
+    "description": "Content used for teaching."
+  }
 ]

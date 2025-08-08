@@ -9,7 +9,7 @@ import os
 logger = logging.getLogger(__name__)
 
 
-def init_logfire(service: str | None = None, token: str | None = None) -> None:
+def init_logfire(token: str | None = None) -> None:
     """Configure Logfire if a token is available.
 
     Args:
@@ -35,12 +35,8 @@ def init_logfire(service: str | None = None, token: str | None = None) -> None:
         logger.warning("logfire package not installed; skipping Logfire setup")
         return
 
-    logfire.configure(token=key, service_name=service)
+    logfire.configure(token=key, service_name="service-ambition-generator")
     logfire.instrument_system_metrics(base="full")
-
-    install = getattr(logfire, "install_auto_tracing", None)
-    if install:
-        install(modules=[], min_duration=0)
 
     for name in (
         "instrument_pydantic_ai",
@@ -57,7 +53,4 @@ def init_logfire(service: str | None = None, token: str | None = None) -> None:
         root_logger.handlers.clear()  # avoid duplicate output from existing handlers
         root_logger.addHandler(handler_cls())
 
-    logger.info(
-        "Logfire telemetry enabled%s",
-        f" for service {service}" if service else "",
-    )
+    logger.info("Logfire telemetry enabled%s")

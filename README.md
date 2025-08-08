@@ -75,7 +75,7 @@ sequential calls:
 3. **Mapping** – link each feature to reference Data, Applications and
    Technologies.
 
-The 4 × 3 workflow totals 12 calls and produces a complete `ServiceEvolution`
+The 4 × 3 workflow totals 12 calls and produces a complete `ServiceEvolution`
 record for every service.
 
 Plateau names and descriptions are sourced from
@@ -158,14 +158,14 @@ Fields in the schema:
 - `service`: `ServiceInput` with `service_id`, `name`, `description`, optional
   `customer_type`, and `jobs_to_be_done`.
 - `plateaus`: list of `PlateauResult` entries, each containing:
-  - `plateau`: integer plateau level.
-  - `service_description`: narrative for the service at that plateau.
-  - `features`: list of `PlateauFeature` entries with:
-    - `feature_id`, `name`, and `description`.
-    - `score`: float between `0.0` and `1.0`.
-    - `customer_type`: audience benefiting from the feature.
-    - `data`, `applications`, `technology`: lists of `Contribution` objects
-      describing why a mapped item supports the feature.
+    - `plateau`: integer plateau level.
+    - `service_description`: narrative for the service at that plateau.
+    - `features`: list of `PlateauFeature` entries with:
+        - `feature_id`, `name`, and `description`.
+        - `score`: float between `0.0` and `1.0`.
+        - `customer_type`: audience benefiting from the feature.
+        - `data`, `applications`, `technology`: lists of `Contribution` objects
+          describing why a mapped item supports the feature.
 
 ## Reference Data
 

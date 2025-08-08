@@ -81,6 +81,8 @@ def map_features(
     """
 
     template = load_prompt_text("mapping_prompt")
+    # The schema is appended verbatim to ensure the agent adheres exactly to the
+    # expected JSON structure.
     schema = json.dumps(MappingResponse.model_json_schema(), indent=2)
     mapping_items: dict[str, list[MappingItem]] = load_mapping_items()
     prompt = template.format(
@@ -90,9 +92,6 @@ def map_features(
         features=_render_features(features),
         schema=str(schema),
     )
-    # The schema is appended verbatim to ensure the agent adheres exactly to the
-    # expected JSON structure.
-    prompt = f"{prompt}\n\nJSON schema:\n{schema}"
     logger.debug("Requesting mappings for %s features", len(features))
     response = session.ask(prompt)
     logger.debug("Raw multi-feature mapping response: %s", response)

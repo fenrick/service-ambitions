@@ -40,8 +40,8 @@ def _configure_logging(args: argparse.Namespace, settings) -> None:
     logging.basicConfig(
         level=getattr(logging, level_name.upper(), logging.INFO), force=True
     )
-    if settings.logfire_token or args.logfire_service:
-        init_logfire(args.logfire_service, settings.logfire_token)
+    if settings.logfire_token:
+        init_logfire(settings.logfire_token)
 
 
 def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
@@ -83,6 +83,9 @@ def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
 
 def main() -> None:
     """Parse arguments and dispatch to the requested subcommand."""
+    settings = load_settings()
+    if settings.logfire_token:
+        init_logfire(settings.logfire_token)
 
     parser = argparse.ArgumentParser(
         description="Service ambitions utilities",
@@ -103,10 +106,6 @@ def main() -> None:
         action="count",
         default=0,
         help="Increase logging verbosity (-v for info, -vv for debug)",
-    )
-    common.add_argument(
-        "--logfire-service",
-        help="Enable Logfire telemetry for the given service name",
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -174,9 +173,9 @@ def main() -> None:
     evo.set_defaults(func=_cmd_generate_evolution)
 
     args = parser.parse_args()
-    settings = load_settings()
     _configure_logging(args, settings)
     args.func(args, settings)
+    logfire.force_flush()
 
 
 if __name__ == "__main__":

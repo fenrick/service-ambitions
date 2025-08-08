@@ -4,21 +4,21 @@ version = "0.1.0"
 description = "Command-line tool for generating service ambitions using a chat model."
 readme = "README.md"
 authors = [
-    {name = "Jolyon Suthers",email = "201621+fenrick@users.noreply.github.com"}
+    { name = "Jolyon Suthers", email = "201621+fenrick@users.noreply.github.com" }
 ]
 requires-python = ">= 3.11,<4"
 dependencies = [
-"openai" ,
-"pydantic-ai",
-"logfire[system-metrics] (>=4.2.0,<5.0.0)",
-"pydantic",
-"pydantic-settings",
-"opentelemetry-instrumentation-sqlite3 (>=0.57b0,<0.58)",
-"opentelemetry-instrumentation-starlette (>=0.57b0,<0.58)",
-"opentelemetry-instrumentation-urllib (>=0.57b0,<0.58)",
-"opentelemetry-instrumentation-botocore (>=0.57b0,<0.58)",
-"opentelemetry-instrumentation-httpx (>=0.57b0,<0.58)",
-"opentelemetry-instrumentation-requests (>=0.57b0,<0.58)",
+    "openai",
+    "pydantic-ai",
+    "logfire[system-metrics] (>=4.2.0,<5.0.0)",
+    "pydantic",
+    "pydantic-settings",
+    "opentelemetry-instrumentation-sqlite3 (>=0.57b0,<0.58)",
+    "opentelemetry-instrumentation-starlette (>=0.57b0,<0.58)",
+    "opentelemetry-instrumentation-urllib (>=0.57b0,<0.58)",
+    "opentelemetry-instrumentation-botocore (>=0.57b0,<0.58)",
+    "opentelemetry-instrumentation-httpx (>=0.57b0,<0.58)",
+    "opentelemetry-instrumentation-requests (>=0.57b0,<0.58)",
 ]
 
 [tool.poetry.group.dev.dependencies]
