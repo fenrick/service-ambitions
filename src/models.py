@@ -64,9 +64,30 @@ class AppConfig(BaseModel):
         "INFO",
         description="Logging verbosity level.",
     )
+    prompt_dir: str = Field(
+        "prompts",
+        description="Directory containing prompt components.",
+    )
+    context_id: str = Field(
+        "university",
+        description="Situational context identifier.",
+    )
+    inspiration: str = Field(
+        "general",
+        description="Inspirations identifier.",
+    )
+    concurrency: int = Field(
+        5,
+        ge=1,
+        description="Number of services to process concurrently.",
+    )
     mapping_types: dict[str, MappingTypeConfig] = Field(
         default_factory=dict,
         description="Mapping type definitions keyed by field name.",
+    )
+    plateau_map: dict[str, int] = Field(
+        default_factory=dict,
+        description="Mapping from plateau names to numeric identifiers.",
     )
 
 
@@ -92,6 +113,7 @@ class PlateauResult(BaseModel):
     """Collection of features describing a service at a plateau level."""
 
     plateau: int = Field(..., ge=1, description="Plateau level evaluated.")
+    plateau_name: str = Field(..., description="Human readable name for the plateau.")
     service_description: str = Field(
         ..., description="Description of the service at this plateau."
     )

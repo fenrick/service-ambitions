@@ -135,6 +135,7 @@ Each JSON line in the output file follows the `ServiceEvolution` schema:
   "plateaus": [
     {
       "plateau": 1,
+      "plateau_name": "string",
       "service_description": "string",
       "features": [
         {
@@ -159,6 +160,7 @@ Fields in the schema:
   `customer_type`, and `jobs_to_be_done`.
 - `plateaus`: list of `PlateauResult` entries, each containing:
     - `plateau`: integer plateau level.
+    - `plateau_name`: descriptive plateau label.
     - `service_description`: narrative for the service at that plateau.
     - `features`: list of `PlateauFeature` entries with:
         - `feature_id`, `name`, and `description`.
@@ -177,7 +179,8 @@ options. Mapping prompts run separately for information, applications and
 technologies to keep each decision focused. All application configuration is
 stored in `config/app.json`; mapping types and their associated datasets live
 under the `mapping_types` section, allowing new categories to be added without
-code changes.
+code changes. Plateau name to level associations are defined in the
+`plateau_map` section of the same file.
 
 ## Prompt examples
 
