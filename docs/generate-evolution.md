@@ -4,7 +4,7 @@ The evolution workflow spans four plateaus—**Foundational**, **Enhanced**,
 **Experimental** and **Disruptive**—with three calls per plateau (description,
 features, mapping). Plateau definitions are stored in
 `data/service_feature_plateaus.json`; the CLI uses the first four entries by
-default.
+default. Plateau name to level mappings come from `config/app.json`.
 
 ## Running
 
@@ -34,6 +34,7 @@ Each line in the output file is a JSON object with:
   "plateaus": [
     {
       "plateau": 1,
+      "plateau_name": "string",
       "service_description": "string",
       "features": [
         {

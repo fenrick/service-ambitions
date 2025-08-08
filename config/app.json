@@ -18,5 +18,11 @@
   "prompt_dir": "prompts",
   "context_id": "university",
   "inspiration": "general",
-  "concurrency": 5
+  "concurrency": 5,
+  "plateau_map": {
+    "Foundational": 1,
+    "Enhanced": 2,
+    "Experimental": 3,
+    "Disruptive": 4
+  }
 }

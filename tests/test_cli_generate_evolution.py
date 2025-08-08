@@ -43,11 +43,11 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
     def fake_generate(
         self,
         service: ServiceInput,
-        plateaus: list[str],
-        customers: list[str],
+        plateaus: list[str] | None = None,
+        customers: list[str] | None = None,
     ) -> ServiceEvolution:
-        captured["plateaus"] = plateaus
-        captured["customers"] = customers
+        captured["plateaus"] = plateaus or []
+        captured["customers"] = customers or []
         return ServiceEvolution(service=service, plateaus=[])
 
     monkeypatch.setattr("cli.build_model", fake_build_model)
@@ -113,8 +113,8 @@ def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> None:
     def fake_generate(
         self,
         service: ServiceInput,
-        plateaus: list[str],
-        customers: list[str],
+        plateaus: list[str] | None = None,
+        customers: list[str] | None = None,
     ) -> ServiceEvolution:
         return ServiceEvolution(service=service, plateaus=[])
 
