@@ -47,7 +47,9 @@ class ServiceAmbitionGenerator:
 
     @logfire.instrument()
     async def process_service(
-        self, service: ServiceInput, prompt: str | None = None
+        self,
+        service: ServiceInput,
+        prompt: str | None = None,
     ) -> Dict[str, Any]:
         """Return ambitions for ``service``.
 

@@ -130,7 +130,8 @@ def load_mapping_items(base_dir: str = "data") -> Dict[str, list[MappingItem]]:
 @logfire.instrument()
 @lru_cache(maxsize=None)
 def load_plateau_definitions(
-    base_dir: str = "data", filename: str = "service_feature_plateaus.json"
+    base_dir: str = "data",
+    filename: str = "service_feature_plateaus.json",
 ) -> List[ServiceFeaturePlateau]:
     """Return service feature plateau definitions from ``base_dir``.
 
