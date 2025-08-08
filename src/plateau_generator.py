@@ -6,7 +6,7 @@ import json
 import logging
 
 from conversation import ConversationSession
-from loader import load_plateau_prompt
+from loader import load_description_prompt, load_plateau_prompt
 from mapping import map_features
 from models import PlateauFeature, PlateauResult, ServiceEvolution, ServiceInput
 
@@ -41,10 +41,8 @@ class PlateauGenerator:
 
         The agent must respond with JSON containing a ``description`` field.
         """
-        prompt = (
-            "Provide JSON with a 'description' field describing the service "
-            f"at plateau level {level}."
-        )
+        template = load_description_prompt(self.prompt_dir)
+        prompt = template.format(plateau=level)
         response = session.ask(prompt)
         try:
             payload = json.loads(response)

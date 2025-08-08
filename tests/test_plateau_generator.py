@@ -58,6 +58,9 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
     monkeypatch.setattr(
         "plateau_generator.load_plateau_prompt", lambda *a, **k: template
     )
+    monkeypatch.setattr(
+        "plateau_generator.load_description_prompt", lambda *a, **k: "desc {plateau}"
+    )
     responses = [json.dumps({"description": "desc"}), _feature_payload(1)]
     session = DummySession(responses)
 
@@ -90,6 +93,9 @@ def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> None:
     monkeypatch.setattr(
         "plateau_generator.load_plateau_prompt", lambda *a, **k: template
     )
+    monkeypatch.setattr(
+        "plateau_generator.load_description_prompt", lambda *a, **k: "desc {plateau}"
+    )
     responses = [json.dumps({"description": "desc"}), _feature_payload(1)]
     session = DummySession(responses)
     generator = PlateauGenerator(cast(ConversationSession, session), required_count=2)
@@ -105,11 +111,15 @@ def test_request_description_invalid_json(monkeypatch) -> None:
     monkeypatch.setattr(
         "plateau_generator.load_plateau_prompt", lambda *a, **k: template
     )
+    monkeypatch.setattr(
+        "plateau_generator.load_description_prompt", lambda *a, **k: "desc {plateau}"
+    )
     """Invalid description payloads should raise ``ValueError``."""
     session = DummySession(["not json"])
     generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
     with pytest.raises(ValueError):
         generator._request_description(cast(ConversationSession, session), 1)
+    assert session.prompts == ["desc 1"]
 
 
 def test_generate_service_evolution_filters(monkeypatch) -> None:

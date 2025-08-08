@@ -5,6 +5,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from loader import (
+    load_description_prompt,
     load_mapping_prompt,
     load_plateau_prompt,
     load_prompt,
@@ -45,6 +46,13 @@ def test_load_mapping_prompt(tmp_path):
     base.mkdir()
     (base / "mapping_prompt.md").write_text("map", encoding="utf-8")
     assert load_mapping_prompt(str(base)) == "map"
+
+
+def test_load_description_prompt(tmp_path):
+    base = tmp_path / "prompts"
+    base.mkdir()
+    (base / "description_prompt.md").write_text("desc", encoding="utf-8")
+    assert load_description_prompt(str(base)) == "desc"
 
 
 def test_load_services_reads_jsonl(tmp_path):
