@@ -1,10 +1,10 @@
 """Conversational session wrapper for LLM interactions.
 
-This module exposes :class:`ConversationSession` which provides a thin
-abstraction over a Pydantic-AI ``Agent``.  The session maintains the message
-history so that each prompt sent to the model retains prior context.  The
-session can be seeded with details from a :class:`models.ServiceInput` via
-``add_parent_materials``.
+This module exposes :class:`ConversationSession`, a light abstraction over a
+Pydantic-AI ``Agent``. The session records message history so that each prompt
+retains prior context and can be seeded with service details via
+``add_parent_materials``. A synchronous ``ask`` method hides the asynchronous
+API of the underlying agent.
 """
 
 from __future__ import annotations
@@ -42,6 +42,10 @@ class ConversationSession:
 
         Args:
             service_input: Metadata describing the service being evaluated.
+
+        Side Effects:
+            Appends a system prompt containing the service metadata to the
+            session history.
         """
 
         jobs = ", ".join(service_input.jobs_to_be_done)
@@ -60,8 +64,8 @@ class ConversationSession:
     def ask(self, prompt: str) -> str:
         """Send ``prompt`` to the agent and return the textual response.
 
-        The prompt along with accumulated message history is forwarded to the
-        underlying ``Agent``.  The response and any new messages are recorded in
+        The prompt together with accumulated message history is forwarded to the
+        underlying ``Agent``. The response and any new messages are recorded in
         the session history.
 
         Args:

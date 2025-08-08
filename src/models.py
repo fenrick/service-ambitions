@@ -1,4 +1,10 @@
-"""Domain models for service feature evaluation."""
+"""Pydantic models describing service inputs, evaluation outputs, and configuration.
+
+These definitions act as the contract between the command-line interface, the
+generation pipeline, and any downstream tooling that consumes service ambition
+results. Each class documents the structure and semantics of the data exchanged
+throughout the system.
+"""
 
 from __future__ import annotations
 
@@ -6,7 +12,11 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class Contribution(BaseModel):
-    """Item contributing to a feature's assessment."""
+    """Item contributing to a feature's assessment.
+
+    A ``Contribution`` explains how a particular reference item supports or
+    detracts from a candidate feature when calculating plateau performance.
+    """
 
     item: str = Field(..., description="Name of the mapped element.")
     contribution: str = Field(
@@ -15,7 +25,11 @@ class Contribution(BaseModel):
 
 
 class ServiceInput(BaseModel):
-    """Basic description of a service under consideration."""
+    """Basic description of a service under consideration.
+
+    This model is supplied to the generator to describe the baseline service
+    before any plateau analysis occurs.
+    """
 
     service_id: str = Field(..., description="Unique identifier for the service.")
     name: str = Field(..., description="Human readable service name.")
@@ -29,7 +43,11 @@ class ServiceInput(BaseModel):
 
 
 class ServiceFeaturePlateau(BaseModel):
-    """Definition of a service feature plateau."""
+    """Definition of a service feature plateau.
+
+    Plateaus describe maturity stages that a service feature can achieve. They
+    provide reference points when comparing services against the model.
+    """
 
     id: str = Field(..., description="Unique plateau identifier.")
     name: str = Field(..., description="Human readable plateau name.")
@@ -37,7 +55,11 @@ class ServiceFeaturePlateau(BaseModel):
 
 
 class MappingItem(BaseModel):
-    """Reference item used for feature mapping."""
+    """Reference item used for feature mapping.
+
+    Items originate from datasets defined in :class:`MappingTypeConfig` and are
+    used to justify a feature's presence during mapping.
+    """
 
     id: str = Field(..., description="Unique identifier for the reference item.")
     name: str = Field(..., description="Human readable item name.")
@@ -45,7 +67,11 @@ class MappingItem(BaseModel):
 
 
 class MappingTypeConfig(BaseModel):
-    """Configuration for a feature mapping type."""
+    """Configuration for a feature mapping type.
+
+    The ``dataset`` field indicates a JSONL file located in ``data/`` that
+    provides the catalogue of :class:`MappingItem` records for the given type.
+    """
 
     dataset: str = Field(
         ..., description="Mapping dataset name without file extension."
@@ -54,7 +80,7 @@ class MappingTypeConfig(BaseModel):
 
 
 class AppConfig(BaseModel):
-    """Top-level application configuration."""
+    """Top-level application configuration controlling generation behaviour."""
 
     model: str = Field(
         "openai:gpt-4o-mini",
@@ -92,7 +118,11 @@ class AppConfig(BaseModel):
 
 
 class PlateauFeature(BaseModel):
-    """Feature assessed during a service plateau."""
+    """Feature assessed during a service plateau.
+
+    Each feature includes a normalised ``score`` and optional mapping
+    contributions that reference external catalogues.
+    """
 
     feature_id: str = Field(..., description="Unique identifier for the feature.")
     name: str = Field(..., description="Feature name.")
@@ -110,7 +140,11 @@ class PlateauFeature(BaseModel):
 
 
 class PlateauResult(BaseModel):
-    """Collection of features describing a service at a plateau level."""
+    """Collection of features describing a service at a plateau level.
+
+    Instances are appended to :class:`ServiceEvolution` as the generator evaluates
+    successive plateaus for a service.
+    """
 
     plateau: int = Field(..., ge=1, description="Plateau level evaluated.")
     plateau_name: str = Field(..., description="Human readable name for the plateau.")
@@ -124,7 +158,11 @@ class PlateauResult(BaseModel):
 
 
 class ServiceEvolution(BaseModel):
-    """Summary of a service's progress across plateaus."""
+    """Summary of a service's progress across plateaus.
+
+    The ``plateaus`` list is ordered from lowest to highest maturity and
+    represents the full evolution output for a given :class:`ServiceInput`.
+    """
 
     service: ServiceInput = Field(..., description="Service being evaluated.")
     plateaus: list[PlateauResult] = Field(
@@ -133,7 +171,7 @@ class ServiceEvolution(BaseModel):
 
 
 class DescriptionResponse(BaseModel):
-    """Schema for service description responses."""
+    """Schema for intermediate service description responses."""
 
     description: str = Field(
         ..., description="Explanation of the service at a plateau."
@@ -141,7 +179,7 @@ class DescriptionResponse(BaseModel):
 
 
 class FeatureItem(BaseModel):
-    """Schema for individual plateau features."""
+    """Schema for individual plateau features returned by generation APIs."""
 
     feature_id: str = Field(
         ..., description="Unique string identifier for the feature."
@@ -154,7 +192,10 @@ class FeatureItem(BaseModel):
 
 
 class PlateauFeaturesResponse(BaseModel):
-    """Schema for plateau feature generation responses."""
+    """Schema for plateau feature generation responses.
+
+    Features are grouped by audience segment to simplify downstream rendering.
+    """
 
     learners: list[FeatureItem] = Field(..., description="Features for learners.")
     staff: list[FeatureItem] = Field(..., description="Features for staff.")
@@ -164,7 +205,11 @@ class PlateauFeaturesResponse(BaseModel):
 
 
 class MappingFeature(BaseModel):
-    """Schema for mapped features with dynamic mapping types."""
+    """Schema for mapped features with dynamic mapping types.
+
+    Any additional properties on the input are interpreted as mapping lists and
+    consolidated into the ``mappings`` dictionary by ``_collect_mappings``.
+    """
 
     feature_id: str = Field(..., description="Feature identifier.")
     mappings: dict[str, list[Contribution]] = Field(
@@ -176,7 +221,12 @@ class MappingFeature(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _collect_mappings(cls, data: dict[str, object]) -> dict[str, object]:
-        """Collect arbitrary mapping lists into ``mappings``."""
+        """Collect arbitrary mapping lists into ``mappings``.
+
+        The validator mutates ``data`` by removing any keys other than
+        ``feature_id`` and storing them under ``mappings``. This allows callers to
+        submit flexible mapping types without defining explicit model fields.
+        """
         mapping: dict[str, object] = {}
         for key in list(data.keys()):
             if key != "feature_id":
@@ -186,7 +236,7 @@ class MappingFeature(BaseModel):
 
 
 class MappingResponse(BaseModel):
-    """Schema for feature mapping responses."""
+    """Schema for feature mapping responses returned by the mapping worker."""
 
     features: list[MappingFeature] = Field(
         ..., description="Collection of features with mapping details."

@@ -1,4 +1,10 @@
-"""Helpers for enabling Pydantic Logfire telemetry."""
+"""Helpers for enabling Pydantic Logfire telemetry.
+
+The functions in this module are intentionally lightweight wrappers around the
+optional `logfire` package. They configure monitoring only when both an API
+token and the dependency are present so that the rest of the application can
+remain oblivious to telemetry concerns.
+"""
 
 from __future__ import annotations
 
@@ -16,11 +22,11 @@ def init_logfire(token: str | None = None) -> None:
         token: Logfire API token. Falls back to ``LOGFIRE_TOKEN`` environment
             variable when ``None``.
 
-    When the token is provided and the ``logfire`` package is installed this
-    function configures the Logfire SDK, enables auto tracing, instruments
-    Pydantic, Pydantic AI, OpenAI and system metrics, and attaches a Logfire
-    logging handler to the root logger, replacing existing handlers to avoid
-    duplicate output. If either condition is not met the setup is skipped.
+    The function is a no-op when either the token is missing or the optional
+    ``logfire`` dependency is not installed. When both are present the Logfire
+    SDK is configured, common libraries are instrumented and a logging handler
+    is attached to the root logger replacing any existing handlers to prevent
+    duplicate output.
     """
 
     # Use the explicit token if provided, otherwise fall back to the environment.

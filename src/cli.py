@@ -17,6 +17,7 @@ from loader import (
     load_prompt,
     load_services,
 )
+from models import ServiceInput
 from monitoring import init_logfire
 from plateau_generator import PlateauGenerator
 from settings import load_settings
@@ -81,7 +82,21 @@ def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
     if settings.concurrency < 1:
         raise ValueError("concurrency must be a positive integer")
 
-    def process_service(service):
+    def process_service(service: ServiceInput) -> tuple[str, str]:
+        """Return the evolution JSON for ``service``.
+
+        Args:
+            service: Service specification to evolve across plateaus.
+
+        Returns:
+            A tuple containing the service name and its generated evolution in
+            JSON format.
+
+        The function instantiates a fresh :class:`PlateauGenerator` and
+        conversation session per service so each evolution runs in isolation and
+        does not leak chat history between services.
+        """
+
         agent = Agent(model)
         session = ConversationSession(agent)
         generator = PlateauGenerator(session)
