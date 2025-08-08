@@ -78,6 +78,11 @@ sequential calls:
 The 4 × 3 workflow totals 12 calls and produces a complete `ServiceEvolution`
 record for every service.
 
+Plateau names and descriptions are sourced from
+`data/service_feature_plateaus.json`, allowing the progression to be
+reconfigured without code changes. By default the CLI uses the first four
+entries from this file.
+
 ### Generating service evolutions
 
 Use the `generate-evolution` subcommand to score each service against plateau

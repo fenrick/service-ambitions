@@ -10,13 +10,19 @@ from pydantic_ai import Agent
 
 from conversation import ConversationSession
 from generator import ServiceAmbitionGenerator, build_model
-from loader import load_prompt, load_services
+from loader import load_plateau_definitions, load_prompt, load_services
 from models import ServiceInput
 from monitoring import init_logfire
 from plateau_generator import PlateauGenerator
 from settings import load_settings
 
 logger = logging.getLogger(__name__)
+
+
+def _default_plateaus() -> list[str]:
+    """Return plateau names from configuration."""
+
+    return [p.name for p in load_plateau_definitions()[:4]]
 
 
 def _configure_logging(args: argparse.Namespace, settings) -> None:
@@ -152,19 +158,13 @@ def main() -> None:
     evo.add_argument(
         "--plateaus",
         nargs="+",
-        default=[
-            "Foundational",
-            "Enhanced",
-            "Experimental",
-            "Disruptive",
-            "Transformative",
-        ],
+        default=_default_plateaus(),
         help="Plateau names to evaluate",
     )
     evo.add_argument(
         "--customers",
         nargs="+",
-        default=["retail"],
+        default=["learners", "staff", "community"],
         help="Customer types to evaluate",
     )
     evo.set_defaults(func=_cmd_generate_evolution)

@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from cli import _cmd_generate_evolution
+from loader import load_plateau_definitions
 from models import ServiceEvolution, ServiceInput
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -62,11 +63,12 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         openai_api_key="key",
         logfire_token=None,
     )
+    plateaus = [p.name for p in load_plateau_definitions()[:4]]
     args = argparse.Namespace(
         input_file=str(input_path),
         output_file=str(output_path),
-        plateaus=["alpha"],
-        customers=["retail"],
+        plateaus=plateaus,
+        customers=["learners", "staff", "community"],
         model=None,
         logfire_service=None,
         log_level=None,
@@ -78,8 +80,8 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
     payload = json.loads(output_path.read_text().strip())
     assert payload["service"]["name"] == "svc"
     assert payload["service"]["service_id"] == "svc-1"
-    assert captured["plateaus"] == ["alpha"]
-    assert captured["customers"] == ["retail"]
+    assert captured["plateaus"] == plateaus
+    assert captured["customers"] == ["learners", "staff", "community"]
 
 
 def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> None:
@@ -130,11 +132,12 @@ def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> None:
         openai_api_key="key",
         logfire_token=None,
     )
+    plateaus = [p.name for p in load_plateau_definitions()[:4]]
     args = argparse.Namespace(
         input_file=str(input_path),
         output_file=str(output_path),
-        plateaus=["alpha"],
-        customers=["retail"],
+        plateaus=plateaus,
+        customers=["learners", "staff", "community"],
         model="special",  # override default
         logfire_service=None,
         log_level=None,

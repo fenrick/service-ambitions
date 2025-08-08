@@ -6,6 +6,7 @@ import pytest
 from loader import (
     load_description_prompt,
     load_mapping_prompt,
+    load_plateau_definitions,
     load_plateau_prompt,
     load_prompt,
     load_services,
@@ -54,6 +55,17 @@ def test_load_description_prompt(tmp_path):
     base.mkdir()
     (base / "description_prompt.md").write_text("desc", encoding="utf-8")
     assert load_description_prompt(str(base)) == "desc"
+
+
+def test_load_plateau_definitions(tmp_path):
+    base = tmp_path / "data"
+    base.mkdir()
+    (base / "service_feature_plateaus.json").write_text(
+        '[{"id": "P1", "name": "Alpha", "description": "d"}]',
+        encoding="utf-8",
+    )
+    plateaus = load_plateau_definitions(str(base))
+    assert plateaus[0].name == "Alpha"
 
 
 def test_load_services_reads_jsonl(tmp_path):

@@ -2,7 +2,9 @@
 
 The evolution workflow spans four plateaus—**Foundational**, **Enhanced**,
 **Experimental** and **Disruptive**—with three calls per plateau (description,
-features, mapping).
+features, mapping). Plateau definitions are stored in
+`data/service_feature_plateaus.json`; the CLI uses the first four entries by
+default.
 
 ## Running
 

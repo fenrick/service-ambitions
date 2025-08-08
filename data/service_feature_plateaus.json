@@ -1,0 +1,27 @@
+[
+  {
+    "id": "PLAT001",
+    "name": "Foundational",
+    "description": "Represents widely adopted practices and technologies as of 2025, emphasising reliability, efficiency and adherence to established standards while balancing stability with current innovations."
+  },
+  {
+    "id": "PLAT002",
+    "name": "Enhanced",
+    "description": "Focuses on advanced optimisation of existing technologies, adopting leading-edge tools and continuous improvements while managing early adoption risks."
+  },
+  {
+    "id": "PLAT003",
+    "name": "Experimental",
+    "description": "Explores and pilots cutting-edge technologies and methodologies not yet mainstream, prioritising agility, learning and potential competitive advantage."
+  },
+  {
+    "id": "PLAT004",
+    "name": "Disruptive",
+    "description": "Develops innovative solutions capable of redefining markets, involving high-risk and high-reward scenarios to challenge conventional models."
+  },
+  {
+    "id": "PLAT005",
+    "name": "Transformative",
+    "description": "Redefines the ecosystem by integrating disruptive innovations with broader societal trends to drive large-scale industry or societal change."
+  }
+]
