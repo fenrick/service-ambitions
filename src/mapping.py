@@ -83,73 +83,62 @@ def map_feature(
     return map_features(session, [feature], mapping_types)[0]
 
 
-def map_features(
-    session: ConversationSession,
+def _build_mapping_prompt(
     features: Sequence[PlateauFeature],
-    mapping_types: Mapping[str, MappingTypeConfig] | None = None,
-) -> list[PlateauFeature]:
-    """Return ``features`` augmented with mapping information.
+    mapping_types: Mapping[str, MappingTypeConfig],
+) -> str:
+    """Return a prompt requesting mappings for ``features``."""
 
-    The function sends a single prompt containing all features and mapping
-    reference lists. The agent must respond with JSON containing a ``features``
-    array where each entry corresponds to one of the requested features. Each
-    feature must provide non-empty lists for every configured mapping type. A
-    :class:`ValueError` is raised if the response cannot be parsed, a feature is
-    missing or any list is empty.
-
-    Args:
-        session: Active conversation session used to query the agent.
-        features: Plateau features to map.
-        mapping_types: Mapping configuration to apply. Defaults to
-            :func:`loader.load_mapping_type_config`.
-
-    Returns:
-        List of :class:`PlateauFeature` objects with mapping information applied.
-
-    Raises:
-        ValueError: If the agent response is invalid or any mapping list is
-        missing.
-    """
-
-    mapping_types = mapping_types or load_mapping_type_config()
     template = load_prompt_text("mapping_prompt")
     schema = json.dumps(MappingResponse.model_json_schema(), indent=2)
     items = load_mapping_items([cfg.dataset for cfg in mapping_types.values()])
     sections = []
-    for field, cfg in mapping_types.items():
+    for cfg in mapping_types.values():
+        # Include a bullet list of reference items for each mapping type.
         sections.append(
             f"## Available {cfg.label}\n\n{_render_items(items[cfg.dataset])}\n"
         )
     mapping_sections = "\n".join(sections)
     mapping_labels = ", ".join(cfg.label for cfg in mapping_types.values())
     mapping_fields = ", ".join(mapping_types.keys())
-    prompt = template.format(
+    return template.format(
         mapping_labels=mapping_labels,
         mapping_sections=mapping_sections,
         mapping_fields=mapping_fields,
         features=_render_features(features),
         schema=str(schema),
     )
-    logger.debug("Requesting mappings for %s features", len(features))
-    response = session.ask(prompt)
-    logger.debug("Raw multi-feature mapping response: %s", response)
+
+
+def _parse_mapping_response(response: str) -> MappingResponse:
+    """Return a validated mapping response."""
+
     try:
-        payload = MappingResponse.model_validate_json(response)
+        return MappingResponse.model_validate_json(response)
     except Exception as exc:  # pragma: no cover - logging
         logger.error("Invalid JSON from mapping response: %s", exc)
         raise ValueError("Agent returned invalid JSON") from exc
 
-    mapped_lookup = {item.feature_id: item.mappings for item in payload.features}
 
+def _merge_mapping_results(
+    features: Sequence[PlateauFeature],
+    payload: MappingResponse,
+    mapping_types: Mapping[str, MappingTypeConfig],
+) -> list[PlateauFeature]:
+    """Return ``features`` merged with mapping ``payload``."""
+
+    mapped_lookup = {item.feature_id: item.mappings for item in payload.features}
     results: list[PlateauFeature] = []
     for feature in features:
         mapped = mapped_lookup.get(feature.feature_id)
         if mapped is None:
+            # Each feature must appear in the response; fail fast when absent.
             raise ValueError(f"Missing mappings for feature {feature.feature_id}")
         update_data: dict[str, list[Contribution]] = {}
         for key in mapping_types.keys():
             values = mapped.get(key)
             if not values:
+                # Every mapping type requires at least one contribution.
                 raise ValueError(
                     f"'{key}' key missing or empty for feature {feature.feature_id}"
                 )
@@ -157,6 +146,26 @@ def map_features(
         merged = feature.model_copy(update={"mappings": feature.mappings | update_data})
         results.append(merged)
     return results
+
+
+def map_features(
+    session: ConversationSession,
+    features: Sequence[PlateauFeature],
+    mapping_types: Mapping[str, MappingTypeConfig] | None = None,
+) -> list[PlateauFeature]:
+    """Return ``features`` augmented with mapping information.
+
+    A single prompt is sent to the agent requesting mappings for all supplied
+    features. Missing or empty mapping lists raise :class:`ValueError`.
+    """
+    # Use configured mappings when none are explicitly supplied.
+    mapping_types = mapping_types or load_mapping_type_config()
+    prompt = _build_mapping_prompt(features, mapping_types)
+    logger.debug("Requesting mappings for %s features", len(features))
+    response = session.ask(prompt)
+    logger.debug("Raw multi-feature mapping response: %s", response)
+    payload = _parse_mapping_response(response)
+    return _merge_mapping_results(features, payload, mapping_types)
 
 
 __all__ = ["map_feature", "map_features"]
