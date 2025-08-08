@@ -6,12 +6,18 @@ import logging
 import os
 from contextlib import closing, contextmanager
 from functools import lru_cache
-from typing import Dict, Iterator, List, TypeVar
+from typing import Dict, Iterator, List, Sequence, TypeVar
 
 import logfire
 from pydantic import TypeAdapter
 
-from models import MappingItem, ServiceFeaturePlateau, ServiceInput
+from models import (
+    AppConfig,
+    MappingItem,
+    MappingTypeConfig,
+    ServiceFeaturePlateau,
+    ServiceInput,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -100,31 +106,51 @@ def load_prompt_text(prompt_name: str, base_dir: str | None = None) -> str:
 
 @logfire.instrument()
 @lru_cache(maxsize=None)
-def load_mapping_items(base_dir: str = "data") -> Dict[str, list[MappingItem]]:
-    """Return mapping reference data from ``base_dir``.
+def load_mapping_items(
+    mapping_types: Sequence[str] | None = None, base_dir: str = "data"
+) -> Dict[str, list[MappingItem]]:
+    """Return mapping reference data for ``mapping_types`` from ``base_dir``.
 
     Args:
+        mapping_types: Mapping dataset names to load. Defaults to
+            ``("information", "applications", "technologies")``.
         base_dir: Directory containing mapping data files.
 
     Returns:
-        A dictionary with keys ``information``, ``applications`` and
-        ``technologies`` mapping to lists of :class:`MappingItem`.
+        A dictionary mapping each ``mapping_type`` to a list of
+        :class:`MappingItem`.
 
     Raises:
         FileNotFoundError: If a required file is missing.
         RuntimeError: If a file cannot be read or parsed.
     """
 
-    files = {
-        "information": "information.json",
-        "applications": "applications.json",
-        "technologies": "technologies.json",
-    }
+    datasets = mapping_types or ("information", "applications", "technologies")
+    files = {name: f"{name}.json" for name in datasets}
     data: Dict[str, list[MappingItem]] = {}
     for key, filename in files.items():
         path = os.path.join(base_dir, filename)
         data[key] = _read_json_file(path, list[MappingItem])
     return data
+
+
+@logfire.instrument()
+@lru_cache(maxsize=None)
+def load_app_config(base_dir: str = "config", filename: str = "app.json") -> AppConfig:
+    """Return application configuration from ``base_dir``."""
+
+    path = os.path.join(base_dir, filename)
+    return _read_json_file(path, AppConfig)
+
+
+@logfire.instrument()
+@lru_cache(maxsize=None)
+def load_mapping_type_config(
+    base_dir: str = "config", filename: str = "app.json"
+) -> Dict[str, MappingTypeConfig]:
+    """Return mapping type configuration from ``base_dir``."""
+
+    return load_app_config(base_dir, filename).mapping_types
 
 
 @logfire.instrument()
@@ -199,7 +225,7 @@ def load_prompt(
 
 
 @contextmanager
-def load_services(path: str) -> iterator[ServiceInput]:
+def load_services(path: str) -> Iterator[ServiceInput]:
     """Yield services from ``path`` in JSON Lines format.
 
     Each line is parsed as JSON and returned as a dictionary. The function
@@ -220,30 +246,29 @@ def load_services(path: str) -> iterator[ServiceInput]:
 
     def load_services_int(path: str) -> Iterator[ServiceInput]:
         with logfire.span("Calling loader.load_services"):
-
-        adapter = TypeAdapter(ServiceInput)
-        try:
-            with open(path, "r", encoding="utf-8") as file:
-                for line in file:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        yield adapter.validate_json(line)
-                    except Exception as exc:  # pragma: no cover - logging
-                        logger.error("Invalid service entry in %s: %s", path, exc)
-                        raise RuntimeError("Invalid service definition") from exc
-        except FileNotFoundError:  # pragma: no cover - logging
-            logger.error("Services file not found: %s", path)
-            raise FileNotFoundError(
-                "Services file not found. Please create a %s file in the current directory."
-                % path
-            ) from None
-        except Exception as exc:  # pylint: disable=broad-except
-            logger.error("Error reading services file %s: %s", path, exc)
-            raise RuntimeError(
-                f"An error occurred while reading the services file: {exc}"
-            ) from exc
+            adapter = TypeAdapter(ServiceInput)
+            try:
+                with open(path, "r", encoding="utf-8") as file:
+                    for line in file:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            yield adapter.validate_json(line)
+                        except Exception as exc:  # pragma: no cover - logging
+                            logger.error("Invalid service entry in %s: %s", path, exc)
+                            raise RuntimeError("Invalid service definition") from exc
+            except FileNotFoundError:  # pragma: no cover - logging
+                logger.error("Services file not found: %s", path)
+                raise FileNotFoundError(
+                    "Services file not found. Please create a %s file in the current"
+                    " directory." % path
+                ) from None
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.error("Error reading services file %s: %s", path, exc)
+                raise RuntimeError(
+                    f"An error occurred while reading the services file: {exc}"
+                ) from exc
 
     with closing(load_services_int(path)) as items:
         yield items
