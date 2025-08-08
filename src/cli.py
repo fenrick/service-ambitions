@@ -34,7 +34,7 @@ def _configure_logging(args: argparse.Namespace, settings) -> None:
     """Configure the logging subsystem."""
 
     # CLI-specified level takes precedence over configured default
-    level_name = args.log_level or settings.log_level
+    level_name = settings.log_level
     if args.verbose == 1:
         # Single -v flag bumps log level to INFO for clearer output
         level_name = "INFO"
@@ -107,10 +107,6 @@ def main() -> None:
     common.add_argument(
         "--model",
         help="Chat model name. Can also be set via the MODEL env variable.",
-    )
-    common.add_argument(
-        "--log-level",
-        help="Logging level. Can also be set via the LOG_LEVEL env variable.",
     )
     common.add_argument(
         "-v",
