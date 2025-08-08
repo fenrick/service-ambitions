@@ -21,4 +21,3 @@ Metaverse‑grade fully immersive collaboration workspaces; Holographic light‑
 ### Speculative / unlikely to transform the world within 10 years
 
 Hyperloop mass transit beyond isolated test tracks; Space elevators or lunar mass tourism; Stratospheric aerosol geo‑engineering deployed at scale without robust governance; Whole‑brain emulation, mind uploading or full human–AI “mind melds”; Transhumanist genetic performance enhancement approved for population use; Predictive policing deployed nationally without severe backlash; Ambient time‑accelerated or history‑replay simulations in mainstream education; Deep‑sea mining of polymetallic nodules at commercial scale with full ESG consent; Zero‑point or cold‑fusion energy breakthroughs; Faster‑than‑light propulsion for interstellar probes.
-

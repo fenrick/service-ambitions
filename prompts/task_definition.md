@@ -12,4 +12,3 @@ I will give you set of defined services, including description, example service 
 
 Please take the time to review your responses and make thoughtful adjustments. Remember that there's no rush and no wrong answers. Keep your language concise and avoid unnecessary jargon. Focus on including relevant details and background to clarify your topics and ideas without making assumptions. Understand that there won't be a strict 1-1-1 mapping across the provided outputs; instead, document and elaborate as needed. These valuable insights will serve as a foundational draft to strategise the transformation of services.
 Avoid using company names, and describe technologies through their underlying nature, e.g., use a distributed ledger rather than blockchain.
-
