@@ -1,5 +1,9 @@
 # Generate evolution
 
+The evolution workflow spans four plateaus—**Foundational**, **Enhanced**,
+**Experimental** and **Disruptive**—with three calls per plateau (description,
+features, mapping).
+
 ## Running
 
 Example command:
@@ -8,7 +12,7 @@ Example command:
 poetry run python src/cli.py generate-evolution \
   --input-file sample-services.jsonl \
   --output-file evolution.jsonl \
-  --plateaus Foundational Enhanced \
+  --plateaus Foundational Enhanced Experimental Disruptive \
   --customers retail enterprise
 ```
 
@@ -19,9 +23,11 @@ Each line in the output file is a JSON object with:
 ```json
 {
   "service": {
+    "service_id": "string",
     "name": "string",
     "description": "string",
-    "customer_type": "string"
+    "customer_type": "string",
+    "jobs_to_be_done": ["string"]
   },
   "plateaus": [
     {
@@ -43,6 +49,9 @@ Each line in the output file is a JSON object with:
   ]
 }
 ```
+
+The conversation seed for each service includes the `service_id` and
+`jobs_to_be_done` list so that all plateau calls share the same context.
 
 ## Testing
 
