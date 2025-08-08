@@ -10,7 +10,9 @@ from typing import Any, Dict, Iterable
 
 import logfire
 from pydantic import BaseModel
-from pydantic_ai import Agent, models
+from pydantic_ai import Agent
+from pydantic_ai.models import Model
+from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModelSettings
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +27,7 @@ class ServiceAmbitionGenerator:
     """Generate ambitions for services using a Pydantic AI model."""
 
     @logfire.instrument()
-    def __init__(self, model: models.Model, concurrency: int = 5) -> None:
+    def __init__(self, model: Model, concurrency: int = 5) -> None:
         """Initialize the generator.
 
         Args:
@@ -106,9 +108,15 @@ class ServiceAmbitionGenerator:
 
 
 @logfire.instrument()
-def build_model(model_name: str, api_key: str) -> models.Model:
+def build_model(model_name: str, api_key: str) -> Model:
     """Return a configured Pydantic AI model."""
 
     if api_key:
         os.environ.setdefault("OPENAI_API_KEY", api_key)
-    return models.infer_model(model_name)
+    model_name = model_name.split(":", 1)[-1]
+    settings = OpenAIResponsesModelSettings(
+        openai_builtin_tools=[{"type": "web_search"}],
+        openai_reasoning_summary="concise",
+        openai_reasoning_effort="medium",
+    )
+    return OpenAIResponsesModel(model_name, settings=settings)
