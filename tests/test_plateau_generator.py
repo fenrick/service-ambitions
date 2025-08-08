@@ -132,7 +132,8 @@ def test_request_description_invalid_json(monkeypatch) -> None:
     generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
     with pytest.raises(ValueError):
         generator._request_description(cast(ConversationSession, session), 1)
-    assert session.prompts == ["desc 1"]
+    assert len(session.prompts) == 1
+    assert session.prompts[0].startswith("desc 1")
 
 
 def test_generate_service_evolution_filters(monkeypatch) -> None:

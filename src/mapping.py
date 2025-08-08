@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Any, Sequence
 
 from loader import load_mapping_items, load_mapping_prompt
-from models import Contribution, PlateauFeature
+from models import Contribution, MappingResponse, PlateauFeature
 
 if TYPE_CHECKING:  # pragma: no cover - import for type checking only
     from conversation import ConversationSession
@@ -87,6 +87,8 @@ def map_features(
         technology_items=_render_items(mapping_items["technologies"]),
         features=_render_features(features),
     )
+    schema = json.dumps(MappingResponse.model_json_schema(), indent=2)
+    prompt = f"{prompt}\n\nJSON schema:\n{schema}"
     logger.debug("Requesting mappings for %s features", len(features))
     response = session.ask(prompt)
     logger.debug("Raw multi-feature mapping response: %s", response)

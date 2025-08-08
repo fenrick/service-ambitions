@@ -75,10 +75,63 @@ class ServiceEvolution(BaseModel):
     )
 
 
+class DescriptionResponse(BaseModel):
+    """Schema for service description responses."""
+
+    description: str = Field(
+        ..., description="Explanation of the service at a plateau."
+    )
+
+
+class FeatureItem(BaseModel):
+    """Schema for individual plateau features."""
+
+    feature_id: str = Field(
+        ..., description="Unique string identifier for the feature."
+    )
+    name: str = Field(..., description="Short feature title.")
+    description: str = Field(..., description="Explanation of the feature.")
+    score: float = Field(
+        ..., ge=0.0, le=1.0, description="Maturity score between 0 and 1."
+    )
+
+
+class PlateauFeaturesResponse(BaseModel):
+    """Schema for plateau feature generation responses."""
+
+    learners: list[FeatureItem] = Field(..., description="Features for learners.")
+    staff: list[FeatureItem] = Field(..., description="Features for staff.")
+    community: list[FeatureItem] = Field(
+        ..., description="Features for the wider community."
+    )
+
+
+class MappingFeature(BaseModel):
+    """Schema for mapped features."""
+
+    feature_id: str = Field(..., description="Feature identifier.")
+    data: list[Contribution] = Field(..., description="Related data items.")
+    applications: list[Contribution] = Field(..., description="Relevant applications.")
+    technology: list[Contribution] = Field(..., description="Supporting technologies.")
+
+
+class MappingResponse(BaseModel):
+    """Schema for feature mapping responses."""
+
+    features: list[MappingFeature] = Field(
+        ..., description="Collection of features with mapping details."
+    )
+
+
 __all__ = [
     "ServiceInput",
     "PlateauFeature",
     "Contribution",
     "PlateauResult",
     "ServiceEvolution",
+    "DescriptionResponse",
+    "FeatureItem",
+    "PlateauFeaturesResponse",
+    "MappingFeature",
+    "MappingResponse",
 ]
