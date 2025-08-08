@@ -59,7 +59,6 @@ def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
     generator = ServiceAmbitionGenerator(model, concurrency=args.concurrency)
     generator.generate(services, system_prompt, args.output_file)
     logger.info("Results written to %s", args.output_file)
-    logfire.force_flush()
 
 
 def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
@@ -78,7 +77,6 @@ def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
             )
             output.write(f"{evolution.model_dump_json()}\n")
             logger.info("Generated evolution for %s", service.name)
-    logfire.force_flush()
 
 
 def main() -> None:
