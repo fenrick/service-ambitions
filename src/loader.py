@@ -173,6 +173,10 @@ def load_prompt(
 def load_services(path: str) -> Iterator[Dict[str, Any]]:
     """Yield services from ``path`` in JSON Lines format.
 
+    Each line is parsed as JSON and returned as a dictionary. The function
+    validates that ``service_id`` is a string and ``jobs_to_be_done`` is a list
+    of strings if provided.
+
     Args:
         path: Location of the services JSONL file.
 
@@ -181,7 +185,8 @@ def load_services(path: str) -> Iterator[Dict[str, Any]]:
 
     Raises:
         FileNotFoundError: If the file does not exist.
-        RuntimeError: If any line cannot be parsed as JSON.
+        RuntimeError: If any line cannot be parsed as JSON or contains invalid
+            fields.
     """
 
     try:
@@ -190,7 +195,16 @@ def load_services(path: str) -> Iterator[Dict[str, Any]]:
                 line = line.strip()
                 if not line:
                     continue
-                yield json.loads(line)
+                raw = json.loads(line)
+                service_id = raw.get("service_id")
+                if service_id is not None and not isinstance(service_id, str):
+                    logger.error("service_id must be a string: %s", service_id)
+                    raise RuntimeError("service_id must be a string")
+                jobs = raw.get("jobs_to_be_done")
+                if jobs is not None and not isinstance(jobs, list):
+                    logger.error("jobs_to_be_done must be a list: %s", jobs)
+                    raise RuntimeError("jobs_to_be_done must be a list")
+                yield raw
     except FileNotFoundError:  # pragma: no cover - logging
         logger.error("Services file not found: %s", path)
         raise FileNotFoundError(

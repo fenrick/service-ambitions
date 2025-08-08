@@ -44,10 +44,13 @@ class ConversationSession:
             service_input: Metadata describing the service being evaluated.
         """
 
+        jobs = ", ".join(service_input.jobs_to_be_done)
         material = (
+            f"Service ID: {service_input.service_id}\n"
             f"Service name: {service_input.name}\n"
             f"Customer type: {service_input.customer_type or 'N/A'}\n"
-            f"Description: {service_input.description}"
+            f"Description: {service_input.description}\n"
+            f"Jobs to be done: {jobs or 'N/A'}"
         )
         logger.debug("Adding service material to history: %s", material)
         self._history.append(

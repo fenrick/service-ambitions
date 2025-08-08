@@ -82,7 +82,13 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
         "plateau_generator.load_plateau_prompt", lambda *a, **k: template
     )
 
-    service = ServiceInput(name="svc", customer_type="retail", description="desc")
+    service = ServiceInput(
+        service_id="svc-1",
+        name="svc",
+        customer_type="retail",
+        description="desc",
+        jobs_to_be_done=["job"],
+    )
     evolution = generator.generate_service_evolution(service)
     assert isinstance(evolution, ServiceEvolution)
     assert len(evolution.plateaus) == 4

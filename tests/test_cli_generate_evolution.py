@@ -15,7 +15,15 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
     input_path = tmp_path / "services.jsonl"
     output_path = tmp_path / "out.jsonl"
     input_path.write_text(
-        json.dumps({"name": "svc", "description": "desc", "customer_type": "retail"})
+        json.dumps(
+            {
+                "service_id": "svc-1",
+                "name": "svc",
+                "description": "desc",
+                "customer_type": "retail",
+                "jobs_to_be_done": ["job"],
+            }
+        )
         + "\n"
     )
 
@@ -59,13 +67,22 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
 
     payload = json.loads(output_path.read_text().strip())
     assert payload["service"]["name"] == "svc"
+    assert payload["service"]["service_id"] == "svc-1"
 
 
 def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> None:
     input_path = tmp_path / "services.jsonl"
     output_path = tmp_path / "out.jsonl"
     input_path.write_text(
-        json.dumps({"name": "svc", "description": "d", "customer_type": "retail"})
+        json.dumps(
+            {
+                "service_id": "s1",
+                "name": "svc",
+                "description": "d",
+                "customer_type": "retail",
+                "jobs_to_be_done": [],
+            }
+        )
         + "\n"
     )
 

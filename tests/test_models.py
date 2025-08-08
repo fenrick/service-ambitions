@@ -19,7 +19,13 @@ from models import (  # noqa: E402  pylint: disable=wrong-import-position
 def test_service_evolution_contains_plateaus() -> None:
     """Constructing a ServiceEvolution should retain nested models."""
 
-    service = ServiceInput(name="svc", customer_type="retail", description="desc")
+    service = ServiceInput(
+        service_id="svc-1",
+        name="svc",
+        customer_type="retail",
+        description="desc",
+        jobs_to_be_done=["job"],
+    )
     feature = PlateauFeature(
         feature_id="f1",
         name="Feat",
