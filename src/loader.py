@@ -6,7 +6,7 @@ import logging
 import os
 from contextlib import closing, contextmanager
 from functools import lru_cache
-from typing import Dict, Iterator, List, Sequence, TypeVar
+from typing import Dict, Generator, Iterator, List, Sequence, TypeVar
 
 import logfire
 from pydantic import TypeAdapter
@@ -21,12 +21,19 @@ from models import (
 
 logger = logging.getLogger(__name__)
 
-# Directory containing prompt templates. Updated via ``configure_prompt_dir``.
+# Directory containing prompt templates.  Mutable so tests or callers may point
+# to alternative directories via ``configure_prompt_dir``.
 PROMPT_DIR = "prompts"
 
 
 def configure_prompt_dir(path: str) -> None:
-    """Set the base directory for prompt templates."""
+    """Set the base directory for prompt templates.
+
+    Side Effects:
+        Updates the module-level :data:`PROMPT_DIR` used by other loading
+        helpers.  This allows tests or CLI options to override where templates
+        are sourced from.
+    """
 
     global PROMPT_DIR
     PROMPT_DIR = path
@@ -228,7 +235,7 @@ def load_prompt(
 
 
 @contextmanager
-def load_services(path: str) -> Iterator[ServiceInput]:
+def load_services(path: str) -> Iterator[Iterator[ServiceInput]]:
     """Yield services from ``path`` in JSON Lines format.
 
     Each line is parsed as JSON and returned as a dictionary. The function
@@ -247,7 +254,7 @@ def load_services(path: str) -> Iterator[ServiceInput]:
             fields.
     """
 
-    def load_services_int(path: str) -> Iterator[ServiceInput]:
+    def load_services_int(path: str) -> Generator[ServiceInput, None, None]:
         with logfire.span("Calling loader.load_services"):
             adapter = TypeAdapter(ServiceInput)
             try:
