@@ -38,21 +38,6 @@ class DummySession:
         pass
 
 
-def _fake_map_features(
-    session, features, prompt_dir="prompts"
-):  # pragma: no cover - stub
-    results = []
-    for feature in features:
-        payload = feature.model_dump()
-        payload.update(
-            data=[Contribution(item="d", contribution="c")],
-            applications=[Contribution(item="a", contribution="c")],
-            technology=[Contribution(item="t", contribution="c")],
-        )
-        results.append(PlateauFeature(**payload))
-    return results
-
-
 def _feature_payload(count: int) -> str:
     items = [
         {
@@ -77,6 +62,21 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
     session = DummySession(responses)
     generator = PlateauGenerator(cast(ConversationSession, session), required_count=5)
 
+    map_calls = {"n": 0}
+
+    def _fake_map_features(session, features, prompt_dir="prompts"):
+        map_calls["n"] += 1
+        results = []
+        for feature in features:
+            payload = feature.model_dump()
+            payload.update(
+                data=[Contribution(item="d", contribution="c")],
+                applications=[Contribution(item="a", contribution="c")],
+                technology=[Contribution(item="t", contribution="c")],
+            )
+            results.append(PlateauFeature(**payload))
+        return results
+
     monkeypatch.setattr("plateau_generator.map_features", _fake_map_features)
     template = "{required_count} {service_name} {service_description} {plateau}"
     monkeypatch.setattr(
@@ -90,12 +90,18 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
         description="desc",
         jobs_to_be_done=["job"],
     )
-    evolution = generator.generate_service_evolution(service)
+    evolution = generator.generate_service_evolution(
+        service,
+        ["Foundational", "Emerging", "Strategic", "Visionary"],
+        ["learners", "staff", "community"],
+    )
     assert isinstance(evolution, ServiceEvolution)
     assert len(evolution.plateaus) == 4
     assert sum(len(p.features) for p in evolution.plateaus) == 60
     assert all(len(p.features) >= 15 for p in evolution.plateaus)
     assert len(session.prompts) == 8
+    assert map_calls["n"] == 4
+    assert len(session.prompts) + map_calls["n"] == 12
     for plateau in evolution.plateaus:
         for feature in plateau.features:
             assert feature.data
