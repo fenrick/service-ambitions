@@ -34,13 +34,16 @@ def _configure_logging(args: argparse.Namespace, settings) -> None:
 
     level_name = args.log_level or settings.log_level
     if args.verbose == 1:
+        # Single -v flag bumps log level to INFO for clearer output
         level_name = "INFO"
     elif args.verbose >= 2:
+        # Two or more -v flags enable DEBUG for deep troubleshooting
         level_name = "DEBUG"
     logging.basicConfig(
         level=getattr(logging, level_name.upper(), logging.INFO), force=True
     )
     if settings.logfire_token:
+        # Initialize logfire only when a token is configured
         init_logfire(settings.logfire_token)
 
 
@@ -71,6 +74,7 @@ def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
 
     with open(args.output_file, "w", encoding="utf-8") as output:
         for service in load_services(args.input_file):
+            # Generate evolution details for each service sequentially
             session = ConversationSession(agent)
             generator = PlateauGenerator(session)
             evolution = generator.generate_service_evolution(
@@ -85,6 +89,7 @@ def main() -> None:
     """Parse arguments and dispatch to the requested subcommand."""
     settings = load_settings()
     if settings.logfire_token:
+        # Enable logfire integration when a token is provided
         init_logfire(settings.logfire_token)
 
     parser = argparse.ArgumentParser(
@@ -179,4 +184,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    # Allow module to be executed as a standalone script
     main()
