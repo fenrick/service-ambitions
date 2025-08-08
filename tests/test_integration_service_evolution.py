@@ -83,7 +83,11 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
     )
 
     service = ServiceInput(name="svc", customer_type="retail", description="desc")
-    evolution = generator.generate_service_evolution(service)
+    evolution = generator.generate_service_evolution(
+        service,
+        ["Foundational", "Enhanced", "Experimental", "Disruptive"],
+        ["learners", "staff", "community"],
+    )
     assert isinstance(evolution, ServiceEvolution)
     assert len(evolution.plateaus) == 4
     assert sum(len(p.features) for p in evolution.plateaus) == 60
