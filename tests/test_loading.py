@@ -49,9 +49,18 @@ def test_load_mapping_prompt(tmp_path):
 
 def test_load_services_reads_jsonl(tmp_path):
     data = tmp_path / "services.jsonl"
-    data.write_text('{"name": "alpha"}\n\n{"name": "beta"}\n', encoding="utf-8")
+    data.write_text(
+        '{"service_id": "a1", "name": "alpha", "jobs_to_be_done": []}'
+        "\n\n"
+        '{"service_id": "b2", "name": "beta", "jobs_to_be_done": []}'
+        "\n",
+        encoding="utf-8",
+    )
     services = list(load_services(str(data)))
-    assert services == [{"name": "alpha"}, {"name": "beta"}]
+    assert services == [
+        {"service_id": "a1", "name": "alpha", "jobs_to_be_done": []},
+        {"service_id": "b2", "name": "beta", "jobs_to_be_done": []},
+    ]
 
 
 def test_load_services_missing(tmp_path):
@@ -62,7 +71,10 @@ def test_load_services_missing(tmp_path):
 
 def test_load_services_invalid_json(tmp_path):
     bad = tmp_path / "bad.jsonl"
-    bad.write_text('{"name": "alpha"}\n{invalid}\n', encoding="utf-8")
+    bad.write_text(
+        '{"service_id": "a1", "name": "alpha", "jobs_to_be_done": []}' "\n{invalid}\n",
+        encoding="utf-8",
+    )
     with pytest.raises(RuntimeError):
         list(load_services(str(bad)))
 
@@ -70,7 +82,8 @@ def test_load_services_invalid_json(tmp_path):
 def test_valid_fixture_parses():
     path = Path(__file__).parent / "fixtures" / "services-valid.jsonl"
     services = list(load_services(str(path)))
-    assert services[0]["name"] == "alpha"
+    assert services[0]["service_id"] == "svc1"
+    assert services[0]["jobs_to_be_done"] == ["job1"]
     assert services[1]["description"] == "Test"
 
 

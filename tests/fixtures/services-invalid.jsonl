@@ -1,2 +1,2 @@
-{"name": "alpha"}
+{"service_id": "svc1", "name": "alpha", "description": "Desc", "jobs_to_be_done": ["job"]}
 {invalid json}

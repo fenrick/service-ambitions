@@ -17,11 +17,15 @@ class Contribution(BaseModel):
 class ServiceInput(BaseModel):
     """Basic description of a service under consideration."""
 
+    service_id: str = Field(..., description="Unique identifier for the service.")
     name: str = Field(..., description="Human readable service name.")
     customer_type: str | None = Field(
         None, description="Primary customer segment for the service."
     )
     description: str = Field(..., description="Short explanation of the service.")
+    jobs_to_be_done: list[str] = Field(
+        ..., description="Customer jobs the service seeks to address."
+    )
 
 
 class PlateauFeature(BaseModel):

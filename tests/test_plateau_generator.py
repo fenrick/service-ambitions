@@ -74,7 +74,13 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
     monkeypatch.setattr("plateau_generator.map_features", dummy_map_features)
 
     generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
-    service = ServiceInput(name="svc", customer_type="retail", description="desc")
+    service = ServiceInput(
+        service_id="svc-1",
+        name="svc",
+        customer_type="retail",
+        description="desc",
+        jobs_to_be_done=["job"],
+    )
     generator._service = service  # type: ignore[attr-defined]
 
     plateau = generator.generate_plateau(cast(ConversationSession, session), 1)
@@ -93,7 +99,13 @@ def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> None:
     responses = [json.dumps({"description": "desc"}), _feature_payload(1)]
     session = DummySession(responses)
     generator = PlateauGenerator(cast(ConversationSession, session), required_count=2)
-    service = ServiceInput(name="svc", customer_type="retail", description="desc")
+    service = ServiceInput(
+        service_id="svc-1",
+        name="svc",
+        customer_type="retail",
+        description="desc",
+        jobs_to_be_done=["job"],
+    )
     generator._service = service  # type: ignore[attr-defined]
 
     with pytest.raises(ValueError):

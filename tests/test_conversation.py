@@ -35,11 +35,20 @@ def test_add_parent_materials_records_history() -> None:
     """``add_parent_materials`` should append service info to history."""
 
     session = ConversationSession(cast(Agent[None, str], DummyAgent()))
-    service = ServiceInput(name="svc", customer_type=None, description="desc")
+    service = ServiceInput(
+        service_id="svc-1",
+        name="svc",
+        customer_type=None,
+        description="desc",
+        jobs_to_be_done=["job1", "job2"],
+    )
     session.add_parent_materials(service)
 
     assert len(session._history) == 1  # noqa: SLF001 - accessing test-only attribute
     assert isinstance(session._history[0], messages.ModelRequest)
+    material = session._history[0].parts[0].content  # noqa: SLF001
+    assert "Service ID: svc-1" in material
+    assert "Jobs to be done: job1, job2" in material
 
 
 def test_ask_adds_responses_to_history() -> None:

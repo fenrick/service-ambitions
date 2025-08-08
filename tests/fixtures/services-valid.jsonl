@@ -1,2 +1,2 @@
-{"name": "alpha"}
-{"name": "beta", "description": "Test"}
+{"service_id": "svc1", "name": "alpha", "description": "First", "jobs_to_be_done": ["job1"]}
+{"service_id": "svc2", "name": "beta", "description": "Test", "jobs_to_be_done": ["job2"]}
