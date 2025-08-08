@@ -66,6 +66,27 @@ def load_plateau_prompt(
 
 
 @logfire.instrument()
+def load_description_prompt(
+    base_dir: str = "prompts", filename: str = "description_prompt.md"
+) -> str:
+    """Return the service description prompt template.
+
+    Args:
+        base_dir: Directory containing prompt templates.
+        filename: Description prompt file name.
+
+    Returns:
+        Prompt template text.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        RuntimeError: If the file cannot be read.
+    """
+
+    return _read_file(os.path.join(base_dir, filename))
+
+
+@logfire.instrument()
 def load_mapping_prompt(
     base_dir: str = "prompts", filename: str = "mapping_prompt.md"
 ) -> str:
