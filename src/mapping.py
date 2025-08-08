@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import TYPE_CHECKING, Sequence
 
 from loader import load_mapping_items, load_prompt_text
-from models import Contribution, MappingResponse, PlateauFeature
+from models import MappingResponse, PlateauFeature
 
 if TYPE_CHECKING:  # pragma: no cover - import for type checking only
     from conversation import ConversationSession
@@ -97,35 +97,31 @@ def map_features(
     response = session.ask(prompt)
     logger.debug("Raw multi-feature mapping response: %s", response)
     try:
-        payload: dict[str, Any] = json.loads(response)
-    except json.JSONDecodeError as exc:  # pragma: no cover - logging
+        payload = MappingResponse.model_validate_json(response)
+    except Exception as exc:  # pragma: no cover - logging
         logger.error("Invalid JSON from mapping response: %s", exc)
         raise ValueError("Agent returned invalid JSON") from exc
 
-    raw_features = payload.get("features")
-    if not isinstance(raw_features, list):
-        raise ValueError("'features' key missing or invalid")
-    # Build a lookup by ``feature_id`` for efficient merging below; this avoids
-    # repeatedly scanning the list for each feature.
-    mapped_lookup = {item.get("feature_id"): item for item in raw_features}
+    mapped_lookup = {item.feature_id: item for item in payload.features}
 
     results: list[PlateauFeature] = []
     for feature in features:
-        data = mapped_lookup.get(feature.feature_id)
-        if not isinstance(data, dict):
+        mapped = mapped_lookup.get(feature.feature_id)
+        if mapped is None:
             raise ValueError(f"Missing mappings for feature {feature.feature_id}")
-        mapped: dict[str, list[Contribution]] = {}
         for key in ("data", "applications", "technology"):
-            raw_list = data.get(key)
-            if not isinstance(raw_list, list) or not raw_list:
+            if not getattr(mapped, key):
                 raise ValueError(
                     f"'{key}' key missing or empty for feature {feature.feature_id}"
                 )
-            # Convert dictionaries from the agent into strongly typed records so
-            # callers always receive validated ``Contribution`` objects.
-            mapped[key] = [Contribution(**item) for item in raw_list]
-        merged = {**feature.model_dump(), **mapped}
-        results.append(PlateauFeature(**merged))
+        merged = feature.model_copy(
+            update={
+                "data": mapped.data,
+                "applications": mapped.applications,
+                "technology": mapped.technology,
+            }
+        )
+        results.append(merged)
     return results
 
 

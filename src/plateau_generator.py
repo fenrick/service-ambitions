@@ -10,6 +10,7 @@ from loader import load_prompt_text
 from mapping import map_features
 from models import (
     DescriptionResponse,
+    FeatureItem,
     PlateauFeature,
     PlateauFeaturesResponse,
     PlateauResult,
@@ -55,28 +56,22 @@ class PlateauGenerator:
         # description becomes part of the evolving chat history.
         response = self.session.ask(prompt)
         try:
-            payload = json.loads(response)
-            description = payload["description"]
-        except (json.JSONDecodeError, KeyError) as exc:  # pragma: no cover - logging
+            description = DescriptionResponse.model_validate_json(response).description
+        except Exception as exc:  # pragma: no cover - logging
             logger.error("Invalid plateau description: %s", exc)
             raise ValueError("Agent returned invalid plateau description") from exc
-        if not isinstance(description, str) or not description:
+        if not description:
             raise ValueError("'description' must be a non-empty string")
         return description
 
-    def _to_feature(self, item: dict[str, str], customer: str) -> PlateauFeature:
-        """Return a :class:`PlateauFeature` built from ``item``.
-
-        Args:
-            item: Raw feature dictionary supplied by the agent.
-            customer: Customer type the feature addresses.
-        """
+    def _to_feature(self, item: FeatureItem, customer: str) -> PlateauFeature:
+        """Return a :class:`PlateauFeature` built from ``item``."""
 
         return PlateauFeature(
-            feature_id=item["feature_id"],
-            name=item["name"],
-            description=item["description"],
-            score=float(item["score"]),
+            feature_id=item.feature_id,
+            name=item.name,
+            description=item.description,
+            score=item.score,
             customer_type=customer,
         )
 
@@ -110,23 +105,19 @@ class PlateauGenerator:
         # in the same context as previous interactions.
         response = self.session.ask(prompt)
         try:
-            payload = json.loads(response)
-        except json.JSONDecodeError as exc:  # pragma: no cover - logging
+            payload = PlateauFeaturesResponse.model_validate_json(response)
+        except Exception as exc:  # pragma: no cover - logging
             logger.error("Invalid JSON from feature response: %s", exc)
             raise ValueError("Agent returned invalid JSON") from exc
 
         features: list[PlateauFeature] = []
         for customer in ("learners", "staff", "community"):
-            raw_features = payload.get(customer)
-            if (
-                not isinstance(raw_features, list)
-                or len(raw_features) < self.required_count
-            ):
+            raw_features = getattr(payload, customer)
+            if len(raw_features) < self.required_count:
                 raise ValueError(
                     f"Insufficient number of features returned for {customer}"
                 )
             for item in raw_features:
-                # Normalise the raw dictionary into a strongly typed feature.
                 features.append(self._to_feature(item, customer))
         # Enrich the raw features with mapping information before returning.
         mapped = map_features(self.session, features)
