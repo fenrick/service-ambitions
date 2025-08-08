@@ -143,7 +143,8 @@ class PlateauGenerator:
         )
 
     def generate_service_evolution(
-        self, service_input: ServiceInput
+        self,
+        service_input: ServiceInput,
     ) -> ServiceEvolution:
         """Return service evolution for selected plateaus and customers.
 
