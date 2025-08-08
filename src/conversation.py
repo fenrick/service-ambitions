@@ -72,6 +72,8 @@ class ConversationSession:
         """
 
         logger.info("Sending prompt: %s", prompt)
+        # ``asyncio.run`` bridges the synchronous API with the async agent,
+        # creating a temporary event loop for each call.
         result = asyncio.run(self.client.run(prompt, message_history=self._history))
         self._history.extend(result.new_messages())
         logger.info("Received response: %s", result.output)

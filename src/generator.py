@@ -1,4 +1,9 @@
-"""Async ambition generation using Pydantic AI."""
+"""Async ambition generation using Pydantic AI.
+
+This module orchestrates concurrent requests to an LLM and streams the
+resulting ambitions directly to disk.  Concurrency is carefully controlled to
+avoid overwhelming upstream APIs while still maximising throughput.
+"""
 
 from __future__ import annotations
 
@@ -19,13 +24,23 @@ logger = logging.getLogger(__name__)
 
 
 class AmbitionModel(BaseModel):
-    """Structured ambitions response allowing arbitrary keys."""
+    """Structured ambitions response allowing arbitrary keys.
+
+    The model mirrors the flexible JSON returned by the agent.  Allowing extra
+    fields means callers are free to introduce new ambition categories without
+    having to update the schema.
+    """
 
     model_config = {"extra": "allow"}
 
 
 class ServiceAmbitionGenerator:
-    """Generate ambitions for services using a Pydantic AI model."""
+    """Generate ambitions for services using a Pydantic AI model.
+
+    Instances manage a bounded pool of concurrent workers and reuse the input
+    model across requests.  Prompts are provided per ``generate`` invocation to
+    keep the class stateless between runs.
+    """
 
     @logfire.instrument()
     def __init__(self, model: Model, concurrency: int = 5) -> None:
@@ -74,6 +89,13 @@ class ServiceAmbitionGenerator:
         output_file,
         semaphore: asyncio.Semaphore,
     ) -> None:
+        """Write ambitions for a single ``service`` to ``output_file``.
+
+        The coroutine acquires ``semaphore`` to ensure only a limited number of
+        requests run concurrently.  Any errors from the model are logged and the
+        service is skipped rather than aborting the entire batch.
+        """
+
         async with semaphore:
             # The semaphore keeps the number of in-flight requests under the
             # configured threshold, protecting the API from overload.
@@ -100,6 +122,8 @@ class ServiceAmbitionGenerator:
         services: Iterable[ServiceInput],
         output_file,
     ) -> None:
+        """Dispatch worker tasks for ``services`` and await completion."""
+
         # Semaphore coordinates concurrent worker tasks so only ``concurrency``
         # requests run at any given time.
         semaphore = asyncio.Semaphore(self.concurrency)
@@ -135,7 +159,12 @@ class ServiceAmbitionGenerator:
 
 @logfire.instrument()
 def build_model(model_name: str, api_key: str) -> Model:
-    """Return a configured Pydantic AI model."""
+    """Return a configured Pydantic AI model.
+
+    The OpenAI client reads its API key from the environment.  Supplying the key
+    explicitly here ensures downstream libraries can locate it without coupling
+    callers to environment management.
+    """
 
     if api_key:
         # Expose the key via environment variables for model libraries that
