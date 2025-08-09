@@ -98,3 +98,44 @@ def test_with_retry_fails_fast_on_non_transient(monkeypatch):
         )
 
     assert calls["count"] == 1
+
+
+def test_with_retry_honours_retry_after(monkeypatch):
+    """Retry-After hints extend the backoff delay."""
+
+    class DummyRateLimitError(Exception):
+        """Minimal RateLimitError stub with headers."""
+
+        def __init__(self) -> None:
+            self.response = SimpleNamespace(headers={"Retry-After": "10"})
+
+    attempts = {"count": 0}
+
+    async def flaky():
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            raise DummyRateLimitError()
+        return "ok"
+
+    slept = {"delay": 0.0}
+
+    async def fake_sleep(seconds: float) -> None:
+        slept["delay"] = seconds
+
+    monkeypatch.setattr(generator, "RateLimitError", DummyRateLimitError)
+    monkeypatch.setattr(
+        generator,
+        "TRANSIENT_EXCEPTIONS",
+        generator.TRANSIENT_EXCEPTIONS + (DummyRateLimitError,),
+    )
+    monkeypatch.setattr(generator.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(generator.random, "random", lambda: 0.0)
+
+    result = asyncio.run(
+        generator._with_retry(
+            lambda: flaky(), request_timeout=0.1, attempts=2, base=0.1
+        )
+    )
+
+    assert result == "ok"
+    assert slept["delay"] == 10.0
