@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
@@ -53,23 +54,24 @@ def _configure_logging(args: argparse.Namespace, settings) -> None:
         init_logfire(settings.logfire_token)
 
 
+async def _run_generate(settings, args) -> None:
+    """Asynchronous helper for the generate-ambitions command."""
+
+    configure_prompt_dir(settings.prompt_dir)
+    prompt = load_prompt(settings.context_id, settings.inspiration)
+    model_name = args.model or settings.model
+    model = build_model(model_name, settings.openai_api_key)
+    logger.info("Generating ambitions using model %s", model_name)
+
+    gen = ServiceAmbitionGenerator(model, concurrency=settings.concurrency)
+    with load_services(args.input_file) as it:
+        await gen.generate_async(it, prompt, args.output_file)
+
+
 def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
     """Generate service ambitions and write them to disk."""
 
-    # Load prompt components from the configured directory
-    configure_prompt_dir(settings.prompt_dir)
-    system_prompt = load_prompt(settings.context_id, settings.inspiration)
-    with load_services(args.input_file) as service_iter:
-        services = list(service_iter)
-    logger.debug("Loaded %d services from %s", len(services), args.input_file)
-
-    # Prefer model specified on the CLI, falling back to settings
-    model_name = args.model or settings.model
-    logger.info("Generating ambitions using model %s", model_name)
-
-    model = build_model(model_name, settings.openai_api_key)
-    generator = ServiceAmbitionGenerator(model, concurrency=settings.concurrency)
-    generator.generate(services, system_prompt, args.output_file)
+    asyncio.run(_run_generate(settings, args))
     logger.info("Results written to %s", args.output_file)
 
 

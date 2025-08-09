@@ -145,7 +145,15 @@ class ServiceAmbitionGenerator:
                     line = AmbitionModel.model_validate(result).model_dump_json()
                     await queue.put(line)
 
-            await asyncio.gather(*(run_one(svc) for svc in services))
+            pending: set[asyncio.Task[None]] = set()
+            for svc in services:
+                pending.add(asyncio.create_task(run_one(svc)))
+                if len(pending) >= self.concurrency:
+                    _, pending = await asyncio.wait(
+                        pending, return_when=asyncio.FIRST_COMPLETED
+                    )
+            if pending:
+                await asyncio.gather(*pending)
             await queue.put(None)
             await writer
         finally:
@@ -153,13 +161,13 @@ class ServiceAmbitionGenerator:
                 writer.cancel()
 
     @logfire.instrument()
-    def generate(
+    async def generate_async(
         self,
         services: Iterable[ServiceInput],
         prompt: str,
         output_path: str,
     ) -> None:
-        """Process ``services`` and write ambitions to ``output_path``.
+        """Asynchronously process ``services`` and stream results to ``output_path``.
 
         Args:
             services: Collection of services requiring ambition generation.
@@ -175,15 +183,32 @@ class ServiceAmbitionGenerator:
 
         self._prompt = prompt
         try:
-            # Run the async processing loop and stream results directly to disk
-            # to avoid storing large intermediate data sets.
-            asyncio.run(self._process_all(services, output_path))
+            await self._process_all(services, output_path)
         except Exception as exc:  # pylint: disable=broad-except
             logger.error("Failed to write results to %s: %s", output_path, exc)
             raise
         finally:
-            # Ensure the instance remains stateless after generation completes.
             self._prompt = None
+
+    @logfire.instrument()
+    def generate(
+        self,
+        services: Iterable[ServiceInput],
+        prompt: str,
+        output_path: str,
+    ) -> None:
+        """Synchronously process ``services`` and write ambitions to ``output_path``.
+
+        This is a thin wrapper around :meth:`generate_async` for callers that
+        do not wish to manage the event loop.
+
+        Args:
+            services: Collection of services requiring ambition generation.
+            prompt: Instructions guiding the model's output.
+            output_path: Destination path for the JSONL results.
+        """
+
+        asyncio.run(self.generate_async(services, prompt, output_path))
 
 
 @logfire.instrument()
