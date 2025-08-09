@@ -274,24 +274,28 @@ class ServiceAmbitionGenerator:
             """
 
             async with sem:
-                logger.info("Processing service %s", service.name)
-                try:
-                    result = await self.process_service(service)
-                except Exception as exc:  # pylint: disable=broad-except
-                    # Continue processing other services but record the failure.
-                    logger.error(
-                        "Failed to process service %s: %s",
-                        service.name,
-                        exc,
-                    )
-                    return
-                line = AmbitionModel.model_validate(result).model_dump_json()
-                async with lock:
-                    handle.write(f"{line}\n")
-                    processed.add(service.service_id)
-                if progress:
-                    # Advance the progress bar for each completed service.
-                    progress.update(1)
+                with logfire.span("process_service"):
+                    logfire.set_attribute("service.id", service.service_id)  # type: ignore[attr-defined]
+                    if service.customer_type:
+                        logfire.set_attribute("customer_type", service.customer_type)  # type: ignore[attr-defined]
+                    logger.info("Processing service %s", service.name)
+                    try:
+                        result = await self.process_service(service)
+                    except Exception as exc:  # pylint: disable=broad-except
+                        # Continue processing other services but record the failure.
+                        logger.error(
+                            "Failed to process service %s: %s",
+                            service.name,
+                            exc,
+                        )
+                        return
+                    line = AmbitionModel.model_validate(result).model_dump_json()
+                    async with lock:
+                        handle.write(f"{line}\n")
+                        processed.add(service.service_id)
+                    if progress:
+                        # Advance the progress bar for each completed service.
+                        progress.update(1)
 
         with open(out_path, "a", encoding="utf-8") as handle:
             async with TaskGroup() as tg:
@@ -371,7 +375,7 @@ def build_model(model_name: str, api_key: str, *, seed: int | None = None) -> Mo
         openai_builtin_tools=[{"type": "web_search_preview"}],
         openai_reasoning_summary="concise",
         openai_reasoning_effort="medium",
-        **extra,
+        **extra,  # type: ignore[typeddict-item]
     )
     return OpenAIResponsesModel(model_name, settings=settings)
 

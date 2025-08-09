@@ -13,6 +13,8 @@ import json
 import logging
 from typing import Sequence
 
+import logfire
+
 from conversation import ConversationSession
 from loader import load_app_config, load_prompt_text
 from mapping import map_features
@@ -141,15 +143,18 @@ class PlateauGenerator:
 
         features: list[PlateauFeature] = []
         for customer in ("learners", "staff", "community"):
-            raw_features = getattr(payload, customer)
-            if len(raw_features) < self.required_count:
-                # Enforce minimum feature count for each customer segment.
-                raise ValueError(
-                    f"Insufficient number of features returned for {customer}"
-                )
-            for item in raw_features:
-                # Convert each raw item into a structured plateau feature.
-                features.append(self._to_feature(item, customer))
+            with logfire.span(
+                "collect_features", attributes={"customer_type": customer}
+            ):
+                raw_features = getattr(payload, customer)
+                if len(raw_features) < self.required_count:
+                    # Enforce minimum feature count for each customer segment.
+                    raise ValueError(
+                        f"Insufficient number of features returned for {customer}"
+                    )
+                for item in raw_features:
+                    # Convert each raw item into a structured plateau feature.
+                    features.append(self._to_feature(item, customer))
         return features
 
     async def generate_plateau(self, level: int, plateau_name: str) -> PlateauResult:
@@ -172,6 +177,9 @@ class PlateauGenerator:
                 "ServiceInput not set. Call generate_service_evolution first."
             )
 
+        logfire.set_attribute("service.id", self._service.service_id)  # type: ignore[attr-defined]
+        logfire.set_attribute("plateau", level)  # type: ignore[attr-defined]
+
         # Ask the model to describe the service at the specified plateau level.
         description = await self._request_description(level)
         prompt = self._build_plateau_prompt(level, description)
@@ -191,6 +199,7 @@ class PlateauGenerator:
             features=mapped,
         )
 
+    @logfire.instrument()
     async def generate_service_evolution(
         self,
         service_input: ServiceInput,
@@ -215,6 +224,10 @@ class PlateauGenerator:
             the conversation session with its details.
         """
         self._service = service_input
+
+        logfire.set_attribute("service.id", service_input.service_id)  # type: ignore[attr-defined]
+        if service_input.customer_type:
+            logfire.set_attribute("customer_type", service_input.customer_type)  # type: ignore[attr-defined]
 
         # Seed the conversation so later model queries have the service context.
         self.session.add_parent_materials(service_input)
