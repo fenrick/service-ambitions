@@ -12,7 +12,7 @@ import logging
 import os
 import random
 from asyncio import Lock, Semaphore, TaskGroup
-from typing import Any, Awaitable, Callable, Iterable, TypeVar
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, TypeVar
 
 import logfire
 from pydantic import BaseModel
@@ -34,21 +34,84 @@ T = TypeVar("T")
 
 # Transient failures that warrant a retry. Provider specific errors are optional
 # to avoid hard dependencies when the SDK is absent.
-try:
-    from openai import APIConnectionError, APIError, RateLimitError
-except Exception:  # pragma: no cover - openai may be missing
-    TRANSIENT_EXCEPTIONS: tuple[type[BaseException], ...] = (
-        asyncio.TimeoutError,
-        ConnectionError,
+if TYPE_CHECKING:  # pragma: no cover - used for type hints only
+    from openai import (
+        APIConnectionError as OpenAIAPIConnectionError,
     )
-else:  # pragma: no cover - exercised when openai is available
-    TRANSIENT_EXCEPTIONS = (
-        asyncio.TimeoutError,
-        ConnectionError,
-        APIError,
-        APIConnectionError,
-        RateLimitError,
+    from openai import (
+        APIError as OpenAIAPIError,
     )
+    from openai import (
+        RateLimitError as OpenAIRateLimitError,
+    )
+else:  # pragma: no cover - openai may be missing
+    try:
+        from openai import (
+            APIConnectionError as OpenAIAPIConnectionError,
+        )
+        from openai import (
+            APIError as OpenAIAPIError,
+        )
+        from openai import (
+            RateLimitError as OpenAIRateLimitError,
+        )
+    except Exception:
+
+        class OpenAIAPIConnectionError(Exception):  # type: ignore[empty-body]
+            """Fallback when OpenAI SDK is absent."""
+
+        class OpenAIAPIError(Exception):  # type: ignore[empty-body]
+            """Fallback when OpenAI SDK is absent."""
+
+        class OpenAIRateLimitError(Exception):  # type: ignore[empty-body]
+            """Fallback when OpenAI SDK is absent."""
+
+
+TRANSIENT_EXCEPTIONS: tuple[type[BaseException], ...] = (
+    asyncio.TimeoutError,
+    ConnectionError,
+    OpenAIAPIError,
+    OpenAIAPIConnectionError,
+    OpenAIRateLimitError,
+)
+
+RateLimitError = OpenAIRateLimitError
+
+
+def _retry_after_seconds(exc: BaseException) -> float | None:
+    """Return ``Retry-After`` hint in seconds if available.
+
+    Providers may include a ``Retry-After`` header on rate limit errors to
+    indicate how long clients should pause before retrying.  When present, this
+    delay is returned in seconds; otherwise ``None`` is returned.
+
+    Args:
+        exc: Exception raised by the provider.
+
+    Returns:
+        Suggested delay in seconds or ``None`` if unavailable.
+    """
+
+    if RateLimitError is not None and isinstance(exc, RateLimitError):
+        headers = getattr(getattr(exc, "response", None), "headers", {})
+        # Header keys may vary in capitalisation
+        retry_after = headers.get("Retry-After") or headers.get("retry-after")
+        if retry_after is None:
+            return None
+        try:
+            return float(retry_after)
+        except (TypeError, ValueError):
+            try:
+                from datetime import datetime, timezone
+                from email.utils import parsedate_to_datetime
+
+                dt = parsedate_to_datetime(retry_after)
+                if dt is None:
+                    return None
+                return max(0.0, (dt - datetime.now(timezone.utc)).total_seconds())
+            except Exception:  # pragma: no cover - best effort parsing
+                return None
+    return None
 
 
 async def _with_retry(
@@ -83,11 +146,14 @@ async def _with_retry(
     for attempt in range(attempts):
         try:
             return await asyncio.wait_for(coro_factory(), timeout=request_timeout)
-        except TRANSIENT_EXCEPTIONS:  # pragma: no cover - handled retries
+        except TRANSIENT_EXCEPTIONS as exc:  # pragma: no cover - handled retries
             if attempt == attempts - 1:
                 raise
             delay = min(cap, base * (2**attempt))
             delay *= 1 + random.random() * 0.25
+            hint = _retry_after_seconds(exc)
+            if hint is not None:
+                delay = max(delay, hint)
             await asyncio.sleep(delay)
     raise RuntimeError("Unreachable retry state")
 
@@ -187,7 +253,7 @@ class ServiceAmbitionGenerator:
         self,
         services: Iterable[ServiceInput],
         out_path: str,
-        progress: tqdm | None = None,
+        progress: tqdm[Any] | None = None,
     ) -> set[str]:
         """Process ``services`` and stream results to ``out_path``.
 
@@ -240,7 +306,7 @@ class ServiceAmbitionGenerator:
         services: Iterable[ServiceInput],
         prompt: str,
         output_path: str,
-        progress: tqdm | None = None,
+        progress: tqdm[Any] | None = None,
     ) -> set[str]:
         """Process ``services`` lazily and write ambitions to ``output_path``.
 
