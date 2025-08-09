@@ -39,18 +39,12 @@ if TYPE_CHECKING:  # pragma: no cover - used for type hints only
         APIConnectionError as OpenAIAPIConnectionError,
     )
     from openai import (
-        APIError as OpenAIAPIError,
-    )
-    from openai import (
         RateLimitError as OpenAIRateLimitError,
     )
 else:  # pragma: no cover - openai may be missing
     try:
         from openai import (
             APIConnectionError as OpenAIAPIConnectionError,
-        )
-        from openai import (
-            APIError as OpenAIAPIError,
         )
         from openai import (
             RateLimitError as OpenAIRateLimitError,
@@ -60,9 +54,6 @@ else:  # pragma: no cover - openai may be missing
         class OpenAIAPIConnectionError(Exception):  # type: ignore[empty-body]
             """Fallback when OpenAI SDK is absent."""
 
-        class OpenAIAPIError(Exception):  # type: ignore[empty-body]
-            """Fallback when OpenAI SDK is absent."""
-
         class OpenAIRateLimitError(Exception):  # type: ignore[empty-body]
             """Fallback when OpenAI SDK is absent."""
 
@@ -70,7 +61,6 @@ else:  # pragma: no cover - openai may be missing
 TRANSIENT_EXCEPTIONS: tuple[type[BaseException], ...] = (
     asyncio.TimeoutError,
     ConnectionError,
-    OpenAIAPIError,
     OpenAIAPIConnectionError,
     OpenAIRateLimitError,
 )

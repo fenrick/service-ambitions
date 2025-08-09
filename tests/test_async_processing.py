@@ -100,6 +100,32 @@ def test_with_retry_fails_fast_on_non_transient(monkeypatch):
     assert calls["count"] == 1
 
 
+def test_with_retry_fails_fast_on_provider_api_error(monkeypatch):
+    """Generic provider API errors are not retried."""
+
+    from openai import OpenAIError
+
+    calls = {"count": 0}
+
+    async def fail() -> None:
+        calls["count"] += 1
+        raise OpenAIError("boom")
+
+    async def fast_sleep(_: float) -> None:
+        return None
+
+    monkeypatch.setattr(generator.asyncio, "sleep", fast_sleep)
+
+    with pytest.raises(OpenAIError):
+        asyncio.run(
+            generator._with_retry(
+                lambda: fail(), request_timeout=0.1, attempts=5, base=0.01
+            )
+        )
+
+    assert calls["count"] == 1
+
+
 def test_with_retry_honours_retry_after(monkeypatch):
     """Retry-After hints extend the backoff delay."""
 
