@@ -10,17 +10,58 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from typing import Any, Dict, Iterable
+import random
+from typing import Any, Awaitable, Callable, Dict, Iterable
 
 import logfire
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.models import Model
-from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModelSettings
+from pydantic_ai.models.openai import (
+    OpenAIResponsesModel,
+    OpenAIResponsesModelSettings,
+)
 
 from models import ServiceInput
 
 logger = logging.getLogger(__name__)
+
+
+async def _with_retry(
+    coro_factory: Callable[[], Awaitable[Any]],
+    *,
+    attempts: int = 5,
+    base: float = 0.5,
+    cap: float = 8.0,
+) -> Any:
+    """Execute ``coro_factory`` with exponential backoff and jitter.
+
+    Each attempt is wrapped in ``asyncio.wait_for`` to enforce a sixty second
+    timeout. Transient failures trigger a retry with exponential backoff capped
+    at ``cap`` seconds and up to twenty-five percent random jitter.
+
+    Args:
+        coro_factory: Factory returning the coroutine to execute.
+        attempts: Maximum number of attempts before giving up.
+        base: Initial delay in seconds used for backoff.
+        cap: Maximum backoff in seconds.
+
+    Returns:
+        The result of the successful coroutine.
+
+    Raises:
+        Exception: Propagates the last exception if all attempts fail.
+    """
+
+    for attempt in range(attempts):
+        try:
+            return await asyncio.wait_for(coro_factory(), timeout=60)
+        except Exception:  # pragma: no cover - broad for retry
+            if attempt == attempts - 1:
+                raise
+            delay = min(cap, base * (2**attempt))
+            delay *= 1 + random.random() * 0.25
+            await asyncio.sleep(delay)
 
 
 class AmbitionModel(BaseModel):
@@ -92,10 +133,12 @@ class ServiceAmbitionGenerator:
             raise ValueError("prompt must be provided")
         agent = Agent(self.model, instructions=instructions)
         service_details = service.model_dump_json()
-        result = await agent.run(service_details, output_type=AmbitionModel)
+        result = await _with_retry(
+            lambda: agent.run(service_details, output_type=AmbitionModel)
+        )
         return result.output.model_dump()
 
-    async def _writer(self, out_path: str, queue: asyncio.Queue[str]) -> None:
+    async def _writer(self, out_path: str, queue: asyncio.Queue[str | None]) -> None:
         """Serialise writes from ``queue`` to ``out_path``.
 
         Args:
@@ -126,7 +169,7 @@ class ServiceAmbitionGenerator:
         """
 
         semaphore = asyncio.Semaphore(self.concurrency)
-        queue: asyncio.Queue[str] = asyncio.Queue(maxsize=self.concurrency * 2)
+        queue: asyncio.Queue[str | None] = asyncio.Queue(maxsize=self.concurrency * 2)
         writer = asyncio.create_task(self._writer(out_path, queue))
         try:
 
