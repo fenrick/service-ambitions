@@ -30,8 +30,9 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         return object()
 
     class DummyAgent:  # pragma: no cover - simple stub
-        def __init__(self, model: object) -> None:
+        def __init__(self, model: object, instructions: str) -> None:
             self.model = model
+            self.instructions = instructions
 
     def fake_generate(self, service: ServiceInput) -> ServiceEvolution:
         return ServiceEvolution(service=service, plateaus=[])
@@ -41,6 +42,8 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(
         "cli.PlateauGenerator.generate_service_evolution", fake_generate
     )
+    monkeypatch.setattr("cli.configure_prompt_dir", lambda _path: None)
+    monkeypatch.setattr("cli.load_prompt", lambda _ctx, _insp: "prompt")
     monkeypatch.setattr("cli.logfire.force_flush", lambda: None)
 
     settings = SimpleNamespace(
@@ -49,6 +52,9 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         openai_api_key="key",
         logfire_token=None,
         concurrency=2,
+        prompt_dir="prompts",
+        context_id="university",
+        inspiration="general",
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -90,8 +96,11 @@ def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> None:
         return "model"
 
     class DummyAgent:
-        def __init__(self, model: object) -> None:  # pragma: no cover - simple init
+        def __init__(
+            self, model: object, instructions: str
+        ) -> None:  # pragma: no cover - simple init
             captured["agent_model"] = model
+            captured["instructions"] = instructions
 
     def fake_generate(self, service: ServiceInput) -> ServiceEvolution:
         return ServiceEvolution(service=service, plateaus=[])
@@ -101,6 +110,8 @@ def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(
         "cli.PlateauGenerator.generate_service_evolution", fake_generate
     )
+    monkeypatch.setattr("cli.configure_prompt_dir", lambda _path: None)
+    monkeypatch.setattr("cli.load_prompt", lambda _ctx, _insp: "prompt")
     monkeypatch.setattr("cli.logfire.force_flush", lambda: None)
 
     settings = SimpleNamespace(
@@ -109,6 +120,9 @@ def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> None:
         openai_api_key="key",
         logfire_token=None,
         concurrency=1,
+        prompt_dir="prompts",
+        context_id="ctx",
+        inspiration="insp",
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -142,8 +156,11 @@ def test_generate_evolution_respects_concurrency(tmp_path, monkeypatch) -> None:
     )
 
     class DummyAgent:
-        def __init__(self, model: object) -> None:  # pragma: no cover - simple init
+        def __init__(
+            self, model: object, instructions: str
+        ) -> None:  # pragma: no cover - simple init
             self.model = model
+            self.instructions = instructions
 
     def fake_build_model(
         model_name: str, api_key: str
@@ -177,6 +194,8 @@ def test_generate_evolution_respects_concurrency(tmp_path, monkeypatch) -> None:
         "cli.PlateauGenerator.generate_service_evolution", fake_generate
     )
     monkeypatch.setattr("cli.ThreadPoolExecutor", DummyExecutor)
+    monkeypatch.setattr("cli.configure_prompt_dir", lambda _path: None)
+    monkeypatch.setattr("cli.load_prompt", lambda _ctx, _insp: "prompt")
     monkeypatch.setattr("cli.logfire.force_flush", lambda: None)
 
     settings = SimpleNamespace(
@@ -185,6 +204,9 @@ def test_generate_evolution_respects_concurrency(tmp_path, monkeypatch) -> None:
         openai_api_key="k",
         logfire_token=None,
         concurrency=3,
+        prompt_dir="prompts",
+        context_id="ctx",
+        inspiration="insp",
     )
     args = argparse.Namespace(
         input_file=str(input_path),
