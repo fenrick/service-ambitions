@@ -32,6 +32,25 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
+# Transient failures that warrant a retry. Provider specific errors are optional
+# to avoid hard dependencies when the SDK is absent.
+try:
+    from openai import APIConnectionError, APIError, RateLimitError
+except Exception:  # pragma: no cover - openai may be missing
+    TRANSIENT_EXCEPTIONS: tuple[type[BaseException], ...] = (
+        asyncio.TimeoutError,
+        ConnectionError,
+    )
+else:  # pragma: no cover - exercised when openai is available
+    TRANSIENT_EXCEPTIONS = (
+        asyncio.TimeoutError,
+        ConnectionError,
+        APIError,
+        APIConnectionError,
+        RateLimitError,
+    )
+
+
 async def _with_retry(
     coro_factory: Callable[[], Awaitable[T]],
     *,
@@ -43,8 +62,9 @@ async def _with_retry(
     """Execute ``coro_factory`` with exponential backoff and jitter.
 
     Each attempt is wrapped in ``asyncio.wait_for`` to enforce a sixty second
-    timeout. Transient failures trigger a retry with exponential backoff capped
-    at ``cap`` seconds and up to twenty-five percent random jitter.
+    timeout. Only transient network or provider errors listed in
+    ``TRANSIENT_EXCEPTIONS`` trigger a retry with exponential backoff capped at
+    ``cap`` seconds and up to twenty-five percent random jitter.
 
     Args:
         coro_factory: Factory returning the coroutine to execute.
@@ -56,13 +76,14 @@ async def _with_retry(
         The result of the successful coroutine.
 
     Raises:
-        Exception: Propagates the last exception if all attempts fail.
+        Exception: Propagates the last exception if all attempts fail or if the
+            error is not transient.
     """
 
     for attempt in range(attempts):
         try:
             return await asyncio.wait_for(coro_factory(), timeout=request_timeout)
-        except Exception:  # pragma: no cover - broad for retry
+        except TRANSIENT_EXCEPTIONS:  # pragma: no cover - handled retries
             if attempt == attempts - 1:
                 raise
             delay = min(cap, base * (2**attempt))
