@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     concurrency: int = Field(
         ..., ge=1, description="Number of services to process concurrently."
     )
+    batch_size: int | None = Field(
+        None, ge=1, description="Number of services to schedule per batch."
+    )
     request_timeout: int = Field(
         60, gt=0, description="Per-request timeout in seconds."
     )
@@ -66,6 +69,7 @@ def load_settings() -> Settings:
         "context_id": config.context_id,
         "inspiration": config.inspiration,
         "concurrency": config.concurrency,
+        "batch_size": config.batch_size,
         "request_timeout": config.request_timeout,
         "retries": config.retries,
         "retry_base_delay": config.retry_base_delay,

@@ -38,6 +38,7 @@ def test_cli_generates_output(tmp_path, monkeypatch):
         context_id="ctx",
         inspiration="insp",
         concurrency=2,
+        batch_size=5,
         openai_api_key="dummy",
         logfire_token=None,
     )
@@ -95,6 +96,7 @@ def test_cli_dry_run_skips_processing(tmp_path, monkeypatch):
         context_id="ctx",
         inspiration="insp",
         concurrency=1,
+        batch_size=5,
         openai_api_key="dummy",
         logfire_token=None,
     )
@@ -155,6 +157,7 @@ def test_cli_switches_context(tmp_path, monkeypatch):
         context_id="beta",
         inspiration="general",
         concurrency=1,
+        batch_size=5,
         openai_api_key="dummy",
         logfire_token=None,
     )
@@ -206,6 +209,7 @@ def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
         context_id="university",
         inspiration="general",
         concurrency=1,
+        batch_size=5,
         openai_api_key="dummy",
         logfire_token=None,
     )
@@ -268,6 +272,7 @@ def test_cli_seed_sets_random(tmp_path, monkeypatch):
         context_id="ctx",
         inspiration="insp",
         concurrency=1,
+        batch_size=5,
         openai_api_key="dummy",
         logfire_token=None,
     )
@@ -328,6 +333,7 @@ def test_cli_enables_logfire(tmp_path, monkeypatch):
         context_id="university",
         inspiration="general",
         concurrency=1,
+        batch_size=5,
         openai_api_key="dummy",
         logfire_token="lf-key",
     )
@@ -392,6 +398,7 @@ def test_cli_rejects_invalid_concurrency(monkeypatch):
         context_id="ctx",
         inspiration="insp",
         concurrency=0,
+        batch_size=5,
         openai_api_key="dummy",
         logfire_token=None,
     )
@@ -435,6 +442,7 @@ def test_cli_verbose_logging(tmp_path, monkeypatch, capsys):
         context_id="ctx",
         inspiration="insp",
         concurrency=1,
+        batch_size=5,
         openai_api_key="dummy",
         logfire_token=None,
     )

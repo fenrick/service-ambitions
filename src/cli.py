@@ -201,19 +201,31 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
         return
 
     new_ids: set[str] = set()
+    total_services = len(services)
+    show_progress = args.progress and sys.stdout.isatty()
+    progress = tqdm(total=total_services) if show_progress else None
+
+    def _batched(seq: list[ServiceInput], size: int) -> Iterable[list[ServiceInput]]:
+        """Yield ``seq`` in lists of at most ``size`` items."""
+
+        it = iter(seq)
+        while batch := list(islice(it, size)):
+            yield batch
+
+    # Create tasks in manageable chunks to avoid scheduling every service at once.
+    batch_size = settings.batch_size or max(1, concurrency * 5)
     with open(part_path, "w", encoding="utf-8") as output:
-        tasks = [asyncio.create_task(process_service(svc)) for svc in services]
-        show_progress = args.progress and sys.stdout.isatty()
-        progress = tqdm(total=len(tasks)) if show_progress else None
-        for task in asyncio.as_completed(tasks):
-            svc_id, name, payload = await task
-            output.write(f"{payload}\n")
-            new_ids.add(svc_id)
-            logger.info("Generated evolution for %s", name)
-            if progress:
-                progress.update(1)
-        if progress:
-            progress.close()
+        for chunk in _batched(services, batch_size):
+            tasks = [asyncio.create_task(process_service(svc)) for svc in chunk]
+            for task in asyncio.as_completed(tasks):
+                svc_id, name, payload = await task
+                output.write(f"{payload}\n")
+                new_ids.add(svc_id)
+                logger.info("Generated evolution for %s", name)
+                if progress:
+                    progress.update(1)
+    if progress:
+        progress.close()
 
     if args.resume:
         new_lines = read_lines(part_path)
