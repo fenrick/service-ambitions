@@ -4,7 +4,8 @@ The evolution workflow spans four plateaus—**Foundational**, **Enhanced**,
 **Experimental** and **Disruptive**—with three calls per plateau (description,
 features, mapping). Plateau definitions are stored in
 `data/service_feature_plateaus.json`; the CLI uses the first four entries by
-default. Plateau name to level mappings come from `config/app.json`.
+default and evaluates all customer segments. Plateau name to level mappings
+come from `config/app.json`.
 
 ## Running
 
@@ -13,10 +14,11 @@ Example command:
 ```bash
 poetry run service-ambitions generate-evolution \
   --input-file sample-services.jsonl \
-  --output-file evolution.jsonl \
-  --plateaus Foundational Enhanced Experimental Disruptive \
-  --customers retail enterprise
+  --output-file evolution.jsonl
 ```
+
+Services are processed in batches controlled by the `batch_size` setting in
+`config/app.json` to avoid scheduling all tasks at once.
 
 Include `--seed <value>` to make backoff jitter and model sampling
 deterministic when supported by the provider.

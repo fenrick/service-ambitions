@@ -26,11 +26,11 @@ directory, `--context-id` to select a situational context, and
 `--inspirations-id` to choose a list of future inspirations. This structure
 supports swapping sections to suit different industries.
 
-To collect detailed traces with [Pydantic Logfire](https://logfire.pydantic.dev/),
-set the `LOGFIRE_TOKEN` environment variable and optionally supply a service
-name via `--logfire-service`. The CLI automatically installs Logfire auto
-tracing and instruments Pydantic, Pydantic AI, OpenAI, and system metrics when
-Logfire is enabled.
+This project depends on the [Pydantic Logfire](https://logfire.pydantic.dev/)
+libraries even when telemetry is disabled. Set the `LOGFIRE_TOKEN` environment
+variable and optionally supply a service name via `--logfire-service` to enable
+tracing. When configured, the CLI instruments Pydantic, Pydantic AI, OpenAI and
+system metrics automatically.
 
 ## Installation
 
@@ -63,7 +63,8 @@ Alternatively, use the provided shell script which forwards all arguments to the
 [JSON Lines](https://jsonlines.org/) format, with one JSON object per line. The
 output file will also be in JSON Lines format. Use `--concurrency` to control
 parallel workers, `--max-services` to limit how many entries are processed, and
-`--dry-run` to validate inputs without calling the API. Pass `--progress` to
+`--dry-run` to validate inputs without calling the API. Evolution processing
+happens in batches sized by the `batch_size` setting in `config/app.json`. Pass `--progress` to
 display a progress bar during long runs; it is suppressed automatically in CI
 environments or when stdout is not a TTY. Provide `--seed` to make stochastic
 behaviour such as backoff jitter deterministic during tests and demos.
@@ -89,22 +90,15 @@ entries from this file.
 
 ### Generating service evolutions
 
-Use the `generate-evolution` subcommand to score each service against plateau
-features. It reads services from an input JSON Lines file and writes a
-`ServiceEvolution` record for each line in the output file. Enable verbose logs
-with `-v` or `-vv`.
+Use the `generate-evolution` subcommand to score each service against all
+configured plateau features and customer segments. It reads services from an
+input JSON Lines file and writes a `ServiceEvolution` record for each line in
+the output file. Enable verbose logs with `-v` or `-vv`.
 
 Basic invocation:
 
 ```bash
 ./run.sh generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl
-```
-
-Restrict evaluation to specific plateaus or customer types as needed:
-
-```bash
-./run.sh generate-evolution --plateaus Foundational Enhanced Experimental Disruptive --customers retail enterprise \
-  --input-file sample-services.jsonl --output-file evolution.jsonl
 ```
 
 ### Conversation seed
