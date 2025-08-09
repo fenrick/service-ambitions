@@ -9,10 +9,35 @@ remain oblivious to telemetry concerns.
 from __future__ import annotations
 
 import importlib
+import json
 import logging
 import os
 
 logger = logging.getLogger(__name__)
+
+
+class JsonFormatter(logging.Formatter):
+    """Simple structured logging formatter."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload = {
+            "level": record.levelname,
+            "name": record.name,
+            "message": record.getMessage(),
+        }
+        return json.dumps(payload)
+
+
+def _configure_json_logging(level: int) -> None:
+    """Attach a JSON formatter to the root logger."""
+
+    root_logger = logging.getLogger()
+    handler = logging.StreamHandler()
+    handler.setLevel(level)
+    handler.setFormatter(JsonFormatter())
+    root_logger.handlers.clear()
+    root_logger.addHandler(handler)
+    logger.info("Structured JSON logging enabled")
 
 
 def init_logfire(token: str | None = None) -> None:
@@ -30,10 +55,15 @@ def init_logfire(token: str | None = None) -> None:
     """
 
     # Use the explicit token if provided, otherwise fall back to the environment.
+    root_logger = logging.getLogger()
+    # Preserve existing level and formatter when swapping handlers.
+    level = root_logger.level
+    formatter = root_logger.handlers[0].formatter if root_logger.handlers else None
+
     key = token or os.getenv("LOGFIRE_TOKEN")
     if not key:
-        # Without a token no monitoring can be configured.
         logger.debug("LOGFIRE_TOKEN not set; skipping Logfire setup")
+        _configure_json_logging(level)
         return
 
     try:
@@ -42,6 +72,7 @@ def init_logfire(token: str | None = None) -> None:
         logfire = importlib.import_module("logfire")
     except ImportError:  # pragma: no cover - depends on optional package
         logger.warning("logfire package not installed; skipping Logfire setup")
+        _configure_json_logging(level)
         return
 
     logfire.configure(token=key, service_name="service-ambition-generator")
@@ -59,10 +90,12 @@ def init_logfire(token: str | None = None) -> None:
 
     handler_cls = getattr(logfire, "LogfireLoggingHandler", None)
     if handler_cls:
-        root_logger = logging.getLogger()
-
         # Replace any existing handlers to prevent duplicate log output.
         root_logger.handlers.clear()
-        root_logger.addHandler(handler_cls())
+        handler = handler_cls()
+        handler.setLevel(level)
+        if formatter:
+            handler.setFormatter(formatter)
+        root_logger.addHandler(handler)
 
     logger.info("Logfire telemetry enabled")

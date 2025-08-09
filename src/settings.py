@@ -39,7 +39,7 @@ class Settings(BaseSettings):
         None, description="Logfire authentication token, if available."
     )
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(extra="ignore")
 
 
 def load_settings() -> Settings:
@@ -47,8 +47,9 @@ def load_settings() -> Settings:
 
     Configuration values are read from the application configuration file and
     then merged with environment variables using ``pydantic-settings``. When a
-    value is provided in both sources the environment variable wins. The final
-    configuration is validated and returned to the caller.
+    value is provided in both sources the environment variable wins. A ``.env``
+    file in the working directory is loaded automatically when present. The
+    final configuration is validated and returned to the caller.
 
     Returns:
         Settings: Fully validated application configuration.
@@ -69,9 +70,11 @@ def load_settings() -> Settings:
         "retries": config.retries,
         "retry_base_delay": config.retry_base_delay,
     }
+    env_file = Path(".env")
+    env_kwargs = {"_env_file": env_file} if env_file.exists() else {}
     try:
-        # Validate and merge configuration from file and environment.
-        return Settings(**data)  # type: ignore[arg-type]
+        # Validate and merge configuration from file, env file and environment.
+        return Settings(**data, **env_kwargs)  # type: ignore[arg-type]
     except ValidationError as exc:  # pragma: no cover - exercised in tests
         # Summarise validation issues so the caller receives clear feedback.
         details = "; ".join(
