@@ -59,6 +59,8 @@ def test_cli_generates_output(tmp_path, monkeypatch):
         str(output_file),
         "--model",
         "test",
+        "--max-services",
+        "1",
     ]
     monkeypatch.setattr(sys, "argv", argv)
 
@@ -66,9 +68,59 @@ def test_cli_generates_output(tmp_path, monkeypatch):
 
     lines = output_file.read_text().strip().splitlines()
     assert [json.loads(line) for line in lines] == [
-        {"service": "alpha", "prompt": "You"},
-        {"service": "beta", "prompt": "You"},
+        {"service": "alpha", "prompt": "You"}
     ]
+
+
+def test_cli_dry_run_skips_processing(tmp_path, monkeypatch):
+    base = tmp_path / "prompts"
+    (base / "situational_context").mkdir(parents=True)
+    (base / "inspirations").mkdir(parents=True)
+    (base / "situational_context" / "ctx.md").write_text("c", encoding="utf-8")
+    (base / "service_feature_plateaus.md").write_text("p", encoding="utf-8")
+    (base / "definitions.json").write_text('{"d": "d"}', encoding="utf-8")
+    (base / "inspirations" / "insp.md").write_text("i", encoding="utf-8")
+    (base / "task_definition.md").write_text("t", encoding="utf-8")
+    (base / "response_structure.md").write_text("r", encoding="utf-8")
+
+    input_file = tmp_path / "services.jsonl"
+    input_file.write_text('{"name": "alpha"}\n', encoding="utf-8")
+    output_file = tmp_path / "out.jsonl"
+
+    settings = SimpleNamespace(
+        model="cfg",
+        log_level="INFO",
+        prompt_dir=str(base),
+        context_id="ctx",
+        inspiration="insp",
+        concurrency=1,
+        openai_api_key="dummy",
+        logfire_token=None,
+    )
+
+    called = {"ran": False}
+
+    async def fake_generate_async(self, services, prompt, output_path, progress=None):  # type: ignore[no-untyped-def]
+        called["ran"] = True
+
+    monkeypatch.setattr(ServiceAmbitionGenerator, "generate_async", fake_generate_async)
+    monkeypatch.setattr(cli, "load_settings", lambda: settings)
+
+    argv = [
+        "main",
+        "generate-ambitions",
+        "--input-file",
+        str(input_file),
+        "--output-file",
+        str(output_file),
+        "--dry-run",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+
+    cli.main()
+
+    assert not output_file.exists()
+    assert not called["ran"]
 
 
 def test_cli_requires_api_key(monkeypatch):

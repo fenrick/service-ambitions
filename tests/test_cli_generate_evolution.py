@@ -66,6 +66,10 @@ async def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         logfire_service=None,
         log_level=None,
         verbose=0,
+        max_services=None,
+        dry_run=False,
+        progress=False,
+        concurrency=None,
     )
 
     await _cmd_generate_evolution(args, settings)
@@ -135,6 +139,10 @@ async def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> Non
         logfire_service=None,
         log_level=None,
         verbose=0,
+        max_services=None,
+        dry_run=False,
+        progress=False,
+        concurrency=None,
     )
 
     await _cmd_generate_evolution(args, settings)
@@ -216,8 +224,74 @@ async def test_generate_evolution_respects_concurrency(tmp_path, monkeypatch) ->
         logfire_service=None,
         log_level=None,
         verbose=0,
+        max_services=None,
+        dry_run=False,
+        progress=False,
+        concurrency=None,
     )
 
     await _cmd_generate_evolution(args, settings)
 
     assert captured["workers"] == 3
+
+
+@pytest.mark.asyncio
+async def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
+    input_path = tmp_path / "services.jsonl"
+    output_path = tmp_path / "out.jsonl"
+    input_path.write_text('{"service_id": "s1", "name": "svc"}\n', encoding="utf-8")
+
+    def fake_build_model(
+        model_name: str, api_key: str
+    ) -> object:  # pragma: no cover - stub
+        return object()
+
+    class DummyAgent:  # pragma: no cover - simple stub
+        def __init__(self, model: object, instructions: str) -> None:
+            self.model = model
+            self.instructions = instructions
+
+    called = {"ran": False}
+
+    def fake_generate(
+        self, service: ServiceInput
+    ) -> ServiceEvolution:  # pragma: no cover - stub
+        called["ran"] = True
+        return ServiceEvolution(service=service, plateaus=[])
+
+    monkeypatch.setattr("cli.build_model", fake_build_model)
+    monkeypatch.setattr("cli.Agent", DummyAgent)
+    monkeypatch.setattr(
+        "cli.PlateauGenerator.generate_service_evolution", fake_generate
+    )
+    monkeypatch.setattr("cli.configure_prompt_dir", lambda _path: None)
+    monkeypatch.setattr("cli.load_prompt", lambda _ctx, _insp: "prompt")
+    monkeypatch.setattr("cli.logfire.force_flush", lambda: None)
+
+    settings = SimpleNamespace(
+        model="m",
+        log_level="INFO",
+        openai_api_key="k",
+        logfire_token=None,
+        concurrency=1,
+        prompt_dir="prompts",
+        context_id="ctx",
+        inspiration="insp",
+    )
+    args = argparse.Namespace(
+        input_file=str(input_path),
+        output_file=str(output_path),
+        model=None,
+        logfire_service=None,
+        log_level=None,
+        verbose=0,
+        max_services=None,
+        dry_run=True,
+        progress=False,
+        concurrency=None,
+    )
+
+    await _cmd_generate_evolution(args, settings)
+
+    assert not output_path.exists()
+    assert not called["ran"]
