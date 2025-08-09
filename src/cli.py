@@ -7,6 +7,7 @@ import asyncio
 import logging
 import os
 import random
+import sys
 from itertools import islice
 from pathlib import Path
 from typing import Iterable
@@ -100,7 +101,7 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
         if args.resume:
             svc_iter = (s for s in svc_iter if s.service_id not in processed_ids)
 
-        show_progress = args.progress and not os.environ.get("CI")
+        show_progress = args.progress and sys.stdout.isatty()
         services_list: list[ServiceInput] | None = None
         services: Iterable[ServiceInput]
         if args.dry_run or show_progress:
@@ -202,7 +203,7 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
     new_ids: set[str] = set()
     with open(part_path, "w", encoding="utf-8") as output:
         tasks = [asyncio.create_task(process_service(svc)) for svc in services]
-        show_progress = args.progress and not os.environ.get("CI")
+        show_progress = args.progress and sys.stdout.isatty()
         progress = tqdm(total=len(tasks)) if show_progress else None
         for task in asyncio.as_completed(tasks):
             svc_id, name, payload = await task

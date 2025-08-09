@@ -65,8 +65,8 @@ output file will also be in JSON Lines format. Use `--concurrency` to control
 parallel workers, `--max-services` to limit how many entries are processed, and
 `--dry-run` to validate inputs without calling the API. Pass `--progress` to
 display a progress bar during long runs; it is suppressed automatically in CI
-environments. Provide `--seed` to make stochastic behaviour such as backoff
-jitter deterministic during tests and demos.
+environments or when stdout is not a TTY. Provide `--seed` to make stochastic
+behaviour such as backoff jitter deterministic during tests and demos.
 
 ## Plateau-first workflow
 
@@ -129,6 +129,7 @@ Each JSON line in the output file follows the `ServiceEvolution` schema:
 
 ```json
 {
+  "schema_version": "1.0",
   "service": {
     "service_id": "string",
     "name": "string",
@@ -160,6 +161,7 @@ Each JSON line in the output file follows the `ServiceEvolution` schema:
 
 Fields in the schema:
 
+- `schema_version`: string identifying the output schema revision.
 - `service`: `ServiceInput` with `service_id`, `name`, `description`, optional
   `customer_type`, `jobs_to_be_done`, and existing `features`.
 - `plateaus`: list of `PlateauResult` entries, each containing:

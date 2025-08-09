@@ -13,6 +13,8 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+SCHEMA_VERSION = "1.0"
+
 
 class StrictModel(BaseModel):
     """Base model with strict settings to prevent shape drift."""
@@ -225,6 +227,10 @@ class ServiceEvolution(StrictModel):
     represents the full evolution output for a given :class:`ServiceInput`.
     """
 
+    schema_version: str = Field(
+        default=SCHEMA_VERSION,
+        description="Version of the ServiceEvolution schema.",
+    )
     service: ServiceInput = Field(..., description="Service being evaluated.")
     plateaus: list[PlateauResult] = Field(
         default_factory=list, description="Evaluated plateaus for the service."
@@ -313,6 +319,7 @@ __all__ = [
     "Contribution",
     "PlateauResult",
     "ServiceEvolution",
+    "SCHEMA_VERSION",
     "DescriptionResponse",
     "FeatureItem",
     "PlateauFeaturesResponse",
