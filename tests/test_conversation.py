@@ -74,7 +74,9 @@ def test_add_parent_materials_includes_features() -> None:
     )
     session.add_parent_materials(service)
 
-    material = session._history[0].parts[0].content  # noqa: SLF001 - test helper
+    material = cast(
+        messages.TextPart, session._history[0].parts[0]
+    ).content  # noqa: SLF001 - test helper
     assert "Existing features: F1: Feat" in material
 
 

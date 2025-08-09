@@ -91,7 +91,7 @@ def _build_mapping_prompt(
 
     template = load_prompt_text("mapping_prompt")
     schema = json.dumps(MappingResponse.model_json_schema(), indent=2)
-    items = load_mapping_items([cfg.dataset for cfg in mapping_types.values()])
+    items = load_mapping_items(tuple(cfg.dataset for cfg in mapping_types.values()))
     sections = []
     for cfg in mapping_types.values():
         # Include a bullet list of reference items for each mapping type.
