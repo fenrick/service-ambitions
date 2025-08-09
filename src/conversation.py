@@ -79,10 +79,10 @@ class ConversationSession:
             The agent's response text.
         """
 
-        logger.info("Sending prompt: %s", prompt)
+        logger.debug("Sending prompt: %s", prompt)
         result = await self.client.run(prompt, message_history=self._history)
         self._history.extend(result.new_messages())
-        logger.info("Received response: %s", result.output)
+        logger.debug("Received response: %s", result.output)
         return result.output
 
 
