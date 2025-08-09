@@ -80,6 +80,11 @@ def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
     model_name = args.model or settings.model
     model = build_model(model_name, settings.openai_api_key)
 
+    # Load and assemble the system prompt so each conversation begins with
+    # the situational context, definitions and inspirations.
+    configure_prompt_dir(settings.prompt_dir)
+    system_prompt = load_prompt(settings.context_id, settings.inspiration)
+
     if settings.concurrency < 1:
         raise ValueError("concurrency must be a positive integer")
 
@@ -98,7 +103,7 @@ def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
         does not leak chat history between services.
         """
 
-        agent = Agent(model)
+        agent = Agent(model, instructions=system_prompt)
         session = ConversationSession(agent)
         generator = PlateauGenerator(session)
         evolution = generator.generate_service_evolution(service)
