@@ -72,7 +72,13 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
 
     model = build_model(model_name, settings.openai_api_key)
     concurrency = args.concurrency or settings.concurrency
-    generator = ServiceAmbitionGenerator(model, concurrency=concurrency)
+    generator = ServiceAmbitionGenerator(
+        model,
+        concurrency=concurrency,
+        request_timeout=settings.request_timeout,
+        retries=settings.retries,
+        retry_base_delay=settings.retry_base_delay,
+    )
 
     output_path = Path(args.output_file)
     part_path = output_path.with_suffix(
@@ -85,7 +91,7 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
     processed_ids: set[str] = set(read_lines(processed_path)) if args.resume else set()
     existing_lines: list[str] = read_lines(output_path) if args.resume else []
 
-    with load_services(args.input_file) as svc_iter:
+    with load_services(Path(args.input_file)) as svc_iter:
         if args.max_services is not None:
             # Limit processing to the requested number of services.
             svc_iter = islice(svc_iter, args.max_services)
@@ -183,7 +189,7 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
     processed_ids: set[str] = set(read_lines(processed_path)) if args.resume else set()
     existing_lines: list[str] = read_lines(output_path) if args.resume else []
 
-    with load_services(args.input_file) as svc_iter:
+    with load_services(Path(args.input_file)) as svc_iter:
         if args.max_services is not None:
             svc_iter = islice(svc_iter, args.max_services)
         services = [s for s in svc_iter if s.service_id not in processed_ids]

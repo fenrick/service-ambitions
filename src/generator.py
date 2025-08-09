@@ -11,7 +11,7 @@ import asyncio
 import logging
 import os
 import random
-from typing import Any, Awaitable, Callable, Dict, Iterable
+from typing import Any, Awaitable, Callable, Iterable, TypeVar
 
 import logfire
 from pydantic import BaseModel
@@ -28,13 +28,17 @@ from models import ServiceInput
 logger = logging.getLogger(__name__)
 
 
+T = TypeVar("T")
+
+
 async def _with_retry(
-    coro_factory: Callable[[], Awaitable[Any]],
+    coro_factory: Callable[[], Awaitable[T]],
     *,
+    request_timeout: float,
     attempts: int = 5,
     base: float = 0.5,
     cap: float = 8.0,
-) -> Any:
+) -> T:
     """Execute ``coro_factory`` with exponential backoff and jitter.
 
     Each attempt is wrapped in ``asyncio.wait_for`` to enforce a sixty second
@@ -56,13 +60,14 @@ async def _with_retry(
 
     for attempt in range(attempts):
         try:
-            return await asyncio.wait_for(coro_factory(), timeout=60)
+            return await asyncio.wait_for(coro_factory(), timeout=request_timeout)
         except Exception:  # pragma: no cover - broad for retry
             if attempt == attempts - 1:
                 raise
             delay = min(cap, base * (2**attempt))
             delay *= 1 + random.random() * 0.25
             await asyncio.sleep(delay)
+    raise RuntimeError("Unreachable retry state")
 
 
 class AmbitionModel(BaseModel):
@@ -85,12 +90,22 @@ class ServiceAmbitionGenerator:
     """
 
     @logfire.instrument()
-    def __init__(self, model: Model, concurrency: int = 5) -> None:
+    def __init__(
+        self,
+        model: Model,
+        concurrency: int = 5,
+        request_timeout: float = 60,
+        retries: int = 5,
+        retry_base_delay: float = 0.5,
+    ) -> None:
         """Initialize the generator.
 
         Args:
             model: Model used for ambition generation.
             concurrency: Maximum number of concurrent requests.
+            request_timeout: Per-request timeout in seconds.
+            retries: Number of retry attempts on failure.
+            retry_base_delay: Initial backoff delay in seconds.
 
         Raises:
             ValueError: If ``concurrency`` is less than one.
@@ -101,6 +116,9 @@ class ServiceAmbitionGenerator:
             raise ValueError("concurrency must be a positive integer")
         self.model = model
         self.concurrency = concurrency
+        self.request_timeout = request_timeout
+        self.retries = retries
+        self.retry_base_delay = retry_base_delay
         self._prompt: str | None = None
 
     @logfire.instrument()
@@ -108,7 +126,7 @@ class ServiceAmbitionGenerator:
         self,
         service: ServiceInput,
         prompt: str | None = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Return ambitions for ``service``.
 
         Args:
@@ -135,7 +153,10 @@ class ServiceAmbitionGenerator:
         agent = Agent(self.model, instructions=instructions)
         service_details = service.model_dump_json()
         result = await _with_retry(
-            lambda: agent.run(service_details, output_type=AmbitionModel)
+            lambda: agent.run(service_details, output_type=AmbitionModel),
+            request_timeout=self.request_timeout,
+            attempts=self.retries,
+            base=self.retry_base_delay,
         )
         return result.output.model_dump()
 

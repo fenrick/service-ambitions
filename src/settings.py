@@ -8,6 +8,8 @@ the merged configuration is validated before use.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from pydantic import Field, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -19,11 +21,18 @@ class Settings(BaseSettings):
 
     model: str = Field(..., description="Chat model in '<provider>:<model>' format.")
     log_level: str = Field(..., description="Logging verbosity level.")
-    prompt_dir: str = Field(..., description="Directory containing prompt components.")
+    prompt_dir: Path = Field(..., description="Directory containing prompt components.")
     context_id: str = Field(..., description="Situational context identifier.")
     inspiration: str = Field(..., description="Inspirations identifier.")
     concurrency: int = Field(
         ..., ge=1, description="Number of services to process concurrently."
+    )
+    request_timeout: int = Field(
+        60, gt=0, description="Per-request timeout in seconds."
+    )
+    retries: int = Field(5, ge=1, description="Number of retry attempts.")
+    retry_base_delay: float = Field(
+        0.5, gt=0, description="Initial backoff delay in seconds."
     )
     openai_api_key: str = Field(..., description="OpenAI API access token.")
     logfire_token: str | None = Field(
@@ -56,6 +65,9 @@ def load_settings() -> Settings:
         "context_id": config.context_id,
         "inspiration": config.inspiration,
         "concurrency": config.concurrency,
+        "request_timeout": config.request_timeout,
+        "retries": config.retries,
+        "retry_base_delay": config.retry_base_delay,
     }
     try:
         # Validate and merge configuration from file and environment.

@@ -8,6 +8,7 @@ throughout the system.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -137,8 +138,9 @@ class AppConfig(StrictModel):
         str, Field(min_length=1, description="Logging verbosity level.")
     ] = "INFO"
     prompt_dir: Annotated[
-        str, Field(min_length=1, description="Directory containing prompt components.")
-    ] = "prompts"
+        Path,
+        Field(min_length=1, description="Directory containing prompt components."),
+    ] = Path("prompts")
     context_id: Annotated[
         str, Field(min_length=1, description="Situational context identifier.")
     ] = "university"
@@ -150,6 +152,18 @@ class AppConfig(StrictModel):
         ge=1,
         description="Number of services to process concurrently.",
     )
+    request_timeout: Annotated[
+        int,
+        Field(gt=0, description="Per-request timeout in seconds."),
+    ] = 60
+    retries: Annotated[
+        int,
+        Field(ge=1, description="Number of retry attempts."),
+    ] = 5
+    retry_base_delay: Annotated[
+        float,
+        Field(gt=0, description="Initial backoff delay in seconds."),
+    ] = 0.5
     mapping_types: dict[str, MappingTypeConfig] = Field(
         default_factory=dict,
         description="Mapping type definitions keyed by field name.",

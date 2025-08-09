@@ -9,10 +9,10 @@ callers receive concise exceptions.
 from __future__ import annotations
 
 import logging
-import os
 from contextlib import closing, contextmanager
 from functools import lru_cache
-from typing import Dict, Generator, Iterator, List, Sequence, TypeVar
+from pathlib import Path
+from typing import Generator, Iterator, Sequence, TypeVar
 
 import logfire
 from pydantic import TypeAdapter
@@ -29,10 +29,10 @@ logger = logging.getLogger(__name__)
 
 # Directory containing prompt templates.  Mutable so tests or callers may point
 # to alternative directories via ``configure_prompt_dir``.
-PROMPT_DIR = "prompts"
+PROMPT_DIR = Path("prompts")
 
 
-def configure_prompt_dir(path: str) -> None:
+def configure_prompt_dir(path: Path | str) -> None:
     """Set the base directory for prompt templates.
 
     Side Effects:
@@ -42,11 +42,11 @@ def configure_prompt_dir(path: str) -> None:
     """
 
     global PROMPT_DIR
-    PROMPT_DIR = path
+    PROMPT_DIR = Path(path)
 
 
 @logfire.instrument()
-def _read_file(path: str) -> str:
+def _read_file(path: Path) -> str:
     """Return the contents of ``path``.
 
     Args:
@@ -61,7 +61,7 @@ def _read_file(path: str) -> str:
     """
 
     try:
-        with open(path, "r", encoding="utf-8") as file:
+        with path.open("r", encoding="utf-8") as file:
             return file.read().strip()
     except FileNotFoundError:  # pragma: no cover - logging
         logger.error("Prompt file not found: %s", path)
@@ -77,7 +77,7 @@ T = TypeVar("T")
 
 
 @logfire.instrument()
-def _read_json_file(path: str, schema: type[T]) -> T:
+def _read_json_file(path: Path, schema: type[T]) -> T:
     """Return JSON data loaded from ``path`` validated against ``schema``.
 
     ``schema`` may be any type understood by :class:`pydantic.TypeAdapter`, such
@@ -97,7 +97,7 @@ def _read_json_file(path: str, schema: type[T]) -> T:
 
 
 @logfire.instrument()
-def load_prompt_text(prompt_name: str, base_dir: str | None = None) -> str:
+def load_prompt_text(prompt_name: str, base_dir: Path | None = None) -> str:
     """Return the contents of a prompt template.
 
     The function locates ``prompt_name`` within ``base_dir`` (defaulting to the
@@ -119,15 +119,15 @@ def load_prompt_text(prompt_name: str, base_dir: str | None = None) -> str:
 
     directory = base_dir or PROMPT_DIR
     filename = prompt_name if prompt_name.endswith(".md") else f"{prompt_name}.md"
-    return _read_file(os.path.join(directory, filename))
+    return _read_file(directory / filename)
 
 
 @logfire.instrument()
 @lru_cache(maxsize=None)
 def load_mapping_items(
     mapping_types: Sequence[str] | None = None,
-    base_dir: str = "data",
-) -> Dict[str, list[MappingItem]]:
+    base_dir: Path | str = Path("data"),
+) -> dict[str, list[MappingItem]]:
     """Return mapping reference data for ``mapping_types`` from ``base_dir``.
 
     Args:
@@ -145,32 +145,36 @@ def load_mapping_items(
     """
 
     datasets = mapping_types or ("information", "applications", "technologies")
+    base_path = Path(base_dir)
     files = {name: f"{name}.json" for name in datasets}
-    data: Dict[str, list[MappingItem]] = {}
+    data: dict[str, list[MappingItem]] = {}
     for key, filename in files.items():
-        path = os.path.join(base_dir, filename)
+        path = base_path / filename
         data[key] = _read_json_file(path, list[MappingItem])
     return data
 
 
 @logfire.instrument()
 @lru_cache(maxsize=None)
-def load_app_config(base_dir: str = "config", filename: str = "app.json") -> AppConfig:
+def load_app_config(
+    base_dir: Path | str = Path("config"),
+    filename: Path | str = Path("app.json"),
+) -> AppConfig:
     """Return application configuration from ``base_dir``.
 
     Results are cached for the lifetime of the process.
     """
 
-    path = os.path.join(base_dir, filename)
+    path = Path(base_dir) / Path(filename)
     return _read_json_file(path, AppConfig)
 
 
 @logfire.instrument()
 @lru_cache(maxsize=None)
 def load_mapping_type_config(
-    base_dir: str = "config",
-    filename: str = "app.json",
-) -> Dict[str, MappingTypeConfig]:
+    base_dir: Path | str = Path("config"),
+    filename: Path | str = Path("app.json"),
+) -> dict[str, MappingTypeConfig]:
     """Return mapping type configuration from ``base_dir``.
 
     Results are cached for the lifetime of the process.
@@ -182,9 +186,9 @@ def load_mapping_type_config(
 @logfire.instrument()
 @lru_cache(maxsize=None)
 def load_plateau_definitions(
-    base_dir: str = "data",
-    filename: str = "service_feature_plateaus.json",
-) -> List[ServiceFeaturePlateau]:
+    base_dir: Path | str = Path("data"),
+    filename: Path | str = Path("service_feature_plateaus.json"),
+) -> list[ServiceFeaturePlateau]:
     """Return service feature plateau definitions from ``base_dir``.
 
     Args:
@@ -199,7 +203,7 @@ def load_plateau_definitions(
         RuntimeError: If the file cannot be read or parsed.
     """
 
-    path = os.path.join(base_dir, filename)
+    path = Path(base_dir) / Path(filename)
     try:
         return _read_json_file(path, list[ServiceFeaturePlateau])
     except Exception as exc:  # pylint: disable=broad-except
@@ -210,8 +214,8 @@ def load_plateau_definitions(
 @logfire.instrument()
 @lru_cache(maxsize=None)
 def load_definitions(
-    base_dir: str | None = None,
-    filename: str = "definitions.json",
+    base_dir: Path | None = None,
+    filename: Path | str = Path("definitions.json"),
     keys: Sequence[str] | None = None,
 ) -> str:
     """Return selected definitions joined by blank lines.
@@ -231,8 +235,8 @@ def load_definitions(
     """
 
     directory = base_dir or PROMPT_DIR
-    path = os.path.join(directory, filename)
-    data: Dict[str, str] = _read_json_file(path, dict[str, str])
+    path = Path(directory) / Path(filename)
+    data: dict[str, str] = _read_json_file(path, dict[str, str])
     items = [data[k] for k in keys if k in data] if keys else list(data.values())
     return "\n\n".join(items)
 
@@ -241,12 +245,12 @@ def load_definitions(
 def load_prompt(
     context_id: str,
     inspirations_id: str,
-    base_dir: str | None = None,
-    plateaus_file: str = "service_feature_plateaus.md",
-    definitions_file: str = "definitions.json",
+    base_dir: Path | None = None,
+    plateaus_file: Path | str = Path("service_feature_plateaus.md"),
+    definitions_file: Path | str = Path("definitions.json"),
     definition_keys: Sequence[str] | None = None,
-    task_file: str = "task_definition.md",
-    response_file: str = "response_structure.md",
+    task_file: Path | str = Path("task_definition.md"),
+    response_file: Path | str = Path("response_structure.md"),
 ) -> str:
     """Assemble the system prompt from modular components.
 
@@ -273,25 +277,25 @@ def load_prompt(
 
     directory = base_dir or PROMPT_DIR
     components = [
-        _read_file(os.path.join(directory, "situational_context", f"{context_id}.md")),
-        _read_file(os.path.join(directory, plateaus_file)),
+        _read_file(directory / "situational_context" / f"{context_id}.md"),
+        _read_file(directory / Path(plateaus_file)),
         load_definitions(directory, definitions_file, definition_keys),
-        _read_file(os.path.join(directory, "inspirations", f"{inspirations_id}.md")),
-        _read_file(os.path.join(directory, task_file)),
-        _read_file(os.path.join(directory, response_file)),
+        _read_file(directory / "inspirations" / f"{inspirations_id}.md"),
+        _read_file(directory / Path(task_file)),
+        _read_file(directory / Path(response_file)),
     ]
-    parts = components
-    return "\n\n".join(parts)
+    return "\n\n".join(components)
 
 
 @logfire.instrument()
-def _load_service_entries(path: str) -> Generator[ServiceInput, None, None]:
+def _load_service_entries(path: Path | str) -> Generator[ServiceInput, None, None]:
     """Yield services from ``path`` while validating each JSON line."""
 
+    path_obj = Path(path)
     with logfire.span("Calling loader.load_services"):
         adapter = TypeAdapter(ServiceInput)
         try:
-            with open(path, "r", encoding="utf-8") as file:
+            with path_obj.open("r", encoding="utf-8") as file:
                 for line in file:
                     line = line.strip()
                     if not line:
@@ -300,23 +304,23 @@ def _load_service_entries(path: str) -> Generator[ServiceInput, None, None]:
                         # Validate each line against the schema before yielding.
                         yield adapter.validate_json(line)
                     except Exception as exc:  # pragma: no cover - logging
-                        logger.error("Invalid service entry in %s: %s", path, exc)
+                        logger.error("Invalid service entry in %s: %s", path_obj, exc)
                         raise RuntimeError("Invalid service definition") from exc
         except FileNotFoundError:  # pragma: no cover - logging
-            logger.error("Services file not found: %s", path)
+            logger.error("Services file not found: %s", path_obj)
             raise FileNotFoundError(
                 "Services file not found. Please create a %s file in the current"
-                " directory." % path
+                " directory." % path_obj
             ) from None
         except Exception as exc:  # pylint: disable=broad-except
-            logger.error("Error reading services file %s: %s", path, exc)
+            logger.error("Error reading services file %s: %s", path_obj, exc)
             raise RuntimeError(
                 f"An error occurred while reading the services file: {exc}"
             ) from exc
 
 
 @contextmanager
-def load_services(path: str) -> Iterator[Iterator[ServiceInput]]:
+def load_services(path: Path | str) -> Iterator[Iterator[ServiceInput]]:
     """Yield services from ``path`` in JSON Lines format.
 
     Each line is parsed as JSON and validated against :class:`ServiceInput`.

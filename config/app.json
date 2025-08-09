@@ -19,6 +19,9 @@
   "context_id": "university",
   "inspiration": "general",
   "concurrency": 5,
+  "request_timeout": 60,
+  "retries": 5,
+  "retry_base_delay": 0.5,
   "plateau_map": {
     "Foundational": 1,
     "Enhanced": 2,
