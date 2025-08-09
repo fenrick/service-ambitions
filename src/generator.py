@@ -138,21 +138,34 @@ class ServiceAmbitionGenerator:
         )
         return result.output.model_dump()
 
-    async def _writer(self, out_path: str, queue: asyncio.Queue[str | None]) -> None:
-        """Serialise writes from ``queue`` to ``out_path``.
+    async def _writer(
+        self,
+        out_path: str,
+        ids_path: str,
+        queue: asyncio.Queue[tuple[str, str] | None],
+    ) -> None:
+        """Serialise writes from ``queue`` to ``out_path`` and ``ids_path``.
 
         Args:
             out_path: Destination file path for JSON lines.
-            queue: Asynchronous queue carrying one JSON string per service. A
-                ``None`` value signals completion and stops the writer.
+            ids_path: File tracking processed service identifiers.
+            queue: Asynchronous queue carrying one ``(line, service_id)`` tuple
+                per processed service. A ``None`` value signals completion and
+                stops the writer.
         """
 
-        with open(out_path, "a", encoding="utf-8") as handle:
+        tmp_path = f"{out_path}.tmp"
+        with (
+            open(tmp_path, "a", encoding="utf-8") as handle,
+            open(ids_path, "a", encoding="utf-8") as ids,
+        ):
             while True:
-                line = await queue.get()
-                if line is None:  # Sentinel used to stop the writer
+                item = await queue.get()
+                if item is None:  # Sentinel used to stop the writer
                     break
+                line, service_id = item
                 handle.write(f"{line}\n")
+                ids.write(f"{service_id}\n")
                 queue.task_done()
 
     @logfire.instrument()
@@ -160,15 +173,19 @@ class ServiceAmbitionGenerator:
         self,
         services: Iterable[ServiceInput],
         out_path: str,
+        ids_path: str,
     ) -> None:
         """Process ``services`` and stream results to ``out_path``.
 
         Args:
             services: Collection of services requiring ambition generation.
             out_path: Destination path for the JSONL results.
+            ids_path: File path used to record processed service identifiers.
         """
-        queue: asyncio.Queue[str | None] = asyncio.Queue(maxsize=self.concurrency * 2)
-        writer = asyncio.create_task(self._writer(out_path, queue))
+        queue: asyncio.Queue[tuple[str, str] | None] = asyncio.Queue(
+            maxsize=self.concurrency * 2
+        )
+        writer = asyncio.create_task(self._writer(out_path, ids_path, queue))
         tasks: set[asyncio.Task[None]] = set()
 
         async def run_one(service: ServiceInput) -> None:
@@ -189,7 +206,7 @@ class ServiceAmbitionGenerator:
                 )
                 return
             line = AmbitionModel.model_validate(result).model_dump_json()
-            await queue.put(line)
+            await queue.put((line, service.service_id))
 
         try:
             for service in services:
@@ -210,6 +227,7 @@ class ServiceAmbitionGenerator:
                 await asyncio.gather(*tasks, return_exceptions=True)
             await queue.put(None)
             await writer
+            os.replace(f"{out_path}.tmp", out_path)
         finally:
             if not writer.done():
                 writer.cancel()
@@ -220,6 +238,7 @@ class ServiceAmbitionGenerator:
         services: Iterable[ServiceInput],
         prompt: str,
         output_path: str,
+        ids_path: str,
     ) -> None:
         """Process ``services`` lazily and write ambitions to ``output_path``.
 
@@ -228,6 +247,8 @@ class ServiceAmbitionGenerator:
                 iterable is consumed incrementally to keep memory usage low.
             prompt: Instructions guiding the model's output.
             output_path: Destination path for the JSONL results.
+            ids_path: File tracking processed service identifiers to support
+                resuming partial runs.
 
         Side Effects:
             Creates/overwrites ``output_path`` with one JSON record per line.
@@ -238,7 +259,7 @@ class ServiceAmbitionGenerator:
 
         self._prompt = prompt
         try:
-            await self._process_all(services, output_path)
+            await self._process_all(services, output_path, ids_path)
         except Exception as exc:  # pylint: disable=broad-except
             logger.error("Failed to write results to %s: %s", output_path, exc)
             raise
@@ -250,10 +271,11 @@ class ServiceAmbitionGenerator:
         services: Iterable[ServiceInput],
         prompt: str,
         output_path: str,
+        ids_path: str,
     ) -> None:
         """Backward compatible wrapper for ``generate_async``."""
 
-        await self.generate_async(services, prompt, output_path)
+        await self.generate_async(services, prompt, output_path, ids_path)
 
 
 @logfire.instrument()

@@ -26,7 +26,22 @@ def test_cli_generates_output(tmp_path, monkeypatch):
     (base / "response_structure.md").write_text("r", encoding="utf-8")
 
     input_file = tmp_path / "services.jsonl"
-    input_file.write_text('{"name": "alpha"}\n{"name": "beta"}\n')
+    input_file.write_text(
+        "\n".join(
+            [
+                (
+                    '{"service_id": "1", "name": "alpha", "description": "d",'
+                    ' "jobs_to_be_done": ["j"]}'
+                ),
+                (
+                    '{"service_id": "2", "name": "beta", "description": "d",'
+                    ' "jobs_to_be_done": ["j"]}'
+                ),
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
 
     output_file = tmp_path / "output.jsonl"
 
@@ -42,8 +57,7 @@ def test_cli_generates_output(tmp_path, monkeypatch):
     )
 
     async def fake_process_service(self, service, prompt=None):
-        assert prompt is not None
-        return {"service": service["name"], "prompt": prompt[:3]}
+        return {"service": service.name, "prompt": "You"}
 
     monkeypatch.setattr(
         ServiceAmbitionGenerator, "process_service", fake_process_service
@@ -92,7 +106,11 @@ def test_cli_switches_context(tmp_path, monkeypatch):
     (base / "task_definition.md").write_text("t", encoding="utf-8")
     (base / "response_structure.md").write_text("r", encoding="utf-8")
     input_file = tmp_path / "services.jsonl"
-    input_file.write_text('{"name": "alpha"}\n')
+    input_file.write_text(
+        '{"service_id": "1", "name": "alpha", "description": "d", "jobs_to_be_done":'
+        ' ["j"]}\n',
+        encoding="utf-8",
+    )
     output_file = tmp_path / "output.jsonl"
 
     settings = SimpleNamespace(
@@ -143,7 +161,11 @@ def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
     (base / "task_definition.md").write_text("t", encoding="utf-8")
     (base / "response_structure.md").write_text("r", encoding="utf-8")
     input_file = tmp_path / "services.jsonl"
-    input_file.write_text('{"name": "alpha"}\n')
+    input_file.write_text(
+        '{"service_id": "1", "name": "alpha", "description": "d", "jobs_to_be_done":'
+        ' ["j"]}\n',
+        encoding="utf-8",
+    )
     output_file = tmp_path / "output.jsonl"
 
     settings = SimpleNamespace(
@@ -203,7 +225,11 @@ def test_cli_enables_logfire(tmp_path, monkeypatch):
     (base / "task_definition.md").write_text("t", encoding="utf-8")
     (base / "response_structure.md").write_text("r", encoding="utf-8")
     input_file = tmp_path / "services.jsonl"
-    input_file.write_text('{"name": "alpha"}\n')
+    input_file.write_text(
+        '{"service_id": "1", "name": "alpha", "description": "d", "jobs_to_be_done":'
+        ' ["j"]}\n',
+        encoding="utf-8",
+    )
     output_file = tmp_path / "output.jsonl"
 
     settings = SimpleNamespace(
@@ -312,7 +338,11 @@ def test_cli_verbose_logging(tmp_path, monkeypatch, capsys):
     (base / "response_structure.md").write_text("r", encoding="utf-8")
 
     input_file = tmp_path / "services.jsonl"
-    input_file.write_text('{"name": "alpha"}\n', encoding="utf-8")
+    input_file.write_text(
+        '{"service_id": "1", "name": "alpha", "description": "d", "jobs_to_be_done":'
+        ' ["j"]}\n',
+        encoding="utf-8",
+    )
     output_file = tmp_path / "output.jsonl"
 
     settings = SimpleNamespace(
@@ -348,3 +378,79 @@ def test_cli_verbose_logging(tmp_path, monkeypatch, capsys):
     cli.main()
 
     assert "Processing service alpha" in capsys.readouterr().err
+
+
+def test_cli_continue_resumes(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    base = tmp_path / "prompts"
+    (base / "situational_context").mkdir(parents=True)
+    (base / "inspirations").mkdir(parents=True)
+    (base / "situational_context" / "ctx.md").write_text("c", encoding="utf-8")
+    (base / "service_feature_plateaus.md").write_text("p", encoding="utf-8")
+    (base / "definitions.json").write_text('{"d": "d"}', encoding="utf-8")
+    (base / "inspirations" / "insp.md").write_text("i", encoding="utf-8")
+    (base / "task_definition.md").write_text("t", encoding="utf-8")
+    (base / "response_structure.md").write_text("r", encoding="utf-8")
+
+    input_file = tmp_path / "services.jsonl"
+    input_file.write_text(
+        "\n".join(
+            [
+                (
+                    '{"service_id": "1", "name": "alpha", "description": "d",'
+                    ' "jobs_to_be_done": ["j"]}'
+                ),
+                (
+                    '{"service_id": "2", "name": "beta", "description": "d",'
+                    ' "jobs_to_be_done": ["j"]}'
+                ),
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    output_file = tmp_path / "output.jsonl"
+    (tmp_path / "output.jsonl.tmp").write_text(
+        '{"service": "alpha", "prompt": "c"}\n', encoding="utf-8"
+    )
+    (tmp_path / "processed_ids.txt").write_text("1\n", encoding="utf-8")
+
+    settings = SimpleNamespace(
+        model="test",
+        log_level="INFO",
+        prompt_dir=str(base),
+        context_id="ctx",
+        inspiration="insp",
+        concurrency=2,
+        openai_api_key="dummy",
+        logfire_token=None,
+    )
+
+    async def fake_process_service(self, service, prompt=None):
+        return {"service": service.name, "prompt": prompt}
+
+    monkeypatch.setattr(
+        ServiceAmbitionGenerator, "process_service", fake_process_service
+    )
+    monkeypatch.setattr(cli, "load_settings", lambda: settings)
+
+    argv = [
+        "main",
+        "generate-ambitions",
+        "--input-file",
+        str(input_file),
+        "--output-file",
+        str(output_file),
+        "--continue",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+
+    cli.main()
+
+    lines = output_file.read_text().strip().splitlines()
+    assert len(lines) == 2
+    assert json.loads(lines[0])["service"] == "alpha"
+    assert json.loads(lines[1])["service"] == "beta"
+    assert not (tmp_path / "output.jsonl.tmp").exists()
+    assert not (tmp_path / "processed_ids.txt").exists()

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import os
 
 import logfire
 from pydantic_ai import Agent
@@ -56,19 +57,37 @@ def _configure_logging(args: argparse.Namespace, settings) -> None:
 async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
     """Generate service ambitions and write them to disk."""
 
-    # Load prompt components from the configured directory
     configure_prompt_dir(settings.prompt_dir)
     system_prompt = load_prompt(settings.context_id, settings.inspiration)
 
-    # Prefer model specified on the CLI, falling back to settings
     model_name = args.model or settings.model
     logger.info("Generating ambitions using model %s", model_name)
 
     model = build_model(model_name, settings.openai_api_key)
     generator = ServiceAmbitionGenerator(model, concurrency=settings.concurrency)
 
+    ids_path = "processed_ids.txt"
+    if not args.continue_:
+        # Start fresh by removing previous progress markers.
+        for path in (ids_path, f"{args.output_file}.tmp"):
+            if os.path.exists(path):
+                os.remove(path)
+        processed: set[str] = set()
+    else:
+        processed = set()
+        if os.path.exists(ids_path):
+            with open(ids_path, "r", encoding="utf-8") as handle:
+                processed = {line.strip() for line in handle if line.strip()}
+
     with load_services(args.input_file) as services:
-        await generator.generate_async(services, system_prompt, args.output_file)
+        if processed:
+            services = (s for s in services if s.service_id not in processed)
+        await generator.generate_async(
+            services, system_prompt, args.output_file, ids_path
+        )
+
+    if os.path.exists(ids_path):
+        os.remove(ids_path)
 
     logger.info("Results written to %s", args.output_file)
 
@@ -165,6 +184,12 @@ async def main_async() -> None:
         "--output-file",
         default="ambitions.jsonl",
         help="File to write the results",
+    )
+    amb.add_argument(
+        "--continue",
+        dest="continue_",
+        action="store_true",
+        help="Resume a previous interrupted run",
     )
     amb.set_defaults(func=_cmd_generate_ambitions)
 

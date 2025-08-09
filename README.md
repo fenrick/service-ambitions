@@ -62,7 +62,9 @@ Alternatively, use the provided shell script which forwards all arguments to the
 [JSON Lines](https://jsonlines.org/) format, with one JSON object per line. The
 output file will also be in JSON Lines format. Use the `--concurrency` option to
 control how many services are processed in parallel when running
-`generate-ambitions`.
+`generate-ambitions`. If a run is interrupted, rerun the command with
+`--continue` to resume. Progress is tracked in a `processed_ids.txt` file and
+results are written to `<output>.jsonl.tmp` until completion.
 
 ## Plateau-first workflow
 
