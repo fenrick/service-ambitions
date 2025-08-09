@@ -4,4 +4,4 @@
 
 set -euo pipefail
 
-poetry run python src/cli.py "$@"
+poetry run service-ambitions "$@"

@@ -22,6 +22,9 @@ dependencies = [
     "tqdm",
 ]
 
+[project.scripts]
+service-ambitions = "cli:main"
+
 [tool.poetry.group.dev.dependencies]
 black = "*"
 ruff = "*"
