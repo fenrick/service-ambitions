@@ -4,11 +4,14 @@ import argparse
 import json
 from types import SimpleNamespace
 
+import pytest
+
 from cli import _cmd_generate_evolution
 from models import ServiceEvolution, ServiceInput
 
 
-def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
     input_path = tmp_path / "services.jsonl"
     output_path = tmp_path / "out.jsonl"
     input_path.write_text(
@@ -65,14 +68,15 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         verbose=0,
     )
 
-    _cmd_generate_evolution(args, settings)
+    await _cmd_generate_evolution(args, settings)
 
     payload = json.loads(output_path.read_text().strip())
     assert payload["service"]["name"] == "svc"
     assert payload["service"]["service_id"] == "svc-1"
 
 
-def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> None:
     input_path = tmp_path / "services.jsonl"
     output_path = tmp_path / "out.jsonl"
     input_path.write_text(
@@ -133,13 +137,14 @@ def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> None:
         verbose=0,
     )
 
-    _cmd_generate_evolution(args, settings)
+    await _cmd_generate_evolution(args, settings)
 
     assert captured["model_name"] == "special"
     assert captured["agent_model"] == "model"
 
 
-def test_generate_evolution_respects_concurrency(tmp_path, monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_generate_evolution_respects_concurrency(tmp_path, monkeypatch) -> None:
     input_path = tmp_path / "services.jsonl"
     output_path = tmp_path / "out.jsonl"
     input_path.write_text(
@@ -174,26 +179,22 @@ def test_generate_evolution_respects_concurrency(tmp_path, monkeypatch) -> None:
 
     captured: dict[str, int] = {}
 
-    class DummyExecutor:
-        def __init__(self, max_workers: int) -> None:
-            captured["workers"] = max_workers
+    class DummySemaphore:
+        def __init__(self, value: int) -> None:
+            captured["workers"] = value
 
-        def __enter__(self):  # pragma: no cover - simple context
+        async def __aenter__(self):
             return self
 
-        def __exit__(self, exc_type, exc, tb):  # pragma: no cover - simple context
+        async def __aexit__(self, exc_type, exc, tb):  # pragma: no cover - no cleanup
             return False
 
-        def map(self, func, iterable):  # pragma: no cover - sequential map
-            for item in iterable:
-                yield func(item)
-
+    monkeypatch.setattr("cli.asyncio.Semaphore", lambda value: DummySemaphore(value))
     monkeypatch.setattr("cli.build_model", fake_build_model)
     monkeypatch.setattr("cli.Agent", DummyAgent)
     monkeypatch.setattr(
         "cli.PlateauGenerator.generate_service_evolution", fake_generate
     )
-    monkeypatch.setattr("cli.ThreadPoolExecutor", DummyExecutor)
     monkeypatch.setattr("cli.configure_prompt_dir", lambda _path: None)
     monkeypatch.setattr("cli.load_prompt", lambda _ctx, _insp: "prompt")
     monkeypatch.setattr("cli.logfire.force_flush", lambda: None)
@@ -217,6 +218,6 @@ def test_generate_evolution_respects_concurrency(tmp_path, monkeypatch) -> None:
         verbose=0,
     )
 
-    _cmd_generate_evolution(args, settings)
+    await _cmd_generate_evolution(args, settings)
 
     assert captured["workers"] == 3

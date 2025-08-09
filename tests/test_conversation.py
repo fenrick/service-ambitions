@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
+import pytest
 from pydantic_ai import (  # noqa: E402  pylint: disable=wrong-import-position
     Agent,
     messages,
@@ -80,19 +81,21 @@ def test_add_parent_materials_includes_features() -> None:
     assert "Existing features: F1: Feat" in material
 
 
-def test_ask_adds_responses_to_history() -> None:
+@pytest.mark.asyncio
+async def test_ask_adds_responses_to_history() -> None:
     """``ask`` should forward prompts and store new messages."""
 
     session = ConversationSession(cast(Agent[None, str], DummyAgent()))
-    reply = session.ask("ping")
+    reply = await session.ask("ping")
 
     assert reply == "pong"
     assert session._history[-1] == "msg"  # noqa: SLF001 - accessing test-only attribute
 
 
-def test_ask_forwards_prompt_to_agent() -> None:
+@pytest.mark.asyncio
+async def test_ask_forwards_prompt_to_agent() -> None:
     """``ask`` should delegate to the underlying agent."""
     agent = DummyAgent()
     session = ConversationSession(cast(Agent[None, str], agent))
-    session.ask("hello")
+    await session.ask("hello")
     assert agent.called_with == ["hello"]

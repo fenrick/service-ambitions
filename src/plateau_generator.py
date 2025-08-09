@@ -65,7 +65,7 @@ class PlateauGenerator:
         self.required_count = required_count
         self._service: ServiceInput | None = None
 
-    def _request_description(self, level: int) -> str:
+    async def _request_description(self, level: int) -> str:
         """Return the service description for ``level``.
 
         A description template is loaded from disk and rendered with the target
@@ -82,7 +82,7 @@ class PlateauGenerator:
 
         # Query the model using the stored conversation session so the
         # description becomes part of the evolving chat history.
-        response = self.session.ask(prompt)
+        response = await self.session.ask(prompt)
         try:
             description = DescriptionResponse.model_validate_json(response).description
         except Exception as exc:  # pragma: no cover - logging
@@ -152,7 +152,7 @@ class PlateauGenerator:
                 features.append(self._to_feature(item, customer))
         return features
 
-    def generate_plateau(self, level: int, plateau_name: str) -> PlateauResult:
+    async def generate_plateau(self, level: int, plateau_name: str) -> PlateauResult:
         """Return mapped plateau features for ``level``.
 
         Args:
@@ -173,17 +173,17 @@ class PlateauGenerator:
             )
 
         # Ask the model to describe the service at the specified plateau level.
-        description = self._request_description(level)
+        description = await self._request_description(level)
         prompt = self._build_plateau_prompt(level, description)
         logger.info("Requesting features for level=%s", level)
 
         # Using the shared conversation session ensures features are generated
         # in the same context as previous interactions.
-        response = self.session.ask(prompt)
+        response = await self.session.ask(prompt)
         payload = self._parse_feature_payload(response)
         features = self._collect_features(payload)
         # Enrich the raw features with mapping information before returning.
-        mapped = map_features(self.session, features)
+        mapped = await map_features(self.session, features)
         return PlateauResult(
             plateau=level,
             plateau_name=plateau_name,
@@ -191,7 +191,7 @@ class PlateauGenerator:
             features=mapped,
         )
 
-    def generate_service_evolution(
+    async def generate_service_evolution(
         self,
         service_input: ServiceInput,
         plateau_names: Sequence[str] | None = None,
@@ -231,7 +231,7 @@ class PlateauGenerator:
                 raise ValueError(f"Unknown plateau name: {name}") from exc
 
             # Generate features for each plateau level in turn.
-            result = self.generate_plateau(level, name)
+            result = await self.generate_plateau(level, name)
             # Restrict features to the requested customer segments only.
             filtered = [
                 feat for feat in result.features if feat.customer_type in customer_types

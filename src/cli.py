@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import logging
-from concurrent.futures import ThreadPoolExecutor
 
 import logfire
 from pydantic_ai import Agent
@@ -53,7 +53,7 @@ def _configure_logging(args: argparse.Namespace, settings) -> None:
         init_logfire(settings.logfire_token)
 
 
-def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
+async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
     """Generate service ambitions and write them to disk."""
 
     # Load prompt components from the configured directory
@@ -69,11 +69,11 @@ def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
 
     model = build_model(model_name, settings.openai_api_key)
     generator = ServiceAmbitionGenerator(model, concurrency=settings.concurrency)
-    generator.generate(services, system_prompt, args.output_file)
+    await generator.generate(services, system_prompt, args.output_file)
     logger.info("Results written to %s", args.output_file)
 
 
-def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
+async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
     """Generate service evolution summaries."""
 
     # Allow CLI model override, defaulting to configured model
@@ -88,7 +88,9 @@ def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
     if settings.concurrency < 1:
         raise ValueError("concurrency must be a positive integer")
 
-    def process_service(service: ServiceInput) -> tuple[str, str]:
+    semaphore = asyncio.Semaphore(settings.concurrency)
+
+    async def process_service(service: ServiceInput) -> tuple[str, str]:
         """Return the evolution JSON for ``service``.
 
         Args:
@@ -103,23 +105,25 @@ def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
         does not leak chat history between services.
         """
 
-        agent = Agent(model, instructions=system_prompt)
-        session = ConversationSession(agent)
-        generator = PlateauGenerator(session)
-        evolution = generator.generate_service_evolution(service)
-        return service.name, evolution.model_dump_json()
+        async with semaphore:
+            agent = Agent(model, instructions=system_prompt)
+            session = ConversationSession(agent)
+            generator = PlateauGenerator(session)
+            evolution = await generator.generate_service_evolution(service)
+            return service.name, evolution.model_dump_json()
 
     with (
         load_services(args.input_file) as services,
         open(args.output_file, "w", encoding="utf-8") as output,
     ):
-        with ThreadPoolExecutor(max_workers=settings.concurrency) as executor:
-            for name, payload in executor.map(process_service, services):
-                output.write(f"{payload}\n")
-                logger.info("Generated evolution for %s", name)
+        tasks = [asyncio.create_task(process_service(svc)) for svc in services]
+        for task in asyncio.as_completed(tasks):
+            name, payload = await task
+            output.write(f"{payload}\n")
+            logger.info("Generated evolution for %s", name)
 
 
-def main() -> None:
+async def main_async() -> None:
     """Parse arguments and dispatch to the requested subcommand."""
     settings = load_settings()
     if settings.logfire_token:
@@ -188,10 +192,15 @@ def main() -> None:
     _configure_logging(args, settings)
 
     # Execute the requested subcommand function
-    args.func(args, settings)
+    await args.func(args, settings)
 
     # Flush telemetry once the command completes
     logfire.force_flush()
+
+
+def main() -> None:
+    """Entry point for command-line execution."""
+    asyncio.run(main_async())
 
 
 if __name__ == "__main__":

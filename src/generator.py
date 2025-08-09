@@ -153,7 +153,7 @@ class ServiceAmbitionGenerator:
                 writer.cancel()
 
     @logfire.instrument()
-    def generate(
+    async def generate(
         self,
         services: Iterable[ServiceInput],
         prompt: str,
@@ -177,7 +177,7 @@ class ServiceAmbitionGenerator:
         try:
             # Run the async processing loop and stream results directly to disk
             # to avoid storing large intermediate data sets.
-            asyncio.run(self._process_all(services, output_path))
+            await self._process_all(services, output_path)
         except Exception as exc:  # pylint: disable=broad-except
             logger.error("Failed to write results to %s: %s", output_path, exc)
             raise

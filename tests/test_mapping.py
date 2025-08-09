@@ -19,12 +19,13 @@ class DummySession:
         self._responses = iter(responses)
         self.prompts: list[str] = []
 
-    def ask(self, prompt: str) -> str:  # pragma: no cover - trivial
+    async def ask(self, prompt: str) -> str:  # pragma: no cover - trivial
         self.prompts.append(prompt)
         return next(self._responses)
 
 
-def test_map_feature_returns_mappings(monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_map_feature_returns_mappings(monkeypatch) -> None:
     template = "{mapping_labels} {mapping_sections} {mapping_fields} {features}"
 
     def fake_loader(name, *_, **__):
@@ -67,7 +68,7 @@ def test_map_feature_returns_mappings(monkeypatch) -> None:
         customer_type="learners",
     )
 
-    result = map_feature(session, feature)  # type: ignore[arg-type]
+    result = await map_feature(session, feature)  # type: ignore[arg-type]
 
     assert isinstance(result, PlateauFeature)
     assert result.mappings["data"][0].item == "INF-1"
@@ -75,7 +76,8 @@ def test_map_feature_returns_mappings(monkeypatch) -> None:
     assert result.mappings["technology"][0].item == "TEC-1"
 
 
-def test_map_feature_injects_reference_data(monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_map_feature_injects_reference_data(monkeypatch) -> None:
     template = "{mapping_labels} {mapping_sections} {mapping_fields} {features}"
 
     def fake_loader(name, *_, **__):
@@ -117,7 +119,7 @@ def test_map_feature_injects_reference_data(monkeypatch) -> None:
         score=0.5,
         customer_type="learners",
     )
-    map_feature(session, feature)  # type: ignore[arg-type]
+    await map_feature(session, feature)  # type: ignore[arg-type]
 
     assert len(session.prompts) == 1
     assert "User Data" in session.prompts[0]
@@ -125,7 +127,8 @@ def test_map_feature_injects_reference_data(monkeypatch) -> None:
     assert "AI Engine" in session.prompts[0]
 
 
-def test_map_feature_rejects_invalid_json(monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_map_feature_rejects_invalid_json(monkeypatch) -> None:
     template = "{mapping_labels} {mapping_sections} {mapping_fields} {features}"
 
     def fake_loader(name, *_, **__):
@@ -149,10 +152,11 @@ def test_map_feature_rejects_invalid_json(monkeypatch) -> None:
         customer_type="learners",
     )
     with pytest.raises(ValueError):
-        map_feature(session, feature)  # type: ignore[arg-type]
+        await map_feature(session, feature)  # type: ignore[arg-type]
 
 
-def test_map_features_returns_mappings(monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_map_features_returns_mappings(monkeypatch) -> None:
     template = "{mapping_labels} {mapping_sections} {mapping_fields} {features}"
 
     def fake_loader(name, *_, **__):
@@ -192,13 +196,14 @@ def test_map_features_returns_mappings(monkeypatch) -> None:
         customer_type="learners",
     )
 
-    result = map_features(session, [feature])  # type: ignore[arg-type]
+    result = await map_features(session, [feature])  # type: ignore[arg-type]
 
     assert result[0].mappings["data"][0].item == "INF-1"
     assert "User Data" in session.prompts[0]
 
 
-def test_map_features_validates_lists(monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_map_features_validates_lists(monkeypatch) -> None:
     template = "{mapping_labels} {mapping_sections} {mapping_fields} {features}"
 
     def fake_loader(name, *_, **__):
@@ -239,4 +244,4 @@ def test_map_features_validates_lists(monkeypatch) -> None:
     )
 
     with pytest.raises(ValueError):
-        map_features(session, [feature])  # type: ignore[arg-type]
+        await map_features(session, [feature])  # type: ignore[arg-type]
