@@ -18,6 +18,9 @@ poetry run service-ambitions generate-evolution \
   --customers retail enterprise
 ```
 
+Include `--seed <value>` to make backoff jitter and model sampling
+deterministic when supported by the provider.
+
 ## Output schema
 
 Each line in the output file is a JSON object with:

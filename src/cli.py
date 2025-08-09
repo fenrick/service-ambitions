@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import logging
 import os
+import random
 from itertools import islice
 from pathlib import Path
 from typing import Iterable
@@ -70,7 +71,7 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
     model_name = args.model or settings.model
     logger.info("Generating ambitions using model %s", model_name)
 
-    model = build_model(model_name, settings.openai_api_key)
+    model = build_model(model_name, settings.openai_api_key, seed=args.seed)
     concurrency = args.concurrency or settings.concurrency
     generator = ServiceAmbitionGenerator(
         model,
@@ -140,7 +141,7 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
 
     # Allow CLI model override, defaulting to configured model
     model_name = args.model or settings.model
-    model = build_model(model_name, settings.openai_api_key)
+    model = build_model(model_name, settings.openai_api_key, seed=args.seed)
 
     # Load and assemble the system prompt so each conversation begins with
     # the situational context, definitions and inspirations.
@@ -259,6 +260,11 @@ async def main_async() -> None:
         help="Process at most this many services",
     )
     common.add_argument(
+        "--seed",
+        type=int,
+        help="Seed random number generation for reproducible output",
+    )
+    common.add_argument(
         "--dry-run",
         action="store_true",
         help="Validate inputs without calling the API",
@@ -315,6 +321,9 @@ async def main_async() -> None:
 
     # Parse the user's command-line selections
     args = parser.parse_args()
+
+    if args.seed is not None:
+        random.seed(args.seed)
 
     # Configure logging prior to executing the command
     _configure_logging(args, settings)
