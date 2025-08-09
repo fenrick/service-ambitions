@@ -32,8 +32,6 @@ mypy = "*"
 bandit = "*"
 "pip-audit" = "*"
 pytest = "*"
-"pytest-xdist" = "*"
-types-tqdm = "*"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
@@ -51,7 +49,7 @@ line-length = 88
 target-version = "py313"
 
 [tool.ruff.lint]
-select = ["E", "F", "I"]
+select = ["E", "F", "I", "B"]
 
 [tool.mypy]
 plugins = ["pydantic.mypy"]
