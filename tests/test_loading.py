@@ -21,7 +21,9 @@ def test_load_prompt_assembles_components(tmp_path):
     (base / "inspirations").mkdir(parents=True)
     (base / "situational_context" / "ctx.md").write_text("ctx", encoding="utf-8")
     (base / "service_feature_plateaus.md").write_text("plat", encoding="utf-8")
-    (base / "definitions.md").write_text("defs", encoding="utf-8")
+    (base / "definitions.json").write_text(
+        '{"d1": "defs", "d2": "extra"}', encoding="utf-8"
+    )
     (base / "inspirations" / "insp.md").write_text("insp", encoding="utf-8")
     (base / "task_definition.md").write_text("task", encoding="utf-8")
     (base / "response_structure.md").write_text("resp", encoding="utf-8")
@@ -34,6 +36,22 @@ def test_load_prompt_missing_component(tmp_path):
     base.mkdir()
     with pytest.raises(FileNotFoundError):
         load_prompt("ctx", "insp", str(base))
+
+
+def test_load_prompt_with_definition_keys(tmp_path):
+    base = tmp_path / "prompts"
+    (base / "situational_context").mkdir(parents=True)
+    (base / "inspirations").mkdir(parents=True)
+    (base / "situational_context" / "ctx.md").write_text("ctx", encoding="utf-8")
+    (base / "service_feature_plateaus.md").write_text("plat", encoding="utf-8")
+    (base / "definitions.json").write_text(
+        '{"d1": "defs1", "d2": "defs2"}', encoding="utf-8"
+    )
+    (base / "inspirations" / "insp.md").write_text("insp", encoding="utf-8")
+    (base / "task_definition.md").write_text("task", encoding="utf-8")
+    (base / "response_structure.md").write_text("resp", encoding="utf-8")
+    prompt = load_prompt("ctx", "insp", str(base), definition_keys=["d2"])
+    assert prompt == "ctx\n\nplat\n\ndefs2\n\ninsp\n\ntask\n\nresp"
 
 
 def test_load_prompt_text_plateau(tmp_path):

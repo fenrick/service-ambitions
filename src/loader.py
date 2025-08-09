@@ -208,12 +208,43 @@ def load_plateau_definitions(
 
 
 @logfire.instrument()
+@lru_cache(maxsize=None)
+def load_definitions(
+    base_dir: str | None = None,
+    filename: str = "definitions.json",
+    keys: Sequence[str] | None = None,
+) -> str:
+    """Return selected definitions joined by blank lines.
+
+    Args:
+        base_dir: Directory containing the definitions file.
+        filename: Name of the definitions JSON file.
+        keys: Optional identifiers to select specific definitions. When ``None``,
+            all definitions are returned in file order.
+
+    Returns:
+        Joined definition text.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        RuntimeError: If the file cannot be read or parsed.
+    """
+
+    directory = base_dir or PROMPT_DIR
+    path = os.path.join(directory, filename)
+    data: Dict[str, str] = _read_json_file(path, dict[str, str])
+    items = [data[k] for k in keys if k in data] if keys else list(data.values())
+    return "\n\n".join(items)
+
+
+@logfire.instrument()
 def load_prompt(
     context_id: str,
     inspirations_id: str,
     base_dir: str | None = None,
     plateaus_file: str = "service_feature_plateaus.md",
-    definitions_file: str = "definitions.md",
+    definitions_file: str = "definitions.json",
+    definition_keys: Sequence[str] | None = None,
     task_file: str = "task_definition.md",
     response_file: str = "response_structure.md",
 ) -> str:
@@ -226,7 +257,9 @@ def load_prompt(
             prompts directory.
         base_dir: Optional override for the base prompts directory.
         plateaus_file: Filename of the service feature plateaus component.
-        definitions_file: Filename of the definitions component.
+        definitions_file: Definitions file name.
+        definition_keys: Optional identifiers selecting which definitions to
+            include.
         task_file: Filename of the task definition component.
         response_file: Filename of the response structure component.
 
@@ -240,14 +273,14 @@ def load_prompt(
 
     directory = base_dir or PROMPT_DIR
     components = [
-        os.path.join(directory, "situational_context", f"{context_id}.md"),
-        os.path.join(directory, plateaus_file),
-        os.path.join(directory, definitions_file),
-        os.path.join(directory, "inspirations", f"{inspirations_id}.md"),
-        os.path.join(directory, task_file),
-        os.path.join(directory, response_file),
+        _read_file(os.path.join(directory, "situational_context", f"{context_id}.md")),
+        _read_file(os.path.join(directory, plateaus_file)),
+        load_definitions(directory, definitions_file, definition_keys),
+        _read_file(os.path.join(directory, "inspirations", f"{inspirations_id}.md")),
+        _read_file(os.path.join(directory, task_file)),
+        _read_file(os.path.join(directory, response_file)),
     ]
-    parts = [_read_file(path) for path in components]
+    parts = components
     return "\n\n".join(parts)
 
 
