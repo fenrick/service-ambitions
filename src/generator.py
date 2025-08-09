@@ -95,64 +95,62 @@ class ServiceAmbitionGenerator:
         result = await agent.run(service_details, output_type=AmbitionModel)
         return result.output.model_dump()
 
-    @logfire.instrument()
-    async def _worker(
-        self,
-        service: ServiceInput,
-        output_file,
-        semaphore: asyncio.Semaphore,
-    ) -> None:
-        """Write ambitions for a single ``service`` to ``output_file``.
+    async def _writer(self, out_path: str, queue: asyncio.Queue[str]) -> None:
+        """Serialise writes from ``queue`` to ``out_path``.
 
         Args:
-            service: The service being processed.
-            output_file: Handle of the file receiving JSONL records.
-            semaphore: Coordinates concurrent access to the model API.
-
-        The coroutine acquires ``semaphore`` to ensure only a limited number of
-        requests run concurrently.  Any errors from the model are logged and the
-        service is skipped rather than aborting the entire batch.
+            out_path: Destination file path for JSON lines.
+            queue: Asynchronous queue carrying one JSON string per service. A
+                ``None`` value signals completion and stops the writer.
         """
 
-        async with semaphore:
-            # The semaphore keeps the number of in-flight requests under the
-            # configured threshold, protecting the API from overload.
-            logger.info("Processing service %s", service.name)
-            try:
-                # Delegate to ``process_service`` for the actual model call.
-                result = await self.process_service(service)
-            except Exception as exc:  # pylint: disable=broad-except
-                logger.error(
-                    "Failed to process service %s: %s",
-                    service.name,
-                    exc,
-                )
-                return
-            # Persist each result on a single line so the file can be consumed
-            # using standard ``jsonlines`` tooling.
-            output_file.write(
-                f"{AmbitionModel.model_validate(result).model_dump_json()}\n"
-            )
+        with open(out_path, "a", encoding="utf-8") as handle:
+            while True:
+                line = await queue.get()
+                if line is None:  # Sentinel used to stop the writer
+                    break
+                handle.write(f"{line}\n")
+                queue.task_done()
 
     @logfire.instrument()
     async def _process_all(
         self,
         services: Iterable[ServiceInput],
-        output_file,
+        out_path: str,
     ) -> None:
-        """Dispatch worker tasks for ``services`` and await completion.
+        """Process ``services`` and stream results to ``out_path``.
 
         Args:
             services: Collection of services requiring ambition generation.
-            output_file: Handle of the file receiving JSONL records.
+            out_path: Destination path for the JSONL results.
         """
 
-        # Semaphore coordinates concurrent worker tasks so only ``concurrency``
-        # requests run at any given time.
         semaphore = asyncio.Semaphore(self.concurrency)
-        await asyncio.gather(
-            *(self._worker(service, output_file, semaphore) for service in services)
-        )
+        queue: asyncio.Queue[str] = asyncio.Queue(maxsize=self.concurrency * 2)
+        writer = asyncio.create_task(self._writer(out_path, queue))
+        try:
+
+            async def run_one(service: ServiceInput) -> None:
+                async with semaphore:
+                    logger.info("Processing service %s", service.name)
+                    try:
+                        result = await self.process_service(service)
+                    except Exception as exc:  # pylint: disable=broad-except
+                        logger.error(
+                            "Failed to process service %s: %s",
+                            service.name,
+                            exc,
+                        )
+                        return
+                    line = AmbitionModel.model_validate(result).model_dump_json()
+                    await queue.put(line)
+
+            await asyncio.gather(*(run_one(svc) for svc in services))
+            await queue.put(None)
+            await writer
+        finally:
+            if not writer.done():
+                writer.cancel()
 
     @logfire.instrument()
     def generate(
@@ -177,10 +175,9 @@ class ServiceAmbitionGenerator:
 
         self._prompt = prompt
         try:
-            with open(output_path, "a", encoding="utf-8") as output_file:
-                # Run the async processing loop and stream results directly to
-                # disk to avoid storing large intermediate data sets.
-                asyncio.run(self._process_all(services, output_file))
+            # Run the async processing loop and stream results directly to disk
+            # to avoid storing large intermediate data sets.
+            asyncio.run(self._process_all(services, output_path))
         except Exception as exc:  # pylint: disable=broad-except
             logger.error("Failed to write results to %s: %s", output_path, exc)
             raise
