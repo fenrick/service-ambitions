@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from cli import _cmd_generate_evolution
-from models import ServiceEvolution, ServiceInput
+from models import SCHEMA_VERSION, ServiceEvolution, ServiceInput
 
 
 @pytest.mark.asyncio
@@ -24,7 +24,8 @@ async def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
                 "jobs_to_be_done": ["job"],
             }
         )
-        + "\n"
+        + "\n",
+        encoding="utf-8",
     )
 
     def fake_build_model(
@@ -76,9 +77,10 @@ async def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
 
     await _cmd_generate_evolution(args, settings)
 
-    payload = json.loads(output_path.read_text().strip())
+    payload = json.loads(output_path.read_text(encoding="utf-8").strip())
     assert payload["service"]["name"] == "svc"
     assert payload["service"]["service_id"] == "svc-1"
+    assert payload["schema_version"] == SCHEMA_VERSION
 
 
 @pytest.mark.asyncio
@@ -95,7 +97,8 @@ async def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> Non
                 "jobs_to_be_done": [],
             }
         )
-        + "\n"
+        + "\n",
+        encoding="utf-8",
     )
 
     captured: dict[str, object] = {}
@@ -172,7 +175,8 @@ async def test_generate_evolution_respects_concurrency(tmp_path, monkeypatch) ->
                 "jobs_to_be_done": [],
             }
         )
-        + "\n"
+        + "\n",
+        encoding="utf-8",
     )
 
     class DummyAgent:
@@ -376,6 +380,8 @@ async def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
     await _cmd_generate_evolution(args, settings)
 
     assert processed == ["s2"]
-    lines = output_path.read_text().strip().splitlines()
+    lines = output_path.read_text(encoding="utf-8").strip().splitlines()
     assert len(lines) == 2
-    assert (tmp_path / "processed_ids.txt").read_text().splitlines() == ["s1", "s2"]
+    assert (tmp_path / "processed_ids.txt").read_text(
+        encoding="utf-8"
+    ).splitlines() == ["s1", "s2"]

@@ -27,7 +27,7 @@ def test_cli_generates_output(tmp_path, monkeypatch):
     (base / "response_structure.md").write_text("r", encoding="utf-8")
 
     input_file = tmp_path / "services.jsonl"
-    input_file.write_text('{"name": "alpha"}\n{"name": "beta"}\n')
+    input_file.write_text('{"name": "alpha"}\n{"name": "beta"}\n', encoding="utf-8")
 
     output_file = tmp_path / "output.jsonl"
 
@@ -67,7 +67,7 @@ def test_cli_generates_output(tmp_path, monkeypatch):
 
     cli.main()
 
-    lines = output_file.read_text().strip().splitlines()
+    lines = output_file.read_text(encoding="utf-8").strip().splitlines()
     assert [json.loads(line) for line in lines] == [
         {"service": "alpha", "prompt": "You"}
     ]
@@ -145,7 +145,7 @@ def test_cli_switches_context(tmp_path, monkeypatch):
     (base / "task_definition.md").write_text("t", encoding="utf-8")
     (base / "response_structure.md").write_text("r", encoding="utf-8")
     input_file = tmp_path / "services.jsonl"
-    input_file.write_text('{"name": "alpha"}\n')
+    input_file.write_text('{"name": "alpha"}\n', encoding="utf-8")
     output_file = tmp_path / "output.jsonl"
 
     settings = SimpleNamespace(
@@ -180,7 +180,7 @@ def test_cli_switches_context(tmp_path, monkeypatch):
 
     cli.main()
 
-    line = json.loads(output_file.read_text().strip())
+    line = json.loads(output_file.read_text(encoding="utf-8").strip())
     assert line["prompt"].startswith("Beta")
 
 
@@ -196,7 +196,7 @@ def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
     (base / "task_definition.md").write_text("t", encoding="utf-8")
     (base / "response_structure.md").write_text("r", encoding="utf-8")
     input_file = tmp_path / "services.jsonl"
-    input_file.write_text('{"name": "alpha"}\n')
+    input_file.write_text('{"name": "alpha"}\n', encoding="utf-8")
     output_file = tmp_path / "output.jsonl"
 
     settings = SimpleNamespace(
@@ -318,7 +318,7 @@ def test_cli_enables_logfire(tmp_path, monkeypatch):
     (base / "task_definition.md").write_text("t", encoding="utf-8")
     (base / "response_structure.md").write_text("r", encoding="utf-8")
     input_file = tmp_path / "services.jsonl"
-    input_file.write_text('{"name": "alpha"}\n')
+    input_file.write_text('{"name": "alpha"}\n', encoding="utf-8")
     output_file = tmp_path / "output.jsonl"
 
     settings = SimpleNamespace(
@@ -522,6 +522,8 @@ def test_cli_resume_skips_processed(tmp_path, monkeypatch):
     cli.main()
 
     assert processed == ["2"]
-    lines = output_file.read_text().strip().splitlines()
+    lines = output_file.read_text(encoding="utf-8").strip().splitlines()
     assert len(lines) == 2
-    assert (tmp_path / "processed_ids.txt").read_text().splitlines() == ["1", "2"]
+    assert (tmp_path / "processed_ids.txt").read_text(
+        encoding="utf-8"
+    ).splitlines() == ["1", "2"]
