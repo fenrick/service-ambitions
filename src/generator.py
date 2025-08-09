@@ -211,7 +211,7 @@ def build_model(model_name: str, api_key: str) -> Model:
     # Allow callers to pass provider-prefixed names such as ``openai:gpt-4``.
     model_name = model_name.split(":", 1)[-1]
     settings = OpenAIResponsesModelSettings(
-        openai_builtin_tools=[{"type": "web_search"}],
+        openai_builtin_tools=[{"type": "web_search_preview"}],
         openai_reasoning_summary="concise",
         openai_reasoning_effort="medium",
     )

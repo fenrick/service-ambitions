@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+from typing import Sequence
 
 from conversation import ConversationSession
 from loader import load_app_config, load_prompt_text
@@ -193,11 +194,17 @@ class PlateauGenerator:
     def generate_service_evolution(
         self,
         service_input: ServiceInput,
+        plateau_names: Sequence[str] | None = None,
+        customer_types: Sequence[str] | None = None,
     ) -> ServiceEvolution:
         """Return service evolution for selected plateaus and customers.
 
         Args:
             service_input: Service under evaluation.
+            plateau_names: Optional plateau names to evaluate. Defaults to
+                :data:`DEFAULT_PLATEAU_NAMES`.
+            customer_types: Optional customer segments to include. Defaults to
+                :data:`DEFAULT_CUSTOMER_TYPES`.
 
         Returns:
             Combined evolution limited to the default plateaus and customer
@@ -212,8 +219,8 @@ class PlateauGenerator:
         # Seed the conversation so later model queries have the service context.
         self.session.add_parent_materials(service_input)
 
-        plateau_names = DEFAULT_PLATEAU_NAMES
-        customer_types = DEFAULT_CUSTOMER_TYPES
+        plateau_names = list(plateau_names or DEFAULT_PLATEAU_NAMES)
+        customer_types = list(customer_types or DEFAULT_CUSTOMER_TYPES)
 
         plateaus: list[PlateauResult] = []
         for name in plateau_names:
