@@ -101,7 +101,7 @@ def test_cli_dry_run_skips_processing(tmp_path, monkeypatch):
 
     called = {"ran": False}
 
-    async def fake_generate_async(self, services, prompt, output_path, progress=None):  # type: ignore[no-untyped-def]
+    async def fake_generate_async(self, services, prompt, output_path, progress=None):
         called["ran"] = True
 
     monkeypatch.setattr(ServiceAmbitionGenerator, "generate_async", fake_generate_async)
@@ -212,7 +212,7 @@ def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
 
     captured: dict[str, str] = {}
 
-    def fake_build_model(model_name: str, api_key: str, *, seed=None):  # type: ignore[no-untyped-def]
+    def fake_build_model(model_name: str, api_key: str, *, seed=None):
         captured["model"] = model_name
         captured["api_key"] = api_key
         captured["seed"] = seed
@@ -274,7 +274,7 @@ def test_cli_seed_sets_random(tmp_path, monkeypatch):
 
     captured: dict[str, int | None] = {}
 
-    def fake_build_model(model_name: str, api_key: str, *, seed=None):  # type: ignore[no-untyped-def]
+    def fake_build_model(model_name: str, api_key: str, *, seed=None):
         captured["seed"] = seed
         return "test"
 
@@ -343,12 +343,10 @@ def test_cli_enables_logfire(tmp_path, monkeypatch):
     captured: dict[str, object] = {}
     called: dict[str, bool] = {"installed": False}
 
-    def fake_configure(**kwargs):  # type: ignore[no-untyped-def]
+    def fake_configure(**kwargs):
         captured.update(kwargs)
 
-    def fake_install(
-        modules, *, min_duration, check_imported_modules="error"
-    ):  # type: ignore[no-untyped-def]
+    def fake_install(modules, *, min_duration, check_imported_modules="error"):
         called["installed"] = True
         captured["modules"] = modules
         captured["min_duration"] = min_duration

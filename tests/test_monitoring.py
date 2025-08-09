@@ -21,9 +21,7 @@ def test_init_logfire_replaces_root_handlers(monkeypatch):
     installed = False
     install_args: dict[str, object] = {}
 
-    def install(
-        modules, *, min_duration, check_imported_modules="error"
-    ):  # type: ignore[no-untyped-def]
+    def install(modules, *, min_duration, check_imported_modules="error"):
         nonlocal installed
         installed = True
         install_args["modules"] = modules

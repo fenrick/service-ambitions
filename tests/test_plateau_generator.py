@@ -87,7 +87,7 @@ async def test_generate_plateau_returns_results(monkeypatch) -> None:
         description="desc",
         jobs_to_be_done=["job"],
     )
-    generator._service = service  # type: ignore[attr-defined]
+    generator._service = service
 
     plateau = await generator.generate_plateau(1, "Foundational")
 
@@ -115,7 +115,7 @@ async def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> 
         description="desc",
         jobs_to_be_done=["job"],
     )
-    generator._service = service  # type: ignore[attr-defined]
+    generator._service = service
 
     with pytest.raises(ValueError):
         await generator.generate_plateau(1, "Foundational")
