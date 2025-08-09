@@ -4,13 +4,11 @@ This repository uses automated code quality tooling for all Python sources.
 
 ## Formatting
 
-- Run `poetry run isort --float-to-top --combine-star --order-by-type .` to sort import statements in the code base.
 - Run `poetry run black --preview --enable-unstable-feature string_processing .` to auto-format the code base.
 
 ## Linting
 
-- Execute `poetry run ruff check .` to check style and catch common bugs.
-- Execute `poetry run flake8 .` to check style and catch common bugs.
+- Execute `poetry run ruff check --fix .` to check style, catch common bugs, and sort imports.
 
 ## Static Analysis
 
