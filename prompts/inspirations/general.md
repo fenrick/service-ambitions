@@ -1,70 +1,150 @@
 ## Inspirations
 
-When considering potential futures, seek inspiration from this list of potential innovations over the coming decades:
+Format is consistent: **Name** — one-liner. `[Layers: CUST | OPS | CORP | RISK | TECH | ASSET | ECO]`
 
-### Currently mainstream or within 1 year
+# Future-Service Impact Library (Viability Horizons)
 
-Advanced and open‑source generative‑AI copilots; Responsible‑AI toolkits and audit frameworks; 5G national‑scale
-coverage and private 5G for industry; Edge‑AI inference on mobile and IoT chips; Citizen‑developer low‑/no‑code workflow
-platforms; Real‑time speech and document translation in collaboration suites; SaaS master‑data‑management and
-privacy‑preserving clean rooms; Digital credentials, micro‑credentials and blockchain badges; Battery‑recycling
-gigafactories for lithium‑ion cells; Rapid CRISPR trait‑stacking for staple crops; Plant‑based and cultivated meat
-alternatives in mainstream retail; Green‑hydrogen pilot electrolysers at industrial hubs; Vertical‑farming modules in
-urban groceries and hospitals; Large‑scale photovoltaic plus storage projects hitting grid parity; Circular‑fashion
-resale and rental platforms; Hybrid‑work hubs with flexible office footprints; Device‑bound passkeys replacing passwords
-at major tech firms; Community mental‑health apps with AI triage; Low‑carbon shipping fuels (bio‑methanol, ammonia) on
-first commercial routes.
+> **Horizon meaning:** when a typical enterprise can start exploiting at scale (post-research, pre-full mainstream).
 
-### Within 1–3 years
+## Now–12 months (scaled pilots / early rollouts)
 
-Decision‑intelligence dashboards fusing ERP, IoT and market data; Neuro‑symbolic AI for explainable risk and compliance
-analytics; Self‑integrating enterprise applications using AI‑driven connectors; Clinically supervised AI mental‑health
-companions; Energy‑harvesting wearables and solar‑powered IoT sensors; Circular‑economy digital product passports
-mandated in the EU; Precision‑fermentation dairy and egg proteins scaling to mass market; Low‑carbon cement and
-geopolymer concrete entering commercial projects; Policy frameworks for algorithmic transparency and bias redress;
-Grid‑scale long‑duration batteries (iron‑flow, sodium‑ion) hitting cost parity; AR‑enabled remote‑expert headsets for
-field service and healthcare; Micro‑mobility fleets of robots and drones in dense CBDs; Bio‑degradable plastics from
-algae feedstocks; Community micro‑grids with peer‑to‑peer energy trading; Automated sorting of e‑waste for
-critical‑minerals recovery; Synthetic‑data generation for safer AI training; Tele‑rehabilitation platforms with
-motion‑capture analytics; Smart irrigation systems using edge‑AI weather prediction; Portable point‑of‑care genome
-sequencing for pathogen control.
+* **Gen-AI copilots & agentic workflows** — automate drafting, triage, summarisation, and actioning within guardrails. `[CUST, OPS, CORP, TECH]`
+* **Responsible-AI toolkits & audits** — model cards, bias tests, human-in-the-loop policies embedded in SDLC. `[RISK, TECH]`
+* **On-device AI (NPUs) & edge inference** — low-latency automation on mobiles/IoT without sending data to cloud. `[OPS, TECH]`
+* **Citizen-developer automation** — governed low/no-code for workflow and integrations. `[OPS, CORP, TECH]`
+* **Real-time translation in collaboration tools** — multilingual service and knowledge sharing. `[CUST, OPS]`
+* **MDM + privacy-preserving clean rooms** — governed data sharing and advanced analytics without raw data moves. `[CORP, RISK, TECH]`
+* **Synthetic data for safer training** — expand coverage where real data is sparse/sensitive. `[TECH, RISK]`
+* **Passkeys (passwordless)** — reduce login friction and account takeover risk. `[CUST, RISK, TECH]`
+* **Content provenance & watermarking** — traceable assets and safer model usage. `[RISK, TECH]`
+* **Private 5G / Wi-Fi 6E for sites** — reliable connectivity for robotics, AR, and telemetry. `[OPS, ASSET, TECH]`
+* **Decision-intelligence dashboards** — fuse ERP/IoT/market data for operations control. `[OPS, CORP, TECH]`
+* **Sector-specific clouds** — regulatory patterns and data models out-of-the-box. `[CORP, RISK, TECH]`
+* **Enterprise knowledge graphs** — unified search and generative Q\&A on enterprise content. `[CORP, TECH]`
+* **AR remote-expert support** — faster field fixes, fewer truck rolls. `[OPS, CUST, ASSET]`
+* **Data-product operating model** — datasets with owners, SLAs, and chargeback. `[CORP, TECH]`
+* **AI service “control tower”** — detect issues, root-cause, trigger auto-remediation. `[OPS, CUST]`
+* **Proactive service recovery** — auto credits/make-goods on SLO breaches. `[CUST, CORP]`
+* **Consent-by-design UX** — zero/first-party data vaults and clear value exchange. `[CUST, RISK]`
+* **Outcome-oriented KPIs** — journey SLOs (time-to-value, first-time-right) beyond NPS. `[CUST, CORP]`
+* **Telemetry-backed warranties** — simpler terms linked to live performance. `[CUST, RISK, CORP]`
+* **Green-ops in approvals** — carbon/water “shadow price” in change & procurement. `[CORP, RISK]`
+* **API monetisation playbooks** — externalise capabilities with pricing tiers and quotas. `[ECO, CORP, TECH]`
+* **Duty-of-care operations** — vulnerable-customer flags and escalation paths. `[CUST, RISK]`
+* **PV + storage at parity** — behind-the-meter savings and resilience. `[ASSET, OPS]`
+* **Heat-pump retrofits (commercial/residential)** — lower OpEx, decarbonise estates. `[ASSET, OPS]`
+* **Battery recycling & automated e-waste sorting** — secure recovery of critical minerals. `[ASSET, OPS]`
+* **Circular fashion/resale marketplaces** *(sectoral)* — new reverse-logistics playbooks. `[CUST, OPS, ECO]`
+* **Plant-based proteins mainstream** *(sectoral)* — menu/service redesign and supply shifts. `[CUST, OPS]`
 
-### Within 3–5 years
+## 1–3 years (emerging scale across functions/regions)
 
-Sector‑specific cloud platforms embedding regulatory logic; Digital twins of campuses, factories and city precincts for
-scenario planning; Emotion‑AI and affective sensing woven into customer‑experience channels; Distributed‑ledger
-credential wallets for lifelong learning and HR; Immersive VR/AR language‑learning and high‑risk skills simulations;
-Autonomous drone inspection of infrastructure—bridges, power‑lines, pipelines; Advanced knowledge graphs powering
-enterprise search and generative Q&A; AI‑designed proteins and novel materials for carbon capture and catalysis;
-Green‑hydrogen–fuelled heavy trucks on key freight corridors; Modular automated‑construction factories for mid‑rise
-housing; Climate‑resilient gene‑edited crop varieties for drought and salinity; High‑efficiency heat‑pump retrofits for
-mass‑market housing; Direct‑air‑capture plants feeding e‑fuel synthesis; Ocean‑based carbon‑removal kelp farms with
-remote monitoring; Integrated agri‑robotics for precision weeding and harvesting; Graphene‑membrane desalination plants
-lowering water‑treatment energy; AI‑optimised supply‑chain forecasting for just‑in‑time manufacturing; Hybrid‑propulsion
-short‑haul aircraft with SAF compatibility; Large‑scale urban tree‑canopy digital planning tools.
+* **Self-integrating apps (AI connectors)** — auto-map schemas/APIs; lower integration debt. `[TECH, CORP]`
+* **Federated learning & secure MPC** — cross-org modelling without data pooling. `[TECH, RISK, ECO]`
+* **Post-quantum crypto migration** — inventory, prioritise, and roll out PQC. `[RISK, TECH]`
+* **Verifiable digital credentials** — onboarding, compliance, partner access. `[CORP, RISK, ECO]`
+* **Digital product passports (EU)** — traceability for materials and repairability. `[OPS, RISK, ECO]`
+* **Community micro-grids & VPPs** — monetise flexibility and resilience. `[ASSET, OPS, ECO]`
+* **Long-duration storage pilots (iron-flow/sodium)** — shift peaks, support renewables. `[ASSET, OPS]`
+* **Precision-fermentation proteins** — targeted SKUs with new supply assurance. `[OPS, ECO]`
+* **Low-carbon cement/geopolymers** — decarb projects, qualify suppliers. `[OPS, RISK]`
+* **Energy-harvesting wearables/solar IoT** — maintenance-free sensing. `[OPS, TECH]`
+* **Micro-mobility robots/drones** — last-50-metres delivery in geofenced CBDs. `[OPS, CUST]`
+* **Bioplastics (algal feedstocks)** — compliant packaging transitions. `[OPS, RISK]`
+* **Tele-rehab & supervised AI mental-health** — remote care pathways. `[CUST, OPS]`
+* **Smart irrigation (edge-AI)** — water efficiency at scale. `[OPS, ASSET]`
+* **Portable point-of-care genome sequencing** — faster outbreak control. `[OPS, RISK]`
+* **Campus/factory digital twins** — scenario planning and OEE optimisation. `[OPS, ASSET, TECH]`
+* **Immersive VR/AR training** — high-risk skills and language learning. `[CORP, OPS]`
+* **Autonomous drone inspection** — bridges/lines/pipelines at lower risk. `[OPS, ASSET]`
+* **AI-optimised supply-chain forecasting** — demand/supply sensing for JIT. `[OPS, CORP]`
+* **Urban heat-risk & canopy planning** — adaptation into asset strategy. `[ASSET, RISK]`
+* **Construction robotics (layout/tying/finishing)** — productivity & safety. `[OPS, ASSET]`
+* **Advanced liquid-cooled data centres** — density without water/energy blowouts. `[ASSET, TECH]`
+* **Computable contracts (“smart terms”)** — event-triggered clauses at runtime. `[CORP, RISK, TECH]`
+* **Outcome-/usage-based pricing** — from licences to per-result/per-case. `[CORP, CUST]`
+* **Ecosystem orchestration & marketplaces** — curated partner bundles, revenue share. `[ECO, CORP]`
+* **Agent-ready channels (machine customers)** — bots place orders and resolve service. `[CUST, OPS, TECH]`
+* **Journey portfolio management** — journeys as products with backlogs/budgets. `[CUST, CORP]`
+* **Continuous assurance & control monitoring** — automated audit/model risk evidence. `[RISK, CORP]`
+* **Scenario-as-code in planning** — executable business scenarios inform rolling forecasts. `[CORP, OPS]`
+* **Reverse logistics by default** — take-back, refurbish, component recovery. `[OPS, ECO]`
+* **Internal developer platform (golden paths)** — safe self-service for data/AI/workflows. `[TECH, CORP]`
+* **Real-time service segmentation** — adaptive treatments by risk/value/need. `[CUST, OPS]`
+* **Community-led growth & support** — expert networks, incentives, shared KBs. `[CUST, ECO]`
+* **Skills passports** — verifiable workforce mobility and compliance. `[CORP, RISK]`
+* **Event-driven enterprise backbone** — standardised events for ops decisioning. `[TECH, OPS]`
+* **Service catalogue & orchestration** — self-serve provisioning of business capabilities. `[OPS, TECH]`
+* **Carbon-aware routing & SLOs** — emissions as a first-class service metric. `[OPS, RISK]`
+* **FinOps/MLOps standardisation** — cost-to-serve and model lifecycle discipline. `[CORP, TECH]`
 
-### Within 5–10 years
+## 3–5 years (breakout if enablers land)
 
-Metaverse‑grade fully immersive collaboration workspaces; Holographic light‑field displays in conference venues and
-retail; Haptic gloves and full‑body suits enabling tactile remote operations; Quantum‑accelerated optimisation for
-logistics, materials and pharma pipelines; 3D bioprinting of transplant‑ready kidneys and livers; Nano‑robotic targeted
-drug‑delivery clinical trials; Ambient intelligence across smart precincts—lighting, waste and mobility orchestration;
-Swarm robotics for autonomous construction and disaster response; Augmented‑reality contact lenses and
-gesture‑/thought‑controlled interfaces; Smart‑dust sensor networks for climate, biodiversity and biosecurity monitoring;
-Fusion pilot‑plant electricity to grid and advanced small modular reactors; Brain–computer‑interface therapeutics
-restoring movement in spinal‑cord injury; Biocomputing and DNA data‑storage archives for exabyte‑scale cold data;
-Energy‑positive modular data‑centre blocks using waste‑heat capture; Gigaton‑scale CO₂ mineralisation in mine‑tailing
-and basalt formations; Circular‑metallurgy hubs extracting critical minerals from e‑waste; Bio‑manufactured structural
-timber and mycelium building panels; Gravity‑based energy‑storage towers stabilising renewables; Generative‑design
-algorithms shaping zero‑carbon architecture; Autonomous ocean‑going cargo ships with remote command centres;
-Carbon‑neutral e‑kerosene production for long‑haul aviation; Global zero‑latency networks via dense LEO satellite
-constellations.
+* **Emotion-AI with consent & governance** — sentiment/affect in service with guardrails. `[CUST, RISK]`
+* **Credential wallets (citizen & workforce)** — portable entitlements across providers. `[CUST, CORP, RISK]`
+* **AI-designed proteins & catalysts** — step-change efficiency in capture/catalysis. `[OPS, ECO]`
+* **Modular automated-construction factories** — mid-rise/social/remote builds. `[ASSET, OPS]`
+* **Climate-resilient gene-edited crops** — drought/salinity resilience at scale. `[OPS, ECO]`
+* **Integrated agri-robotics** — precision weeding/harvesting across hectares. `[OPS, ASSET]`
+* **Advanced membranes for desalination** — lower energy water treatment. `[ASSET, OPS]`
+* **Hybrid-propulsion regional aircraft (SAF-ready)** — limited routes, noise/CO₂ gains. `[OPS, ECO]`
+* **Circular-metallurgy hubs (urban mining)** — steady feed of critical minerals. `[OPS, ASSET]`
+* **Gravity-based energy storage** — firming renewables on selected grids. `[ASSET, OPS]`
+* **Programmable payments/purpose-bound money** — finer-grained settlement & controls. `[CORP, RISK, ECO]`
+* **Multimodal clinical AI approvals** — imaging+notes+vitals driving care ops. `[OPS, RISK]`
+* **Digital biomarkers (wearables)** — chronic disease pathways and remote titration. `[CUST, OPS]`
+* **Methane-reduction in livestock** — feed additives/vaccines at herd scale. `[OPS, RISK]`
+* **Tele-operations as a service** — remote experts run equipment/sites with haptics. `[OPS, CUST]`
+* **Predict-to-prevent SLAs** — embed predictive maintenance & outreach into contracts. `[OPS, CUST, CORP]`
+* **Computational procurement** — autonomous sourcing within ESG/risk guardrails. `[CORP, RISK]`
+* **Autonomous back-office cells** — claims/billing/finance handled by agent swarms with audit trails. `[CORP, RISK, TECH]`
+* **Data cooperatives** — governed shared datasets with partners/customers. `[ECO, RISK, TECH]`
+* **Consent brokers & trust marks** — third-party verification of data/model use in CX. `[RISK, CUST]`
+* **Outcome warranties** — pay for measured outcomes; shared upside/downside. `[CORP, CUST]`
+* **Dynamic workforce ecosystems** — internal marketplaces + external talent clouds. `[CORP, OPS]`
+* **Operational digital twins in the loop** — twins drive live decisions (inventory, routing, staffing). `[OPS, TECH]`
+* **Real-time tax & compliance** — reporting embedded in transaction flows. `[CORP, RISK]`
+* **Service mesh for business capabilities** — policy-aware routing of work across internal/external nodes. `[OPS, TECH, ECO]`
+* **Shared-services brokerage** — multi-tenant SSC offering priced, metered capabilities internally. `[CORP, OPS]`
+* **Carbon contracts for difference in procurement** — derisk low-carbon supply. `[CORP, RISK]`
 
-### Speculative / unlikely to transform the world within 10 years
+## 5–10 years (frontier, sector-specific scaling)
 
-Hyperloop mass transit beyond isolated test tracks; Space elevators or lunar mass tourism; Stratospheric aerosol
-geo‑engineering deployed at scale without robust governance; Whole‑brain emulation, mind uploading or full human–AI
-“mind melds”; Transhumanist genetic performance enhancement approved for population use; Predictive policing deployed
-nationally without severe backlash; Ambient time‑accelerated or history‑replay simulations in mainstream education;
-Deep‑sea mining of polymetallic nodules at commercial scale with full ESG consent; Zero‑point or cold‑fusion energy
-breakthroughs; Faster‑than‑light propulsion for interstellar probes.
+* **Immersive collaboration & haptic tele-presence** — design/ops with tactile feedback. `[CUST, OPS]`
+* **Holographic light-field venues/retail** — high-fidelity demos and training. `[CUST, CORP]`
+* **Quantum-accelerated optimisation** — routing/portfolio/materials in narrow high-value cases. `[OPS, CORP, TECH]`
+* **Nano-robotic drug delivery** — early clinical adoption in specific indications. `[OPS, RISK]`
+* **Ambient intelligence across precincts** — orchestrated lighting, waste, mobility. `[ASSET, OPS]`
+* **Swarm robotics for construction/disaster response** — autonomous, coordinated field work. `[OPS, ASSET]`
+* **AR contact lenses & thought/gesture interfaces** — assistive interfaces for specialists. `[CUST, OPS]`
+* **Smart-dust sensor networks** — climate/biodiversity/biosecurity at ultra-low cost. `[ASSET, RISK]`
+* **Fusion pilots & advanced SMRs** — policy-dependent low-carbon baseload. `[ASSET, OPS]`
+* **BCI therapeutics** — restore movement; new care models. `[OPS, RISK]`
+* **DNA data-storage archives** — exabyte-scale cold storage for compliance. `[CORP, TECH]`
+* **Gigaton-scale CO₂ mineralisation** — regional removal integrated with mining. `[ASSET, RISK]`
+* **Bio-manufactured timber & mycelium panels** — low-carbon building materials at code-approved scales. `[ASSET, OPS]`
+* **Carbon-neutral e-kerosene** — premium niches for aviation. `[OPS, ECO]`
+* **Low-latency LEO networks (dense constellations)** — global coverage for time-critical ops. `[OPS, TECH]`
+* **Remote-command cargo ships; gradual autonomy** — defined corridors first. `[OPS, RISK]`
+* **Green-hydrogen trucks on fixed corridors** — depot-based ecosystems and captive routes. `[OPS, ECO]`
+* **Machine-to-machine commerce** — agents negotiate capacity/energy/logistics. `[CORP, OPS, TECH]`
+* **Embedded resilience services** — auto-insurance triggers, backup fulfilment during shocks. `[OPS, RISK]`
+* **Value-exchange wallets** — customers trade data/attention for micro-benefits. `[CUST, CORP]`
+* **Computational regulation** — machine-executable rules; compliance at runtime. `[RISK, CORP, TECH]`
+* **Outcome pooling & risk-sharing consortia** — multi-party contracts for societal outcomes. `[ECO, CORP]`
+* **Autonomous service franchises** — micro-enterprises under central guardrails. `[CORP, OPS]`
+* **Ethics & safety incident command** — cross-firm hotlines/protocols for AI/service harms. `[RISK, CORP]`
+
+## Beyond 10 years / Speculative (monitor, not plan-critical)
+
+* **Hyperloop at scale** — beyond isolated test tracks. `[ASSET, OPS]`
+* **Space elevators / lunar mass tourism** — radical logistics/experience models. `[ASSET, CUST]`
+* **Stratospheric aerosol geo-engineering** — unresolved governance/risks. `[RISK, ECO]`
+* **Transplant-ready 3D-printed organs** — transformational but uncertain timelines. `[OPS, RISK]`
+* **Whole-brain emulation / mind uploading** — far-future cognition models. `[CORP, RISK]`
+* **Transhuman genetic enhancement** — population-scale approvals unlikely near-term. `[RISK]`
+* **National predictive policing** — high social-licence risk. `[RISK]`
+* **Time-acceleration or history-replay education** — speculative pedagogy. `[CUST, CORP]`
+* **Commercial deep-sea mining with full ESG consent** — contested pathway. `[RISK, ECO]`
+* **Zero-point/cold-fusion breakthroughs** — unproven physics. `[ASSET]`
+* **Faster-than-light propulsion** — beyond current science. `[ASSET]`
