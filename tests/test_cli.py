@@ -1,4 +1,5 @@
 import json
+import random
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -211,9 +212,10 @@ def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
 
     captured: dict[str, str] = {}
 
-    def fake_build_model(model_name: str, api_key: str):
+    def fake_build_model(model_name: str, api_key: str, *, seed=None):  # type: ignore[no-untyped-def]
         captured["model"] = model_name
         captured["api_key"] = api_key
+        captured["seed"] = seed
         return "test"
 
     monkeypatch.setattr(generator, "build_model", fake_build_model)
@@ -241,6 +243,67 @@ def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
 
     assert captured["model"] == "test-model"
     assert captured["api_key"] == "dummy"
+    assert captured["seed"] is None
+
+
+def test_cli_seed_sets_random(tmp_path, monkeypatch):
+    base = tmp_path / "prompts"
+    (base / "situational_context").mkdir(parents=True)
+    (base / "inspirations").mkdir(parents=True)
+    (base / "situational_context" / "ctx.md").write_text("c", encoding="utf-8")
+    (base / "service_feature_plateaus.md").write_text("p", encoding="utf-8")
+    (base / "definitions.json").write_text('{"d": "d"}', encoding="utf-8")
+    (base / "inspirations" / "insp.md").write_text("i", encoding="utf-8")
+    (base / "task_definition.md").write_text("t", encoding="utf-8")
+    (base / "response_structure.md").write_text("r", encoding="utf-8")
+
+    input_file = tmp_path / "services.jsonl"
+    input_file.write_text('{"name": "alpha"}\n', encoding="utf-8")
+    output_file = tmp_path / "output.jsonl"
+
+    settings = SimpleNamespace(
+        model="cfg",
+        log_level="INFO",
+        prompt_dir=str(base),
+        context_id="ctx",
+        inspiration="insp",
+        concurrency=1,
+        openai_api_key="dummy",
+        logfire_token=None,
+    )
+
+    captured: dict[str, int | None] = {}
+
+    def fake_build_model(model_name: str, api_key: str, *, seed=None):  # type: ignore[no-untyped-def]
+        captured["seed"] = seed
+        return "test"
+
+    async def fake_process_service(self, service, prompt=None):
+        return {"ok": True}
+
+    monkeypatch.setattr(generator, "build_model", fake_build_model)
+    monkeypatch.setattr(cli, "build_model", fake_build_model)
+    monkeypatch.setattr(
+        ServiceAmbitionGenerator, "process_service", fake_process_service
+    )
+    monkeypatch.setattr(cli, "load_settings", lambda: settings)
+
+    argv = [
+        "main",
+        "generate-ambitions",
+        "--input-file",
+        str(input_file),
+        "--output-file",
+        str(output_file),
+        "--seed",
+        "123",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+
+    cli.main()
+
+    assert captured["seed"] == 123
+    assert random.random() == pytest.approx(random.Random(123).random())
 
 
 def test_cli_enables_logfire(tmp_path, monkeypatch):

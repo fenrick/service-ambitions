@@ -28,7 +28,7 @@ async def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
     )
 
     def fake_build_model(
-        model_name: str, api_key: str
+        model_name: str, api_key: str, *, seed: int | None = None
     ) -> object:  # pragma: no cover - stub
         return object()
 
@@ -71,6 +71,7 @@ async def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         progress=False,
         concurrency=None,
         resume=False,
+        seed=None,
     )
 
     await _cmd_generate_evolution(args, settings)
@@ -99,9 +100,12 @@ async def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> Non
 
     captured: dict[str, object] = {}
 
-    def fake_build_model(model_name: str, api_key: str) -> object:
+    def fake_build_model(
+        model_name: str, api_key: str, *, seed: int | None = None
+    ) -> object:
         captured["model_name"] = model_name
         captured["api_key"] = api_key
+        captured["seed"] = seed
         return "model"
 
     class DummyAgent:
@@ -145,6 +149,7 @@ async def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> Non
         progress=False,
         concurrency=None,
         resume=False,
+        seed=None,
     )
 
     await _cmd_generate_evolution(args, settings)
@@ -178,7 +183,7 @@ async def test_generate_evolution_respects_concurrency(tmp_path, monkeypatch) ->
             self.instructions = instructions
 
     def fake_build_model(
-        model_name: str, api_key: str
+        model_name: str, api_key: str, *, seed: int | None = None
     ) -> object:  # pragma: no cover - stub
         return object()
 
@@ -231,6 +236,7 @@ async def test_generate_evolution_respects_concurrency(tmp_path, monkeypatch) ->
         progress=False,
         concurrency=None,
         resume=False,
+        seed=None,
     )
 
     await _cmd_generate_evolution(args, settings)
@@ -245,7 +251,7 @@ async def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
     input_path.write_text('{"service_id": "s1", "name": "svc"}\n', encoding="utf-8")
 
     def fake_build_model(
-        model_name: str, api_key: str
+        model_name: str, api_key: str, *, seed: int | None = None
     ) -> object:  # pragma: no cover - stub
         return object()
 
@@ -293,6 +299,7 @@ async def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         progress=False,
         concurrency=None,
         resume=False,
+        seed=None,
     )
 
     await _cmd_generate_evolution(args, settings)
@@ -314,7 +321,9 @@ async def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
     output_path.write_text('{"service_id": "s1"}\n', encoding="utf-8")
     (tmp_path / "processed_ids.txt").write_text("s1\n", encoding="utf-8")
 
-    def fake_build_model(model_name: str, api_key: str) -> object:
+    def fake_build_model(
+        model_name: str, api_key: str, *, seed: int | None = None
+    ) -> object:
         return object()
 
     class DummyAgent:
@@ -361,6 +370,7 @@ async def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         progress=False,
         concurrency=None,
         resume=True,
+        seed=None,
     )
 
     await _cmd_generate_evolution(args, settings)
