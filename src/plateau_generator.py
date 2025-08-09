@@ -147,11 +147,6 @@ class PlateauGenerator:
                 "collect_features", attributes={"customer_type": customer}
             ):
                 raw_features = getattr(payload, customer)
-                if len(raw_features) < self.required_count:
-                    # Enforce minimum feature count for each customer segment.
-                    raise ValueError(
-                        f"Insufficient number of features returned for {customer}"
-                    )
                 for item in raw_features:
                     # Convert each raw item into a structured plateau feature.
                     features.append(self._to_feature(item, customer))
@@ -189,6 +184,18 @@ class PlateauGenerator:
         # in the same context as previous interactions.
         response = await self.session.ask(prompt)
         payload = self._parse_feature_payload(response)
+        for segment, items in {
+            "learners": payload.learners,
+            "staff": payload.staff,
+            "community": payload.community,
+        }.items():
+            # Fail fast if the model omitted any required features for a segment.
+            if len(items) < self.required_count:
+                msg = (
+                    f"Expected at least {self.required_count} features for '{segment}',"
+                    f" got {len(items)}"
+                )
+                raise ValueError(msg)
         features = self._collect_features(payload)
         # Enrich the raw features with mapping information before returning.
         mapped = await map_features(self.session, features)
