@@ -1,3 +1,4 @@
+import json
 import logging
 import sys
 from types import SimpleNamespace
@@ -12,7 +13,11 @@ def test_init_logfire_replaces_root_handlers(monkeypatch):
 
     root_logger = logging.getLogger()
     root_logger.handlers.clear()
-    root_logger.addHandler(DummyHandler())
+    handler = DummyHandler()
+    handler.setLevel(logging.WARNING)
+    formatter = logging.Formatter("%(message)s")
+    handler.setFormatter(formatter)
+    root_logger.addHandler(handler)
 
     class LFHandler(logging.Handler):
         def emit(self, record):  # pragma: no cover - no output
@@ -44,9 +49,27 @@ def test_init_logfire_replaces_root_handlers(monkeypatch):
 
     handlers = logging.getLogger().handlers
     assert len(handlers) == 1
-    assert isinstance(handlers[0], LFHandler)
+    new_handler = handlers[0]
+    assert isinstance(new_handler, LFHandler)
+    assert new_handler.level == logging.WARNING
+    assert isinstance(new_handler.formatter, logging.Formatter)
+    assert new_handler.formatter._fmt == "%(message)s"
     assert installed
     assert install_args["modules"] == []
     assert install_args["min_duration"] == 0
+
+    root_logger.handlers.clear()
+
+
+def test_init_logfire_uses_json_fallback(monkeypatch, capsys):
+    root_logger = logging.getLogger()
+    root_logger.handlers.clear()
+    root_logger.setLevel(logging.INFO)
+    monkeypatch.delenv("LOGFIRE_TOKEN", raising=False)
+
+    monitoring.init_logfire()
+    logging.getLogger().info("hello")
+    output = capsys.readouterr().err.strip()
+    assert json.loads(output)["message"] == "hello"
 
     root_logger.handlers.clear()

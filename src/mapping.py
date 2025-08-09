@@ -31,6 +31,13 @@ if TYPE_CHECKING:  # pragma: no cover - import for type checking only
 logger = logging.getLogger(__name__)
 
 
+class MappingError(RuntimeError):
+    """Raised when a mapping response is missing required data."""
+
+    def __init__(self, message: str) -> None:  # pragma: no cover - simple init
+        super().__init__(message)
+
+
 def _render_items(items: list[MappingItem]) -> str:
     """Return a bullet list representation of mapping reference items.
 
@@ -133,13 +140,13 @@ def _merge_mapping_results(
         mapped = mapped_lookup.get(feature.feature_id)
         if mapped is None:
             # Each feature must appear in the response; fail fast when absent.
-            raise ValueError(f"Missing mappings for feature {feature.feature_id}")
+            raise MappingError(f"Missing mappings for feature {feature.feature_id}")
         update_data: dict[str, list[Contribution]] = {}
         for key in mapping_types.keys():
             values = mapped.get(key)
             if not values:
                 # Every mapping type requires at least one contribution.
-                raise ValueError(
+                raise MappingError(
                     f"'{key}' key missing or empty for feature {feature.feature_id}"
                 )
             update_data[key] = values
@@ -156,7 +163,7 @@ async def map_features(
     """Return ``features`` augmented with mapping information.
 
     A single prompt is sent to the agent requesting mappings for all supplied
-    features. Missing or empty mapping lists raise :class:`ValueError`.
+    features. Missing or empty mapping lists raise :class:`MappingError`.
     """
     # Use configured mappings when none are explicitly supplied.
     mapping_types = mapping_types or load_mapping_type_config()
@@ -168,4 +175,4 @@ async def map_features(
     return _merge_mapping_results(features, payload, mapping_types)
 
 
-__all__ = ["map_feature", "map_features"]
+__all__ = ["map_feature", "map_features", "MappingError"]

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from mapping import map_feature, map_features
+from mapping import MappingError, map_feature, map_features
 from models import MappingItem, PlateauFeature
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -243,5 +243,5 @@ async def test_map_features_validates_lists(monkeypatch) -> None:
         customer_type="learners",
     )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(MappingError):
         await map_features(session, [feature])  # type: ignore[arg-type]
