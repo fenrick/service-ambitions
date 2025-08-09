@@ -11,6 +11,7 @@ import asyncio
 import logging
 import os
 import random
+from asyncio import Lock, Semaphore, TaskGroup
 from typing import Any, Awaitable, Callable, Iterable, TypeVar
 
 import logfire
@@ -160,31 +161,6 @@ class ServiceAmbitionGenerator:
         )
         return result.output.model_dump()
 
-    async def _writer(
-        self,
-        out_path: str,
-        queue: asyncio.Queue[tuple[str, str] | None],
-        processed: set[str],
-    ) -> None:
-        """Serialise writes from ``queue`` to ``out_path``.
-
-        Args:
-            out_path: Destination file path for JSON lines.
-            queue: Queue carrying ``(service_id, json)`` tuples per service. A
-                ``None`` value signals completion and stops the writer.
-            processed: Set collecting successfully written service identifiers.
-        """
-
-        with open(out_path, "a", encoding="utf-8") as handle:
-            while True:
-                item = await queue.get()
-                if item is None:  # Sentinel used to stop the writer
-                    break
-                service_id, line = item
-                handle.write(f"{line}\n")
-                processed.add(service_id)
-                queue.task_done()
-
     @logfire.instrument()
     async def _process_all(
         self,
@@ -199,59 +175,43 @@ class ServiceAmbitionGenerator:
             out_path: Destination path for the JSONL results.
             progress: Optional progress bar updated as services complete.
         """
-        queue: asyncio.Queue[tuple[str, str] | None] = asyncio.Queue(
-            maxsize=self.concurrency * 2
-        )
+        sem = Semaphore(self.concurrency)
+        lock = Lock()
         processed: set[str] = set()
-        writer = asyncio.create_task(self._writer(out_path, queue, processed))
-        tasks: set[asyncio.Task[None]] = set()
 
         async def run_one(service: ServiceInput) -> None:
-            """Process a single service and enqueue its JSON line.
+            """Process a single service and append its JSON line to disk.
 
             Args:
                 service: Service to analyse.
             """
 
-            logger.info("Processing service %s", service.name)
-            try:
-                result = await self.process_service(service)
-            except Exception as exc:  # pylint: disable=broad-except
-                logger.error(
-                    "Failed to process service %s: %s",
-                    service.name,
-                    exc,
-                )
-                return
-            line = AmbitionModel.model_validate(result).model_dump_json()
-            await queue.put((service.service_id, line))
-            if progress:
-                # Advance the progress bar for each completed service.
-                progress.update(1)
-
-        try:
-            for service in services:
-                tasks.add(asyncio.create_task(run_one(service)))
-                if len(tasks) >= self.concurrency:
-                    done, pending = await asyncio.wait(
-                        tasks, return_when=asyncio.FIRST_COMPLETED
+            async with sem:
+                logger.info("Processing service %s", service.name)
+                try:
+                    result = await self.process_service(service)
+                except Exception as exc:  # pylint: disable=broad-except
+                    # Continue processing other services but record the failure.
+                    logger.error(
+                        "Failed to process service %s: %s",
+                        service.name,
+                        exc,
                     )
-                    tasks = pending
-                    # Ensure exceptions are logged to avoid silent failures.
-                    for finished in done:
-                        if (
-                            exc := finished.exception()
-                        ):  # pragma: no cover - logged above
-                            logger.error("Task failed: %s", exc)
+                    return
+                line = AmbitionModel.model_validate(result).model_dump_json()
+                async with lock:
+                    handle.write(f"{line}\n")
+                    processed.add(service.service_id)
+                if progress:
+                    # Advance the progress bar for each completed service.
+                    progress.update(1)
 
-            if tasks:
-                await asyncio.gather(*tasks, return_exceptions=True)
-            await queue.put(None)
-            await writer
-            return processed
-        finally:
-            if not writer.done():
-                writer.cancel()
+        with open(out_path, "a", encoding="utf-8") as handle:
+            async with TaskGroup() as tg:
+                for service in services:
+                    tg.create_task(run_one(service))
+            handle.flush()
+        return processed
 
     @logfire.instrument()
     async def generate_async(
