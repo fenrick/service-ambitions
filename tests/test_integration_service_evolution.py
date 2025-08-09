@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 from typing import cast
 
+import pytest
+
 from conversation import (  # noqa: E402  pylint: disable=wrong-import-position
     ConversationSession,
 )
@@ -28,7 +30,7 @@ class DummySession:
         self._responses = responses
         self.prompts: list[str] = []
 
-    def ask(self, prompt: str) -> str:  # pragma: no cover - trivial
+    async def ask(self, prompt: str) -> str:  # pragma: no cover - trivial
         self.prompts.append(prompt)
         return self._responses.pop(0)
 
@@ -52,7 +54,8 @@ def _feature_payload(count: int) -> str:
     return json.dumps(payload)
 
 
-def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
     """``generate_service_evolution`` should aggregate all plateaus."""
 
     responses: list[str] = []
@@ -92,7 +95,7 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
         description="desc",
         jobs_to_be_done=["job"],
     )
-    evolution = generator.generate_service_evolution(
+    evolution = await generator.generate_service_evolution(
         service,
         ["Foundational", "Enhanced", "Experimental", "Disruptive"],
         ["learners", "staff", "community"],

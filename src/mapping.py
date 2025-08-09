@@ -60,7 +60,7 @@ def _render_features(features: Sequence[PlateauFeature]) -> str:
     )
 
 
-def map_feature(
+async def map_feature(
     session: ConversationSession,
     feature: PlateauFeature,
     mapping_types: Mapping[str, MappingTypeConfig] | None = None,
@@ -80,7 +80,7 @@ def map_feature(
         A :class:`PlateauFeature` with mapping information applied.
     """
 
-    return map_features(session, [feature], mapping_types)[0]
+    return (await map_features(session, [feature], mapping_types))[0]
 
 
 def _build_mapping_prompt(
@@ -148,7 +148,7 @@ def _merge_mapping_results(
     return results
 
 
-def map_features(
+async def map_features(
     session: ConversationSession,
     features: Sequence[PlateauFeature],
     mapping_types: Mapping[str, MappingTypeConfig] | None = None,
@@ -162,7 +162,7 @@ def map_features(
     mapping_types = mapping_types or load_mapping_type_config()
     prompt = _build_mapping_prompt(features, mapping_types)
     logger.debug("Requesting mappings for %s features", len(features))
-    response = session.ask(prompt)
+    response = await session.ask(prompt)
     logger.debug("Raw multi-feature mapping response: %s", response)
     payload = _parse_mapping_response(response)
     return _merge_mapping_results(features, payload, mapping_types)

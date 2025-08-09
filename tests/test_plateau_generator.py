@@ -30,7 +30,7 @@ class DummySession:
         self._responses = responses
         self.prompts: list[str] = []
 
-    def ask(self, prompt: str) -> str:  # pragma: no cover - simple proxy
+    async def ask(self, prompt: str) -> str:  # pragma: no cover - simple proxy
         self.prompts.append(prompt)
         # Pop from the front so responses are returned in the order queued.
         return self._responses.pop(0)
@@ -56,7 +56,8 @@ def _feature_payload(count: int) -> str:
     return json.dumps(payload)
 
 
-def test_generate_plateau_returns_results(monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_generate_plateau_returns_results(monkeypatch) -> None:
     template = "{required_count} {service_name} {service_description} {plateau}"
 
     def fake_loader(name, *_, **__):
@@ -88,7 +89,7 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
     )
     generator._service = service  # type: ignore[attr-defined]
 
-    plateau = generator.generate_plateau(1, "Foundational")
+    plateau = await generator.generate_plateau(1, "Foundational")
 
     assert isinstance(plateau, PlateauResult)
     assert len(plateau.features) == 3
@@ -96,7 +97,8 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
     assert len(session.prompts) == 2
 
 
-def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> None:
     template = "{required_count} {service_name} {service_description} {plateau}"
 
     def fake_loader(name, *_, **__):
@@ -116,10 +118,11 @@ def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> None:
     generator._service = service  # type: ignore[attr-defined]
 
     with pytest.raises(ValueError):
-        generator.generate_plateau(1, "Foundational")
+        await generator.generate_plateau(1, "Foundational")
 
 
-def test_request_description_invalid_json(monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_request_description_invalid_json(monkeypatch) -> None:
     template = "{required_count} {service_name} {service_description} {plateau}"
 
     def fake_loader(name, *_, **__):
@@ -130,12 +133,13 @@ def test_request_description_invalid_json(monkeypatch) -> None:
     session = DummySession(["not json"])
     generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
     with pytest.raises(ValueError):
-        generator._request_description(1)
+        await generator._request_description(1)
     assert len(session.prompts) == 1
     assert session.prompts[0].startswith("desc 1")
 
 
-def test_generate_service_evolution_filters(monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_generate_service_evolution_filters(monkeypatch) -> None:
     service = ServiceInput(
         service_id="svc-1",
         name="svc",
@@ -184,7 +188,7 @@ def test_generate_service_evolution_filters(monkeypatch) -> None:
         PlateauGenerator, "generate_plateau", fake_generate_plateau, raising=False
     )
 
-    evo = generator.generate_service_evolution(
+    evo = await generator.generate_service_evolution(
         service,
         ["Foundational", "Enhanced"],
         ["learners", "staff"],
