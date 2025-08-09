@@ -60,9 +60,11 @@ Alternatively, use the provided shell script which forwards all arguments to the
 
 `sample-services.jsonl` contains example services in
 [JSON Lines](https://jsonlines.org/) format, with one JSON object per line. The
-output file will also be in JSON Lines format. Use the `--concurrency` option to
-control how many services are processed in parallel when running
-`generate-ambitions`.
+output file will also be in JSON Lines format. Use `--concurrency` to control
+parallel workers, `--max-services` to limit how many entries are processed, and
+`--dry-run` to validate inputs without calling the API. Pass `--progress` to
+display a progress bar during long runs; it is suppressed automatically in CI
+environments.
 
 ## Plateau-first workflow
 

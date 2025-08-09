@@ -19,6 +19,7 @@ dependencies = [
     "opentelemetry-instrumentation-botocore (>=0.57b0,<0.58)",
     "opentelemetry-instrumentation-httpx (>=0.57b0,<0.58)",
     "opentelemetry-instrumentation-requests (>=0.57b0,<0.58)",
+    "tqdm",
 ]
 
 [tool.poetry.group.dev.dependencies]
@@ -31,6 +32,7 @@ pytest = "*"
 isort = "*"
 flake8 = "*"
 flake8-bugbear = "*"
+types-tqdm = "*"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

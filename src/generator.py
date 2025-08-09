@@ -21,6 +21,7 @@ from pydantic_ai.models.openai import (
     OpenAIResponsesModel,
     OpenAIResponsesModelSettings,
 )
+from tqdm import tqdm
 
 from models import ServiceInput
 
@@ -160,12 +161,14 @@ class ServiceAmbitionGenerator:
         self,
         services: Iterable[ServiceInput],
         out_path: str,
+        progress: tqdm | None = None,
     ) -> None:
         """Process ``services`` and stream results to ``out_path``.
 
         Args:
             services: Collection of services requiring ambition generation.
             out_path: Destination path for the JSONL results.
+            progress: Optional progress bar updated as services complete.
         """
         queue: asyncio.Queue[str | None] = asyncio.Queue(maxsize=self.concurrency * 2)
         writer = asyncio.create_task(self._writer(out_path, queue))
@@ -190,6 +193,9 @@ class ServiceAmbitionGenerator:
                 return
             line = AmbitionModel.model_validate(result).model_dump_json()
             await queue.put(line)
+            if progress:
+                # Advance the progress bar for each completed service.
+                progress.update(1)
 
         try:
             for service in services:
@@ -220,6 +226,7 @@ class ServiceAmbitionGenerator:
         services: Iterable[ServiceInput],
         prompt: str,
         output_path: str,
+        progress: tqdm | None = None,
     ) -> None:
         """Process ``services`` lazily and write ambitions to ``output_path``.
 
@@ -228,6 +235,7 @@ class ServiceAmbitionGenerator:
                 iterable is consumed incrementally to keep memory usage low.
             prompt: Instructions guiding the model's output.
             output_path: Destination path for the JSONL results.
+            progress: Optional progress bar updated as services complete.
 
         Side Effects:
             Creates/overwrites ``output_path`` with one JSON record per line.
@@ -238,7 +246,7 @@ class ServiceAmbitionGenerator:
 
         self._prompt = prompt
         try:
-            await self._process_all(services, output_path)
+            await self._process_all(services, output_path, progress)
         except Exception as exc:  # pylint: disable=broad-except
             logger.error("Failed to write results to %s: %s", output_path, exc)
             raise
