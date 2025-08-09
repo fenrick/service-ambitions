@@ -41,12 +41,13 @@ tool and then install the project's dependencies with:
 poetry install
 ```
 
+After installation the `service-ambitions` console script is available.
 Run the CLI through Poetry to ensure it uses the managed environment. Use
 subcommands to select the desired operation:
 
 ```bash
-poetry run python src/cli.py generate-ambitions --input-file sample-services.jsonl --output-file ambitions.jsonl
-poetry run python src/cli.py generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl
+poetry run service-ambitions generate-ambitions --input-file sample-services.jsonl --output-file ambitions.jsonl
+poetry run service-ambitions generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl
 ```
 
 Alternatively, use the provided shell script which forwards all arguments to the CLI:

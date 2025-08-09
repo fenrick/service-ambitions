@@ -11,7 +11,7 @@ default. Plateau name to level mappings come from `config/app.json`.
 Example command:
 
 ```bash
-poetry run python src/cli.py generate-evolution \
+poetry run service-ambitions generate-evolution \
   --input-file sample-services.jsonl \
   --output-file evolution.jsonl \
   --plateaus Foundational Enhanced Experimental Disruptive \
