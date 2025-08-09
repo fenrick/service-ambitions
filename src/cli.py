@@ -7,6 +7,7 @@ import asyncio
 import logging
 import os
 from itertools import islice
+from pathlib import Path
 from typing import Iterable
 
 import logfire
@@ -23,6 +24,7 @@ from loader import (
 )
 from models import ServiceInput
 from monitoring import init_logfire
+from persistence import atomic_write, read_lines
 from plateau_generator import PlateauGenerator
 from settings import load_settings
 
@@ -72,10 +74,24 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
     concurrency = args.concurrency or settings.concurrency
     generator = ServiceAmbitionGenerator(model, concurrency=concurrency)
 
+    output_path = Path(args.output_file)
+    part_path = output_path.with_suffix(
+        output_path.suffix + ".tmp"
+        if not args.resume
+        else output_path.suffix + ".tmp.part"
+    )
+    processed_path = output_path.with_name("processed_ids.txt")
+
+    processed_ids: set[str] = set(read_lines(processed_path)) if args.resume else set()
+    existing_lines: list[str] = read_lines(output_path) if args.resume else []
+
     with load_services(args.input_file) as svc_iter:
         if args.max_services is not None:
             # Limit processing to the requested number of services.
             svc_iter = islice(svc_iter, args.max_services)
+
+        if args.resume:
+            svc_iter = (s for s in svc_iter if s.service_id not in processed_ids)
 
         show_progress = args.progress and not os.environ.get("CI")
         services_list: list[ServiceInput] | None = None
@@ -94,13 +110,23 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
             progress = tqdm(total=len(services_list or []))
         else:
             progress = None
-        await generator.generate_async(
-            services, system_prompt, args.output_file, progress=progress
+        new_ids = await generator.generate_async(
+            services, system_prompt, str(part_path), progress=progress
         )
         if progress:
             progress.close()
 
-    logger.info("Results written to %s", args.output_file)
+    if args.resume:
+        new_lines = read_lines(part_path)
+        atomic_write(output_path, [*existing_lines, *new_lines])
+        part_path.unlink(missing_ok=True)
+        processed_ids.update(new_ids)
+    else:
+        os.replace(part_path, output_path)
+        processed_ids = new_ids
+
+    atomic_write(processed_path, sorted(processed_ids))
+    logger.info("Results written to %s", output_path)
 
 
 async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
@@ -121,15 +147,14 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
 
     semaphore = asyncio.Semaphore(concurrency)
 
-    async def process_service(service: ServiceInput) -> tuple[str, str]:
+    async def process_service(service: ServiceInput) -> tuple[str, str, str]:
         """Return the evolution JSON for ``service``.
 
         Args:
             service: Service specification to evolve across plateaus.
 
         Returns:
-            A tuple containing the service name and its generated evolution in
-            JSON format.
+            A tuple of ``(service_id, service_name, json_payload)``.
 
         The function instantiates a fresh :class:`PlateauGenerator` and
         conversation session per service so each evolution runs in isolation and
@@ -141,29 +166,57 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
             session = ConversationSession(agent)
             generator = PlateauGenerator(session)
             evolution = await generator.generate_service_evolution(service)
-            return service.name, evolution.model_dump_json()
+            return (
+                service.service_id,
+                service.name,
+                evolution.model_dump_json(),
+            )
+
+    output_path = Path(args.output_file)
+    part_path = output_path.with_suffix(
+        output_path.suffix + ".tmp"
+        if not args.resume
+        else output_path.suffix + ".tmp.part"
+    )
+    processed_path = output_path.with_name("processed_ids.txt")
+
+    processed_ids: set[str] = set(read_lines(processed_path)) if args.resume else set()
+    existing_lines: list[str] = read_lines(output_path) if args.resume else []
 
     with load_services(args.input_file) as svc_iter:
         if args.max_services is not None:
             svc_iter = islice(svc_iter, args.max_services)
-        services = list(svc_iter)
+        services = [s for s in svc_iter if s.service_id not in processed_ids]
 
     if args.dry_run:
         logger.info("Validated %d services", len(services))
         return
 
-    with open(args.output_file, "w", encoding="utf-8") as output:
+    new_ids: set[str] = set()
+    with open(part_path, "w", encoding="utf-8") as output:
         tasks = [asyncio.create_task(process_service(svc)) for svc in services]
         show_progress = args.progress and not os.environ.get("CI")
         progress = tqdm(total=len(tasks)) if show_progress else None
         for task in asyncio.as_completed(tasks):
-            name, payload = await task
+            svc_id, name, payload = await task
             output.write(f"{payload}\n")
+            new_ids.add(svc_id)
             logger.info("Generated evolution for %s", name)
             if progress:
                 progress.update(1)
         if progress:
             progress.close()
+
+    if args.resume:
+        new_lines = read_lines(part_path)
+        atomic_write(output_path, [*existing_lines, *new_lines])
+        part_path.unlink(missing_ok=True)
+        processed_ids.update(new_ids)
+    else:
+        os.replace(part_path, output_path)
+        processed_ids = new_ids
+
+    atomic_write(processed_path, sorted(processed_ids))
 
 
 async def main_async() -> None:
@@ -208,6 +261,12 @@ async def main_async() -> None:
         "--progress",
         action="store_true",
         help="Display a progress bar during execution",
+    )
+    common.add_argument(
+        "--continue",
+        dest="resume",
+        action="store_true",
+        help="Resume processing using processed_ids.txt",
     )
 
     # Define subcommands for the supported operations

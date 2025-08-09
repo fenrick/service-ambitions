@@ -400,3 +400,67 @@ def test_cli_verbose_logging(tmp_path, monkeypatch, capsys):
     cli.main()
 
     assert "Processing service alpha" in capsys.readouterr().err
+
+
+def test_cli_resume_skips_processed(tmp_path, monkeypatch):
+    base = tmp_path / "prompts"
+    (base / "situational_context").mkdir(parents=True)
+    (base / "inspirations").mkdir(parents=True)
+    (base / "situational_context" / "ctx.md").write_text("c", encoding="utf-8")
+    (base / "service_feature_plateaus.md").write_text("p", encoding="utf-8")
+    (base / "definitions.json").write_text('{"d": "d"}', encoding="utf-8")
+    (base / "inspirations" / "insp.md").write_text("i", encoding="utf-8")
+    (base / "task_definition.md").write_text("t", encoding="utf-8")
+    (base / "response_structure.md").write_text("r", encoding="utf-8")
+
+    input_file = tmp_path / "services.jsonl"
+    input_file.write_text(
+        '{"service_id": "1", "name": "alpha", "description": "d", "jobs_to_be_done":'
+        ' ["j"]}\n{"service_id": "2", "name": "beta", "description": "d",'
+        ' "jobs_to_be_done": ["j"]}\n',
+        encoding="utf-8",
+    )
+
+    output_file = tmp_path / "output.jsonl"
+    output_file.write_text('{"service_id": "1"}\n', encoding="utf-8")
+    (tmp_path / "processed_ids.txt").write_text("1\n", encoding="utf-8")
+
+    settings = SimpleNamespace(
+        model="cfg",
+        log_level="INFO",
+        prompt_dir=str(base),
+        context_id="ctx",
+        inspiration="insp",
+        concurrency=1,
+        openai_api_key="dummy",
+        logfire_token=None,
+    )
+
+    processed: list[str] = []
+
+    async def fake_process_service(self, service, prompt=None):
+        processed.append(service.service_id)
+        return {"service_id": service.service_id}
+
+    monkeypatch.setattr(
+        ServiceAmbitionGenerator, "process_service", fake_process_service
+    )
+    monkeypatch.setattr(cli, "load_settings", lambda: settings)
+
+    argv = [
+        "main",
+        "generate-ambitions",
+        "--input-file",
+        str(input_file),
+        "--output-file",
+        str(output_file),
+        "--continue",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+
+    cli.main()
+
+    assert processed == ["2"]
+    lines = output_file.read_text().strip().splitlines()
+    assert len(lines) == 2
+    assert (tmp_path / "processed_ids.txt").read_text().splitlines() == ["1", "2"]

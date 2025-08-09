@@ -139,21 +139,29 @@ class ServiceAmbitionGenerator:
         )
         return result.output.model_dump()
 
-    async def _writer(self, out_path: str, queue: asyncio.Queue[str | None]) -> None:
+    async def _writer(
+        self,
+        out_path: str,
+        queue: asyncio.Queue[tuple[str, str] | None],
+        processed: set[str],
+    ) -> None:
         """Serialise writes from ``queue`` to ``out_path``.
 
         Args:
             out_path: Destination file path for JSON lines.
-            queue: Asynchronous queue carrying one JSON string per service. A
+            queue: Queue carrying ``(service_id, json)`` tuples per service. A
                 ``None`` value signals completion and stops the writer.
+            processed: Set collecting successfully written service identifiers.
         """
 
         with open(out_path, "a", encoding="utf-8") as handle:
             while True:
-                line = await queue.get()
-                if line is None:  # Sentinel used to stop the writer
+                item = await queue.get()
+                if item is None:  # Sentinel used to stop the writer
                     break
+                service_id, line = item
                 handle.write(f"{line}\n")
+                processed.add(service_id)
                 queue.task_done()
 
     @logfire.instrument()
@@ -162,7 +170,7 @@ class ServiceAmbitionGenerator:
         services: Iterable[ServiceInput],
         out_path: str,
         progress: tqdm | None = None,
-    ) -> None:
+    ) -> set[str]:
         """Process ``services`` and stream results to ``out_path``.
 
         Args:
@@ -170,8 +178,11 @@ class ServiceAmbitionGenerator:
             out_path: Destination path for the JSONL results.
             progress: Optional progress bar updated as services complete.
         """
-        queue: asyncio.Queue[str | None] = asyncio.Queue(maxsize=self.concurrency * 2)
-        writer = asyncio.create_task(self._writer(out_path, queue))
+        queue: asyncio.Queue[tuple[str, str] | None] = asyncio.Queue(
+            maxsize=self.concurrency * 2
+        )
+        processed: set[str] = set()
+        writer = asyncio.create_task(self._writer(out_path, queue, processed))
         tasks: set[asyncio.Task[None]] = set()
 
         async def run_one(service: ServiceInput) -> None:
@@ -192,7 +203,7 @@ class ServiceAmbitionGenerator:
                 )
                 return
             line = AmbitionModel.model_validate(result).model_dump_json()
-            await queue.put(line)
+            await queue.put((service.service_id, line))
             if progress:
                 # Advance the progress bar for each completed service.
                 progress.update(1)
@@ -216,6 +227,7 @@ class ServiceAmbitionGenerator:
                 await asyncio.gather(*tasks, return_exceptions=True)
             await queue.put(None)
             await writer
+            return processed
         finally:
             if not writer.done():
                 writer.cancel()
@@ -227,7 +239,7 @@ class ServiceAmbitionGenerator:
         prompt: str,
         output_path: str,
         progress: tqdm | None = None,
-    ) -> None:
+    ) -> set[str]:
         """Process ``services`` lazily and write ambitions to ``output_path``.
 
         Args:
@@ -246,7 +258,7 @@ class ServiceAmbitionGenerator:
 
         self._prompt = prompt
         try:
-            await self._process_all(services, output_path, progress)
+            return await self._process_all(services, output_path, progress)
         except Exception as exc:  # pylint: disable=broad-except
             logger.error("Failed to write results to %s: %s", output_path, exc)
             raise
@@ -258,10 +270,10 @@ class ServiceAmbitionGenerator:
         services: Iterable[ServiceInput],
         prompt: str,
         output_path: str,
-    ) -> None:
+    ) -> set[str]:
         """Backward compatible wrapper for ``generate_async``."""
 
-        await self.generate_async(services, prompt, output_path)
+        return await self.generate_async(services, prompt, output_path)
 
 
 @logfire.instrument()
