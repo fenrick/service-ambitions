@@ -28,9 +28,7 @@ mypy = "*"
 bandit = "*"
 "pip-audit" = "*"
 pytest = "*"
-isort = "*"
-flake8 = "*"
-flake8-bugbear = "*"
+"pytest-xdist" = "*"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
@@ -49,9 +47,6 @@ target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
-
-[tool.isort]
-profile = "black"
 
 [tool.mypy]
 plugins = ["pydantic.mypy"]
