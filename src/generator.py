@@ -167,28 +167,47 @@ class ServiceAmbitionGenerator:
             services: Collection of services requiring ambition generation.
             out_path: Destination path for the JSONL results.
         """
-
-        semaphore = asyncio.Semaphore(self.concurrency)
         queue: asyncio.Queue[str | None] = asyncio.Queue(maxsize=self.concurrency * 2)
         writer = asyncio.create_task(self._writer(out_path, queue))
+        tasks: set[asyncio.Task[None]] = set()
+
+        async def run_one(service: ServiceInput) -> None:
+            """Process a single service and enqueue its JSON line.
+
+            Args:
+                service: Service to analyse.
+            """
+
+            logger.info("Processing service %s", service.name)
+            try:
+                result = await self.process_service(service)
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.error(
+                    "Failed to process service %s: %s",
+                    service.name,
+                    exc,
+                )
+                return
+            line = AmbitionModel.model_validate(result).model_dump_json()
+            await queue.put(line)
+
         try:
+            for service in services:
+                tasks.add(asyncio.create_task(run_one(service)))
+                if len(tasks) >= self.concurrency:
+                    done, pending = await asyncio.wait(
+                        tasks, return_when=asyncio.FIRST_COMPLETED
+                    )
+                    tasks = pending
+                    # Ensure exceptions are logged to avoid silent failures.
+                    for finished in done:
+                        if (
+                            exc := finished.exception()
+                        ):  # pragma: no cover - logged above
+                            logger.error("Task failed: %s", exc)
 
-            async def run_one(service: ServiceInput) -> None:
-                async with semaphore:
-                    logger.info("Processing service %s", service.name)
-                    try:
-                        result = await self.process_service(service)
-                    except Exception as exc:  # pylint: disable=broad-except
-                        logger.error(
-                            "Failed to process service %s: %s",
-                            service.name,
-                            exc,
-                        )
-                        return
-                    line = AmbitionModel.model_validate(result).model_dump_json()
-                    await queue.put(line)
-
-            await asyncio.gather(*(run_one(svc) for svc in services))
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
             await queue.put(None)
             await writer
         finally:
@@ -196,16 +215,17 @@ class ServiceAmbitionGenerator:
                 writer.cancel()
 
     @logfire.instrument()
-    async def generate(
+    async def generate_async(
         self,
         services: Iterable[ServiceInput],
         prompt: str,
         output_path: str,
     ) -> None:
-        """Process ``services`` and write ambitions to ``output_path``.
+        """Process ``services`` lazily and write ambitions to ``output_path``.
 
         Args:
-            services: Collection of services requiring ambition generation.
+            services: Collection of services requiring ambition generation. The
+                iterable is consumed incrementally to keep memory usage low.
             prompt: Instructions guiding the model's output.
             output_path: Destination path for the JSONL results.
 
@@ -218,15 +238,22 @@ class ServiceAmbitionGenerator:
 
         self._prompt = prompt
         try:
-            # Run the async processing loop and stream results directly to disk
-            # to avoid storing large intermediate data sets.
             await self._process_all(services, output_path)
         except Exception as exc:  # pylint: disable=broad-except
             logger.error("Failed to write results to %s: %s", output_path, exc)
             raise
         finally:
-            # Ensure the instance remains stateless after generation completes.
             self._prompt = None
+
+    async def generate(
+        self,
+        services: Iterable[ServiceInput],
+        prompt: str,
+        output_path: str,
+    ) -> None:
+        """Backward compatible wrapper for ``generate_async``."""
+
+        await self.generate_async(services, prompt, output_path)
 
 
 @logfire.instrument()
