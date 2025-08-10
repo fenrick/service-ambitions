@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [
     { name = "Jolyon Suthers", email = "201621+fenrick@users.noreply.github.com" }
 ]
-requires-python = ">= 3.11,<4"
+requires-python = ">= 3.13,<4"
 dependencies = [
     "openai",
     "pydantic-ai",
