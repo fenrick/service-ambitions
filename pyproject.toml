@@ -32,6 +32,7 @@ mypy = "*"
 bandit = "*"
 "pip-audit" = "*"
 pytest = "*"
+pytest-xdist = "*"
 hypothesis = "*"
 
 [build-system]
