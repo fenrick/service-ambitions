@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from models import (  # noqa: E402  pylint: disable=wrong-import-position
     Contribution,
+    MappingResponse,
     PlateauFeature,
     PlateauResult,
     ServiceEvolution,
@@ -63,3 +64,21 @@ def test_contribution_requires_fields() -> None:
     """Missing fields should trigger a ``ValidationError``."""
     with pytest.raises(ValidationError):
         Contribution()  # type: ignore[call-arg]
+
+
+def test_mapping_response_handles_nested_mappings() -> None:
+    """Nested ``mappings`` keys should be flattened into the mappings field."""
+    payload = {
+        "features": [
+            {
+                "feature_id": "f1",
+                "mappings": {
+                    "data": [{"item": "INF-1", "contribution": "c"}],
+                },
+            }
+        ]
+    }
+
+    result = MappingResponse.model_validate(payload)
+
+    assert result.features[0].mappings["data"][0].item == "INF-1"

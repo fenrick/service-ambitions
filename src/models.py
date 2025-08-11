@@ -354,7 +354,15 @@ class MappingFeature(StrictModel):
         """
         mapping: dict[str, object] = {}
         for key in list(data.keys()):
-            if key != "feature_id":
+            if key == "feature_id":
+                # Preserve the identifying field untouched.
+                continue
+            if key == "mappings" and isinstance(data[key], dict):
+                # Merge pre-nested mapping structures produced by some agents
+                # rather than nesting the ``mappings`` key within itself.
+                mapping.update(data.pop(key))
+            else:
+                # Collect any other keys as mapping types.
                 mapping[key] = data.pop(key)
         data["mappings"] = mapping
         return data
