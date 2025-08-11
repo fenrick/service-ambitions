@@ -30,6 +30,14 @@ logger = logging.getLogger(__name__)
 # to alternative directories via ``configure_prompt_dir``.
 PROMPT_DIR = Path("prompts")
 
+# Core role statement for all system prompts. This line anchors the model's
+# objective before any contextual material is provided.
+NORTH_STAR = (
+    "You are the world's leading service designer and enterprise architect; your"
+    " job is to produce strictly-valid JSON structured outputs aligned to the"
+    " schema."
+)
+
 
 def configure_prompt_dir(path: Path | str) -> None:
     """Set the base directory for prompt templates.
@@ -306,6 +314,7 @@ def load_evolution_prompt(
 
     directory = base_dir or PROMPT_DIR
     components = [
+        NORTH_STAR,
         load_prompt_text(f"situational_context/{context_id}", directory),
         load_plateau_text(plateaus_dir, plateaus_file),
         load_definitions(definitions_dir, definitions_file, definition_keys),
@@ -354,6 +363,7 @@ def load_ambition_prompt(
 
     directory = base_dir or PROMPT_DIR
     components = [
+        NORTH_STAR,
         load_prompt_text(f"situational_context/{context_id}", directory),
         load_plateau_text(plateaus_dir, plateaus_file),
         load_definitions(definitions_dir, definitions_file, definition_keys),
