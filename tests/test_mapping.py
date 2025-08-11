@@ -52,12 +52,30 @@ async def test_map_feature_returns_mappings(monkeypatch) -> None:
                         {
                             "feature_id": "f1",
                             "data": [{"item": "INF-1", "contribution": "c"}],
+                        }
+                    ]
+                }
+            ),
+            json.dumps(
+                {
+                    "features": [
+                        {
+                            "feature_id": "f1",
                             "applications": [{"item": "APP-1", "contribution": "c"}],
+                        }
+                    ]
+                }
+            ),
+            json.dumps(
+                {
+                    "features": [
+                        {
+                            "feature_id": "f1",
                             "technology": [{"item": "TEC-1", "contribution": "c"}],
                         }
                     ]
                 }
-            )
+            ),
         ]
     )
     feature = PlateauFeature(
@@ -104,12 +122,30 @@ async def test_map_feature_injects_reference_data(monkeypatch) -> None:
                         {
                             "feature_id": "f1",
                             "data": [{"item": "INF-1", "contribution": "c"}],
+                        }
+                    ]
+                }
+            ),
+            json.dumps(
+                {
+                    "features": [
+                        {
+                            "feature_id": "f1",
                             "applications": [{"item": "APP-1", "contribution": "c"}],
+                        }
+                    ]
+                }
+            ),
+            json.dumps(
+                {
+                    "features": [
+                        {
+                            "feature_id": "f1",
                             "technology": [{"item": "TEC-1", "contribution": "c"}],
                         }
                     ]
                 }
-            )
+            ),
         ]
     )
     feature = PlateauFeature(
@@ -121,10 +157,10 @@ async def test_map_feature_injects_reference_data(monkeypatch) -> None:
     )
     await map_feature(session, feature)  # type: ignore[arg-type]
 
-    assert len(session.prompts) == 1
+    assert len(session.prompts) == 3
     assert "User Data" in session.prompts[0]
-    assert "Learning Platform" in session.prompts[0]
-    assert "AI Engine" in session.prompts[0]
+    assert "Learning Platform" in session.prompts[1]
+    assert "AI Engine" in session.prompts[2]
 
 
 @pytest.mark.asyncio
@@ -235,12 +271,30 @@ async def test_map_features_returns_mappings(monkeypatch) -> None:
                         {
                             "feature_id": "f1",
                             "data": [{"item": "INF-1", "contribution": "c"}],
+                        }
+                    ]
+                }
+            ),
+            json.dumps(
+                {
+                    "features": [
+                        {
+                            "feature_id": "f1",
                             "applications": [{"item": "APP-1", "contribution": "c"}],
+                        }
+                    ]
+                }
+            ),
+            json.dumps(
+                {
+                    "features": [
+                        {
+                            "feature_id": "f1",
                             "technology": [{"item": "TEC-1", "contribution": "c"}],
                         }
                     ]
                 }
-            )
+            ),
         ]
     )
     feature = PlateauFeature(
@@ -255,6 +309,8 @@ async def test_map_features_returns_mappings(monkeypatch) -> None:
 
     assert result[0].mappings["data"][0].item == "INF-1"
     assert "User Data" in session.prompts[0]
+    assert "App" in session.prompts[1]
+    assert "Tech" in session.prompts[2]
 
 
 @pytest.mark.asyncio
