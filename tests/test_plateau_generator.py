@@ -139,6 +139,35 @@ async def test_request_description_invalid_json(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_request_description_strips_code_fence(monkeypatch) -> None:
+    """The generator should parse JSON wrapped in Markdown fences."""
+
+    def fake_loader(name, *_, **__):
+        return "desc {plateau}"
+
+    monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
+    response = '```json\n{"description": "hello"}\n```'
+    session = DummySession([response])
+    generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
+
+    description = await generator._request_description(1)
+
+    assert description == "hello"
+    assert session.prompts[0].startswith("desc 1")
+
+
+def test_parse_feature_payload_strips_code_fence() -> None:
+    """Feature payload parsing should ignore surrounding code fences."""
+
+    payload = _feature_payload(1)
+    fenced = f"```json\n{payload}\n```"
+
+    result = PlateauGenerator._parse_feature_payload(fenced)
+
+    assert len(result.learners) == 1
+
+
+@pytest.mark.asyncio
 async def test_generate_service_evolution_filters(monkeypatch) -> None:
     service = ServiceInput(
         service_id="svc-1",
