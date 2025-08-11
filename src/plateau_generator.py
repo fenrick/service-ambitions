@@ -130,8 +130,8 @@ class PlateauGenerator:
             schema=str(schema),
         )
 
-    @logfire.instrument()
     @staticmethod
+    @logfire.instrument()
     def _parse_feature_payload(response: str) -> PlateauFeaturesResponse:
         """Return validated plateau feature details."""
 
