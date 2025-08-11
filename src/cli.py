@@ -354,13 +354,14 @@ async def main_async() -> None:
     # Execute the requested subcommand function
     await args.func(args, settings)
 
-    # Flush telemetry once the command completes
-    logfire.force_flush()
-
 
 def main() -> None:
     """Entry point for command-line execution."""
-    asyncio.run(main_async())
+    try:
+        asyncio.run(main_async())
+    finally:
+        # Ensure telemetry is flushed even when errors occur
+        logfire.force_flush()
 
 
 if __name__ == "__main__":
