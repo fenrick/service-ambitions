@@ -34,7 +34,7 @@ Each line in the output file is a JSON object with:
     "name": "string",
     "description": "string",
     "customer_type": "string",
-    "jobs_to_be_done": ["string"]
+    "jobs_to_be_done": [{"name": "string"}]
   },
   "plateaus": [
     {

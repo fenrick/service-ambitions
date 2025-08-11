@@ -85,7 +85,7 @@ async def test_generate_plateau_returns_results(monkeypatch) -> None:
         name="svc",
         customer_type="retail",
         description="desc",
-        jobs_to_be_done=["job"],
+        jobs_to_be_done=[{"name": "job"}],
     )
     generator._service = service
 
@@ -113,7 +113,7 @@ async def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> 
         name="svc",
         customer_type="retail",
         description="desc",
-        jobs_to_be_done=["job"],
+        jobs_to_be_done=[{"name": "job"}],
     )
     generator._service = service
 
@@ -145,7 +145,7 @@ async def test_generate_service_evolution_filters(monkeypatch) -> None:
         name="svc",
         customer_type="retail",
         description="d",
-        jobs_to_be_done=["job"],
+        jobs_to_be_done=[{"name": "job"}],
     )
     session = DummySession([])
     generator = PlateauGenerator(cast(ConversationSession, session))

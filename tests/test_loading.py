@@ -11,6 +11,7 @@ from loader import (
     load_prompt_text,
     load_services,
 )
+from models import JobToBeDone
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -117,11 +118,28 @@ def test_load_services_invalid_json(tmp_path):
         list(load_services(str(bad)))
 
 
+def test_load_services_with_job_objects(tmp_path):
+    """Service loader preserves full job objects."""
+    data = tmp_path / "services.jsonl"
+    data.write_text(
+        '{"service_id": "s1", "name": "alpha", "description": "d", '
+        '"jobs_to_be_done": [{"name": "JobA", "note": "x"}, {"name": "JobB"}], '
+        '"features": []}\n',
+        encoding="utf-8",
+    )
+    services = list(load_services(str(data)))
+    first_job = services[0].jobs_to_be_done[0]
+    assert isinstance(first_job, JobToBeDone)
+    assert first_job.name == "JobA"
+    # Extra fields should be retained on the model
+    assert first_job.note == "x"
+
+
 def test_valid_fixture_parses():
     path = Path(__file__).parent / "fixtures" / "services-valid.jsonl"
     services = list(load_services(str(path)))
     assert services[0].service_id == "svc1"
-    assert services[0].jobs_to_be_done == ["job1"]
+    assert [j.name for j in services[0].jobs_to_be_done] == ["job1"]
     assert services[1].description == "Test"
     assert services[0].features[0].feature_id == "F1"
 

@@ -129,7 +129,7 @@ Each JSON line in the output file follows the `ServiceEvolution` schema:
     "name": "string",
     "description": "string",
     "customer_type": "string",
-    "jobs_to_be_done": ["string"]
+    "jobs_to_be_done": [{"name": "string"}]
   },
   "plateaus": [
     {

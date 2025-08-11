@@ -3,7 +3,7 @@
   "name": "alpha",
   "description": "First",
   "jobs_to_be_done": [
-    "job1"
+    {"name": "job1"}
   ],
   "features": [
     {
@@ -18,7 +18,7 @@
   "name": "beta",
   "description": "Test",
   "jobs_to_be_done": [
-    "job2"
+    {"name": "job2"}
   ],
   "features": [
     {

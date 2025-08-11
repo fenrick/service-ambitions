@@ -44,7 +44,7 @@ def test_add_parent_materials_records_history() -> None:
         name="svc",
         customer_type=None,
         description="desc",
-        jobs_to_be_done=["job1", "job2"],
+        jobs_to_be_done=[{"name": "job1"}, {"name": "job2"}],
     )
     session.add_parent_materials(service)
 

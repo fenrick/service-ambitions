@@ -21,7 +21,7 @@ async def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
                 "name": "svc",
                 "description": "desc",
                 "customer_type": "retail",
-                "jobs_to_be_done": ["job"],
+                "jobs_to_be_done": [{"name": "job"}],
             }
         )
         + "\n",
@@ -318,8 +318,8 @@ async def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
     output_path = tmp_path / "out.jsonl"
     input_path.write_text(
         '{"service_id": "s1", "name": "svc1", "description": "d", "jobs_to_be_done":'
-        ' ["j"]}\n{"service_id": "s2", "name": "svc2", "description": "d",'
-        ' "jobs_to_be_done": ["j"]}\n',
+        ' [{"name": "j"}]}\n{"service_id": "s2", "name": "svc2", "description": "d",'
+        ' "jobs_to_be_done": [{"name": "j"}]}\n',
         encoding="utf-8",
     )
     output_path.write_text('{"service_id": "s1"}\n', encoding="utf-8")

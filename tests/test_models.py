@@ -25,7 +25,7 @@ def test_service_evolution_contains_plateaus() -> None:
         name="svc",
         customer_type="retail",
         description="desc",
-        jobs_to_be_done=["job"],
+        jobs_to_be_done=[{"name": "job"}],
     )
     feature = PlateauFeature(
         feature_id="f1",
