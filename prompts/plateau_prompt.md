@@ -2,6 +2,9 @@
 
 Generate service features for the {service_name} service at plateau {plateau}.
 
+## Service description (for reference; do not repeat verbatim)
+{service_description}
+
 ## Instructions
 
 - Reference the situational context, definitions and inspirations to maintain consistent terminology.
