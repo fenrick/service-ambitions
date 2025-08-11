@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import logfire
 from typing import Sequence
 
 import logfire
@@ -50,6 +51,7 @@ DEFAULT_CUSTOMER_TYPES: list[str] = ["learners", "staff", "community"]
 class PlateauGenerator:
     """Generate plateau features and service evolution summaries."""
 
+    @logfire.instrument()
     def __init__(
         self,
         session: ConversationSession,
@@ -67,6 +69,7 @@ class PlateauGenerator:
         self.required_count = required_count
         self._service: ServiceInput | None = None
 
+    @logfire.instrument()
     async def _request_description(self, level: int) -> str:
         """Return the service description for ``level``.
 
@@ -94,6 +97,7 @@ class PlateauGenerator:
             raise ValueError("'description' must be a non-empty string")
         return description
 
+    @logfire.instrument()
     def _to_feature(self, item: FeatureItem, customer: str) -> PlateauFeature:
         """Return a :class:`PlateauFeature` built from ``item``.
 
@@ -113,6 +117,7 @@ class PlateauGenerator:
             customer_type=customer,
         )
 
+    @logfire.instrument()
     def _build_plateau_prompt(self, level: int, description: str) -> str:
         """Return a prompt requesting features for ``level``."""
 
@@ -126,6 +131,7 @@ class PlateauGenerator:
             schema=str(schema),
         )
 
+    @logfire.instrument()
     @staticmethod
     def _parse_feature_payload(response: str) -> PlateauFeaturesResponse:
         """Return validated plateau feature details."""
@@ -136,6 +142,7 @@ class PlateauGenerator:
             logger.error("Invalid JSON from feature response: %s", exc)
             raise ValueError("Agent returned invalid JSON") from exc
 
+    @logfire.instrument()
     def _collect_features(
         self, payload: PlateauFeaturesResponse
     ) -> list[PlateauFeature]:
@@ -152,6 +159,7 @@ class PlateauGenerator:
                     features.append(self._to_feature(item, customer))
         return features
 
+    @logfire.instrument()
     async def generate_plateau(self, level: int, plateau_name: str) -> PlateauResult:
         """Return mapped plateau features for ``level``.
 

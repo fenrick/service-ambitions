@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 
+import logfire
 from pydantic_ai import Agent, messages
 
 from models import ServiceInput
@@ -26,6 +27,7 @@ class ConversationSession:
     may be seeded using :meth:`add_parent_materials`.
     """
 
+    @logfire.instrument()
     def __init__(self, client: Agent) -> None:
         """Initialise the session with a configured LLM client.
 
@@ -36,6 +38,7 @@ class ConversationSession:
         self.client = client
         self._history: list[messages.ModelMessage] = []
 
+    @logfire.instrument()
     def add_parent_materials(self, service_input: ServiceInput) -> None:
         """Seed the conversation with details about the target service.
 
@@ -65,6 +68,7 @@ class ConversationSession:
             messages.ModelRequest(parts=[messages.SystemPromptPart(material)])
         )
 
+    @logfire.instrument()
     async def ask(self, prompt: str) -> str:
         """Send ``prompt`` to the agent and return the textual response.
 
