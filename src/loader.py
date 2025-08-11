@@ -214,31 +214,35 @@ def load_plateau_definitions(
 @logfire.instrument()
 @lru_cache(maxsize=None)
 def load_definitions(
-    base_dir: Path | None = None,
+    base_dir: Path | str = Path("data"),
     filename: Path | str = Path("definitions.json"),
     keys: Sequence[str] | None = None,
 ) -> str:
-    """Return selected definitions joined by blank lines.
+    """Return formatted definition text as a numbered Markdown list.
 
     Args:
         base_dir: Directory containing the definitions file.
         filename: Name of the definitions JSON file.
-        keys: Optional identifiers to select specific definitions. When ``None``,
-            all definitions are returned in file order.
+        keys: Optional identifiers selecting definitions to include. When ``None``,
+            all entries are returned in file order.
 
     Returns:
-        Joined definition text.
+        Markdown formatted definition text.
 
     Raises:
         FileNotFoundError: If the file does not exist.
         RuntimeError: If the file cannot be read or parsed.
     """
 
-    directory = base_dir or PROMPT_DIR
-    path = Path(directory) / Path(filename)
-    data: dict[str, str] = _read_json_file(path, dict[str, str])
-    items = [data[k] for k in keys if k in data] if keys else list(data.values())
-    return "\n\n".join(items)
+    path = Path(base_dir) / Path(filename)
+    data: dict[str, object] = _read_json_file(path, dict[str, object])
+    bullets: list[dict[str, str]] = list(data.get("bullets", []))  # type: ignore[arg-type]
+    if keys:
+        bullets = [b for b in bullets if b.get("name") in keys]
+    lines = [f"## {data.get('title', 'Definitions')}", ""]
+    for idx, item in enumerate(bullets, start=1):
+        lines.append(f"{idx}. **{item['name']}**: {item['description']}")
+    return "\n".join(lines)
 
 
 @logfire.instrument()
@@ -272,6 +276,7 @@ def load_evolution_prompt(
     context_id: str,
     inspirations_id: str,
     base_dir: Path | None = None,
+    definitions_dir: Path | str = Path("data"),
     definitions_file: Path | str = Path("definitions.json"),
     definition_keys: Sequence[str] | None = None,
     task_file: Path | str = Path("task_definition.md"),
@@ -287,6 +292,7 @@ def load_evolution_prompt(
         inspirations_id: Identifier for the inspirations file within the
             prompts directory.
         base_dir: Optional override for the base prompts directory.
+        definitions_dir: Directory containing definition data.
         definitions_file: Definitions file name.
         definition_keys: Optional identifiers selecting which definitions to
             include.
@@ -307,7 +313,7 @@ def load_evolution_prompt(
     components = [
         load_prompt_text(f"situational_context/{context_id}", directory),
         load_plateau_text(plateaus_dir, plateaus_file),
-        load_definitions(directory, definitions_file, definition_keys),
+        load_definitions(definitions_dir, definitions_file, definition_keys),
         load_prompt_text(f"inspirations/{inspirations_id}", directory),
         load_prompt_text(str(task_file), directory),
         load_prompt_text(str(response_file), directory),
@@ -320,6 +326,7 @@ def load_ambition_prompt(
     context_id: str,
     inspirations_id: str,
     base_dir: Path | None = None,
+    definitions_dir: Path | str = Path("data"),
     definitions_file: Path | str = Path("definitions.json"),
     definition_keys: Sequence[str] | None = None,
     task_file: Path | str = Path("task_definition.md"),
@@ -335,6 +342,7 @@ def load_ambition_prompt(
         inspirations_id: Identifier for the inspirations file within the
             prompts directory.
         base_dir: Optional override for the base prompts directory.
+        definitions_dir: Directory containing definition data.
         definitions_file: Definitions file name.
         definition_keys: Optional identifiers selecting which definitions to
             include.
@@ -355,7 +363,7 @@ def load_ambition_prompt(
     components = [
         load_prompt_text(f"situational_context/{context_id}", directory),
         load_plateau_text(plateaus_dir, plateaus_file),
-        load_definitions(directory, definitions_file, definition_keys),
+        load_definitions(definitions_dir, definitions_file, definition_keys),
         load_prompt_text(f"inspirations/{inspirations_id}", directory),
         load_prompt_text(str(task_file), directory),
         load_prompt_text(str(response_file), directory),
