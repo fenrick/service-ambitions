@@ -29,7 +29,11 @@ async def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
     )
 
     def fake_build_model(
-        model_name: str, api_key: str, *, seed: int | None = None
+        model_name: str,
+        api_key: str,
+        *,
+        seed: int | None = None,
+        reasoning=None,
     ) -> object:  # pragma: no cover - stub
         return object()
 
@@ -59,6 +63,7 @@ async def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         prompt_dir="prompts",
         context_id="university",
         inspiration="general",
+        reasoning=None,
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -104,7 +109,11 @@ async def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> Non
     captured: dict[str, object] = {}
 
     def fake_build_model(
-        model_name: str, api_key: str, *, seed: int | None = None
+        model_name: str,
+        api_key: str,
+        *,
+        seed: int | None = None,
+        reasoning=None,
     ) -> object:
         captured["model_name"] = model_name
         captured["api_key"] = api_key
@@ -139,6 +148,7 @@ async def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> Non
         prompt_dir="prompts",
         context_id="ctx",
         inspiration="insp",
+        reasoning=None,
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -187,7 +197,11 @@ async def test_generate_evolution_respects_concurrency(tmp_path, monkeypatch) ->
             self.instructions = instructions
 
     def fake_build_model(
-        model_name: str, api_key: str, *, seed: int | None = None
+        model_name: str,
+        api_key: str,
+        *,
+        seed: int | None = None,
+        reasoning=None,
     ) -> object:  # pragma: no cover - stub
         return object()
 
@@ -227,6 +241,7 @@ async def test_generate_evolution_respects_concurrency(tmp_path, monkeypatch) ->
         prompt_dir="prompts",
         context_id="ctx",
         inspiration="insp",
+        reasoning=None,
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -255,7 +270,11 @@ async def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
     input_path.write_text('{"service_id": "s1", "name": "svc"}\n', encoding="utf-8")
 
     def fake_build_model(
-        model_name: str, api_key: str, *, seed: int | None = None
+        model_name: str,
+        api_key: str,
+        *,
+        seed: int | None = None,
+        reasoning=None,
     ) -> object:  # pragma: no cover - stub
         return object()
 
@@ -290,6 +309,7 @@ async def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         prompt_dir="prompts",
         context_id="ctx",
         inspiration="insp",
+        reasoning=None,
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -326,7 +346,11 @@ async def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
     (tmp_path / "processed_ids.txt").write_text("s1\n", encoding="utf-8")
 
     def fake_build_model(
-        model_name: str, api_key: str, *, seed: int | None = None
+        model_name: str,
+        api_key: str,
+        *,
+        seed: int | None = None,
+        reasoning=None,
     ) -> object:
         return object()
 
@@ -361,6 +385,7 @@ async def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         prompt_dir="prompts",
         context_id="ctx",
         inspiration="insp",
+        reasoning=None,
     )
     args = argparse.Namespace(
         input_file=str(input_path),

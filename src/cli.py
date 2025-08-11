@@ -72,7 +72,12 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
     model_name = args.model or settings.model
     logger.info("Generating ambitions using model %s", model_name)
 
-    model = build_model(model_name, settings.openai_api_key, seed=args.seed)
+    model = build_model(
+        model_name,
+        settings.openai_api_key,
+        seed=args.seed,
+        reasoning=settings.reasoning,
+    )
     concurrency = args.concurrency or settings.concurrency
     generator = ServiceAmbitionGenerator(
         model,
@@ -142,7 +147,12 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
 
     # Allow CLI model override, defaulting to configured model
     model_name = args.model or settings.model
-    model = build_model(model_name, settings.openai_api_key, seed=args.seed)
+    model = build_model(
+        model_name,
+        settings.openai_api_key,
+        seed=args.seed,
+        reasoning=settings.reasoning,
+    )
 
     # Load and assemble the system prompt so each conversation begins with
     # the situational context, definitions and inspirations.

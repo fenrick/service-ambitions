@@ -175,3 +175,17 @@ def test_load_app_config(tmp_path):
     config = load_app_config(str(base))
     assert "beta" in config.mapping_types
     assert config.plateau_map["Foundational"] == 1
+
+
+def test_load_app_config_reasoning(tmp_path):
+    base = tmp_path / "config"
+    base.mkdir()
+    (base / "app.json").write_text(
+        '{"reasoning": {"effort": "high", "summary": "detailed"}}',
+        encoding="utf-8",
+    )
+    load_app_config.cache_clear()
+    config = load_app_config(str(base))
+    assert config.reasoning is not None
+    assert config.reasoning.effort == "high"
+    assert config.reasoning.summary == "detailed"

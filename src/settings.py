@@ -14,12 +14,16 @@ from pydantic import Field, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from loader import load_app_config
+from models import ReasoningConfig
 
 
 class Settings(BaseSettings):
     """Application settings combining file-based and environment configuration."""
 
     model: str = Field(..., description="Chat model in '<provider>:<model>' format.")
+    reasoning: ReasoningConfig | None = Field(
+        None, description="Optional reasoning configuration for the model."
+    )
     log_level: str = Field(..., description="Logging verbosity level.")
     prompt_dir: Path = Field(..., description="Directory containing prompt components.")
     context_id: str = Field(..., description="Situational context identifier.")
@@ -64,6 +68,7 @@ def load_settings() -> Settings:
     config = load_app_config()
     data = {
         "model": config.model,
+        "reasoning": config.reasoning,
         "log_level": config.log_level,
         "prompt_dir": config.prompt_dir,
         "context_id": config.context_id,

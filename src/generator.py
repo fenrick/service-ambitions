@@ -24,7 +24,7 @@ from pydantic_ai.models.openai import (
 )
 from tqdm import tqdm
 
-from models import ServiceInput
+from models import ReasoningConfig, ServiceInput
 
 logger = logging.getLogger(__name__)
 
@@ -341,13 +341,20 @@ class ServiceAmbitionGenerator:
 
 
 @logfire.instrument()
-def build_model(model_name: str, api_key: str, *, seed: int | None = None) -> Model:
+def build_model(
+    model_name: str,
+    api_key: str,
+    *,
+    seed: int | None = None,
+    reasoning: ReasoningConfig | None = None,
+) -> Model:
     """Return a configured Pydantic AI model.
 
     Args:
         model_name: Identifier of the OpenAI model to use.
         api_key: Optional API key for authenticating with OpenAI.
         seed: Optional seed for deterministic model responses.
+        reasoning: Optional reasoning configuration passed through to the model.
 
     Returns:
         A ready-to-use ``Model`` instance.
@@ -363,12 +370,15 @@ def build_model(model_name: str, api_key: str, *, seed: int | None = None) -> Mo
     # Allow callers to pass provider-prefixed names such as ``openai:gpt-4``.
     model_name = model_name.split(":", 1)[-1]
     extra = {"seed": seed} if seed is not None else {}
-    settings = OpenAIResponsesModelSettings(
-        openai_builtin_tools=[{"type": "web_search_preview"}],
-        openai_reasoning_summary="concise",
-        openai_reasoning_effort="medium",
+    settings_kwargs: dict[str, object] = {
+        "openai_builtin_tools": [{"type": "web_search_preview"}],
         **extra,  # type: ignore[typeddict-item]
-    )
+    }
+    if reasoning:
+        # Map each reasoning field to the ``openai_reasoning_*`` parameter.
+        for key, value in reasoning.model_dump(exclude_none=True).items():
+            settings_kwargs[f"openai_reasoning_{key}"] = value
+    settings = OpenAIResponsesModelSettings(**settings_kwargs)
     return OpenAIResponsesModel(model_name, settings=settings)
 
 
