@@ -323,9 +323,9 @@ class PlateauFeaturesResponse(StrictModel):
     """
 
     learners: list[FeatureItem] = Field(..., description="Features for learners.")
-    staff: list[FeatureItem] = Field(..., description="Features for staff.")
-    community: list[FeatureItem] = Field(
-        ..., description="Features for the wider community."
+    academics: list[FeatureItem] = Field(..., description="Features for academics.")
+    professional_staff: list[FeatureItem] = Field(
+        ..., description="Features for professional staff."
     )
 
 

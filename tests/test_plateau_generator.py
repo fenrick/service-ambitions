@@ -52,7 +52,7 @@ def _feature_payload(count: int) -> str:
         }
         for i in range(count)
     ]
-    payload = {"learners": items, "staff": items, "community": items}
+    payload = {"learners": items, "academics": items, "professional_staff": items}
     return json.dumps(payload)
 
 
@@ -196,14 +196,14 @@ async def test_generate_service_evolution_filters(monkeypatch) -> None:
                 name="S",
                 description="d",
                 score=0.5,
-                customer_type="staff",
+                customer_type="academics",
             ),
             PlateauFeature(
                 feature_id=f"c{level}",
                 name="C",
                 description="d",
                 score=0.5,
-                customer_type="community",
+                customer_type="professional_staff",
             ),
         ]
         return PlateauResult(
@@ -220,10 +220,10 @@ async def test_generate_service_evolution_filters(monkeypatch) -> None:
     evo = await generator.generate_service_evolution(
         service,
         ["Foundational", "Enhanced"],
-        ["learners", "staff"],
+        ["learners", "academic"],
     )
 
     assert called == [1, 2]
     assert len(evo.plateaus) == 2
     for plat in evo.plateaus:
-        assert {f.customer_type for f in plat.features} <= {"learners", "staff"}
+        assert {f.customer_type for f in plat.features} <= {"learners", "academic"}

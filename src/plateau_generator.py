@@ -45,7 +45,7 @@ DEFAULT_PLATEAU_NAMES: list[str] = [
 
 # Core customer segments targeted during feature generation. These represent the
 # default audience slices and should be updated if new segments are introduced.
-DEFAULT_CUSTOMER_TYPES: list[str] = ["learners", "staff", "community"]
+DEFAULT_CUSTOMER_TYPES: list[str] = ["learners", "academics", "professional staff"]
 
 
 def _strip_code_fences(payload: str) -> str:
@@ -166,7 +166,7 @@ class PlateauGenerator:
         """Return PlateauFeature records extracted from ``payload``."""
 
         features: list[PlateauFeature] = []
-        for customer in ("learners", "staff", "community"):
+        for customer in ("learners", "academics", "professional staff"):
             with logfire.span(
                 "collect_features", attributes={"customer_type": customer}
             ):
@@ -185,7 +185,7 @@ class PlateauGenerator:
             plateau_name: Human readable name of the plateau.
 
         The function requests a plateau-specific service description and a list
-        of features for learners, staff and community. Responses must contain at
+        of features for learners, academics and professional staff. Responses must contain at
         least ``required_count`` features for each customer type. Raw features
         are converted to :class:`PlateauFeature` objects and enriched using
         :func:`map_features` before being returned as part of a
@@ -214,8 +214,8 @@ class PlateauGenerator:
             payload = self._parse_feature_payload(response)
             for segment, items in {
                 "learners": payload.learners,
-                "staff": payload.staff,
-                "community": payload.community,
+                "academics": payload.academics,
+                "professional_staff": payload.professional_staff,
             }.items():
                 # Fail fast if the model omitted any required features for a segment.
                 if len(items) < self.required_count:

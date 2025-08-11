@@ -76,7 +76,7 @@ Each service is evaluated across **four** plateaus – **Foundational**,
 sequential calls:
 
 1. **Description** – request a plateau-specific service narrative.
-2. **Features** – generate learner, staff and community features.
+2. **Features** – generate learner, academic and professional staff features.
 3. **Mapping** – link each feature to reference Data, Applications and
    Technologies.
 
@@ -195,8 +195,8 @@ Generate service features for the {service_name} service at plateau {plateau}.
 ## Instructions
 
 - Use the service description: {service_description}.
-- Return a single JSON object with three keys: "learners", "staff" and
-  "community".
+- Return a single JSON object with three keys: "learners", "academics" and
+  "professional_staff".
 - Each key must map to an array containing at least {required_count} feature
   objects.
 - Every feature must provide:

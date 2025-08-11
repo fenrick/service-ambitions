@@ -50,7 +50,7 @@ def _feature_payload(count: int) -> str:
         }
         for i in range(count)
     ]
-    payload = {"learners": items, "staff": items, "community": items}
+    payload = {"learners": items, "academics": items, "professional_staff": items}
     return json.dumps(payload)
 
 
@@ -98,7 +98,7 @@ async def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
     evolution = await generator.generate_service_evolution(
         service,
         ["Foundational", "Enhanced", "Experimental", "Disruptive"],
-        ["learners", "staff", "community"],
+        ["learners", "academics", "professional_staff"],
     )
     assert isinstance(evolution, ServiceEvolution)
     assert len(evolution.plateaus) == 4
