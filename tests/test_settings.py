@@ -16,11 +16,13 @@ def test_load_settings_reads_env(monkeypatch) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "token")
     settings = load_settings()
     assert settings.openai_api_key == "token"
-    assert settings.model == "openai:gpt-4o-mini"
+    assert settings.model == "openai:gpt-5"
     assert settings.log_level == "INFO"
     assert settings.request_timeout == 60
     assert settings.retries == 5
     assert settings.retry_base_delay == 0.5
+    assert settings.reasoning is not None
+    assert settings.reasoning.effort == "medium"
 
 
 def test_load_settings_requires_key(monkeypatch) -> None:

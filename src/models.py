@@ -161,13 +161,33 @@ class MappingTypeConfig(StrictModel):
     ]
 
 
+class ReasoningConfig(StrictModel):
+    """Optional reasoning parameters for OpenAI models.
+
+    Fields are mapped to the ``openai_reasoning_*`` settings when constructing
+    the model. Unknown keys are allowed so additional parameters can be
+    provided without code changes.
+    """
+
+    effort: str | None = Field(
+        None, description="Effort level for OpenAI reasoning tasks."
+    )
+    summary: str | None = Field(None, description="Summary style for reasoning traces.")
+
+    # Permit other reasoning settings that may be added by OpenAI.
+    model_config = ConfigDict(extra="allow")
+
+
 class AppConfig(StrictModel):
     """Top-level application configuration controlling generation behaviour."""
 
     model: Annotated[
         str,
         Field(min_length=1, description="Chat model in '<provider>:<model>' format."),
-    ] = "openai:gpt-4o-mini"
+    ] = "openai:gpt-5"
+    reasoning: ReasoningConfig | None = Field(
+        None, description="Optional reasoning configuration for the model."
+    )
     log_level: Annotated[
         str, Field(min_length=1, description="Logging verbosity level.")
     ] = "INFO"
@@ -362,6 +382,7 @@ __all__ = [
     "PlateauFeaturesResponse",
     "MappingFeature",
     "AppConfig",
+    "ReasoningConfig",
     "MappingItem",
     "MappingTypeConfig",
     "MappingResponse",

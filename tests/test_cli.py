@@ -41,6 +41,7 @@ def test_cli_generates_output(tmp_path, monkeypatch):
         batch_size=5,
         openai_api_key="dummy",
         logfire_token=None,
+        reasoning=None,
     )
 
     async def fake_process_service(self, service, prompt=None):
@@ -99,6 +100,7 @@ def test_cli_dry_run_skips_processing(tmp_path, monkeypatch):
         batch_size=5,
         openai_api_key="dummy",
         logfire_token=None,
+        reasoning=None,
     )
 
     called = {"ran": False}
@@ -160,6 +162,7 @@ def test_cli_switches_context(tmp_path, monkeypatch):
         batch_size=5,
         openai_api_key="dummy",
         logfire_token=None,
+        reasoning=None,
     )
 
     async def fake_process_service(self, service, prompt=None):
@@ -212,11 +215,12 @@ def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
         batch_size=5,
         openai_api_key="dummy",
         logfire_token=None,
+        reasoning=None,
     )
 
     captured: dict[str, str] = {}
 
-    def fake_build_model(model_name: str, api_key: str, *, seed=None):
+    def fake_build_model(model_name: str, api_key: str, *, seed=None, reasoning=None):
         captured["model"] = model_name
         captured["api_key"] = api_key
         captured["seed"] = seed
@@ -275,11 +279,12 @@ def test_cli_seed_sets_random(tmp_path, monkeypatch):
         batch_size=5,
         openai_api_key="dummy",
         logfire_token=None,
+        reasoning=None,
     )
 
     captured: dict[str, int | None] = {}
 
-    def fake_build_model(model_name: str, api_key: str, *, seed=None):
+    def fake_build_model(model_name: str, api_key: str, *, seed=None, reasoning=None):
         captured["seed"] = seed
         return "test"
 
@@ -336,6 +341,7 @@ def test_cli_enables_logfire(tmp_path, monkeypatch):
         batch_size=5,
         openai_api_key="dummy",
         logfire_token="lf-key",
+        reasoning=None,
     )
 
     async def fake_process_service(self, service, prompt=None):
@@ -401,6 +407,7 @@ def test_cli_rejects_invalid_concurrency(monkeypatch):
         batch_size=5,
         openai_api_key="dummy",
         logfire_token=None,
+        reasoning=None,
     )
     monkeypatch.setattr(cli, "load_settings", lambda: settings)
 
@@ -445,6 +452,7 @@ def test_cli_verbose_logging(tmp_path, monkeypatch, capsys):
         batch_size=5,
         openai_api_key="dummy",
         logfire_token=None,
+        reasoning=None,
     )
 
     async def fake_process_service(self, service, prompt=None):
@@ -503,6 +511,7 @@ def test_cli_resume_skips_processed(tmp_path, monkeypatch):
         concurrency=1,
         openai_api_key="dummy",
         logfire_token=None,
+        reasoning=None,
     )
 
     processed: list[str] = []

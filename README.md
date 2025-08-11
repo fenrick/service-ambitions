@@ -18,7 +18,7 @@ manager instead of committing keys to source control.
 
 The chat model can be set with the `--model` flag or the `MODEL` environment
 variable. Model identifiers must include a provider prefix, in the form
-`<provider>:<model>`. The default is `openai:gpt-4o-mini`.
+`<provider>:<model>`. The default is `openai:gpt-5` with medium reasoning effort.
 
 System prompts are assembled from modular markdown components located in the
 `prompts/` directory. Use `--prompt-dir` to point at an alternate component
@@ -177,10 +177,11 @@ contains items with identifiers, names, and descriptions. These lists are
 injected into mapping prompts so that features can be matched against consistent
 options. Mapping prompts run separately for information, applications and
 technologies to keep each decision focused. All application configuration is
-stored in `config/app.json`; mapping types and their associated datasets live
-under the `mapping_types` section, allowing new categories to be added without
-code changes. Plateau name to level associations are defined in the
-`plateau_map` section of the same file.
+stored in `config/app.json`; the chat model and any reasoning parameters live
+at the top level, while mapping types and their associated datasets live under
+the `mapping_types` section, allowing new categories to be added without code
+changes. Plateau name to level associations are defined in the `plateau_map`
+section of the same file.
 
 ## Prompt examples
 
