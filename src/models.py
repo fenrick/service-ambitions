@@ -369,6 +369,14 @@ class MappingFeature(StrictModel):
                 # Otherwise merge the mapping dictionary directly.
                 mapping.update(value)
                 continue
+            if isinstance(value, dict):
+                # Some agents repeat the mapping type key and nest the actual
+                # list within it, e.g. {"applications": {"applications": [...]}}.
+                # Flatten this structure by extracting the inner list.
+                nested = value.get(key)
+                if isinstance(nested, list):
+                    mapping[key] = nested
+                    continue
             # Collect any other keys as mapping types.
             mapping[key] = value
         data["mappings"] = mapping
