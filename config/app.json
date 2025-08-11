@@ -25,11 +25,5 @@
   "batch_size": 25,
   "request_timeout": 60,
   "retries": 5,
-  "retry_base_delay": 0.5,
-  "plateau_map": {
-    "Foundational": 1,
-    "Enhanced": 2,
-    "Experimental": 3,
-    "Disruptive": 4
-  }
+  "retry_base_delay": 0.5
 }

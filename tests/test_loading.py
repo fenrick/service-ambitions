@@ -214,14 +214,12 @@ def test_load_app_config(tmp_path):
     base = tmp_path / "config"
     base.mkdir()
     (base / "app.json").write_text(
-        '{"plateau_map": {"Foundational": 1}, "mapping_types": {"beta": {"dataset":'
-        ' "ds2", "label": "Beta"}}}',
+        '{"mapping_types": {"beta": {"dataset": "ds2", "label": "Beta"}}}',
         encoding="utf-8",
     )
     load_app_config.cache_clear()
     config = load_app_config(str(base))
     assert "beta" in config.mapping_types
-    assert config.plateau_map["Foundational"] == 1
 
 
 def test_load_app_config_reasoning(tmp_path):

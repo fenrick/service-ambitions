@@ -71,22 +71,22 @@ behaviour such as backoff jitter deterministic during tests and demos.
 
 ## Plateau-first workflow
 
-Each service is evaluated across **four** plateaus – **Foundational**,
-**Enhanced**, **Experimental** and **Disruptive**. Every plateau requires three
-sequential calls:
+Each service is evaluated across the plateaus defined in
+`data/service_feature_plateaus.json`. Every plateau requires three sequential
+calls:
 
 1. **Description** – request a plateau-specific service narrative.
 2. **Features** – generate learner, academic and professional staff features.
 3. **Mapping** – link each feature to reference Data, Applications and
    Technologies.
 
-The 4 × 3 workflow totals 12 calls and produces a complete `ServiceEvolution`
-record for every service.
+This workflow issues three calls per plateau and produces a complete
+`ServiceEvolution` record for every service.
 
-Plateau names and descriptions are sourced from
+Plateau names and descriptions are sourced entirely from
 `data/service_feature_plateaus.json`, allowing the progression to be
-reconfigured without code changes. By default the CLI uses the first four
-entries from this file.
+reconfigured without code changes. The CLI processes all entries from this
+file.
 
 ### Generating service evolutions
 
@@ -181,8 +181,8 @@ technologies to keep each decision focused. All application configuration is
 stored in `config/app.json`; the chat model and any reasoning parameters live
 at the top level, while mapping types and their associated datasets live under
 the `mapping_types` section, allowing new categories to be added without code
-changes. Plateau name to level associations are defined in the `plateau_map`
-section of the same file.
+changes. Plateau definitions and their level mappings come from
+`data/service_feature_plateaus.json`.
 
 ## Prompt examples
 
