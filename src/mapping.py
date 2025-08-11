@@ -12,11 +12,7 @@ import json
 import logging
 from typing import TYPE_CHECKING, Mapping, Sequence
 
-from loader import (
-    load_mapping_items,
-    load_mapping_type_config,
-    load_prompt_text,
-)
+from loader import load_mapping_items, load_mapping_type_config, load_prompt_text
 from models import (
     Contribution,
     MappingItem,

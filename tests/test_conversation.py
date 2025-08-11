@@ -11,9 +11,9 @@ from pydantic_ai import (  # noqa: E402  pylint: disable=wrong-import-position
     messages,
 )
 
-from conversation import (  # noqa: E402  pylint: disable=wrong-import-position
+from conversation import (
     ConversationSession,
-)
+)  # noqa: E402  pylint: disable=wrong-import-position
 from models import (  # noqa: E402  pylint: disable=wrong-import-position
     ServiceFeature,
     ServiceInput,

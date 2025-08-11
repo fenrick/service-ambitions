@@ -18,10 +18,7 @@ import logfire
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.models import Model
-from pydantic_ai.models.openai import (
-    OpenAIResponsesModel,
-    OpenAIResponsesModelSettings,
-)
+from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModelSettings
 from tqdm import tqdm
 
 from models import ReasoningConfig, ServiceInput
@@ -35,20 +32,12 @@ T = TypeVar("T")
 # Transient failures that warrant a retry. Provider specific errors are optional
 # to avoid hard dependencies when the SDK is absent.
 if TYPE_CHECKING:  # pragma: no cover - used for type hints only
-    from openai import (
-        APIConnectionError as OpenAIAPIConnectionError,
-    )
-    from openai import (
-        RateLimitError as OpenAIRateLimitError,
-    )
+    from openai import APIConnectionError as OpenAIAPIConnectionError
+    from openai import RateLimitError as OpenAIRateLimitError
 else:  # pragma: no cover - openai may be missing
     try:
-        from openai import (
-            APIConnectionError as OpenAIAPIConnectionError,
-        )
-        from openai import (
-            RateLimitError as OpenAIRateLimitError,
-        )
+        from openai import APIConnectionError as OpenAIAPIConnectionError
+        from openai import RateLimitError as OpenAIRateLimitError
     except Exception:
 
         class OpenAIAPIConnectionError(Exception):  # type: ignore[empty-body]

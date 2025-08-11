@@ -7,18 +7,18 @@ from typing import cast
 
 import pytest
 
-from conversation import (  # noqa: E402  pylint: disable=wrong-import-position
+from conversation import (
     ConversationSession,
-)
+)  # noqa: E402  pylint: disable=wrong-import-position
 from models import (  # noqa: E402  pylint: disable=wrong-import-position
     Contribution,
     PlateauFeature,
     PlateauResult,
     ServiceInput,
 )
-from plateau_generator import (  # noqa: E402  pylint: disable=wrong-import-position
+from plateau_generator import (
     PlateauGenerator,
-)
+)  # noqa: E402  pylint: disable=wrong-import-position
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 

@@ -10,6 +10,8 @@ import os
 from pathlib import Path
 from typing import Iterable, List
 
+import logfire
+
 
 @logfire.instrument()
 def read_lines(path: Path) -> List[str]:

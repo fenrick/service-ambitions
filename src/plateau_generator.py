@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 import logging
-import logfire
 from typing import Sequence
 
 import logfire
