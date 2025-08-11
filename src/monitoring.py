@@ -40,7 +40,6 @@ def _configure_json_logging(level: int) -> None:
     handler.setFormatter(JsonFormatter())
     root_logger.handlers.clear()
     root_logger.addHandler(handler)
-    logger.info("Structured JSON logging enabled")
 
 
 def init_logfire(token: str | None = None) -> None:
@@ -90,6 +89,10 @@ def init_logfire(token: str | None = None) -> None:
         instrument = getattr(logfire, name, None)
         if instrument:
             instrument()
+
+    installer = getattr(logfire, "install_auto_tracing", None)
+    if installer:
+        installer([], min_duration=0)
 
     handler_cls = getattr(logfire, "LogfireLoggingHandler", None)
     if handler_cls:

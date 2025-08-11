@@ -10,6 +10,7 @@ history into another while still reusing the same underlying agent.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import logging
 import re
@@ -242,7 +243,11 @@ class PlateauGenerator:
                     raise ValueError(msg)
             features = self._collect_features(payload)
             # Enrich the raw features with mapping information before returning.
-            mapped = await map_features(session, features)
+            mapped_result = map_features(session, features)
+            if inspect.isawaitable(mapped_result):
+                mapped = await mapped_result
+            else:
+                mapped = mapped_result
             return PlateauResult(
                 plateau=level,
                 plateau_name=plateau_name,
