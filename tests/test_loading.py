@@ -22,21 +22,29 @@ def test_load_prompt_assembles_components(tmp_path):
     (prompts_dir / "situational_context").mkdir(parents=True)
     (prompts_dir / "inspirations").mkdir(parents=True)
     (prompts_dir / "situational_context" / "ctx.md").write_text("ctx", encoding="utf-8")
-    (prompts_dir / "definitions.json").write_text(
-        '{"d1": "defs", "d2": "extra"}', encoding="utf-8"
-    )
     (prompts_dir / "inspirations" / "insp.md").write_text("insp", encoding="utf-8")
     (prompts_dir / "task_definition.md").write_text("task", encoding="utf-8")
     (prompts_dir / "response_structure.md").write_text("resp", encoding="utf-8")
     data_dir.mkdir()
+    (data_dir / "definitions.json").write_text(
+        '{"title": "Defs", "bullets": [{"name": "d1", "description": "defs"}, {"name":'
+        ' "d2", "description": "extra"}]}',
+        encoding="utf-8",
+    )
     (data_dir / "service_feature_plateaus.json").write_text(
         '[{"id": "P1", "name": "Alpha", "description": "plat"}]',
         encoding="utf-8",
     )
-    prompt = load_prompt("ctx", "insp", str(prompts_dir), plateaus_dir=str(data_dir))
+    prompt = load_prompt(
+        "ctx",
+        "insp",
+        str(prompts_dir),
+        definitions_dir=str(data_dir),
+        plateaus_dir=str(data_dir),
+    )
     expected = (
-        "ctx\n\n## Service feature plateaus\n\n"
-        "1. **Alpha**: plat\n\ndefs\n\nextra\n\ninsp\n\ntask\n\nresp"
+        "ctx\n\n## Service feature plateaus\n\n1. **Alpha**: plat\n\n## Defs\n\n1."
+        " **d1**: defs\n2. **d2**: extra\n\ninsp\n\ntask\n\nresp"
     )
     assert prompt == expected
 
@@ -51,7 +59,13 @@ def test_load_prompt_missing_component(tmp_path):
         encoding="utf-8",
     )
     with pytest.raises(FileNotFoundError):
-        load_prompt("ctx", "insp", str(prompts_dir), plateaus_dir=str(data_dir))
+        load_prompt(
+            "ctx",
+            "insp",
+            str(prompts_dir),
+            definitions_dir=str(data_dir),
+            plateaus_dir=str(data_dir),
+        )
 
 
 def test_load_prompt_with_definition_keys(tmp_path):
@@ -60,13 +74,15 @@ def test_load_prompt_with_definition_keys(tmp_path):
     (prompts_dir / "situational_context").mkdir(parents=True)
     (prompts_dir / "inspirations").mkdir(parents=True)
     (prompts_dir / "situational_context" / "ctx.md").write_text("ctx", encoding="utf-8")
-    (prompts_dir / "definitions.json").write_text(
-        '{"d1": "defs1", "d2": "defs2"}', encoding="utf-8"
-    )
     (prompts_dir / "inspirations" / "insp.md").write_text("insp", encoding="utf-8")
     (prompts_dir / "task_definition.md").write_text("task", encoding="utf-8")
     (prompts_dir / "response_structure.md").write_text("resp", encoding="utf-8")
     data_dir.mkdir()
+    (data_dir / "definitions.json").write_text(
+        '{"title": "Defs", "bullets": [{"name": "d1", "description": "defs1"}, {"name":'
+        ' "d2", "description": "defs2"}]}',
+        encoding="utf-8",
+    )
     (data_dir / "service_feature_plateaus.json").write_text(
         '[{"id": "P1", "name": "Alpha", "description": "plat"}]',
         encoding="utf-8",
@@ -75,12 +91,13 @@ def test_load_prompt_with_definition_keys(tmp_path):
         "ctx",
         "insp",
         str(prompts_dir),
+        definitions_dir=str(data_dir),
         definition_keys=["d2"],
         plateaus_dir=str(data_dir),
     )
     expected = (
         "ctx\n\n## Service feature plateaus\n\n"
-        "1. **Alpha**: plat\n\ndefs2\n\ninsp\n\ntask\n\nresp"
+        "1. **Alpha**: plat\n\n## Defs\n\n1. **d2**: defs2\n\ninsp\n\ntask\n\nresp"
     )
     assert prompt == expected
 

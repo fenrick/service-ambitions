@@ -20,8 +20,6 @@ def test_cli_generates_output(tmp_path, monkeypatch):
     (base / "situational_context" / "ctx.md").write_text(
         "You are a helpful assistant.", encoding="utf-8"
     )
-    (base / "service_feature_plateaus.md").write_text("p", encoding="utf-8")
-    (base / "definitions.json").write_text('{"d": "d"}', encoding="utf-8")
     (base / "inspirations" / "insp.md").write_text("i", encoding="utf-8")
     (base / "task_definition.md").write_text("t", encoding="utf-8")
     (base / "response_structure.md").write_text("r", encoding="utf-8")
@@ -80,8 +78,6 @@ def test_cli_dry_run_skips_processing(tmp_path, monkeypatch):
     (base / "situational_context").mkdir(parents=True)
     (base / "inspirations").mkdir(parents=True)
     (base / "situational_context" / "ctx.md").write_text("c", encoding="utf-8")
-    (base / "service_feature_plateaus.md").write_text("p", encoding="utf-8")
-    (base / "definitions.json").write_text('{"d": "d"}', encoding="utf-8")
     (base / "inspirations" / "insp.md").write_text("i", encoding="utf-8")
     (base / "task_definition.md").write_text("t", encoding="utf-8")
     (base / "response_structure.md").write_text("r", encoding="utf-8")
@@ -139,15 +135,23 @@ def test_cli_requires_api_key(monkeypatch):
 def test_cli_switches_context(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     base = tmp_path / "prompts"
+    data_dir = tmp_path / "data"
     (base / "situational_context").mkdir(parents=True)
     (base / "inspirations").mkdir(parents=True)
     (base / "situational_context" / "alpha.md").write_text("Alpha", encoding="utf-8")
     (base / "situational_context" / "beta.md").write_text("Beta", encoding="utf-8")
-    (base / "service_feature_plateaus.md").write_text("p", encoding="utf-8")
-    (base / "definitions.json").write_text('{"d": "d"}', encoding="utf-8")
     (base / "inspirations" / "general.md").write_text("i", encoding="utf-8")
     (base / "task_definition.md").write_text("t", encoding="utf-8")
     (base / "response_structure.md").write_text("r", encoding="utf-8")
+    data_dir.mkdir()
+    (data_dir / "definitions.json").write_text(
+        '{"title": "Defs", "bullets": [{"name": "d", "description": "d"}]}',
+        encoding="utf-8",
+    )
+    (data_dir / "service_feature_plateaus.json").write_text(
+        '[{"id": "P1", "name": "Alpha", "description": "p"}]',
+        encoding="utf-8",
+    )
     input_file = tmp_path / "services.jsonl"
     input_file.write_text('{"name": "alpha"}\n', encoding="utf-8")
     output_file = tmp_path / "output.jsonl"
@@ -193,14 +197,22 @@ def test_cli_switches_context(tmp_path, monkeypatch):
 def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     base = tmp_path / "prompts"
+    data_dir = tmp_path / "data"
     (base / "situational_context").mkdir(parents=True)
     (base / "inspirations").mkdir(parents=True)
     (base / "situational_context" / "university.md").write_text("ctx", encoding="utf-8")
-    (base / "service_feature_plateaus.md").write_text("p", encoding="utf-8")
-    (base / "definitions.json").write_text('{"d": "d"}', encoding="utf-8")
     (base / "inspirations" / "general.md").write_text("i", encoding="utf-8")
     (base / "task_definition.md").write_text("t", encoding="utf-8")
     (base / "response_structure.md").write_text("r", encoding="utf-8")
+    data_dir.mkdir()
+    (data_dir / "definitions.json").write_text(
+        '{"title": "Defs", "bullets": [{"name": "d", "description": "d"}]}',
+        encoding="utf-8",
+    )
+    (data_dir / "service_feature_plateaus.json").write_text(
+        '[{"id": "P1", "name": "Alpha", "description": "p"}]',
+        encoding="utf-8",
+    )
     input_file = tmp_path / "services.jsonl"
     input_file.write_text('{"name": "alpha"}\n', encoding="utf-8")
     output_file = tmp_path / "output.jsonl"
@@ -259,8 +271,6 @@ def test_cli_seed_sets_random(tmp_path, monkeypatch):
     (base / "situational_context").mkdir(parents=True)
     (base / "inspirations").mkdir(parents=True)
     (base / "situational_context" / "ctx.md").write_text("c", encoding="utf-8")
-    (base / "service_feature_plateaus.md").write_text("p", encoding="utf-8")
-    (base / "definitions.json").write_text('{"d": "d"}', encoding="utf-8")
     (base / "inspirations" / "insp.md").write_text("i", encoding="utf-8")
     (base / "task_definition.md").write_text("t", encoding="utf-8")
     (base / "response_structure.md").write_text("r", encoding="utf-8")
@@ -319,14 +329,22 @@ def test_cli_seed_sets_random(tmp_path, monkeypatch):
 def test_cli_enables_logfire(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     base = tmp_path / "prompts"
+    data_dir = tmp_path / "data"
     (base / "situational_context").mkdir(parents=True)
     (base / "inspirations").mkdir(parents=True)
     (base / "situational_context" / "university.md").write_text("ctx", encoding="utf-8")
-    (base / "service_feature_plateaus.md").write_text("p", encoding="utf-8")
-    (base / "definitions.json").write_text('{"d": "d"}', encoding="utf-8")
     (base / "inspirations" / "general.md").write_text("i", encoding="utf-8")
     (base / "task_definition.md").write_text("t", encoding="utf-8")
     (base / "response_structure.md").write_text("r", encoding="utf-8")
+    data_dir.mkdir()
+    (data_dir / "definitions.json").write_text(
+        '{"title": "Defs", "bullets": [{"name": "d", "description": "d"}]}',
+        encoding="utf-8",
+    )
+    (data_dir / "service_feature_plateaus.json").write_text(
+        '[{"id": "P1", "name": "Alpha", "description": "p"}]',
+        encoding="utf-8",
+    )
     input_file = tmp_path / "services.jsonl"
     input_file.write_text('{"name": "alpha"}\n', encoding="utf-8")
     output_file = tmp_path / "output.jsonl"
@@ -432,8 +450,6 @@ def test_cli_verbose_logging(tmp_path, monkeypatch, capsys):
     (base / "situational_context").mkdir(parents=True)
     (base / "inspirations").mkdir(parents=True)
     (base / "situational_context" / "ctx.md").write_text("c", encoding="utf-8")
-    (base / "service_feature_plateaus.md").write_text("p", encoding="utf-8")
-    (base / "definitions.json").write_text('{"d": "d"}', encoding="utf-8")
     (base / "inspirations" / "insp.md").write_text("i", encoding="utf-8")
     (base / "task_definition.md").write_text("t", encoding="utf-8")
     (base / "response_structure.md").write_text("r", encoding="utf-8")
@@ -484,8 +500,6 @@ def test_cli_resume_skips_processed(tmp_path, monkeypatch):
     (base / "situational_context").mkdir(parents=True)
     (base / "inspirations").mkdir(parents=True)
     (base / "situational_context" / "ctx.md").write_text("c", encoding="utf-8")
-    (base / "service_feature_plateaus.md").write_text("p", encoding="utf-8")
-    (base / "definitions.json").write_text('{"d": "d"}', encoding="utf-8")
     (base / "inspirations" / "insp.md").write_text("i", encoding="utf-8")
     (base / "task_definition.md").write_text("t", encoding="utf-8")
     (base / "response_structure.md").write_text("r", encoding="utf-8")
