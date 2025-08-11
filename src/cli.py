@@ -35,10 +35,9 @@ logger = logging.getLogger(__name__)
 
 
 def _default_plateaus() -> list[str]:
-    """Return plateau names from configuration."""
+    """Return all plateau names from configuration."""
 
-    # Use only the first four plateaus to keep default scope manageable
-    return [p.name for p in load_plateau_definitions()[:4]]
+    return [p.name for p in load_plateau_definitions()]
 
 
 def _configure_logging(args: argparse.Namespace, settings) -> None:

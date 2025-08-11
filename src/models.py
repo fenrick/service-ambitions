@@ -227,10 +227,6 @@ class AppConfig(StrictModel):
         default_factory=dict,
         description="Mapping type definitions keyed by field name.",
     )
-    plateau_map: dict[str, int] = Field(
-        default_factory=dict,
-        description="Mapping from plateau names to numeric identifiers.",
-    )
 
 
 class PlateauFeature(StrictModel):
