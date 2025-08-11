@@ -172,39 +172,45 @@ class PlateauGenerator:
                 "ServiceInput not set. Call generate_service_evolution first."
             )
 
-        logfire.set_attribute("service.id", self._service.service_id)  # type: ignore[attr-defined]
-        logfire.set_attribute("plateau", level)  # type: ignore[attr-defined]
+        # Attach useful context to the span so traces include the target service
+        # and plateau level being generated.
+        with logfire.span("generate_plateau") as span:
+            span.set_attribute("service.id", self._service.service_id)
+            span.set_attribute("plateau", level)
 
-        # Ask the model to describe the service at the specified plateau level.
-        description = await self._request_description(level)
-        prompt = self._build_plateau_prompt(level, description)
-        logger.info("Requesting features for level=%s", level)
+            # Ask the model to describe the service at the specified plateau level.
+            description = await self._request_description(level)
+            prompt = self._build_plateau_prompt(level, description)
+            logger.info("Requesting features for level=%s", level)
 
-        # Using the shared conversation session ensures features are generated
-        # in the same context as previous interactions.
-        response = await self.session.ask(prompt)
-        payload = self._parse_feature_payload(response)
-        for segment, items in {
-            "learners": payload.learners,
-            "staff": payload.staff,
-            "community": payload.community,
-        }.items():
-            # Fail fast if the model omitted any required features for a segment.
-            if len(items) < self.required_count:
-                msg = (
-                    f"Expected at least {self.required_count} features for '{segment}',"
-                    f" got {len(items)}"
-                )
-                raise ValueError(msg)
-        features = self._collect_features(payload)
-        # Enrich the raw features with mapping information before returning.
-        mapped = await map_features(self.session, features)
-        return PlateauResult(
-            plateau=level,
-            plateau_name=plateau_name,
-            service_description=description,
-            features=mapped,
-        )
+            # Using the shared conversation session ensures features are generated
+            # in the same context as previous interactions.
+            response = await self.session.ask(prompt)
+            payload = self._parse_feature_payload(response)
+            for segment, items in {
+                "learners": payload.learners,
+                "staff": payload.staff,
+                "community": payload.community,
+            }.items():
+                # Fail fast if the model omitted any required features for a segment.
+                if len(items) < self.required_count:
+                    msg = (
+                        (
+                            f"Expected at least {self.required_count} features for"
+                            f" '{segment}',"
+                        ),
+                        f" got {len(items)}",
+                    )
+                    raise ValueError(msg)
+            features = self._collect_features(payload)
+            # Enrich the raw features with mapping information before returning.
+            mapped = await map_features(self.session, features)
+            return PlateauResult(
+                plateau=level,
+                plateau_name=plateau_name,
+                service_description=description,
+                features=mapped,
+            )
 
     @logfire.instrument()
     async def generate_service_evolution(
@@ -232,44 +238,41 @@ class PlateauGenerator:
         """
         self._service = service_input
 
-        logfire.set_attribute("service.id", service_input.service_id)  # type: ignore[attr-defined]
-        if service_input.customer_type:
-            logfire.set_attribute("customer_type", service_input.customer_type)  # type: ignore[attr-defined]
+        # Record identifying attributes on the span for observability.
+        with logfire.span("generate_service_evolution") as span:
+            span.set_attribute("service.id", service_input.service_id)
+            if service_input.customer_type:
+                span.set_attribute("customer_type", service_input.customer_type)
 
-        # Seed the conversation so later model queries have the service context.
-        self.session.add_parent_materials(service_input)
+            # Seed the conversation so later model queries have the service context.
+            self.session.add_parent_materials(service_input)
 
-        plateau_names = list(plateau_names or DEFAULT_PLATEAU_NAMES)
-        customer_types = list(customer_types or DEFAULT_CUSTOMER_TYPES)
+            plateau_names = list(plateau_names or DEFAULT_PLATEAU_NAMES)
+            customer_types = list(customer_types or DEFAULT_CUSTOMER_TYPES)
 
-        plateaus: list[PlateauResult] = []
-        for name in plateau_names:
-            try:
-                level = DEFAULT_PLATEAU_MAP[name]
-            except KeyError as exc:  # pragma: no cover - checked by tests
-                # Fail fast when configuration references an unknown plateau.
-                raise ValueError(f"Unknown plateau name: {name}") from exc
+            plateaus: list[PlateauResult] = []
+            for name in plateau_names:
+                try:
+                    level = DEFAULT_PLATEAU_MAP[name]
+                except KeyError as exc:  # pragma: no cover - checked by tests
+                    # Fail fast when configuration references an unknown plateau.
+                    raise ValueError(f"Unknown plateau name: {name}") from exc
 
-            # Generate features for each plateau level in turn.
-            result = await self.generate_plateau(level, name)
-            # Restrict features to the requested customer segments only.
-            filtered = [
-                feat for feat in result.features if feat.customer_type in customer_types
-            ]
-            plateaus.append(
-                PlateauResult(
-                    plateau=result.plateau,
-                    plateau_name=result.plateau_name,
-                    service_description=result.service_description,
-                    features=filtered,
+                # Generate features for each plateau level in turn.
+                result = await self.generate_plateau(level, name)
+                # Restrict features to the requested customer segments only.
+                filtered = [
+                    feat
+                    for feat in result.features
+                    if feat.customer_type in customer_types
+                ]
+                plateaus.append(
+                    PlateauResult(
+                        plateau=result.plateau,
+                        plateau_name=result.plateau_name,
+                        service_description=result.service_description,
+                        features=filtered,
+                    )
                 )
-            )
-        return ServiceEvolution(service=service_input, plateaus=plateaus)
 
-
-__all__ = [
-    "PlateauGenerator",
-    "DEFAULT_PLATEAU_MAP",
-    "DEFAULT_PLATEAU_NAMES",
-    "DEFAULT_CUSTOMER_TYPES",
-]
+            return ServiceEvolution(service=service_input, plateaus=plateaus)
