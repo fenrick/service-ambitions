@@ -82,3 +82,21 @@ def test_mapping_response_handles_nested_mappings() -> None:
     result = MappingResponse.model_validate(payload)
 
     assert result.features[0].mappings["data"][0].item == "INF-1"
+
+
+def test_mapping_response_flattens_duplicate_keys() -> None:
+    """Duplicate mapping type keys should flatten to the inner list."""
+    payload = {
+        "features": [
+            {
+                "feature_id": "f1",
+                "applications": {
+                    "applications": [{"item": "APP-1", "contribution": "c"}]
+                },
+            }
+        ]
+    }
+
+    result = MappingResponse.model_validate(payload)
+
+    assert result.features[0].mappings["applications"][0].item == "APP-1"
