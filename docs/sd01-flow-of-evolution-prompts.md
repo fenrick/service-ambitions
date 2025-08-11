@@ -162,7 +162,7 @@ Map each feature to relevant Data, Applications, Technologies from the lists bel
 - TECH002: Cloud Storage - Stores data securely.
 
 #### Features
-<Foundational features>
+- Foundational features
 
 #### Instructions
 - Return a JSON object with a top-level "features" array.
