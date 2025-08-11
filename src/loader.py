@@ -240,9 +240,53 @@ def load_definitions(
     items = [data[k] for k in keys if k in data] if keys else list(data.values())
     return "\n\n".join(items)
 
+@logfire.instrument()
+def load_evolution_prompt(
+    context_id: str,
+    inspirations_id: str,
+    base_dir: Path | None = None,
+    plateaus_file: Path | str = Path("service_feature_plateaus.md"),
+    definitions_file: Path | str = Path("definitions.json"),
+    definition_keys: Sequence[str] | None = None,
+    task_file: Path | str = Path("task_definition.md"),
+    response_file: Path | str = Path("response_structure.md"),
+) -> str:
+    """Assemble the system prompt from modular components.
+
+    Args:
+        context_id: Identifier for the situational context file within the
+            prompts directory.
+        inspirations_id: Identifier for the inspirations file within the
+            prompts directory.
+        base_dir: Optional override for the base prompts directory.
+        plateaus_file: Filename of the service feature plateaus component.
+        definitions_file: Definitions file name.
+        definition_keys: Optional identifiers selecting which definitions to
+            include.
+        task_file: Filename of the task definition component.
+        response_file: Filename of the response structure component.
+
+    Returns:
+        Combined prompt text.
+
+    Raises:
+        FileNotFoundError: If a component file does not exist.
+        RuntimeError: If a component file cannot be read.
+    """
+
+    directory = base_dir or PROMPT_DIR
+    components = [
+        _read_file(directory / "situational_context" / f"{context_id}.md"),
+        _read_file(directory / Path(plateaus_file)),
+        load_definitions(directory, definitions_file, definition_keys),
+        _read_file(directory / "inspirations" / f"{inspirations_id}.md"),
+        _read_file(directory / Path(task_file)),
+        _read_file(directory / Path(response_file)),
+    ]
+    return "\n\n".join(components)
 
 @logfire.instrument()
-def load_prompt(
+def load_ambition_prompt(
     context_id: str,
     inspirations_id: str,
     base_dir: Path | None = None,

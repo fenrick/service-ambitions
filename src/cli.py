@@ -21,7 +21,7 @@ from generator import ServiceAmbitionGenerator, build_model
 from loader import (
     configure_prompt_dir,
     load_plateau_definitions,
-    load_prompt,
+    load_ambition_prompt,
     load_services,
 )
 from models import ServiceInput
@@ -66,7 +66,7 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
 
     # Load prompt components from the configured directory
     configure_prompt_dir(settings.prompt_dir)
-    system_prompt = load_prompt(settings.context_id, settings.inspiration)
+    system_prompt = load_ambition_prompt(settings.context_id, settings.inspiration)
 
     # Prefer model specified on the CLI, falling back to settings
     model_name = args.model or settings.model
@@ -157,7 +157,7 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
     # Load and assemble the system prompt so each conversation begins with
     # the situational context, definitions and inspirations.
     configure_prompt_dir(settings.prompt_dir)
-    system_prompt = load_prompt(settings.context_id, settings.inspiration)
+    system_prompt = load_evolution_prompt(settings.context_id, settings.inspiration)
 
     concurrency = args.concurrency or settings.concurrency
     if concurrency < 1:
