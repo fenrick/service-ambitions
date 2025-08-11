@@ -23,6 +23,8 @@ Generate service features for the {service_name} service at plateau {plateau}.
     - "description": explanation of the feature.
     - "score": floating-point maturity between 0 and 1.
 - Do not include any text outside the JSON object.
+- Return ONLY valid JSON. No Markdown. No backticks. No commentary. No trailing commas.
+- If you are about to include any text outside JSON, stop and return JSON only.
 - The response must adhere to the JSON schema provided below.
 
 ## Response structure
