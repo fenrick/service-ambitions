@@ -26,7 +26,7 @@ from loader import (
     load_services,
 )
 from models import ServiceInput
-from monitoring import init_logfire
+from monitoring import LOG_FILE_NAME, init_logfire
 from persistence import atomic_write, read_lines
 from plateau_generator import PlateauGenerator
 from settings import load_settings
@@ -55,7 +55,9 @@ def _configure_logging(args: argparse.Namespace, settings) -> None:
         level_name = "DEBUG"
 
     logging.basicConfig(
-        level=getattr(logging, level_name.upper(), logging.INFO), force=True
+        filename=LOG_FILE_NAME,
+        level=getattr(logging, level_name.upper(), logging.INFO),
+        force=True,
     )
     if settings.logfire_token:
         # Initialize logfire only when a token is configured

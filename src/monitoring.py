@@ -15,6 +15,9 @@ import os
 
 logger = logging.getLogger(__name__)
 
+# Default log file used across the application
+LOG_FILE_NAME = "service.log"
+
 
 class JsonFormatter(logging.Formatter):
     """Simple structured logging formatter."""
@@ -32,7 +35,7 @@ def _configure_json_logging(level: int) -> None:
     """Attach a JSON formatter to the root logger."""
 
     root_logger = logging.getLogger()
-    handler = logging.StreamHandler()
+    handler = logging.FileHandler(LOG_FILE_NAME)
     handler.setLevel(level)
     handler.setFormatter(JsonFormatter())
     root_logger.handlers.clear()

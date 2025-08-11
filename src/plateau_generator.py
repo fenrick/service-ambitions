@@ -185,10 +185,10 @@ class PlateauGenerator:
             plateau_name: Human readable name of the plateau.
 
         The function requests a plateau-specific service description and a list
-        of features for learners, academics and professional staff. Responses must contain at
-        least ``required_count`` features for each customer type. Raw features
-        are converted to :class:`PlateauFeature` objects and enriched using
-        :func:`map_features` before being returned as part of a
+        of features for learners, academics and professional staff. Responses
+        must contain at least ``required_count`` features for each customer
+        type. Raw features are converted to :class:`PlateauFeature` objects and
+        enriched using :func:`map_features` before being returned as part of a
         :class:`PlateauResult`. A :class:`ValueError` is raised if the agent
         returns invalid JSON or an insufficient number of features.
         """
