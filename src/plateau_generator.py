@@ -45,7 +45,7 @@ DEFAULT_PLATEAU_NAMES: list[str] = [
 
 # Core customer segments targeted during feature generation. These represent the
 # default audience slices and should be updated if new segments are introduced.
-DEFAULT_CUSTOMER_TYPES: list[str] = ["learners", "academics", "professional staff"]
+DEFAULT_CUSTOMER_TYPES: list[str] = ["learners", "academics", "professional_staff"]
 
 
 def _strip_code_fences(payload: str) -> str:
@@ -166,7 +166,7 @@ class PlateauGenerator:
         """Return PlateauFeature records extracted from ``payload``."""
 
         features: list[PlateauFeature] = []
-        for customer in ("learners", "academics", "professional staff"):
+        for customer in ("learners", "academics", "professional_staff"):
             with logfire.span(
                 "collect_features", attributes={"customer_type": customer}
             ):
