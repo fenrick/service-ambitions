@@ -20,6 +20,7 @@ from models import (
     AppConfig,
     MappingItem,
     MappingTypeConfig,
+    Role,
     ServiceFeaturePlateau,
     ServiceInput,
 )
@@ -29,6 +30,11 @@ logger = logging.getLogger(__name__)
 # Directory containing prompt templates.  Mutable so tests or callers may point
 # to alternative directories via ``configure_prompt_dir``.
 PROMPT_DIR = Path("prompts")
+
+# Location of the role dataset. Mutable so CLI flags or tests may override
+# where role definitions are sourced from.
+ROLES_BASE_DIR = Path("data")
+ROLES_FILENAME = Path("roles.json")
 
 
 def configure_prompt_dir(path: Path | str) -> None:
@@ -180,6 +186,35 @@ def load_mapping_type_config(
     """
 
     return load_app_config(base_dir, filename).mapping_types
+
+
+@lru_cache(maxsize=None)
+@logfire.instrument()
+def load_roles(
+    base_dir: Path | str | None = None,
+    filename: Path | str | None = None,
+) -> list[Role]:
+    """Return role definitions from the configured data file."""
+
+    base = Path(base_dir) if base_dir else ROLES_BASE_DIR
+    name = Path(filename) if filename else ROLES_FILENAME
+    path = base / name
+    return _read_json_file(path, list[Role])
+
+
+def configure_roles_file(path: Path | str) -> None:
+    """Set the path to the role dataset and clear cached entries.
+
+    Side Effects:
+        Updates module-level defaults used by :func:`load_roles` and flushes
+        the cache so subsequent calls read from ``path``.
+    """
+
+    global ROLES_BASE_DIR, ROLES_FILENAME
+    target = Path(path)
+    ROLES_BASE_DIR = target.parent
+    ROLES_FILENAME = target.name
+    load_roles.cache_clear()
 
 
 @lru_cache(maxsize=None)

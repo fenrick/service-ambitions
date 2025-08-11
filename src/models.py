@@ -231,6 +231,11 @@ class AppConfig(StrictModel):
         default_factory=dict,
         description="Mapping from plateau names to numeric identifiers.",
     )
+    features_per_role: int = Field(
+        5,
+        ge=1,
+        description="Minimum number of features required for each role.",
+    )
 
 
 class PlateauFeature(StrictModel):
@@ -254,6 +259,19 @@ class PlateauFeature(StrictModel):
     mappings: dict[str, list[Contribution]] = Field(
         default_factory=dict,
         description="Mapping contributions keyed by mapping type.",
+    )
+
+
+class Role(StrictModel):
+    """Descriptor for a service role or audience segment."""
+
+    identifier: Annotated[
+        str,
+        Field(min_length=1, description="Unique role key used in prompts."),
+    ]
+    name: Annotated[str, Field(min_length=1, description="Human readable name.")]
+    description: str = Field(
+        ..., description="Explanation of the responsibilities or audience."
     )
 
 
@@ -313,19 +331,6 @@ class FeatureItem(StrictModel):
     description: str = Field(..., description="Explanation of the feature.")
     score: float = Field(
         ..., ge=0.0, le=1.0, description="Maturity score between 0 and 1."
-    )
-
-
-class PlateauFeaturesResponse(StrictModel):
-    """Schema for plateau feature generation responses.
-
-    Features are grouped by audience segment to simplify downstream rendering.
-    """
-
-    learners: list[FeatureItem] = Field(..., description="Features for learners.")
-    academics: list[FeatureItem] = Field(..., description="Features for academics.")
-    professional_staff: list[FeatureItem] = Field(
-        ..., description="Features for professional staff."
     )
 
 
@@ -422,7 +427,6 @@ __all__ = [
     "SCHEMA_VERSION",
     "DescriptionResponse",
     "FeatureItem",
-    "PlateauFeaturesResponse",
     "MappingFeature",
     "AppConfig",
     "ReasoningConfig",
@@ -431,4 +435,5 @@ __all__ = [
     "MappingResponse",
     "StrictModel",
     "JobToBeDone",
+    "Role",
 ]

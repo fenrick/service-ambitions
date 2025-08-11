@@ -17,15 +17,15 @@ import re
 from typing import Sequence
 
 import logfire
+from pydantic import TypeAdapter
 
 from conversation import ConversationSession
-from loader import load_app_config, load_prompt_text
+from loader import load_app_config, load_prompt_text, load_roles
 from mapping import map_features
 from models import (
     DescriptionResponse,
     FeatureItem,
     PlateauFeature,
-    PlateauFeaturesResponse,
     PlateauResult,
     ServiceEvolution,
     ServiceInput,
@@ -45,9 +45,13 @@ DEFAULT_PLATEAU_NAMES: list[str] = [
     name for name, _ in sorted(DEFAULT_PLATEAU_MAP.items(), key=lambda item: item[1])
 ]
 
+
 # Core customer segments targeted during feature generation. These represent the
 # default audience slices and should be updated if new segments are introduced.
-DEFAULT_CUSTOMER_TYPES: list[str] = ["learners", "academics", "professional_staff"]
+def default_customer_types() -> list[str]:
+    """Return identifiers for all configured roles."""
+
+    return [role.identifier for role in load_roles()]
 
 
 def _strip_code_fences(payload: str) -> str:
@@ -142,7 +146,14 @@ class PlateauGenerator:
     def _build_plateau_prompt(self, level: int, description: str) -> str:
         """Return a prompt requesting features for ``level``."""
 
-        schema = json.dumps(PlateauFeaturesResponse.model_json_schema(), indent=2)
+        roles = load_roles()
+        schema = json.dumps(
+            TypeAdapter(dict[str, list[FeatureItem]]).json_schema(), indent=2
+        )
+        role_keys = ", ".join(f'"{r.identifier}"' for r in roles)
+        role_list = "\n".join(
+            f'- "{r.identifier}": {r.name} - {r.description}' for r in roles
+        )
         template = load_prompt_text("plateau_prompt")
         return template.format(
             required_count=self.required_count,
@@ -150,32 +161,38 @@ class PlateauGenerator:
             service_description=description,
             plateau=str(level),
             schema=str(schema),
+            role_keys=role_keys,
+            roles=role_list,
         )
 
     @staticmethod
     @logfire.instrument()
-    def _parse_feature_payload(response: str) -> PlateauFeaturesResponse:
+    def _parse_feature_payload(
+        response: str,
+    ) -> dict[str, list[FeatureItem]]:
         """Return validated plateau feature details."""
 
         clean = _strip_code_fences(response)
+        adapter = TypeAdapter(dict[str, list[FeatureItem]])
         try:
-            return PlateauFeaturesResponse.model_validate_json(clean)
+            return adapter.validate_json(clean)
         except Exception as exc:  # pragma: no cover - logging
             logger.error("Invalid JSON from feature response: %s", exc)
             raise ValueError("Agent returned invalid JSON") from exc
 
     @logfire.instrument()
     def _collect_features(
-        self, payload: PlateauFeaturesResponse
+        self, payload: dict[str, list[FeatureItem]]
     ) -> list[PlateauFeature]:
         """Return PlateauFeature records extracted from ``payload``."""
 
         features: list[PlateauFeature] = []
-        for customer in ("learners", "academics", "professional_staff"):
+        for role in load_roles():
+            customer = role.identifier
             with logfire.span(
                 "collect_features", attributes={"customer_type": customer}
             ):
-                raw_features = getattr(payload, customer)
+                raw_features = payload.get(customer, [])
                 for item in raw_features:
                     # Convert each raw item into a structured plateau feature.
                     features.append(self._to_feature(item, customer))
@@ -226,17 +243,14 @@ class PlateauGenerator:
             # history is isolated per plateau.
             response = await session.ask(prompt)
             payload = self._parse_feature_payload(response)
-            for segment, items in {
-                "learners": payload.learners,
-                "academics": payload.academics,
-                "professional_staff": payload.professional_staff,
-            }.items():
+            for role in load_roles():
+                items = payload.get(role.identifier, [])
                 # Fail fast if the model omitted any required features for a segment.
                 if len(items) < self.required_count:
                     msg = (
                         (
                             f"Expected at least {self.required_count} features for"
-                            f" '{segment}',"
+                            f" '{role.identifier}',"
                         ),
                         f" got {len(items)}",
                     )
@@ -269,7 +283,7 @@ class PlateauGenerator:
             plateau_names: Optional plateau names to evaluate. Defaults to
                 :data:`DEFAULT_PLATEAU_NAMES`.
             customer_types: Optional customer segments to include. Defaults to
-                :data:`DEFAULT_CUSTOMER_TYPES`.
+                :func:`default_customer_types`.
 
         Returns:
             Combined evolution limited to the default plateaus and customer
@@ -291,7 +305,7 @@ class PlateauGenerator:
             self.session.add_parent_materials(service_input)
 
             plateau_names = list(plateau_names or DEFAULT_PLATEAU_NAMES)
-            customer_types = list(customer_types or DEFAULT_CUSTOMER_TYPES)
+            customer_types = list(customer_types or default_customer_types())
 
             async def _generate(name: str) -> PlateauResult:
                 try:

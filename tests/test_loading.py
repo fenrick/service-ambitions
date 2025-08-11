@@ -4,11 +4,13 @@ from pathlib import Path
 import pytest
 
 from loader import (
+    configure_roles_file,
     load_app_config,
     load_mapping_type_config,
     load_plateau_definitions,
     load_prompt,
     load_prompt_text,
+    load_roles,
     load_services,
 )
 from models import JobToBeDone
@@ -222,6 +224,7 @@ def test_load_app_config(tmp_path):
     config = load_app_config(str(base))
     assert "beta" in config.mapping_types
     assert config.plateau_map["Foundational"] == 1
+    assert config.features_per_role == 5
 
 
 def test_load_app_config_reasoning(tmp_path):
@@ -236,3 +239,29 @@ def test_load_app_config_reasoning(tmp_path):
     assert config.reasoning is not None
     assert config.reasoning.effort == "high"
     assert config.reasoning.summary == "detailed"
+
+
+def test_load_roles(tmp_path):
+    base = tmp_path / "data"
+    base.mkdir()
+    (base / "roles.json").write_text(
+        '[{"identifier": "r1", "name": "Role", "description": "d"}]',
+        encoding="utf-8",
+    )
+    load_roles.cache_clear()
+    roles = load_roles(str(base))
+    assert roles[0].identifier == "r1"
+
+
+def test_configure_roles_file_overrides_path(tmp_path):
+    roles_path = tmp_path / "custom_roles.json"
+    roles_path.write_text(
+        '[{"identifier": "x", "name": "X", "description": "d"}]',
+        encoding="utf-8",
+    )
+    configure_roles_file(roles_path)
+    try:
+        roles = load_roles()
+        assert roles[0].identifier == "x"
+    finally:
+        configure_roles_file(Path("data") / "roles.json")

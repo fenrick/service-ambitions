@@ -42,6 +42,7 @@ def test_cli_generates_output(tmp_path, monkeypatch):
         openai_api_key="dummy",
         logfire_token=None,
         reasoning=None,
+        features_per_role=5,
     )
 
     async def fake_process_service(self, service, prompt=None):
@@ -99,6 +100,7 @@ def test_cli_dry_run_skips_processing(tmp_path, monkeypatch):
         openai_api_key="dummy",
         logfire_token=None,
         reasoning=None,
+        features_per_role=5,
     )
 
     called = {"ran": False}
@@ -169,6 +171,7 @@ def test_cli_switches_context(tmp_path, monkeypatch):
         openai_api_key="dummy",
         logfire_token=None,
         reasoning=None,
+        features_per_role=5,
     )
 
     async def fake_process_service(self, service, prompt=None):
@@ -230,6 +233,7 @@ def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
         openai_api_key="dummy",
         logfire_token=None,
         reasoning=None,
+        features_per_role=5,
     )
 
     captured: dict[str, str] = {}
@@ -292,6 +296,7 @@ def test_cli_seed_sets_random(tmp_path, monkeypatch):
         openai_api_key="dummy",
         logfire_token=None,
         reasoning=None,
+        features_per_role=5,
     )
 
     captured: dict[str, int | None] = {}
@@ -362,6 +367,7 @@ def test_cli_enables_logfire(tmp_path, monkeypatch):
         openai_api_key="dummy",
         logfire_token="lf-key",
         reasoning=None,
+        features_per_role=5,
     )
 
     async def fake_process_service(self, service, prompt=None):
@@ -428,6 +434,7 @@ def test_cli_rejects_invalid_concurrency(monkeypatch):
         openai_api_key="dummy",
         logfire_token=None,
         reasoning=None,
+        features_per_role=5,
     )
     monkeypatch.setattr(cli, "load_settings", lambda: settings)
 
@@ -471,6 +478,7 @@ def test_cli_verbose_logging(tmp_path, monkeypatch):
         openai_api_key="dummy",
         logfire_token=None,
         reasoning=None,
+        features_per_role=5,
     )
 
     async def fake_process_service(self, service, prompt=None):
@@ -534,6 +542,7 @@ def test_cli_resume_skips_processed(tmp_path, monkeypatch):
         openai_api_key="dummy",
         logfire_token=None,
         reasoning=None,
+        features_per_role=5,
     )
 
     processed: list[str] = []
@@ -566,6 +575,57 @@ def test_cli_resume_skips_processed(tmp_path, monkeypatch):
     assert (tmp_path / "processed_ids.txt").read_text(
         encoding="utf-8"
     ).splitlines() == ["1", "2"]
+
+
+def test_cli_roles_file_configures_loader(tmp_path, monkeypatch):
+    """``--roles-file`` forwards the custom path to the loader."""
+
+    roles_path = tmp_path / "roles.json"
+    roles_path.write_text("[]", encoding="utf-8")
+    (tmp_path / "services.jsonl").write_text("{}\n", encoding="utf-8")
+
+    captured: dict[str, str] = {}
+
+    monkeypatch.setattr(
+        cli, "configure_roles_file", lambda p: captured.setdefault("path", p)
+    )
+
+    settings = SimpleNamespace(
+        model="m",
+        log_level="INFO",
+        prompt_dir=str(tmp_path),
+        context_id="ctx",
+        inspiration="insp",
+        concurrency=1,
+        batch_size=1,
+        openai_api_key="k",
+        logfire_token=None,
+        reasoning=None,
+        features_per_role=5,
+    )
+    monkeypatch.setattr(cli, "load_settings", lambda: settings)
+    monkeypatch.setattr(cli, "_configure_logging", lambda _a, _s: None)
+
+    async def fake_cmd(_args, _settings):
+        return None
+
+    monkeypatch.setattr(cli, "_cmd_generate_evolution", fake_cmd)
+
+    argv = [
+        "main",
+        "generate-evolution",
+        "--input-file",
+        str(tmp_path / "services.jsonl"),
+        "--output-file",
+        str(tmp_path / "out.jsonl"),
+        "--roles-file",
+        str(roles_path),
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+
+    cli.main()
+
+    assert captured["path"] == str(roles_path)
 
 
 def test_cli_flushes_logfire_on_error(monkeypatch):

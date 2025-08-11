@@ -12,6 +12,7 @@ from pydantic_ai import Agent  # noqa: E402  pylint: disable=wrong-import-positi
 from conversation import (
     ConversationSession,
 )  # noqa: E402  pylint: disable=wrong-import-position
+from loader import load_roles
 from models import (  # noqa: E402  pylint: disable=wrong-import-position
     Contribution,
     PlateauFeature,
@@ -47,7 +48,7 @@ def _feature_payload(count: int) -> str:
         }
         for i in range(count)
     ]
-    payload = {"learners": items, "academics": items, "professional_staff": items}
+    payload = {role.identifier: items for role in load_roles()}
     return json.dumps(payload)
 
 
@@ -93,15 +94,16 @@ async def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
         description="desc",
         jobs_to_be_done=[{"name": "job"}],
     )
+    role_ids = [r.identifier for r in load_roles()]
     evolution = await generator.generate_service_evolution(
         service,
         ["Foundational", "Enhanced", "Experimental", "Disruptive"],
-        ["learners", "academics", "professional_staff"],
+        role_ids,
     )
     assert isinstance(evolution, ServiceEvolution)
     assert len(evolution.plateaus) == 4
-    assert sum(len(p.features) for p in evolution.plateaus) == 60
-    assert all(len(p.features) >= 15 for p in evolution.plateaus)
+    assert sum(len(p.features) for p in evolution.plateaus) == 4 * len(role_ids) * 5
+    assert all(len(p.features) >= len(role_ids) * 5 for p in evolution.plateaus)
     assert len(agent.prompts) == 8
     assert map_calls["n"] == 4
     assert len(agent.prompts) + map_calls["n"] == 12

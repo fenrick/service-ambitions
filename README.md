@@ -76,7 +76,7 @@ Each service is evaluated across **four** plateaus – **Foundational**,
 sequential calls:
 
 1. **Description** – request a plateau-specific service narrative.
-2. **Features** – generate learner, academic and professional staff features.
+2. **Features** – generate features for each role defined in `data/roles.json`.
 3. **Mapping** – link each feature to reference Data, Applications and
    Technologies.
 
@@ -84,9 +84,11 @@ The 4 × 3 workflow totals 12 calls and produces a complete `ServiceEvolution`
 record for every service.
 
 Plateau names and descriptions are sourced from
-`data/service_feature_plateaus.json`, allowing the progression to be
-reconfigured without code changes. By default the CLI uses the first four
-entries from this file.
+`data/service_feature_plateaus.json`, while audience roles come from
+`data/roles.json`. The number of features generated for each role is controlled
+by the `features_per_role` setting in `config/app.json`. Defaults may be
+overridden without modifying code, and a different roles dataset can be
+selected at runtime with the `--roles-file` CLI option.
 
 ### Generating service evolutions
 

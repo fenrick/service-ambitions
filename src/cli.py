@@ -20,6 +20,7 @@ from conversation import ConversationSession
 from generator import ServiceAmbitionGenerator, build_model
 from loader import (
     configure_prompt_dir,
+    configure_roles_file,
     load_ambition_prompt,
     load_evolution_prompt,
     load_plateau_definitions,
@@ -185,7 +186,9 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
         async with semaphore:
             agent = Agent(model, instructions=system_prompt)
             session = ConversationSession(agent)
-            generator = PlateauGenerator(session)
+            generator = PlateauGenerator(
+                session, required_count=settings.features_per_role
+            )
             evolution = await generator.generate_service_evolution(service)
             return (
                 service.service_id,
@@ -306,6 +309,10 @@ async def main_async() -> None:
         action="store_true",
         help="Resume processing using processed_ids.txt",
     )
+    common.add_argument(
+        "--roles-file",
+        help="Path to the roles JSON data file",
+    )
 
     # Define subcommands for the supported operations
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -347,6 +354,9 @@ async def main_async() -> None:
 
     # Parse the user's command-line selections
     args = parser.parse_args()
+
+    if args.roles_file:
+        configure_roles_file(args.roles_file)
 
     if args.seed is not None:
         random.seed(args.seed)

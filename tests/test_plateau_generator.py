@@ -11,6 +11,7 @@ from pydantic_ai import Agent  # noqa: E402  pylint: disable=wrong-import-positi
 from conversation import (
     ConversationSession,
 )  # noqa: E402  pylint: disable=wrong-import-position
+from loader import load_roles
 from models import (  # noqa: E402  pylint: disable=wrong-import-position
     Contribution,
     PlateauFeature,
@@ -43,7 +44,7 @@ class DummySession:
 
 
 def _feature_payload(count: int) -> str:
-    # Build a uniform payload with ``count`` features per customer type.
+    # Build a uniform payload with ``count`` features per role.
     items = [
         {
             "feature_id": f"f{i}",
@@ -53,7 +54,7 @@ def _feature_payload(count: int) -> str:
         }
         for i in range(count)
     ]
-    payload = {"learners": items, "academics": items, "professional_staff": items}
+    payload = {role.identifier: items for role in load_roles()}
     return json.dumps(payload)
 
 
@@ -93,7 +94,7 @@ async def test_generate_plateau_returns_results(monkeypatch) -> None:
     plateau = await generator.generate_plateau(1, "Foundational")
 
     assert isinstance(plateau, PlateauResult)
-    assert len(plateau.features) == 3
+    assert len(plateau.features) == len(load_roles())
     assert call["n"] == 1
     assert len(session.prompts) == 2
 
@@ -164,8 +165,8 @@ def test_parse_feature_payload_strips_code_fence() -> None:
     fenced = f"```json\n{payload}\n```"
 
     result = PlateauGenerator._parse_feature_payload(fenced)
-
-    assert len(result.learners) == 1
+    roles = load_roles()
+    assert len(result[roles[0].identifier]) == 1
 
 
 @pytest.mark.asyncio
@@ -193,26 +194,13 @@ async def test_generate_service_evolution_filters(monkeypatch) -> None:
         sessions.add(id(session))
         feats = [
             PlateauFeature(
-                feature_id=f"l{level}",
-                name="L",
+                feature_id=f"{r.identifier[0]}{level}",
+                name=r.name[0].upper(),
                 description="d",
                 score=0.5,
-                customer_type="learners",
-            ),
-            PlateauFeature(
-                feature_id=f"s{level}",
-                name="S",
-                description="d",
-                score=0.5,
-                customer_type="academics",
-            ),
-            PlateauFeature(
-                feature_id=f"c{level}",
-                name="C",
-                description="d",
-                score=0.5,
-                customer_type="professional_staff",
-            ),
+                customer_type=r.identifier,
+            )
+            for r in load_roles()
         ]
         return PlateauResult(
             plateau=level,
@@ -225,14 +213,15 @@ async def test_generate_service_evolution_filters(monkeypatch) -> None:
         PlateauGenerator, "generate_plateau", fake_generate_plateau, raising=False
     )
 
+    role_ids = [r.identifier for r in load_roles()]
     evo = await generator.generate_service_evolution(
         service,
         ["Foundational", "Enhanced"],
-        ["learners", "academic"],
+        [role_ids[0], "bogus"],
     )
 
     assert called == [1, 2]
     assert len(sessions) == 2
     assert len(evo.plateaus) == 2
     for plat in evo.plateaus:
-        assert {f.customer_type for f in plat.features} <= {"learners", "academic"}
+        assert {f.customer_type for f in plat.features} <= {role_ids[0]}

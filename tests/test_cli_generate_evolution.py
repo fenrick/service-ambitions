@@ -64,6 +64,7 @@ async def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         context_id="university",
         inspiration="general",
         reasoning=None,
+        features_per_role=5,
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -149,6 +150,7 @@ async def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> Non
         context_id="ctx",
         inspiration="insp",
         reasoning=None,
+        features_per_role=5,
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -242,6 +244,7 @@ async def test_generate_evolution_respects_concurrency(tmp_path, monkeypatch) ->
         context_id="ctx",
         inspiration="insp",
         reasoning=None,
+        features_per_role=5,
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -310,6 +313,7 @@ async def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         context_id="ctx",
         inspiration="insp",
         reasoning=None,
+        features_per_role=5,
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -386,6 +390,7 @@ async def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         context_id="ctx",
         inspiration="insp",
         reasoning=None,
+        features_per_role=5,
     )
     args = argparse.Namespace(
         input_file=str(input_path),

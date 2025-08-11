@@ -1,0 +1,17 @@
+[
+  {
+    "identifier": "learners",
+    "name": "Learners",
+    "description": "Individuals engaging with the service for their learning."
+  },
+  {
+    "identifier": "academics",
+    "name": "Academics",
+    "description": "Teaching and research staff who design and deliver learning."
+  },
+  {
+    "identifier": "professional_staff",
+    "name": "Professional Staff",
+    "description": "Administrative and support personnel enabling service delivery."
+  }
+]
