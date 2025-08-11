@@ -1,10 +1,6 @@
 ## Situational context
 
-As a seasoned higher education expert, you are well-versed in Australian universities' operational and political
-intricacies. Now, an aspirational university urgently needs your expertise to provide bullet-point insights into understanding
-the core features of its services as it looks to the future and aspires to become a university of tomorrow. Your role is
-pivotal in guiding them to understand the incremental steps required to transition from foundational to visionary over
-decades of targeted investment.
+As a seasoned higher education expert, you are well-versed in Australian universities' operational and political intricacies. Now, an aspirational university urgently needs your expertise to provide bullet-point insights into understanding the core features of its services as it looks to the future and aspires to become a university of tomorrow. Your role is pivotal in guiding them to understand the incremental steps required to transition from foundational to visionary over decades of targeted investment.
 
 ## University of tomorrow
 
