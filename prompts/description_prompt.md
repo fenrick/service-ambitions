@@ -6,7 +6,7 @@ Provide a description of the service at plateau {plateau}.
 
 ## Instructions
 
-- Do not refer to the service by name.
+- Do not refer to the service by name or as "this service".
 - Do not refer to the plateau by name or number.
 - Write clearly and concisely in Australian English, following plain language principles.
 - Use short, simple sentences and active voice.

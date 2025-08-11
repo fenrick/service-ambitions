@@ -5,7 +5,8 @@ Generate service features for the {service_name} service at plateau {plateau}.
 ## Instructions
 
 - Reference the situational context, definitions and inspirations to maintain consistent terminology.
-- Do not refer to the service by name.
+- Align with the service description you supplied.
+- Do not refer to the service by name or as "this service".
 - Do not refer to the plateau by name or number.
 - Write clearly and concisely in Australian English, following plain language principles.
 - Use short, simple sentences and active voice.
