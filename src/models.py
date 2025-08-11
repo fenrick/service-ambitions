@@ -19,7 +19,7 @@ SCHEMA_VERSION = "1.0"
 class StrictModel(BaseModel):
     """Base model with strict settings to prevent shape drift."""
 
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
 
 
 class Contribution(StrictModel):

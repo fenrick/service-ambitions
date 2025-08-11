@@ -65,7 +65,9 @@ class ConversationSession:
             material += f"\nExisting features: {features}"
         logger.debug("Adding service material to history: %s", material)
         self._history.append(
-            messages.ModelRequest(parts=[messages.SystemPromptPart(service_input.model_dump_json())])
+            messages.ModelRequest(
+                parts=[messages.SystemPromptPart(service_input.model_dump_json())]
+            )
         )
 
     @logfire.instrument()

@@ -9,10 +9,9 @@ callers receive concise exceptions.
 from __future__ import annotations
 
 import logging
-from contextlib import closing, contextmanager
 from functools import lru_cache
 from pathlib import Path
-from typing import Generator, Iterator, Sequence, TypeVar
+from typing import Generator, Iterator, Sequence, TypeVar, cast
 
 import logfire
 from pydantic import TypeAdapter
@@ -154,8 +153,8 @@ def load_mapping_items(
     return data
 
 
-@logfire.instrument()
 @lru_cache(maxsize=None)
+@logfire.instrument()
 def load_app_config(
     base_dir: Path | str = Path("config"),
     filename: Path | str = Path("app.json"),
@@ -169,8 +168,8 @@ def load_app_config(
     return _read_json_file(path, AppConfig)
 
 
-@logfire.instrument()
 @lru_cache(maxsize=None)
+@logfire.instrument()
 def load_mapping_type_config(
     base_dir: Path | str = Path("config"),
     filename: Path | str = Path("app.json"),
@@ -183,8 +182,8 @@ def load_mapping_type_config(
     return load_app_config(base_dir, filename).mapping_types
 
 
-@logfire.instrument()
 @lru_cache(maxsize=None)
+@logfire.instrument()
 def load_plateau_definitions(
     base_dir: Path | str = Path("data"),
     filename: Path | str = Path("service_feature_plateaus.json"),
@@ -211,8 +210,8 @@ def load_plateau_definitions(
         raise RuntimeError(f"Invalid plateau definitions: {exc}") from exc
 
 
-@logfire.instrument()
 @lru_cache(maxsize=None)
+@logfire.instrument()
 def load_definitions(
     base_dir: Path | str = Path("data"),
     filename: Path | str = Path("definitions.json"),
@@ -236,7 +235,7 @@ def load_definitions(
 
     path = Path(base_dir) / Path(filename)
     data: dict[str, object] = _read_json_file(path, dict[str, object])
-    bullets: list[dict[str, str]] = list(data.get("bullets", []))  # type: ignore[arg-type]
+    bullets = list(cast(list[dict[str, str]], data.get("bullets", [])))
     if keys:
         bullets = [b for b in bullets if b.get("name") in keys]
     lines = [f"## {data.get('title', 'Definitions')}", ""]
@@ -401,24 +400,28 @@ def _load_service_entries(path: Path | str) -> Generator[ServiceInput, None, Non
             ) from exc
 
 
-@contextmanager
-def load_services(path: Path | str) -> Iterator[Iterator[ServiceInput]]:
-    """Yield services from ``path`` in JSON Lines format.
+class ServiceLoader:
+    """Iterator and context manager for service definitions."""
 
-    Each line is parsed as JSON and validated against :class:`ServiceInput`.
+    def __init__(self, path: Path | str) -> None:
+        self._path = path
 
-    Args:
-        path: Location of the services JSONL file.
+    def __iter__(self) -> Iterator[ServiceInput]:
+        return _load_service_entries(self._path)
 
-    Yields:
-        Parsed service definitions.
+    def __enter__(self) -> Iterator[ServiceInput]:
+        return self.__iter__()
 
-    Raises:
-        FileNotFoundError: If the file does not exist.
-        RuntimeError: If any line cannot be parsed as JSON or contains invalid
-            fields.
+    def __exit__(self, exc_type, exc, tb) -> None:  # pragma: no cover - no cleanup
+        return None
+
+
+def load_services(path: Path | str) -> ServiceLoader:
+    """Return an iterable over services defined in ``path``.
+
+    The returned object can be used either as an iterator or as a context
+    manager, mirroring the previous behaviour of this function while allowing
+    direct iteration as used in tests.
     """
 
-    # Delegate to the generator so callers can iterate within a context manager.
-    with closing(_load_service_entries(path)) as items:
-        yield items
+    return ServiceLoader(path)
