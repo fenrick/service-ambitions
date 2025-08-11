@@ -357,13 +357,20 @@ class MappingFeature(StrictModel):
             if key == "feature_id":
                 # Preserve the identifying field untouched.
                 continue
-            if key == "mappings" and isinstance(data[key], dict):
-                # Merge pre-nested mapping structures produced by some agents
-                # rather than nesting the ``mappings`` key within itself.
-                mapping.update(data.pop(key))
-            else:
-                # Collect any other keys as mapping types.
-                mapping[key] = data.pop(key)
+            value = data.pop(key)
+            if key == "mappings" and isinstance(value, dict):
+                # Some agents nest mapping information under an extra "mappings"
+                # key. Flatten that structure when encountered.
+                nested = value.get("mappings")
+                if isinstance(nested, dict):
+                    # Drop the redundant layer and merge into the mapping.
+                    mapping.update(nested)
+                    continue
+                # Otherwise merge the mapping dictionary directly.
+                mapping.update(value)
+                continue
+            # Collect any other keys as mapping types.
+            mapping[key] = value
         data["mappings"] = mapping
         return data
 
