@@ -140,11 +140,13 @@ def _merge_mapping_results(
             raise MappingError(f"Missing mappings for feature {feature.feature_id}")
         update_data: dict[str, list[Contribution]] = {}
         for key in mapping_types.keys():
-            values = mapped.get(key)
+            values = mapped.get(key, [])
             if not values:
-                # Every mapping type requires at least one contribution.
-                raise MappingError(
-                    f"'{key}' key missing or empty for feature {feature.feature_id}"
+                # Log missing or empty mappings rather than failing outright so
+                # feature generation can continue when the agent omits a
+                # category.  An empty list is stored for the mapping type.
+                logger.warning(
+                    "Missing mappings: feature=%s key=%s", feature.feature_id, key
                 )
             update_data[key] = values
         merged = feature.model_copy(update={"mappings": feature.mappings | update_data})
@@ -160,8 +162,9 @@ async def map_features(
     """Return ``features`` augmented with mapping information.
 
     Each mapping type (for example data, applications and technologies) is
-    requested individually so that the agent processes one category at a time.
-    Missing or empty mapping lists raise :class:`MappingError`.
+    requested individually so the agent processes one category at a time.
+    Missing mapping keys raise :class:`MappingError` while empty lists are
+    accepted and stored.
     """
     # Use configured mappings when none are explicitly supplied.
     mapping_types = mapping_types or load_mapping_type_config()

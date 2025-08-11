@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from mapping import MappingError, map_feature, map_features
+from mapping import map_feature, map_features
 from models import MappingItem, PlateauFeature
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -314,7 +314,7 @@ async def test_map_features_returns_mappings(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_map_features_validates_lists(monkeypatch) -> None:
+async def test_map_features_allows_empty_lists(monkeypatch) -> None:
     template = "{mapping_labels} {mapping_sections} {mapping_fields} {features}"
 
     def fake_loader(name, *_, **__):
@@ -354,5 +354,8 @@ async def test_map_features_validates_lists(monkeypatch) -> None:
         customer_type="learners",
     )
 
-    with pytest.raises(MappingError):
-        await map_features(session, [feature])  # type: ignore[arg-type]
+    result = await map_features(session, [feature])  # type: ignore[arg-type]
+
+    assert result[0].mappings["data"] == []
+    assert result[0].mappings["applications"] == []
+    assert result[0].mappings["technology"] == []
