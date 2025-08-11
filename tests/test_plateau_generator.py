@@ -13,6 +13,7 @@ from conversation import (
 )  # noqa: E402  pylint: disable=wrong-import-position
 from models import (  # noqa: E402  pylint: disable=wrong-import-position
     Contribution,
+    MaturityScore,
     PlateauFeature,
     PlateauResult,
     ServiceInput,
@@ -49,7 +50,11 @@ def _feature_payload(count: int) -> str:
             "feature_id": f"f{i}",
             "name": f"Feature {i}",
             "description": f"Desc {i}",
-            "score": 0.5,
+            "score": {
+                "level": 3,
+                "label": "Defined",
+                "justification": "test",
+            },
         }
         for i in range(count)
     ]
@@ -196,21 +201,21 @@ async def test_generate_service_evolution_filters(monkeypatch) -> None:
                 feature_id=f"l{level}",
                 name="L",
                 description="d",
-                score=0.5,
+                score=MaturityScore(level=3, label="Defined", justification="j"),
                 customer_type="learners",
             ),
             PlateauFeature(
                 feature_id=f"s{level}",
                 name="S",
                 description="d",
-                score=0.5,
+                score=MaturityScore(level=3, label="Defined", justification="j"),
                 customer_type="academics",
             ),
             PlateauFeature(
                 feature_id=f"c{level}",
                 name="C",
                 description="d",
-                score=0.5,
+                score=MaturityScore(level=3, label="Defined", justification="j"),
                 customer_type="professional_staff",
             ),
         ]

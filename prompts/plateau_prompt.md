@@ -18,7 +18,12 @@ Generate service features for the {service_name} service at plateau {plateau}.
     - "feature_id": unique string identifier.
     - "name": short feature title.
     - "description": explanation of the feature.
-    - "score": floating-point maturity between 0 and 1.
+    - "score": object describing CMMI maturity with:
+        - "level": integer 1–5.
+        - "label": matching CMMI maturity name.
+        - "justification": brief rationale for the level.
+- CMMI levels: 1 Initial, 2 Managed, 3 Defined, 4 Quantitatively Managed, 5 Optimizing.
+- Use the full range and differentiate features within a plateau.
 - Do not include any text outside the JSON object.
 - The response must adhere to the JSON schema provided below.
 

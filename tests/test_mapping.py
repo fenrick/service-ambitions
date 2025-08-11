@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from mapping import map_feature, map_features
-from models import MappingItem, PlateauFeature
+from models import MappingItem, MaturityScore, PlateauFeature
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -82,7 +82,7 @@ async def test_map_feature_returns_mappings(monkeypatch) -> None:
         feature_id="f1",
         name="Integration",
         description="Allows external access",
-        score=0.5,
+        score=MaturityScore(level=3, label="Defined", justification="j"),
         customer_type="learners",
     )
 
@@ -152,7 +152,7 @@ async def test_map_feature_injects_reference_data(monkeypatch) -> None:
         feature_id="f1",
         name="Integration",
         description="Allows external access",
-        score=0.5,
+        score=MaturityScore(level=3, label="Defined", justification="j"),
         customer_type="learners",
     )
     await map_feature(session, feature)  # type: ignore[arg-type]
@@ -184,7 +184,7 @@ async def test_map_feature_rejects_invalid_json(monkeypatch) -> None:
         feature_id="f1",
         name="Integration",
         description="desc",
-        score=0.5,
+        score=MaturityScore(level=3, label="Defined", justification="j"),
         customer_type="learners",
     )
     with pytest.raises(ValueError):
@@ -235,7 +235,7 @@ async def test_map_feature_flattens_nested_mappings(monkeypatch) -> None:
         feature_id="f1",
         name="Integration",
         description="Allows external access",
-        score=0.5,
+        score=MaturityScore(level=3, label="Defined", justification="j"),
         customer_type="learners",
     )
 
@@ -296,7 +296,7 @@ async def test_map_feature_flattens_repeated_mapping_keys(monkeypatch) -> None:
         feature_id="f1",
         name="Integration",
         description="Allows external access",
-        score=0.5,
+        score=MaturityScore(level=3, label="Defined", justification="j"),
         customer_type="learners",
     )
 
@@ -362,7 +362,7 @@ async def test_map_features_returns_mappings(monkeypatch) -> None:
         feature_id="f1",
         name="Integration",
         description="Allows external access",
-        score=0.5,
+        score=MaturityScore(level=3, label="Defined", justification="j"),
         customer_type="learners",
     )
 
@@ -411,7 +411,7 @@ async def test_map_features_allows_empty_lists(monkeypatch) -> None:
         feature_id="f1",
         name="Integration",
         description="Allows external access",
-        score=0.5,
+        score=MaturityScore(level=3, label="Defined", justification="j"),
         customer_type="learners",
     )
 

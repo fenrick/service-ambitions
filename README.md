@@ -142,7 +142,11 @@ Each JSON line in the output file follows the `ServiceEvolution` schema:
           "feature_id": "string",
           "name": "string",
           "description": "string",
-          "score": 0.0,
+          "score": {
+            "level": 3,
+            "label": "Defined",
+            "justification": "string"
+          },
           "customer_type": "string",
           "data": [{ "item": "string", "contribution": "string" }],
           "applications": [{ "item": "string", "contribution": "string" }],
@@ -165,7 +169,7 @@ Fields in the schema:
     - `service_description`: narrative for the service at that plateau.
     - `features`: list of `PlateauFeature` entries with:
         - `feature_id`, `name`, and `description`.
-        - `score`: float between `0.0` and `1.0`.
+        - `score`: object with CMMI maturity `level`, `label` and `justification`.
         - `customer_type`: audience benefiting from the feature.
         - `data`, `applications`, `technology`: lists of `Contribution` objects
           describing why a mapped item supports the feature.
@@ -204,7 +208,10 @@ Generate service features for the {service_name} service at plateau {plateau}.
   - "feature_id": unique string identifier.
   - "name": short feature title.
   - "description": explanation of the feature.
-  - "score": floating-point maturity between 0 and 1.
+  - "score": object describing CMMI maturity with:
+    - "level": integer 1–5.
+    - "label": matching CMMI maturity name.
+    - "justification": brief rationale for the level.
 - Do not include any text outside the JSON object.
 ```
 
