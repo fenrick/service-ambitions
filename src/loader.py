@@ -279,8 +279,6 @@ def load_evolution_prompt(
     definitions_dir: Path | str = Path("data"),
     definitions_file: Path | str = Path("definitions.json"),
     definition_keys: Sequence[str] | None = None,
-    task_file: Path | str = Path("task_definition.md"),
-    response_file: Path | str = Path("response_structure.md"),
     plateaus_dir: Path | str = Path("data"),
     plateaus_file: Path | str = Path("service_feature_plateaus.json"),
 ) -> str:
@@ -296,8 +294,6 @@ def load_evolution_prompt(
         definitions_file: Definitions file name.
         definition_keys: Optional identifiers selecting which definitions to
             include.
-        task_file: Filename of the task definition component.
-        response_file: Filename of the response structure component.
         plateaus_dir: Directory containing plateau definition data.
         plateaus_file: Plateau definitions file name.
 
@@ -315,8 +311,6 @@ def load_evolution_prompt(
         load_plateau_text(plateaus_dir, plateaus_file),
         load_definitions(definitions_dir, definitions_file, definition_keys),
         load_prompt_text(f"inspirations/{inspirations_id}", directory),
-        load_prompt_text(str(task_file), directory),
-        load_prompt_text(str(response_file), directory),
     ]
     return "\n\n".join(components)
 
