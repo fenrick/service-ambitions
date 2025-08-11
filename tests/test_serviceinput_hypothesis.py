@@ -13,7 +13,7 @@ from models import ServiceFeature, ServiceInput
     name=st.text(min_size=1),
     customer_type=st.one_of(st.none(), st.text(min_size=1)),
     description=st.text(min_size=1),
-    jobs=st.lists(st.text(min_size=1), min_size=1, max_size=5),
+    jobs=st.lists(st.builds(dict, name=st.text(min_size=1)), min_size=1, max_size=5),
     features=st.lists(
         st.builds(
             ServiceFeature,
@@ -42,4 +42,6 @@ def test_service_input_validates(
 def test_service_input_rejects_empty_id():
     """Empty identifiers should be rejected."""
     with pytest.raises(ValidationError):
-        ServiceInput(service_id="", name="n", description="d", jobs_to_be_done=["j"])
+        ServiceInput(
+            service_id="", name="n", description="d", jobs_to_be_done=[{"name": "j"}]
+        )

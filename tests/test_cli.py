@@ -485,8 +485,8 @@ def test_cli_resume_skips_processed(tmp_path, monkeypatch):
     input_file = tmp_path / "services.jsonl"
     input_file.write_text(
         '{"service_id": "1", "name": "alpha", "description": "d", "jobs_to_be_done":'
-        ' ["j"]}\n{"service_id": "2", "name": "beta", "description": "d",'
-        ' "jobs_to_be_done": ["j"]}\n',
+        ' [{"name": "j"}]}\n{"service_id": "2", "name": "beta", "description": "d",'
+        ' "jobs_to_be_done": [{"name": "j"}]}\n',
         encoding="utf-8",
     )
 

@@ -29,7 +29,7 @@ def test_process_service_async(monkeypatch):
         service_id="svc",
         name="alpha",
         description="desc",
-        jobs_to_be_done=["job"],
+        jobs_to_be_done=[{"name": "job"}],
     )
     gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
     result = asyncio.run(gen.process_service(service, "prompt"))
@@ -61,7 +61,7 @@ def test_process_service_retries(monkeypatch):
         service_id="svc2",
         name="beta",
         description="desc",
-        jobs_to_be_done=["job"],
+        jobs_to_be_done=[{"name": "job"}],
     )
     gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
     result = asyncio.run(gen.process_service(service, "prompt"))

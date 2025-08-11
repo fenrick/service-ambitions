@@ -93,7 +93,7 @@ async def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
         name="svc",
         customer_type="retail",
         description="desc",
-        jobs_to_be_done=["job"],
+        jobs_to_be_done=[{"name": "job"}],
     )
     evolution = await generator.generate_service_evolution(
         service,

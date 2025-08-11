@@ -11,7 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 SCHEMA_VERSION = "1.0"
 
@@ -51,6 +51,15 @@ class ServiceFeature(StrictModel):
     description: str = Field(..., description="Explanation of the feature.")
 
 
+class JobToBeDone(StrictModel):
+    """Customer job that a service aims to satisfy."""
+
+    name: Annotated[str, Field(min_length=1, description="Human readable job name.")]
+
+    # Allow unknown fields so additional metadata is preserved.
+    model_config = ConfigDict(extra="allow", str_strip_whitespace=True)
+
+
 class ServiceInput(StrictModel):
     """Basic description of a service under consideration.
 
@@ -74,13 +83,36 @@ class ServiceInput(StrictModel):
         | None
     ) = None
     description: str = Field(..., description="Short explanation of the service.")
-    jobs_to_be_done: list[str] = Field(
+    jobs_to_be_done: list[JobToBeDone] = Field(
         ..., description="Customer jobs the service seeks to address."
     )
     features: list[ServiceFeature] = Field(
         default_factory=list,
         description="Existing features currently offered by the service.",
     )
+
+    @field_validator("jobs_to_be_done", mode="before")
+    @classmethod
+    def _coerce_job_objects(cls, value: list[object]) -> list[object]:
+        """Coerce string job entries into objects while preserving details."""
+
+        if not isinstance(value, list):
+            raise TypeError("jobs_to_be_done must be a list")
+
+        objects: list[object] = []
+        for job in value:
+            # Convert legacy string entries into object form
+            if isinstance(job, str):
+                objects.append({"name": job})
+            elif isinstance(job, dict) and "name" in job:
+                # Retain full object to preserve additional fields
+                objects.append(job)
+            else:
+                raise TypeError(
+                    "jobs_to_be_done entries must be strings or objects with a 'name'"
+                    " field"
+                )
+        return objects
 
 
 class ServiceFeaturePlateau(StrictModel):
@@ -334,4 +366,5 @@ __all__ = [
     "MappingTypeConfig",
     "MappingResponse",
     "StrictModel",
+    "JobToBeDone",
 ]

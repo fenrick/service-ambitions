@@ -3,7 +3,7 @@
   "name": "alpha",
   "description": "Desc",
   "jobs_to_be_done": [
-    "job"
+    {"name": "job"}
   ]
 }
 {

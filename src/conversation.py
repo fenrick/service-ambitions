@@ -47,7 +47,7 @@ class ConversationSession:
             session history.
         """
 
-        jobs = ", ".join(service_input.jobs_to_be_done)
+        jobs = ", ".join(job.name for job in service_input.jobs_to_be_done)
         features = "; ".join(
             f"{feat.feature_id}: {feat.name}" for feat in service_input.features
         )
