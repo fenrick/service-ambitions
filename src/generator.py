@@ -264,10 +264,12 @@ class ServiceAmbitionGenerator:
             """
 
             async with sem:
-                with logfire.span("process_service"):
-                    logfire.set_attribute("service.id", service.service_id)  # type: ignore[attr-defined]
+                # Record service metadata on the span so that traces include the
+                # originating service identifier and customer segment.
+                with logfire.span("process_service") as span:
+                    span.set_attribute("service.id", service.service_id)
                     if service.customer_type:
-                        logfire.set_attribute("customer_type", service.customer_type)  # type: ignore[attr-defined]
+                        span.set_attribute("customer_type", service.customer_type)
                     logger.info("Processing service %s", service.name)
                     try:
                         result = await self.process_service(service)
