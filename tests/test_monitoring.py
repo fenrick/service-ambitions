@@ -61,15 +61,17 @@ def test_init_logfire_replaces_root_handlers(monkeypatch):
     root_logger.handlers.clear()
 
 
-def test_init_logfire_uses_json_fallback(monkeypatch, capsys):
+def test_init_logfire_uses_json_fallback(tmp_path, monkeypatch):
     root_logger = logging.getLogger()
     root_logger.handlers.clear()
     root_logger.setLevel(logging.INFO)
     monkeypatch.delenv("LOGFIRE_TOKEN", raising=False)
+    monkeypatch.chdir(tmp_path)
 
     monitoring.init_logfire()
     logging.getLogger().info("hello")
-    output = capsys.readouterr().err.strip()
-    assert json.loads(output)["message"] == "hello"
+    logging.getLogger().handlers[0].flush()
+    with open(monitoring.LOG_FILE_NAME, encoding="utf-8") as fh:
+        assert json.loads(fh.read())["message"] == "hello"
 
     root_logger.handlers.clear()

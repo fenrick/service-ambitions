@@ -1,4 +1,5 @@
 import json
+import logging
 import random
 import sys
 from pathlib import Path
@@ -9,6 +10,7 @@ import pytest
 import cli
 import generator
 from generator import ServiceAmbitionGenerator
+from monitoring import LOG_FILE_NAME
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -445,7 +447,7 @@ def test_cli_help_shows_parameters(monkeypatch, capsys):
     assert "--input-file" in out
 
 
-def test_cli_verbose_logging(tmp_path, monkeypatch, capsys):
+def test_cli_verbose_logging(tmp_path, monkeypatch):
     base = tmp_path / "prompts"
     (base / "situational_context").mkdir(parents=True)
     (base / "inspirations").mkdir(parents=True)
@@ -490,9 +492,15 @@ def test_cli_verbose_logging(tmp_path, monkeypatch, capsys):
     ]
     monkeypatch.setattr(sys, "argv", argv)
 
+    monkeypatch.chdir(tmp_path)
+
     cli.main()
 
-    assert "Processing service alpha" in capsys.readouterr().err
+    for handler in logging.getLogger().handlers:
+        handler.flush()
+
+    log_file = Path(LOG_FILE_NAME)
+    assert "Processing service alpha" in log_file.read_text(encoding="utf-8")
 
 
 def test_cli_resume_skips_processed(tmp_path, monkeypatch):
