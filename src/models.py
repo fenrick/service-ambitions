@@ -141,7 +141,7 @@ class AppConfig(StrictModel):
     ] = "INFO"
     prompt_dir: Annotated[
         Path,
-        Field(min_length=1, description="Directory containing prompt components."),
+        Field(description="Directory containing prompt components."),
     ] = Path("prompts")
     context_id: Annotated[
         str, Field(min_length=1, description="Situational context identifier.")
