@@ -359,15 +359,15 @@ def build_model(
     # Allow callers to pass provider-prefixed names such as ``openai:gpt-4``.
     model_name = model_name.split(":", 1)[-1]
     extra = {"seed": seed} if seed is not None else {}
-    settings_kwargs: dict[str, object] = {
+    settings_kwargs: dict[str, Any] = {
         "openai_builtin_tools": [{"type": "web_search_preview"}],
-        **extra,  # type: ignore[typeddict-item]
+        **extra,
     }
     if reasoning:
         # Map each reasoning field to the ``openai_reasoning_*`` parameter.
         for key, value in reasoning.model_dump(exclude_none=True).items():
             settings_kwargs[f"openai_reasoning_{key}"] = value
-    settings = OpenAIResponsesModelSettings(**settings_kwargs)
+    settings = OpenAIResponsesModelSettings(**settings_kwargs)  # type: ignore[typeddict-item]
     return OpenAIResponsesModel(model_name, settings=settings)
 
 
