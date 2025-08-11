@@ -329,6 +329,41 @@ class PlateauFeaturesResponse(StrictModel):
     )
 
 
+def _normalize_mapping_values(
+    mapping: dict[str, object],
+) -> dict[str, list[Contribution]]:
+    """Return mapping dictionary with nested structures flattened.
+
+    Agents occasionally wrap mapping lists in redundant dictionaries, for example
+    ``{"applications": {"applications": [...]}}`` or nest them under an extra
+    ``"mappings"`` key. This helper extracts the underlying lists and replaces any
+    unrecognised structures with empty lists so model validation succeeds.
+    """
+
+    normalised: dict[str, list[Contribution]] = {}
+    for key, value in mapping.items():
+        if isinstance(value, list):
+            normalised[key] = value
+            continue
+        if isinstance(value, dict):
+            direct = value.get(key)
+            if isinstance(direct, list):
+                normalised[key] = direct
+                continue
+            nested = value.get("mappings")
+            if isinstance(nested, dict):
+                inner = nested.get(key)
+                if isinstance(inner, list):
+                    normalised[key] = inner
+                    continue
+            elif isinstance(nested, list):
+                normalised[key] = nested
+                continue
+        # Default to an empty list when the structure is unrecognised.
+        normalised[key] = []
+    return normalised
+
+
 class MappingFeature(StrictModel):
     """Schema for mapped features with dynamic mapping types.
 
@@ -359,27 +394,12 @@ class MappingFeature(StrictModel):
                 continue
             value = data.pop(key)
             if key == "mappings" and isinstance(value, dict):
-                # Some agents nest mapping information under an extra "mappings"
-                # key. Flatten that structure when encountered.
-                nested = value.get("mappings")
-                if isinstance(nested, dict):
-                    # Drop the redundant layer and merge into the mapping.
-                    mapping.update(nested)
-                    continue
-                # Otherwise merge the mapping dictionary directly.
+                # Agents may wrap mapping types in a top-level "mappings" block.
                 mapping.update(value)
                 continue
-            if isinstance(value, dict):
-                # Some agents repeat the mapping type key and nest the actual
-                # list within it, e.g. {"applications": {"applications": [...]}}.
-                # Flatten this structure by extracting the inner list.
-                nested = value.get(key)
-                if isinstance(nested, list):
-                    mapping[key] = nested
-                    continue
-            # Collect any other keys as mapping types.
             mapping[key] = value
-        data["mappings"] = mapping
+        # Normalise nested mapping structures and ensure list values.
+        data["mappings"] = _normalize_mapping_values(mapping)
         return data
 
 
