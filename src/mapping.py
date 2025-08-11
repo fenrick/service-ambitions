@@ -71,7 +71,8 @@ async def map_feature(
     """Return ``feature`` augmented with mapping information.
 
     This is a convenience wrapper around :func:`map_features` for mapping a
-    single feature while preserving the interface of the bulk function.
+    single feature while preserving the interface of the bulk function. Each
+    mapping type is queried separately to reduce prompt complexity.
 
     Args:
         session: Active conversation session used to query the agent.
@@ -158,17 +159,23 @@ async def map_features(
 ) -> list[PlateauFeature]:
     """Return ``features`` augmented with mapping information.
 
-    A single prompt is sent to the agent requesting mappings for all supplied
-    features. Missing or empty mapping lists raise :class:`MappingError`.
+    Each mapping type (for example data, applications and technologies) is
+    requested individually so that the agent processes one category at a time.
+    Missing or empty mapping lists raise :class:`MappingError`.
     """
     # Use configured mappings when none are explicitly supplied.
     mapping_types = mapping_types or load_mapping_type_config()
-    prompt = _build_mapping_prompt(features, mapping_types)
-    logger.debug("Requesting mappings for %s features", len(features))
-    response = await session.ask(prompt)
-    logger.debug("Raw multi-feature mapping response: %s", response)
-    payload = _parse_mapping_response(response)
-    return _merge_mapping_results(features, payload, mapping_types)
+    results: list[PlateauFeature] = list(features)
+
+    for key, cfg in mapping_types.items():
+        prompt = _build_mapping_prompt(results, {key: cfg})
+        logger.debug("Requesting %s mappings for %s features", key, len(results))
+        response = await session.ask(prompt)
+        logger.debug("Raw %s mapping response: %s", key, response)
+        payload = _parse_mapping_response(response)
+        results = _merge_mapping_results(results, payload, {key: cfg})
+
+    return results
 
 
 __all__ = ["map_feature", "map_features", "MappingError"]
