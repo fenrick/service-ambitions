@@ -45,7 +45,11 @@ Each line in the output file is a JSON object with:
           "feature_id": "string",
           "name": "string",
           "description": "string",
-          "score": 0.0,
+          "score": {
+            "level": 3,
+            "label": "Defined",
+            "justification": "string"
+          },
           "customer_type": "string",
           "data": [{ "item": "string", "contribution": "string" }],
           "applications": [{ "item": "string", "contribution": "string" }],

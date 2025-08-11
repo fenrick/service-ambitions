@@ -120,7 +120,7 @@ Generate service features for the Learning & Teaching service at plateau 1.
     - "feature_id": unique string identifier.
     - "name": short feature title.
     - "description": explanation of the feature.
-    - "score": floating-point maturity between 0 and 1.
+    - "score": object describing CMMI maturity with "level", "label" and "justification".
 - Do not include any text outside the JSON object.
 - The response must adhere to the JSON schema provided below.
 
@@ -131,15 +131,15 @@ Generate service features for the Learning & Teaching service at plateau 1.
   "properties": {
     "learners": {
       "type": "array",
-      "items": {"type": "object","properties": {"feature_id": {"type": "string"},"name": {"type": "string"},"description": {"type": "string"},"score": {"type": "number"}},"required": ["feature_id","name","description","score"]}
+      "items": {"type": "object","properties": {"feature_id": {"type": "string"},"name": {"type": "string"},"description": {"type": "string"},"score": {"type": "object","properties": {"level": {"type": "integer"},"label": {"type": "string"},"justification": {"type": "string"}},"required": ["level","label","justification"]}},"required": ["feature_id","name","description","score"]}
     },
     "staff": {
       "type": "array",
-      "items": {"type": "object","properties": {"feature_id": {"type": "string"},"name": {"type": "string"},"description": {"type": "string"},"score": {"type": "number"}},"required": ["feature_id","name","description","score"]}
+      "items": {"type": "object","properties": {"feature_id": {"type": "string"},"name": {"type": "string"},"description": {"type": "string"},"score": {"type": "object","properties": {"level": {"type": "integer"},"label": {"type": "string"},"justification": {"type": "string"}},"required": ["level","label","justification"]}},"required": ["feature_id","name","description","score"]}
     },
     "community": {
       "type": "array",
-      "items": {"type": "object","properties": {"feature_id": {"type": "string"},"name": {"type": "string"},"description": {"type": "string"},"score": {"type": "number"}},"required": ["feature_id","name","description","score"]}
+      "items": {"type": "object","properties": {"feature_id": {"type": "string"},"name": {"type": "string"},"description": {"type": "string"},"score": {"type": "object","properties": {"level": {"type": "integer"},"label": {"type": "string"},"justification": {"type": "string"}},"required": ["level","label","justification"]}},"required": ["feature_id","name","description","score"]}
     }
   },
   "required": ["learners","staff","community"]
