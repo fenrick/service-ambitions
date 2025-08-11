@@ -130,6 +130,16 @@ def _merge_mapping_results(
     mapping_types: Mapping[str, MappingTypeConfig],
 ) -> list[PlateauFeature]:
     """Return ``features`` merged with mapping ``payload``."""
+    # Build a lookup of valid item identifiers for each mapping type to
+    # prevent the agent from inventing IDs that do not exist in reference
+    # datasets.
+    catalogues = load_mapping_items(
+        tuple(cfg.dataset for cfg in mapping_types.values())
+    )
+    valid_ids: dict[str, set[str]] = {
+        key: {item.id for item in catalogues[cfg.dataset]}
+        for key, cfg in mapping_types.items()
+    }
 
     mapped_lookup = {item.feature_id: item.mappings for item in payload.features}
     results: list[PlateauFeature] = []
@@ -148,6 +158,13 @@ def _merge_mapping_results(
                 logger.warning(
                     "Missing mappings: feature=%s key=%s", feature.feature_id, key
                 )
+            else:
+                for item in values:
+                    if item.item not in valid_ids[key]:
+                        raise MappingError(
+                            f"Unknown {key} ID {item.item} for feature"
+                            f" {feature.feature_id}"
+                        )
             update_data[key] = values
         merged = feature.model_copy(update={"mappings": feature.mappings | update_data})
         results.append(merged)

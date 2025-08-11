@@ -66,6 +66,12 @@ def test_contribution_requires_fields() -> None:
         Contribution()  # type: ignore[call-arg]
 
 
+def test_contribution_enforces_range() -> None:
+    """Contribution weights must lie within [0.1, 1.0]."""
+    with pytest.raises(ValidationError):
+        Contribution(item="INF-1", contribution=1.5)
+
+
 def test_mapping_response_handles_nested_mappings() -> None:
     """Nested ``mappings`` keys should be flattened into the mappings field."""
     payload = {
@@ -73,7 +79,7 @@ def test_mapping_response_handles_nested_mappings() -> None:
             {
                 "feature_id": "f1",
                 "mappings": {
-                    "data": [{"item": "INF-1", "contribution": "c"}],
+                    "data": [{"item": "INF-1", "contribution": 0.5}],
                 },
             }
         ]
@@ -91,7 +97,7 @@ def test_mapping_response_flattens_duplicate_keys() -> None:
             {
                 "feature_id": "f1",
                 "applications": {
-                    "applications": [{"item": "APP-1", "contribution": "c"}]
+                    "applications": [{"item": "APP-1", "contribution": 0.5}]
                 },
             }
         ]
@@ -100,3 +106,24 @@ def test_mapping_response_flattens_duplicate_keys() -> None:
     result = MappingResponse.model_validate(payload)
 
     assert result.features[0].mappings["applications"][0].item == "APP-1"
+
+
+def test_mapping_response_limits_items() -> None:
+    """Mapping lists should contain at most five entries."""
+    payload = {
+        "features": [
+            {
+                "feature_id": "f1",
+                "data": [
+                    {"item": "INF-1", "contribution": 0.5},
+                    {"item": "INF-1", "contribution": 0.5},
+                    {"item": "INF-1", "contribution": 0.5},
+                    {"item": "INF-1", "contribution": 0.5},
+                    {"item": "INF-1", "contribution": 0.5},
+                    {"item": "INF-1", "contribution": 0.5},
+                ],
+            }
+        ]
+    }
+    with pytest.raises(ValidationError):
+        MappingResponse.model_validate(payload)

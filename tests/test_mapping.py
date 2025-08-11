@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from mapping import map_feature, map_features
+from mapping import MappingError, map_feature, map_features
 from models import MappingItem, PlateauFeature
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -51,7 +51,7 @@ async def test_map_feature_returns_mappings(monkeypatch) -> None:
                     "features": [
                         {
                             "feature_id": "f1",
-                            "data": [{"item": "INF-1", "contribution": "c"}],
+                            "data": [{"item": "INF-1", "contribution": 0.5}],
                         }
                     ]
                 }
@@ -61,7 +61,7 @@ async def test_map_feature_returns_mappings(monkeypatch) -> None:
                     "features": [
                         {
                             "feature_id": "f1",
-                            "applications": [{"item": "APP-1", "contribution": "c"}],
+                            "applications": [{"item": "APP-1", "contribution": 0.5}],
                         }
                     ]
                 }
@@ -71,7 +71,7 @@ async def test_map_feature_returns_mappings(monkeypatch) -> None:
                     "features": [
                         {
                             "feature_id": "f1",
-                            "technology": [{"item": "TEC-1", "contribution": "c"}],
+                            "technology": [{"item": "TEC-1", "contribution": 0.5}],
                         }
                     ]
                 }
@@ -121,7 +121,7 @@ async def test_map_feature_injects_reference_data(monkeypatch) -> None:
                     "features": [
                         {
                             "feature_id": "f1",
-                            "data": [{"item": "INF-1", "contribution": "c"}],
+                            "data": [{"item": "INF-1", "contribution": 0.5}],
                         }
                     ]
                 }
@@ -131,7 +131,7 @@ async def test_map_feature_injects_reference_data(monkeypatch) -> None:
                     "features": [
                         {
                             "feature_id": "f1",
-                            "applications": [{"item": "APP-1", "contribution": "c"}],
+                            "applications": [{"item": "APP-1", "contribution": 0.5}],
                         }
                     ]
                 }
@@ -141,7 +141,7 @@ async def test_map_feature_injects_reference_data(monkeypatch) -> None:
                     "features": [
                         {
                             "feature_id": "f1",
-                            "technology": [{"item": "TEC-1", "contribution": "c"}],
+                            "technology": [{"item": "TEC-1", "contribution": 0.5}],
                         }
                     ]
                 }
@@ -192,6 +192,47 @@ async def test_map_feature_rejects_invalid_json(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_map_feature_rejects_unknown_ids(monkeypatch) -> None:
+    template = "{mapping_labels} {mapping_sections} {mapping_fields} {features}"
+
+    def fake_loader(name, *_, **__):
+        return template
+
+    monkeypatch.setattr("mapping.load_prompt_text", fake_loader)
+    monkeypatch.setattr(
+        "mapping.load_mapping_items",
+        lambda types, *a, **k: {
+            "information": [MappingItem(id="INF-1", name="User Data", description="d")],
+            "applications": [],
+            "technologies": [],
+        },
+    )
+    session = DummySession(
+        [
+            json.dumps(
+                {
+                    "features": [
+                        {
+                            "feature_id": "f1",
+                            "data": [{"item": "BAD", "contribution": 0.5}],
+                        }
+                    ]
+                }
+            )
+        ]
+    )
+    feature = PlateauFeature(
+        feature_id="f1",
+        name="Integration",
+        description="desc",
+        score=0.5,
+        customer_type="learners",
+    )
+    with pytest.raises(MappingError):
+        await map_feature(session, feature)  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
 async def test_map_feature_flattens_nested_mappings(monkeypatch) -> None:
     template = "{mapping_labels} {mapping_sections} {mapping_fields} {features}"
 
@@ -216,12 +257,12 @@ async def test_map_feature_flattens_nested_mappings(monkeypatch) -> None:
                             "feature_id": "f1",
                             "mappings": {
                                 "mappings": {
-                                    "data": [{"item": "INF-1", "contribution": "c"}],
+                                    "data": [{"item": "INF-1", "contribution": 0.5}],
                                     "applications": [
-                                        {"item": "APP-1", "contribution": "c"}
+                                        {"item": "APP-1", "contribution": 0.5}
                                     ],
                                     "technology": [
-                                        {"item": "TEC-1", "contribution": "c"}
+                                        {"item": "TEC-1", "contribution": 0.5}
                                     ],
                                 }
                             },
@@ -271,17 +312,17 @@ async def test_map_feature_flattens_repeated_mapping_keys(monkeypatch) -> None:
                             "feature_id": "f1",
                             "mappings": {
                                 "data": {
-                                    "data": [{"item": "INF-1", "contribution": "c"}]
+                                    "data": [{"item": "INF-1", "contribution": 0.5}]
                                 },
                                 "applications": {
                                     "applications": [
-                                        {"item": "APP-1", "contribution": "c"}
+                                        {"item": "APP-1", "contribution": 0.5}
                                     ]
                                 },
                                 "technology": {
                                     "mappings": {
                                         "technology": [
-                                            {"item": "TEC-1", "contribution": "c"}
+                                            {"item": "TEC-1", "contribution": 0.5}
                                         ]
                                     }
                                 },
@@ -331,7 +372,7 @@ async def test_map_features_returns_mappings(monkeypatch) -> None:
                     "features": [
                         {
                             "feature_id": "f1",
-                            "data": [{"item": "INF-1", "contribution": "c"}],
+                            "data": [{"item": "INF-1", "contribution": 0.5}],
                         }
                     ]
                 }
@@ -341,7 +382,7 @@ async def test_map_features_returns_mappings(monkeypatch) -> None:
                     "features": [
                         {
                             "feature_id": "f1",
-                            "applications": [{"item": "APP-1", "contribution": "c"}],
+                            "applications": [{"item": "APP-1", "contribution": 0.5}],
                         }
                     ]
                 }
@@ -351,7 +392,7 @@ async def test_map_features_returns_mappings(monkeypatch) -> None:
                     "features": [
                         {
                             "feature_id": "f1",
-                            "technology": [{"item": "TEC-1", "contribution": "c"}],
+                            "technology": [{"item": "TEC-1", "contribution": 0.5}],
                         }
                     ]
                 }

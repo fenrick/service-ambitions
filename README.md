@@ -144,9 +144,9 @@ Each JSON line in the output file follows the `ServiceEvolution` schema:
           "description": "string",
           "score": 0.0,
           "customer_type": "string",
-          "data": [{ "item": "string", "contribution": "string" }],
-          "applications": [{ "item": "string", "contribution": "string" }],
-          "technology": [{ "item": "string", "contribution": "string" }]
+          "data": [{ "item": "string", "contribution": 0.5 }],
+          "applications": [{ "item": "string", "contribution": 0.5 }],
+          "technology": [{ "item": "string", "contribution": 0.5 }]
         }
       ]
     }
@@ -221,8 +221,11 @@ below.
 - Return a JSON object with a top-level "features" array.
 - Each element must include "feature_id", "data", "applications" and
   "technology" arrays.
-- Items in these arrays must provide "item" and "contribution" fields.
-- Use only identifiers from the provided lists.
+- For each mapping list, return at most 5 items.
+- Items in these arrays must provide "item" and "contribution" fields. The
+  "contribution" value is a number in [0.1, 1.0] where 1.0 = critical, 0.5 =
+  helpful and 0.1 = weak.
+- Do not invent IDs; only use those provided.
 - Do not include any text outside the JSON object.
 ```
 
