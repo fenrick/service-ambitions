@@ -240,16 +240,44 @@ def load_definitions(
     items = [data[k] for k in keys if k in data] if keys else list(data.values())
     return "\n\n".join(items)
 
+
+@logfire.instrument()
+def load_plateau_text(
+    base_dir: Path | str = Path("data"),
+    filename: Path | str = Path("service_feature_plateaus.json"),
+) -> str:
+    """Return plateau descriptions as a numbered Markdown list.
+
+    Args:
+        base_dir: Directory containing plateau definition data.
+        filename: JSON file containing :class:`ServiceFeaturePlateau` records.
+
+    Returns:
+        Markdown text describing each plateau.
+
+    Raises:
+        FileNotFoundError: If the data file does not exist.
+        RuntimeError: If the data cannot be read or parsed.
+    """
+
+    plateaus = load_plateau_definitions(base_dir, filename)
+    lines = ["## Service feature plateaus", ""]
+    for idx, plateau in enumerate(plateaus, start=1):
+        lines.append(f"{idx}. **{plateau.name}**: {plateau.description}")
+    return "\n".join(lines)
+
+
 @logfire.instrument()
 def load_evolution_prompt(
     context_id: str,
     inspirations_id: str,
     base_dir: Path | None = None,
-    plateaus_file: Path | str = Path("service_feature_plateaus.md"),
     definitions_file: Path | str = Path("definitions.json"),
     definition_keys: Sequence[str] | None = None,
     task_file: Path | str = Path("task_definition.md"),
     response_file: Path | str = Path("response_structure.md"),
+    plateaus_dir: Path | str = Path("data"),
+    plateaus_file: Path | str = Path("service_feature_plateaus.json"),
 ) -> str:
     """Assemble the system prompt from modular components.
 
@@ -259,12 +287,13 @@ def load_evolution_prompt(
         inspirations_id: Identifier for the inspirations file within the
             prompts directory.
         base_dir: Optional override for the base prompts directory.
-        plateaus_file: Filename of the service feature plateaus component.
         definitions_file: Definitions file name.
         definition_keys: Optional identifiers selecting which definitions to
             include.
         task_file: Filename of the task definition component.
         response_file: Filename of the response structure component.
+        plateaus_dir: Directory containing plateau definition data.
+        plateaus_file: Plateau definitions file name.
 
     Returns:
         Combined prompt text.
@@ -276,25 +305,27 @@ def load_evolution_prompt(
 
     directory = base_dir or PROMPT_DIR
     components = [
-        _read_file(directory / "situational_context" / f"{context_id}.md"),
-        _read_file(directory / Path(plateaus_file)),
+        load_prompt_text(f"situational_context/{context_id}", directory),
+        load_plateau_text(plateaus_dir, plateaus_file),
         load_definitions(directory, definitions_file, definition_keys),
-        _read_file(directory / "inspirations" / f"{inspirations_id}.md"),
-        _read_file(directory / Path(task_file)),
-        _read_file(directory / Path(response_file)),
+        load_prompt_text(f"inspirations/{inspirations_id}", directory),
+        load_prompt_text(str(task_file), directory),
+        load_prompt_text(str(response_file), directory),
     ]
     return "\n\n".join(components)
+
 
 @logfire.instrument()
 def load_ambition_prompt(
     context_id: str,
     inspirations_id: str,
     base_dir: Path | None = None,
-    plateaus_file: Path | str = Path("service_feature_plateaus.md"),
     definitions_file: Path | str = Path("definitions.json"),
     definition_keys: Sequence[str] | None = None,
     task_file: Path | str = Path("task_definition.md"),
     response_file: Path | str = Path("response_structure.md"),
+    plateaus_dir: Path | str = Path("data"),
+    plateaus_file: Path | str = Path("service_feature_plateaus.json"),
 ) -> str:
     """Assemble the system prompt from modular components.
 
@@ -304,12 +335,13 @@ def load_ambition_prompt(
         inspirations_id: Identifier for the inspirations file within the
             prompts directory.
         base_dir: Optional override for the base prompts directory.
-        plateaus_file: Filename of the service feature plateaus component.
         definitions_file: Definitions file name.
         definition_keys: Optional identifiers selecting which definitions to
             include.
         task_file: Filename of the task definition component.
         response_file: Filename of the response structure component.
+        plateaus_dir: Directory containing plateau definition data.
+        plateaus_file: Plateau definitions file name.
 
     Returns:
         Combined prompt text.
@@ -321,14 +353,18 @@ def load_ambition_prompt(
 
     directory = base_dir or PROMPT_DIR
     components = [
-        _read_file(directory / "situational_context" / f"{context_id}.md"),
-        _read_file(directory / Path(plateaus_file)),
+        load_prompt_text(f"situational_context/{context_id}", directory),
+        load_plateau_text(plateaus_dir, plateaus_file),
         load_definitions(directory, definitions_file, definition_keys),
-        _read_file(directory / "inspirations" / f"{inspirations_id}.md"),
-        _read_file(directory / Path(task_file)),
-        _read_file(directory / Path(response_file)),
+        load_prompt_text(f"inspirations/{inspirations_id}", directory),
+        load_prompt_text(str(task_file), directory),
+        load_prompt_text(str(response_file), directory),
     ]
     return "\n\n".join(components)
+
+
+# Backward compatibility alias
+load_prompt = load_evolution_prompt
 
 
 @logfire.instrument()

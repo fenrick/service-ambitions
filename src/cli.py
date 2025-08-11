@@ -20,8 +20,9 @@ from conversation import ConversationSession
 from generator import ServiceAmbitionGenerator, build_model
 from loader import (
     configure_prompt_dir,
-    load_plateau_definitions,
     load_ambition_prompt,
+    load_evolution_prompt,
+    load_plateau_definitions,
     load_services,
 )
 from models import ServiceInput
