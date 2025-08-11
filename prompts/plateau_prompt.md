@@ -19,6 +19,8 @@ Generate service features for the {service_name} service at plateau {plateau}.
 - Each key must map to an array containing at least {required_count} feature objects.
 - Every feature must provide:
     - "feature_id": unique string identifier.
+        - Format: "FEAT-{plateau}-{segment}-{kebab-case-short-name}" (e.g., FEAT-2-learners-smart-enrolment).
+        - Ensure IDs are unique across all segments in this response.
     - "name": short feature title.
     - "description": explanation of the feature.
     - "score": floating-point maturity between 0 and 1.
