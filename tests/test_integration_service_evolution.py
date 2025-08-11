@@ -3,9 +3,11 @@
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from typing import cast
 
 import pytest
+from pydantic_ai import Agent  # noqa: E402  pylint: disable=wrong-import-position
 
 from conversation import (
     ConversationSession,
@@ -23,21 +25,16 @@ from plateau_generator import (
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
-class DummySession:
-    """Session returning queued JSON payloads."""
+class DummyAgent:
+    """Agent returning queued JSON payloads."""
 
     def __init__(self, responses: list[str]) -> None:
         self._responses = responses
         self.prompts: list[str] = []
 
-    async def ask(self, prompt: str) -> str:  # pragma: no cover - trivial
+    async def run(self, prompt: str, message_history):  # pragma: no cover - stub
         self.prompts.append(prompt)
-        return self._responses.pop(0)
-
-    def add_parent_materials(
-        self, service_input: ServiceInput
-    ) -> None:  # pragma: no cover - simple stub
-        pass
+        return SimpleNamespace(output=self._responses.pop(0), new_messages=lambda: [])
 
 
 def _feature_payload(count: int) -> str:
@@ -62,8 +59,9 @@ async def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
     for _ in range(4):
         responses.append(json.dumps({"description": "desc"}))
         responses.append(_feature_payload(5))
-    session = DummySession(responses)
-    generator = PlateauGenerator(cast(ConversationSession, session), required_count=5)
+    agent = DummyAgent(responses)
+    session = ConversationSession(cast(Agent[None, str], agent))
+    generator = PlateauGenerator(session, required_count=5)
 
     map_calls = {"n": 0}
 
@@ -104,9 +102,9 @@ async def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
     assert len(evolution.plateaus) == 4
     assert sum(len(p.features) for p in evolution.plateaus) == 60
     assert all(len(p.features) >= 15 for p in evolution.plateaus)
-    assert len(session.prompts) == 8
+    assert len(agent.prompts) == 8
     assert map_calls["n"] == 4
-    assert len(session.prompts) + map_calls["n"] == 12
+    assert len(agent.prompts) + map_calls["n"] == 12
     for plateau in evolution.plateaus:
         for feature in plateau.features:
             assert feature.mappings["data"]

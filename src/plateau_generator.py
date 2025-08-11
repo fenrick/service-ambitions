@@ -2,13 +2,14 @@
 
 The :class:`PlateauGenerator` coordinates prompt construction, model
 interaction and mapping enrichment to evolve a ``ServiceInput`` across the
-defined maturity plateaus. Each plateau is described and its features mapped in
-the context of a shared conversation session so that responses build upon prior
-interactions.
+defined maturity plateaus. Each plateau is handled in an isolated
+``ConversationSession`` so generation and mapping for one level do not leak
+history into another while still reusing the same underlying agent.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -84,14 +85,17 @@ class PlateauGenerator:
         self._service: ServiceInput | None = None
 
     @logfire.instrument()
-    async def _request_description(self, level: int) -> str:
+    async def _request_description(
+        self, level: int, session: ConversationSession | None = None
+    ) -> str:
         """Return the service description for ``level``.
 
         A description template is loaded from disk and rendered with the target
-        ``level``. The prompt is sent to the agent via the stored conversation
-        session and the JSON response parsed. A :class:`ValueError` is raised if
-        the response cannot be validated or the description field is empty.
+        ``level``. The prompt is sent to the agent via ``session`` and the JSON
+        response parsed. A :class:`ValueError` is raised if the response cannot
+        be validated or the description field is empty.
         """
+        session = session or self.session
         template = load_prompt_text("description_prompt")
         schema = json.dumps(DescriptionResponse.model_json_schema(), indent=2)
         prompt = template.format(
@@ -99,9 +103,9 @@ class PlateauGenerator:
             schema=str(schema),
         )
 
-        # Query the model using the stored conversation session so the
-        # description becomes part of the evolving chat history.
-        response = await self.session.ask(prompt)
+        # Query the model using the provided conversation session so the
+        # description becomes part of the chat history for that plateau only.
+        response = await session.ask(prompt)
         # Remove Markdown fences if the model wrapped the JSON payload.
         response = _strip_code_fences(response)
         try:
@@ -177,12 +181,19 @@ class PlateauGenerator:
         return features
 
     @logfire.instrument()
-    async def generate_plateau(self, level: int, plateau_name: str) -> PlateauResult:
+    async def generate_plateau(
+        self,
+        level: int,
+        plateau_name: str,
+        session: ConversationSession | None = None,
+    ) -> PlateauResult:
         """Return mapped plateau features for ``level``.
 
         Args:
             level: Numeric identifier for the plateau.
             plateau_name: Human readable name of the plateau.
+            session: Conversation session used for model interactions. Defaults
+                to the instance's session.
 
         The function requests a plateau-specific service description and a list
         of features for learners, academics and professional staff. Responses
@@ -197,6 +208,8 @@ class PlateauGenerator:
                 "ServiceInput not set. Call generate_service_evolution first."
             )
 
+        session = session or self.session
+
         # Attach useful context to the span so traces include the target service
         # and plateau level being generated.
         with logfire.span("generate_plateau") as span:
@@ -204,13 +217,13 @@ class PlateauGenerator:
             span.set_attribute("plateau", level)
 
             # Ask the model to describe the service at the specified plateau level.
-            description = await self._request_description(level)
+            description = await self._request_description(level, session)
             prompt = self._build_plateau_prompt(level, description)
             logger.info("Requesting features for level=%s", level)
 
-            # Using the shared conversation session ensures features are generated
-            # in the same context as previous interactions.
-            response = await self.session.ask(prompt)
+            # Generate features within the provided conversation session so
+            # history is isolated per plateau.
+            response = await session.ask(prompt)
             payload = self._parse_feature_payload(response)
             for segment, items in {
                 "learners": payload.learners,
@@ -229,7 +242,7 @@ class PlateauGenerator:
                     raise ValueError(msg)
             features = self._collect_features(payload)
             # Enrich the raw features with mapping information before returning.
-            mapped = await map_features(self.session, features)
+            mapped = await map_features(session, features)
             return PlateauResult(
                 plateau=level,
                 plateau_name=plateau_name,
@@ -275,17 +288,22 @@ class PlateauGenerator:
             plateau_names = list(plateau_names or DEFAULT_PLATEAU_NAMES)
             customer_types = list(customer_types or DEFAULT_CUSTOMER_TYPES)
 
-            plateaus: list[PlateauResult] = []
-            for name in plateau_names:
+            async def _generate(name: str) -> PlateauResult:
                 try:
                     level = DEFAULT_PLATEAU_MAP[name]
                 except KeyError as exc:  # pragma: no cover - checked by tests
-                    # Fail fast when configuration references an unknown plateau.
                     raise ValueError(f"Unknown plateau name: {name}") from exc
 
-                # Generate features for each plateau level in turn.
-                result = await self.generate_plateau(level, name)
-                # Restrict features to the requested customer segments only.
+                # Create an isolated session for this plateau using the same agent
+                # to prevent cross-plateau chatter.
+                plateau_session = ConversationSession(self.session.client)
+                plateau_session.add_parent_materials(service_input)
+                return await self.generate_plateau(level, name, session=plateau_session)
+
+            results = await asyncio.gather(*[_generate(name) for name in plateau_names])
+
+            plateaus: list[PlateauResult] = []
+            for result in results:
                 filtered = [
                     feat
                     for feat in result.features

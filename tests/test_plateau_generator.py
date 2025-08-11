@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+from pydantic_ai import Agent  # noqa: E402  pylint: disable=wrong-import-position
 
 from conversation import (
     ConversationSession,
@@ -176,13 +177,20 @@ async def test_generate_service_evolution_filters(monkeypatch) -> None:
         description="d",
         jobs_to_be_done=[{"name": "job"}],
     )
-    session = DummySession([])
-    generator = PlateauGenerator(cast(ConversationSession, session))
+
+    class DummyAgent:
+        async def run(self, prompt, message_history):  # pragma: no cover - stub
+            return type("R", (), {"output": "", "new_messages": lambda: []})()
+
+    session = ConversationSession(cast(Agent[None, str], DummyAgent()))
+    generator = PlateauGenerator(session)
 
     called: list[int] = []
+    sessions: set[int] = set()
 
-    def fake_generate_plateau(self, level, plateau_name):
+    async def fake_generate_plateau(self, level, plateau_name, session=None):
         called.append(level)
+        sessions.add(id(session))
         feats = [
             PlateauFeature(
                 feature_id=f"l{level}",
@@ -224,6 +232,7 @@ async def test_generate_service_evolution_filters(monkeypatch) -> None:
     )
 
     assert called == [1, 2]
+    assert len(sessions) == 2
     assert len(evo.plateaus) == 2
     for plat in evo.plateaus:
         assert {f.customer_type for f in plat.features} <= {"learners", "academic"}
