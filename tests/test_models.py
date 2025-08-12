@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from models import (  # noqa: E402  pylint: disable=wrong-import-position
     Contribution,
     MappingResponse,
+    MaturityScore,
     PlateauFeature,
     PlateauResult,
     ServiceEvolution,
@@ -32,7 +33,7 @@ def test_service_evolution_contains_plateaus() -> None:
         feature_id="f1",
         name="Feat",
         description="D",
-        score=0.75,
+        score=MaturityScore(level=3, label="Defined", justification="std"),
         customer_type="learners",
     )
     plateau = PlateauResult(
@@ -55,7 +56,7 @@ def test_plateau_feature_validates_score() -> None:
             feature_id="f1",
             name="Feat",
             description="D",
-            score=2.0,
+            score=MaturityScore(level=6, label="Invalid", justification="bad"),
             customer_type="learners",
         )
 

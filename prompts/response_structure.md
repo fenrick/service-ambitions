@@ -2,9 +2,39 @@
 
 ### Example output
 
-[{"service_id": "xxx", "service_name": "example", "plateaus": [ {"plateau_name": "foundational", "digital_ambition": "
-long_description", "customer_groups": [{"customer_id": "xxx", "customer": "example", "
-digital_ambitions": [{"ambition": "title", "description": "long_description"},{"ambition": "title", "description": "long_description"}]}], "
-digital_levers": [{"lever": "title", "description": "long_description"}]]
+```json
+{
+  "services": [
+    {
+      "service_id": "S01",
+      "service_name": "Example Service",
+      "plateaus": [
+        {
+          "plateau_name": "Foundational",
+          "digital_ambition": "Describe the digital ambition for this plateau.",
+          "customer_groups": [
+            {
+              "customer_id": "C01",
+              "customer": "Example Customer",
+              "digital_ambitions": [
+                {
+                  "ambition": "Ambition title",
+                  "description": "Ambition description"
+                }
+              ]
+            }
+          ],
+          "digital_levers": [
+            {
+              "lever": "Lever title",
+              "description": "Lever description"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
 
 Return a JSON object.

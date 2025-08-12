@@ -46,28 +46,13 @@ class ConversationSession:
             service_input: Metadata describing the service being evaluated.
 
         Side Effects:
-            Appends a system prompt containing the service metadata to the
-            session history.
+            Appends a user prompt containing the service context to the session
+            history.
         """
-
-        jobs = ", ".join(job.name for job in service_input.jobs_to_be_done)
-        features = "; ".join(
-            f"{feat.feature_id}: {feat.name}" for feat in service_input.features
-        )
-        material = (
-            f"Service ID: {service_input.service_id}\n"
-            f"Service name: {service_input.name}\n"
-            f"Customer type: {service_input.customer_type or 'N/A'}\n"
-            f"Description: {service_input.description}\n"
-            f"Jobs to be done: {jobs or 'N/A'}"
-        )
-        if service_input.features:
-            material += f"\nExisting features: {features}"
-        logger.debug("Adding service material to history: %s", material)
+        ctx = "SERVICE_CONTEXT:\n" + service_input.model_dump_json()
+        logger.debug("Adding service material to history: %s", ctx)
         self._history.append(
-            messages.ModelRequest(
-                parts=[messages.SystemPromptPart(service_input.model_dump_json())]
-            )
+            messages.ModelRequest(parts=[messages.UserPromptPart(ctx)])
         )
 
     @logfire.instrument()

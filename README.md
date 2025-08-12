@@ -71,22 +71,22 @@ behaviour such as backoff jitter deterministic during tests and demos.
 
 ## Plateau-first workflow
 
-Each service is evaluated across **four** plateaus – **Foundational**,
-**Enhanced**, **Experimental** and **Disruptive**. Every plateau requires three
-sequential calls:
+Each service is evaluated across the plateaus defined in
+`data/service_feature_plateaus.json`. Every plateau requires three sequential
+calls:
 
 1. **Description** – request a plateau-specific service narrative.
 2. **Features** – generate learner, academic and professional staff features.
 3. **Mapping** – link each feature to reference Data, Applications and
    Technologies.
 
-The 4 × 3 workflow totals 12 calls and produces a complete `ServiceEvolution`
-record for every service.
+This workflow issues three calls per plateau and produces a complete
+`ServiceEvolution` record for every service.
 
-Plateau names and descriptions are sourced from
+Plateau names and descriptions are sourced entirely from
 `data/service_feature_plateaus.json`, allowing the progression to be
-reconfigured without code changes. By default the CLI uses the first four
-entries from this file.
+reconfigured without code changes. The CLI processes all entries from this
+file.
 
 ### Generating service evolutions
 
@@ -142,7 +142,11 @@ Each JSON line in the output file follows the `ServiceEvolution` schema:
           "feature_id": "string",
           "name": "string",
           "description": "string",
-          "score": 0.0,
+          "score": {
+            "level": 3,
+            "label": "Defined",
+            "justification": "string"
+          },
           "customer_type": "string",
           "data": [{ "item": "string", "contribution": 0.5 }],
           "applications": [{ "item": "string", "contribution": 0.5 }],
@@ -165,7 +169,7 @@ Fields in the schema:
     - `service_description`: narrative for the service at that plateau.
     - `features`: list of `PlateauFeature` entries with:
         - `feature_id`, `name`, and `description`.
-        - `score`: float between `0.0` and `1.0`.
+        - `score`: object with CMMI maturity `level`, `label` and `justification`.
         - `customer_type`: audience benefiting from the feature.
         - `data`, `applications`, `technology`: lists of `Contribution` objects
           describing why a mapped item supports the feature.
@@ -181,8 +185,8 @@ technologies to keep each decision focused. All application configuration is
 stored in `config/app.json`; the chat model and any reasoning parameters live
 at the top level, while mapping types and their associated datasets live under
 the `mapping_types` section, allowing new categories to be added without code
-changes. Plateau name to level associations are defined in the `plateau_map`
-section of the same file.
+changes. Plateau definitions and their level mappings come from
+`data/service_feature_plateaus.json`.
 
 ## Prompt examples
 
@@ -204,7 +208,10 @@ Generate service features for the {service_name} service at plateau {plateau}.
   - "feature_id": unique string identifier.
   - "name": short feature title.
   - "description": explanation of the feature.
-  - "score": floating-point maturity between 0 and 1.
+  - "score": object describing CMMI maturity with:
+    - "level": integer 1–5.
+    - "label": matching CMMI maturity name.
+    - "justification": brief rationale for the level.
 - Do not include any text outside the JSON object.
 ```
 

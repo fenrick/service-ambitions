@@ -1,5 +1,6 @@
 """Unit tests for the :mod:`conversation` module."""
 
+import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -50,9 +51,16 @@ def test_add_parent_materials_records_history() -> None:
 
     assert len(session._history) == 1  # noqa: SLF001 - accessing test-only attribute
     assert isinstance(session._history[0], messages.ModelRequest)
-    material = session._history[0].parts[0].content  # noqa: SLF001
-    assert "Service ID: svc-1" in material
-    assert "Jobs to be done: job1, job2" in material
+    part = session._history[0].parts[0]  # noqa: SLF001 - test helper
+    assert isinstance(part, messages.UserPromptPart)
+    material = cast(str, part.content)
+    assert material.startswith("SERVICE_CONTEXT:\n")
+    data = json.loads(material.split("SERVICE_CONTEXT:\n", 1)[1])
+    assert data["service_id"] == "svc-1"
+    assert data["jobs_to_be_done"] == [
+        {"name": "job1"},
+        {"name": "job2"},
+    ]
 
 
 def test_add_parent_materials_includes_features() -> None:
@@ -75,10 +83,18 @@ def test_add_parent_materials_includes_features() -> None:
     )
     session.add_parent_materials(service)
 
-    material = cast(
-        messages.TextPart, session._history[0].parts[0]
-    ).content  # noqa: SLF001 - test helper
-    assert "Existing features: F1: Feat" in material
+    part = cast(
+        messages.UserPromptPart, session._history[0].parts[0]
+    )  # noqa: SLF001 - test helper
+    material = cast(str, part.content)
+    data = json.loads(material.split("SERVICE_CONTEXT:\n", 1)[1])
+    assert data["features"] == [
+        {
+            "feature_id": "F1",
+            "name": "Feat",
+            "description": "D",
+        }
+    ]
 
 
 @pytest.mark.asyncio

@@ -1,11 +1,10 @@
 # Generate evolution
 
-The evolution workflow spans four plateaus—**Foundational**, **Enhanced**,
-**Experimental** and **Disruptive**—with three calls per plateau (description,
-features, mapping). Plateau definitions are stored in
-`data/service_feature_plateaus.json`; the CLI uses the first four entries by
-default and evaluates all customer segments. Plateau name to level mappings
-come from `config/app.json`.
+The evolution workflow spans the plateaus defined in
+`data/service_feature_plateaus.json`, issuing three calls per plateau
+(description, features, mapping). The CLI evaluates all plateaus in this file
+alongside all customer segments. Plateau name to level mappings are derived
+from the order of the JSON entries.
 
 ## Running
 
@@ -46,7 +45,11 @@ Each line in the output file is a JSON object with:
           "feature_id": "string",
           "name": "string",
           "description": "string",
-          "score": 0.0,
+          "score": {
+            "level": 3,
+            "label": "Defined",
+            "justification": "string"
+          },
           "customer_type": "string",
           "data": [{ "item": "string", "contribution": 0.5 }],
           "applications": [{ "item": "string", "contribution": 0.5 }],

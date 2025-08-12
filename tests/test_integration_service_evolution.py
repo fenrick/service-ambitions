@@ -43,7 +43,11 @@ def _feature_payload(count: int) -> str:
             "feature_id": f"f{i}",
             "name": f"Feat {i}",
             "description": f"Desc {i}",
-            "score": 0.5,
+            "score": {
+                "level": 3,
+                "label": "Defined",
+                "justification": "test",
+            },
         }
         for i in range(count)
     ]

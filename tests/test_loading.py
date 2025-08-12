@@ -4,6 +4,8 @@ from pathlib import Path
 import pytest
 
 from loader import (
+    NORTH_STAR,
+    load_ambition_prompt,
     load_app_config,
     load_mapping_type_config,
     load_plateau_definitions,
@@ -43,7 +45,10 @@ def test_load_prompt_assembles_components(tmp_path):
         plateaus_dir=str(data_dir),
     )
     expected = (
-        "ctx\n\n## Service feature plateaus\n\n1. **Alpha**: plat\n\n## Defs\n\n1."
+        "You are the world's leading service designer and enterprise architect; your"
+        " job is to produce strictly-valid JSON structured outputs aligned to the"
+        " schema."
+        "\n\nctx\n\n## Service feature plateaus\n\n1. **Alpha**: plat\n\n## Defs\n\n1."
         " **d1**: defs\n2. **d2**: extra\n\ninsp\n\ntask\n\nresp"
     )
     assert prompt == expected
@@ -96,10 +101,41 @@ def test_load_prompt_with_definition_keys(tmp_path):
         plateaus_dir=str(data_dir),
     )
     expected = (
-        "ctx\n\n## Service feature plateaus\n\n"
+        "You are the world's leading service designer and enterprise architect; your"
+        " job is to produce strictly-valid JSON structured outputs aligned to the"
+        " schema."
+        "\n\nctx\n\n## Service feature plateaus\n\n"
         "1. **Alpha**: plat\n\n## Defs\n\n1. **d2**: defs2\n\ninsp\n\ntask\n\nresp"
     )
     assert prompt == expected
+
+
+def test_load_ambition_prompt_includes_north_star(tmp_path):
+    prompts_dir = tmp_path / "prompts"
+    data_dir = tmp_path / "data"
+    (prompts_dir / "situational_context").mkdir(parents=True)
+    (prompts_dir / "inspirations").mkdir(parents=True)
+    (prompts_dir / "situational_context" / "ctx.md").write_text("ctx", encoding="utf-8")
+    (prompts_dir / "inspirations" / "insp.md").write_text("insp", encoding="utf-8")
+    (prompts_dir / "task_definition.md").write_text("task", encoding="utf-8")
+    (prompts_dir / "response_structure.md").write_text("resp", encoding="utf-8")
+    data_dir.mkdir()
+    (data_dir / "definitions.json").write_text(
+        '{"title": "Defs", "bullets": [{"name": "d1", "description": "defs"}]}',
+        encoding="utf-8",
+    )
+    (data_dir / "service_feature_plateaus.json").write_text(
+        '[{"id": "P1", "name": "Alpha", "description": "plat"}]',
+        encoding="utf-8",
+    )
+    prompt = load_ambition_prompt(
+        "ctx",
+        "insp",
+        base_dir=str(prompts_dir),
+        definitions_dir=str(data_dir),
+        plateaus_dir=str(data_dir),
+    )
+    assert prompt.startswith(NORTH_STAR)
 
 
 def test_load_prompt_text_plateau(tmp_path):
@@ -214,14 +250,12 @@ def test_load_app_config(tmp_path):
     base = tmp_path / "config"
     base.mkdir()
     (base / "app.json").write_text(
-        '{"plateau_map": {"Foundational": 1}, "mapping_types": {"beta": {"dataset":'
-        ' "ds2", "label": "Beta"}}}',
+        '{"mapping_types": {"beta": {"dataset": "ds2", "label": "Beta"}}}',
         encoding="utf-8",
     )
     load_app_config.cache_clear()
     config = load_app_config(str(base))
     assert "beta" in config.mapping_types
-    assert config.plateau_map["Foundational"] == 1
 
 
 def test_load_app_config_reasoning(tmp_path):

@@ -230,17 +230,34 @@ class AppConfig(StrictModel):
         default_factory=dict,
         description="Mapping type definitions keyed by field name.",
     )
-    plateau_map: dict[str, int] = Field(
-        default_factory=dict,
-        description="Mapping from plateau names to numeric identifiers.",
-    )
+
+
+class MaturityScore(StrictModel):
+    """CMMI maturity assessment for a feature."""
+
+    level: Annotated[
+        int,
+        Field(
+            ge=1,
+            le=5,
+            description="CMMI maturity level where 1 is Initial and 5 Optimizing.",
+        ),
+    ]
+    label: Annotated[
+        str,
+        Field(min_length=1, description="CMMI maturity label matching the level."),
+    ]
+    justification: Annotated[
+        str,
+        Field(min_length=1, description="Reasoning behind the chosen maturity level."),
+    ]
 
 
 class PlateauFeature(StrictModel):
     """Feature assessed during a service plateau.
 
-    Each feature includes a normalised ``score`` and optional mapping
-    contributions that reference external catalogues.
+    Each feature includes a CMMI ``score`` and optional mapping contributions
+    that reference external catalogues.
     """
 
     feature_id: Annotated[
@@ -248,8 +265,8 @@ class PlateauFeature(StrictModel):
     ]
     name: Annotated[str, Field(min_length=1, description="Feature name.")]
     description: str = Field(..., description="Explanation of the feature.")
-    score: float = Field(
-        ..., ge=0.0, le=1.0, description="Normalised performance score between 0 and 1."
+    score: MaturityScore = Field(
+        ..., description="CMMI maturity assessment for the feature."
     )
     customer_type: Annotated[
         str, Field(min_length=1, description="Audience that benefits from the feature.")
@@ -314,8 +331,8 @@ class FeatureItem(StrictModel):
     ]
     name: Annotated[str, Field(min_length=1, description="Short feature title.")]
     description: str = Field(..., description="Explanation of the feature.")
-    score: float = Field(
-        ..., ge=0.0, le=1.0, description="Maturity score between 0 and 1."
+    score: MaturityScore = Field(
+        ..., description="CMMI maturity assessment for the feature."
     )
 
 
@@ -434,6 +451,7 @@ __all__ = [
     "ServiceFeaturePlateau",
     "PlateauFeature",
     "Contribution",
+    "MaturityScore",
     "PlateauResult",
     "ServiceEvolution",
     "SCHEMA_VERSION",
