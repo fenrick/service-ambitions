@@ -336,6 +336,7 @@ def build_model(
     *,
     seed: int | None = None,
     reasoning: ReasoningConfig | None = None,
+    web_search: bool = False,
 ) -> Model:
     """Return a configured Pydantic AI model.
 
@@ -344,6 +345,8 @@ def build_model(
         api_key: Optional API key for authenticating with OpenAI.
         seed: Optional seed for deterministic model responses.
         reasoning: Optional reasoning configuration passed through to the model.
+        web_search: Enable OpenAI web search tooling for model browsing. Defaults to
+            ``False``.
 
     Returns:
         A ready-to-use ``Model`` instance.
@@ -359,10 +362,12 @@ def build_model(
     # Allow callers to pass provider-prefixed names such as ``openai:gpt-4``.
     model_name = model_name.split(":", 1)[-1]
     extra = {"seed": seed} if seed is not None else {}
-    settings_kwargs: dict[str, Any] = {
-        "openai_builtin_tools": [{"type": "web_search_preview"}],
-        **extra,
-    }
+    settings_kwargs: dict[str, Any] = {**extra}
+    if web_search:
+        # Allow optional access to the ``web_search_preview`` tool which provides
+        # browsing capabilities. Disabling keeps runs deterministic and avoids
+        # additional cost for schema-only generation.
+        settings_kwargs["openai_builtin_tools"] = [{"type": "web_search_preview"}]
     if reasoning:
         # Map each reasoning field to the ``openai_reasoning_*`` parameter.
         for key, value in reasoning.model_dump(exclude_none=True).items():
