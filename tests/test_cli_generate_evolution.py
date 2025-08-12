@@ -34,6 +34,7 @@ async def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         *,
         seed: int | None = None,
         reasoning=None,
+        web_search=False,
     ) -> object:  # pragma: no cover - stub
         return object()
 
@@ -114,10 +115,12 @@ async def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> Non
         *,
         seed: int | None = None,
         reasoning=None,
+        web_search=False,
     ) -> object:
         captured["model_name"] = model_name
         captured["api_key"] = api_key
         captured["seed"] = seed
+        captured["web_search"] = web_search
         return "model"
 
     class DummyAgent:
@@ -169,6 +172,7 @@ async def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> Non
 
     assert captured["model_name"] == "special"
     assert captured["agent_model"] == "model"
+    assert captured["web_search"] is False
 
 
 @pytest.mark.asyncio
@@ -202,6 +206,7 @@ async def test_generate_evolution_respects_concurrency(tmp_path, monkeypatch) ->
         *,
         seed: int | None = None,
         reasoning=None,
+        web_search=False,
     ) -> object:  # pragma: no cover - stub
         return object()
 
@@ -275,6 +280,7 @@ async def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         *,
         seed: int | None = None,
         reasoning=None,
+        web_search=False,
     ) -> object:  # pragma: no cover - stub
         return object()
 
@@ -351,6 +357,7 @@ async def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         *,
         seed: int | None = None,
         reasoning=None,
+        web_search=False,
     ) -> object:
         return object()
 

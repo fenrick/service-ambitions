@@ -79,6 +79,7 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
         settings.openai_api_key,
         seed=args.seed,
         reasoning=settings.reasoning,
+        web_search=args.web_search,
     )
     concurrency = args.concurrency or settings.concurrency
     generator = ServiceAmbitionGenerator(
@@ -154,6 +155,7 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
         settings.openai_api_key,
         seed=args.seed,
         reasoning=settings.reasoning,
+        web_search=args.web_search,
     )
 
     # Load and assemble the system prompt so each conversation begins with
@@ -304,6 +306,11 @@ async def main_async() -> None:
         dest="resume",
         action="store_true",
         help="Resume processing using processed_ids.txt",
+    )
+    common.add_argument(
+        "--web-search",
+        action="store_true",
+        help="Enable web search for model browsing",
     )
 
     # Define subcommands for the supported operations

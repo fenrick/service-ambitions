@@ -234,10 +234,18 @@ def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
 
     captured: dict[str, str] = {}
 
-    def fake_build_model(model_name: str, api_key: str, *, seed=None, reasoning=None):
+    def fake_build_model(
+        model_name: str,
+        api_key: str,
+        *,
+        seed=None,
+        reasoning=None,
+        web_search=False,
+    ):
         captured["model"] = model_name
         captured["api_key"] = api_key
         captured["seed"] = seed
+        captured["web_search"] = web_search
         return "test"
 
     monkeypatch.setattr(generator, "build_model", fake_build_model)
@@ -266,6 +274,7 @@ def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
     assert captured["model"] == "test-model"
     assert captured["api_key"] == "dummy"
     assert captured["seed"] is None
+    assert captured["web_search"] is False
 
 
 def test_cli_seed_sets_random(tmp_path, monkeypatch):
@@ -296,8 +305,16 @@ def test_cli_seed_sets_random(tmp_path, monkeypatch):
 
     captured: dict[str, int | None] = {}
 
-    def fake_build_model(model_name: str, api_key: str, *, seed=None, reasoning=None):
+    def fake_build_model(
+        model_name: str,
+        api_key: str,
+        *,
+        seed=None,
+        reasoning=None,
+        web_search=False,
+    ):
         captured["seed"] = seed
+        captured["web_search"] = web_search
         return "test"
 
     async def fake_process_service(self, service, prompt=None):
@@ -325,6 +342,7 @@ def test_cli_seed_sets_random(tmp_path, monkeypatch):
     cli.main()
 
     assert captured["seed"] == 123
+    assert captured["web_search"] is False
     assert random.random() == pytest.approx(random.Random(123).random())
 
 
