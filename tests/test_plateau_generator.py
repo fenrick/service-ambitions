@@ -72,6 +72,28 @@ def _feature_payload(count: int) -> str:
     return json.dumps(payload)
 
 
+def test_build_plateau_prompt_preserves_role_placeholder(monkeypatch) -> None:
+    """_build_plateau_prompt should retain role placeholders."""
+
+    template = 'Format: "FEAT-{plateau}-{{role}}-{{kebab-case-short-name}}"'
+    monkeypatch.setattr(
+        "plateau_generator.load_prompt_text", lambda *args, **kwargs: template
+    )
+    session = DummySession([])
+    generator = PlateauGenerator(cast(ConversationSession, session))
+    generator._service = ServiceInput(
+        service_id="s",
+        name="svc",
+        customer_type="type",
+        description="d",
+        jobs_to_be_done=[{"name": "job"}],
+    )
+
+    prompt = generator._build_plateau_prompt(2, "d")
+
+    assert "FEAT-2-{role}-{kebab-case-short-name}" in prompt
+
+
 @pytest.mark.asyncio
 async def test_generate_plateau_returns_results(monkeypatch) -> None:
     template = "{required_count} {service_name} {service_description} {plateau} {roles}"
