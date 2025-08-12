@@ -63,7 +63,7 @@ def _render_features(features: Sequence[PlateauFeature]) -> str:
     )
 
 
-async def map_feature(
+def map_feature(
     session: ConversationSession,
     feature: PlateauFeature,
     mapping_types: Mapping[str, MappingTypeConfig] | None = None,
@@ -84,7 +84,7 @@ async def map_feature(
         A :class:`PlateauFeature` with mapping information applied.
     """
 
-    return (await map_features(session, [feature], mapping_types))[0]
+    return map_features(session, [feature], mapping_types)[0]
 
 
 def _build_mapping_prompt(
@@ -161,7 +161,7 @@ def _merge_mapping_results(
     return results
 
 
-async def map_features(
+def map_features(
     session: ConversationSession,
     features: Sequence[PlateauFeature],
     mapping_types: Mapping[str, MappingTypeConfig] | None = None,
@@ -181,7 +181,7 @@ async def map_features(
         prompt = _build_mapping_prompt(results, {key: cfg})
         logger.debug("Requesting %s mappings for %s features", key, len(results))
         try:
-            payload = await session.ask(prompt, output_type=MappingResponse)
+            payload = session.ask(prompt, output_type=MappingResponse)
         except Exception as exc:  # pragma: no cover - logging
             logger.error("Invalid JSON from mapping response: %s", exc)
             raise ValueError("Agent returned invalid JSON") from exc

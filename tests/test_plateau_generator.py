@@ -32,9 +32,9 @@ class DummySession:
         self._responses = responses
         self.prompts: list[str] = []
 
-    async def ask(
+    def ask(
         self, prompt: str, output_type=None
-    ):  # pragma: no cover - simple proxy
+    ) -> object:  # pragma: no cover - simple proxy
         self.prompts.append(prompt)
         response = self._responses.pop(0)
         if output_type is None:
@@ -94,8 +94,7 @@ def test_build_plateau_prompt_preserves_role_placeholder(monkeypatch) -> None:
     assert "FEAT-2-{role}-{kebab-case-short-name}" in prompt
 
 
-@pytest.mark.asyncio
-async def test_generate_plateau_returns_results(monkeypatch) -> None:
+def test_generate_plateau_returns_results(monkeypatch) -> None:
     template = "{required_count} {service_name} {service_description} {plateau} {roles}"
 
     def fake_loader(name, *_, **__):
@@ -127,7 +126,7 @@ async def test_generate_plateau_returns_results(monkeypatch) -> None:
     )
     generator._service = service
 
-    plateau = await generator.generate_plateau(1, "Foundational")
+    plateau = generator.generate_plateau(1, "Foundational")
 
     assert isinstance(plateau, PlateauResult)
     assert len(plateau.features) == 3
@@ -135,8 +134,7 @@ async def test_generate_plateau_returns_results(monkeypatch) -> None:
     assert len(session.prompts) == 2
 
 
-@pytest.mark.asyncio
-async def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> None:
+def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> None:
     template = "{required_count} {service_name} {service_description} {plateau} {roles}"
 
     def fake_loader(name, *_, **__):
@@ -156,11 +154,10 @@ async def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> 
     generator._service = service
 
     with pytest.raises(ValueError):
-        await generator.generate_plateau(1, "Foundational")
+        generator.generate_plateau(1, "Foundational")
 
 
-@pytest.mark.asyncio
-async def test_generate_plateau_missing_features(monkeypatch) -> None:
+def test_generate_plateau_missing_features(monkeypatch) -> None:
     template = "{required_count} {service_name} {service_description} {plateau} {roles}"
 
     def fake_loader(name, *_, **__):
@@ -180,13 +177,12 @@ async def test_generate_plateau_missing_features(monkeypatch) -> None:
     generator._service = service
 
     with pytest.raises(ValueError) as exc:
-        await generator.generate_plateau(1, "Foundational")
+        generator.generate_plateau(1, "Foundational")
 
     assert "Expected at least" in str(exc.value)
 
 
-@pytest.mark.asyncio
-async def test_request_description_invalid_json(monkeypatch) -> None:
+def test_request_description_invalid_json(monkeypatch) -> None:
     template = "{required_count} {service_name} {service_description} {plateau} {roles}"
 
     def fake_loader(name, *_, **__):
@@ -197,13 +193,12 @@ async def test_request_description_invalid_json(monkeypatch) -> None:
     session = DummySession(["not json"])
     generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
     with pytest.raises(ValueError):
-        await generator._request_description(1)
+        generator._request_description(1)
     assert len(session.prompts) == 1
     assert session.prompts[0].startswith("desc 1")
 
 
-@pytest.mark.asyncio
-async def test_generate_service_evolution_filters(monkeypatch) -> None:
+def test_generate_service_evolution_filters(monkeypatch) -> None:
     service = ServiceInput(
         service_id="svc-1",
         name="svc",
@@ -213,7 +208,7 @@ async def test_generate_service_evolution_filters(monkeypatch) -> None:
     )
 
     class DummyAgent:
-        async def run(self, prompt, message_history):  # pragma: no cover - stub
+        def run_sync(self, prompt, message_history):  # pragma: no cover - stub
             return type("R", (), {"output": "", "new_messages": lambda: []})()
 
     session = ConversationSession(cast(Agent[None, str], DummyAgent()))
@@ -222,7 +217,7 @@ async def test_generate_service_evolution_filters(monkeypatch) -> None:
     called: list[int] = []
     sessions: set[int] = set()
 
-    async def fake_generate_plateau(self, level, plateau_name, session=None):
+    def fake_generate_plateau(self, level, plateau_name, session=None):
         called.append(level)
         sessions.add(id(session))
         feats = [
@@ -259,7 +254,7 @@ async def test_generate_service_evolution_filters(monkeypatch) -> None:
         PlateauGenerator, "generate_plateau", fake_generate_plateau, raising=False
     )
 
-    evo = await generator.generate_service_evolution(
+    evo = generator.generate_service_evolution(
         service,
         ["Foundational", "Enhanced"],
         ["learners", "academic"],

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import inspect
 import logging
 import os
 import random
@@ -146,10 +147,9 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
     logger.info("Results written to %s", output_path)
 
 
-async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
+def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
     """Generate service evolution summaries."""
 
-    # Allow CLI model override, defaulting to configured model
     model_name = args.model or settings.model
     model = build_model(
         model_name,
@@ -159,47 +159,11 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
         web_search=args.web_search,
     )
 
-    # Load and assemble the system prompt so each conversation begins with
-    # the situational context, definitions and inspirations.
     configure_prompt_dir(settings.prompt_dir)
     system_prompt = load_evolution_prompt(settings.context_id, settings.inspiration)
 
-    concurrency = args.concurrency or settings.concurrency
-    if concurrency < 1:
-        raise ValueError("concurrency must be a positive integer")
-
-    semaphore = asyncio.Semaphore(concurrency)
     roles = load_roles(Path(args.roles_file))
     role_ids = [r.role_id for r in roles]
-
-    async def process_service(service: ServiceInput) -> tuple[str, str, str]:
-        """Return the evolution JSON for ``service``.
-
-        Args:
-            service: Service specification to evolve across plateaus.
-
-        Returns:
-            A tuple of ``(service_id, service_name, json_payload)``.
-
-        The function instantiates a fresh :class:`PlateauGenerator` and
-        conversation session per service so each evolution runs in isolation and
-        does not leak chat history between services.
-        """
-
-        async with semaphore:
-            agent = Agent(model, instructions=system_prompt)
-            session = ConversationSession(agent)
-            generator = PlateauGenerator(
-                session,
-                required_count=settings.features_per_role,
-                roles=role_ids,
-            )
-            evolution = await generator.generate_service_evolution(service)
-            return (
-                service.service_id,
-                service.name,
-                evolution.model_dump_json(),
-            )
 
     output_path = Path(args.output_file)
     part_path = output_path.with_suffix(
@@ -222,29 +186,24 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
         return
 
     new_ids: set[str] = set()
-    total_services = len(services)
     show_progress = args.progress and sys.stdout.isatty()
-    progress = tqdm(total=total_services) if show_progress else None
+    progress = tqdm(total=len(services)) if show_progress else None
 
-    def _batched(seq: list[ServiceInput], size: int) -> Iterable[list[ServiceInput]]:
-        """Yield ``seq`` in lists of at most ``size`` items."""
-
-        it = iter(seq)
-        while batch := list(islice(it, size)):
-            yield batch
-
-    # Create tasks in manageable chunks to avoid scheduling every service at once.
-    batch_size = settings.batch_size or max(1, concurrency * 5)
     with open(part_path, "w", encoding="utf-8") as output:
-        for chunk in _batched(services, batch_size):
-            tasks = [asyncio.create_task(process_service(svc)) for svc in chunk]
-            for task in asyncio.as_completed(tasks):
-                svc_id, name, payload = await task
-                output.write(f"{payload}\n")
-                new_ids.add(svc_id)
-                logger.info("Generated evolution for %s", name)
-                if progress:
-                    progress.update(1)
+        for service in services:
+            agent = Agent(model, instructions=system_prompt)
+            session = ConversationSession(agent)
+            generator = PlateauGenerator(
+                session,
+                required_count=settings.features_per_role,
+                roles=role_ids,
+            )
+            evolution = generator.generate_service_evolution(service)
+            output.write(f"{evolution.model_dump_json()}\n")
+            new_ids.add(service.service_id)
+            logger.info("Generated evolution for %s", service.name)
+            if progress:
+                progress.update(1)
     if progress:
         progress.close()
 
@@ -260,11 +219,11 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
     atomic_write(processed_path, sorted(processed_ids))
 
 
-async def main_async() -> None:
+def main() -> None:
     """Parse arguments and dispatch to the requested subcommand."""
+
     settings = load_settings()
     if settings.logfire_token:
-        # Enable logfire integration when a token is provided
         init_logfire(settings.logfire_token)
 
     parser = argparse.ArgumentParser(
@@ -320,7 +279,6 @@ async def main_async() -> None:
         help="Enable web search for model browsing",
     )
 
-    # Define subcommands for the supported operations
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     amb = subparsers.add_parser(
@@ -363,26 +321,18 @@ async def main_async() -> None:
     )
     evo.set_defaults(func=_cmd_generate_evolution)
 
-    # Parse the user's command-line selections
     args = parser.parse_args()
 
     if args.seed is not None:
         random.seed(args.seed)
 
-    # Configure logging prior to executing the command
     _configure_logging(args, settings)
 
-    # Execute the requested subcommand function
-    await args.func(args, settings)
+    result = args.func(args, settings)
+    if inspect.isawaitable(result):  # pragma: no cover - depends on command
+        asyncio.run(result)
 
-
-def main() -> None:
-    """Entry point for command-line execution."""
-    try:
-        asyncio.run(main_async())
-    finally:
-        # Ensure telemetry is flushed even when errors occur
-        logfire.force_flush()
+    logfire.force_flush()
 
 
 if __name__ == "__main__":
