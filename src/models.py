@@ -11,7 +11,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Annotated, List
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, validator, conlist
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+    validator,
+    conlist,
+)
 
 SCHEMA_VERSION = "1.0"
 
@@ -21,7 +29,15 @@ class StrictModel(BaseModel):
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
 
-CMMI_LABELS = {1:"Initial",2:"Managed",3:"Defined",4:"Quantitatively Managed",5:"Optimizing"}
+
+CMMI_LABELS = {
+    1: "Initial",
+    2: "Managed",
+    3: "Defined",
+    4: "Quantitatively Managed",
+    5: "Optimizing",
+}
+
 
 class MaturityScore(BaseModel):
     level: Annotated[int, Field(ge=1, le=5, description="CMMI level (1–5).")]
@@ -31,7 +47,9 @@ class MaturityScore(BaseModel):
     @model_validator(mode="after")
     def label_matches_level(self):
         if self.label != CMMI_LABELS.get(self.level):
-            raise ValueError(f"label must match level ({self.level} → {CMMI_LABELS[self.level]})")
+            raise ValueError(
+                f"label must match level ({self.level} → {CMMI_LABELS[self.level]})"
+            )
         return self
 
 
@@ -325,6 +343,7 @@ class DescriptionResponse(StrictModel):
         ..., description="Explanation of the service at a plateau."
     )
 
+
 class FeatureItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
     feature_id: Annotated[
@@ -339,6 +358,7 @@ class FeatureItem(BaseModel):
     description: Annotated[str, Field(min_length=1)]
     score: MaturityScore
 
+
 class FeaturesBlock(BaseModel):
     model_config = ConfigDict(extra="forbid")
     # Required arrays, each with ≥5 items
@@ -346,9 +366,11 @@ class FeaturesBlock(BaseModel):
     academics: Annotated[List[FeatureItem], Field(min_length=5)]
     professional_staff: Annotated[List[FeatureItem], Field(min_length=5)]
 
+
 class PlateauFeaturesResponse(BaseModel):
     """Schema for plateau feature generation responses.
     Features are grouped by role identifier to simplify downstream rendering."""
+
     model_config = ConfigDict(extra="forbid")
     features: FeaturesBlock
 
@@ -363,6 +385,7 @@ class PlateauFeaturesResponse(BaseModel):
         if len(ids) != len(set(ids)):
             raise ValueError("feature_id values must be unique across all roles")
         return self
+
 
 def _normalize_mapping_values(
     mapping: dict[str, object],
