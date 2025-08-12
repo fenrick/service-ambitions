@@ -179,7 +179,7 @@ def test_generate_plateau_missing_features(monkeypatch) -> None:
     with pytest.raises(ValueError) as exc:
         generator.generate_plateau(1, "Foundational")
 
-    assert "Expected at least" in str(exc.value)
+    assert "invalid JSON" in str(exc.value)
 
 
 def test_request_description_invalid_json(monkeypatch) -> None:

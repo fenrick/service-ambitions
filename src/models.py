@@ -353,14 +353,13 @@ class FeatureItem(StrictModel):
 class PlateauFeaturesResponse(StrictModel):
     """Schema for plateau feature generation responses.
 
-    Features are grouped by role identifier to simplify downstream rendering. If
-    the agent omits the ``features`` key, an empty mapping is assumed so model
-    validation succeeds and downstream checks can raise descriptive errors.
+    Features are grouped by role identifier to simplify downstream rendering.
+    The ``features`` key is required and must contain arrays of feature items
+    for each role.
     """
 
     features: dict[str, list[FeatureItem]] = Field(
-        default_factory=dict,
-        description="Generated features keyed by role.",
+        ..., description="Generated features keyed by role."
     )
 
 
