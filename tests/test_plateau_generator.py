@@ -160,6 +160,32 @@ async def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> 
 
 
 @pytest.mark.asyncio
+async def test_generate_plateau_missing_features(monkeypatch) -> None:
+    template = "{required_count} {service_name} {service_description} {plateau} {roles}"
+
+    def fake_loader(name, *_, **__):
+        return template if name == "plateau_prompt" else "desc {plateau}"
+
+    monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
+    responses = [json.dumps({"description": "desc"}), "{}"]
+    session = DummySession(responses)
+    generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
+    service = ServiceInput(
+        service_id="svc-1",
+        name="svc",
+        customer_type="retail",
+        description="desc",
+        jobs_to_be_done=[{"name": "job"}],
+    )
+    generator._service = service
+
+    with pytest.raises(ValueError) as exc:
+        await generator.generate_plateau(1, "Foundational")
+
+    assert "Expected at least" in str(exc.value)
+
+
+@pytest.mark.asyncio
 async def test_request_description_invalid_json(monkeypatch) -> None:
     template = "{required_count} {service_name} {service_description} {plateau} {roles}"
 
