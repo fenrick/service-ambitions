@@ -198,6 +198,26 @@ def test_request_description_invalid_json(monkeypatch) -> None:
     assert session.prompts[0].startswith("desc 1")
 
 
+def test_request_description_strips_preamble(monkeypatch) -> None:
+    """Model-added preamble should be removed from descriptions."""
+
+    def fake_loader(name, *_, **__):
+        return "desc {plateau}" if name == "description_prompt" else ""
+
+    monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
+    payload = json.dumps(
+        {
+            "description": "Prepared plateau-1 description for svc: actual details",
+        }
+    )
+    session = DummySession([payload])
+    generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
+
+    result = generator._request_description(1)
+
+    assert result == "actual details"
+
+
 def test_generate_service_evolution_filters(monkeypatch) -> None:
     service = ServiceInput(
         service_id="svc-1",

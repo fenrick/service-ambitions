@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Sequence
 
 import logfire
@@ -104,7 +105,20 @@ class PlateauGenerator:
             raise ValueError("Agent returned invalid plateau description") from exc
         if not response.description:
             raise ValueError("'description' must be a non-empty string")
-        return response.description
+        cleaned = self._sanitize_description(response.description)
+        if not cleaned:
+            raise ValueError("'description' must be a non-empty string")
+        return cleaned
+
+    @staticmethod
+    def _sanitize_description(text: str) -> str:
+        """Remove any model-added preamble from ``text``.
+
+        Some models prepend strings like "Prepared plateau-1 description for X:"
+        before the actual description. This helper strips that prefix if present.
+        """
+        pattern = r"^Prepared plateau-\d+ description for [^:]+:\s*"
+        return re.sub(pattern, "", text, flags=re.IGNORECASE)
 
     @logfire.instrument()
     def _to_feature(self, item: FeatureItem, role: str) -> PlateauFeature:
