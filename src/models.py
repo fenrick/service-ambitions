@@ -9,9 +9,9 @@ throughout the system.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, List
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, validator, conlist
 
 SCHEMA_VERSION = "1.0"
 
@@ -20,6 +20,19 @@ class StrictModel(BaseModel):
     """Base model with strict settings to prevent shape drift."""
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
+
+CMMI_LABELS = {1:"Initial",2:"Managed",3:"Defined",4:"Quantitatively Managed",5:"Optimizing"}
+
+class MaturityScore(BaseModel):
+    level: Annotated[int, Field(ge=1, le=5, description="CMMI level (1–5).")]
+    label: Annotated[str, Field(min_length=1, description="CMMI label matching level.")]
+    justification: Annotated[str, Field(min_length=1)]
+
+    @model_validator(mode="after")
+    def label_matches_level(self):
+        if self.label != CMMI_LABELS.get(self.level):
+            raise ValueError(f"label must match level ({self.level} → {CMMI_LABELS[self.level]})")
+        return self
 
 
 class Contribution(StrictModel):
@@ -246,27 +259,6 @@ class AppConfig(StrictModel):
     )
 
 
-class MaturityScore(StrictModel):
-    """CMMI maturity assessment for a feature."""
-
-    level: Annotated[
-        int,
-        Field(
-            ge=1,
-            le=5,
-            description="CMMI maturity level where 1 is Initial and 5 Optimizing.",
-        ),
-    ]
-    label: Annotated[
-        str,
-        Field(min_length=1, description="CMMI maturity label matching the level."),
-    ]
-    justification: Annotated[
-        str,
-        Field(min_length=1, description="Reasoning behind the chosen maturity level."),
-    ]
-
-
 class PlateauFeature(StrictModel):
     """Feature assessed during a service plateau.
 
@@ -275,13 +267,11 @@ class PlateauFeature(StrictModel):
     """
 
     feature_id: Annotated[
-        str, Field(min_length=1, description="Unique identifier for the feature.")
+        str, Field(min_length=1, descriptionf="Unique identifier for the feature.")
     ]
     name: Annotated[str, Field(min_length=1, description="Feature name.")]
     description: str = Field(..., description="Explanation of the feature.")
-    score: MaturityScore = Field(
-        ..., description="CMMI maturity assessment for the feature."
-    )
+    score: MaturityScore
     customer_type: Annotated[
         str, Field(min_length=1, description="Audience that benefits from the feature.")
     ]
@@ -335,33 +325,44 @@ class DescriptionResponse(StrictModel):
         ..., description="Explanation of the service at a plateau."
     )
 
-
-class FeatureItem(StrictModel):
-    """Schema for individual plateau features returned by generation APIs."""
-
+class FeatureItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     feature_id: Annotated[
         str,
-        Field(min_length=1, description="Unique string identifier for the feature."),
+        Field(
+            min_length=1,
+            pattern=r"^FEAT-1-(learners|academics|professional_staff)-[a-z0-9]+(?:-[a-z0-9]+)*$",
+            description="Format: FEAT-1-{role}-{kebab-case-short-name}",
+        ),
     ]
-    name: Annotated[str, Field(min_length=1, description="Short feature title.")]
-    description: str = Field(..., description="Explanation of the feature.")
-    score: MaturityScore = Field(
-        ..., description="CMMI maturity assessment for the feature."
-    )
+    name: Annotated[str, Field(min_length=1)]
+    description: Annotated[str, Field(min_length=1)]
+    score: MaturityScore
 
+class FeaturesBlock(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    # Required arrays, each with ≥5 items
+    learners: Annotated[List[FeatureItem], Field(min_length=5)]
+    academics: Annotated[List[FeatureItem], Field(min_length=5)]
+    professional_staff: Annotated[List[FeatureItem], Field(min_length=5)]
 
-class PlateauFeaturesResponse(StrictModel):
+class PlateauFeaturesResponse(BaseModel):
     """Schema for plateau feature generation responses.
+    Features are grouped by role identifier to simplify downstream rendering."""
+    model_config = ConfigDict(extra="forbid")
+    features: FeaturesBlock
 
-    Features are grouped by role identifier to simplify downstream rendering.
-    The ``features`` key is required and must contain arrays of feature items
-    for each role.
-    """
-
-    features: dict[str, list[FeatureItem]] = Field(
-        ..., description="Generated features keyed by role."
-    )
-
+    @model_validator(mode="after")
+    def unique_feature_ids(self):
+        all_items = (
+            self.features.learners
+            + self.features.academics
+            + self.features.professional_staff
+        )
+        ids = [f.feature_id for f in all_items]
+        if len(ids) != len(set(ids)):
+            raise ValueError("feature_id values must be unique across all roles")
+        return self
 
 def _normalize_mapping_values(
     mapping: dict[str, object],
@@ -460,25 +461,26 @@ class MappingResponse(StrictModel):
 
 
 __all__ = [
-    "ServiceInput",
-    "ServiceFeature",
-    "ServiceFeaturePlateau",
-    "PlateauFeature",
+    "AppConfig",
     "Contribution",
-    "MaturityScore",
-    "PlateauResult",
-    "ServiceEvolution",
-    "SCHEMA_VERSION",
     "DescriptionResponse",
     "FeatureItem",
-    "PlateauFeaturesResponse",
-    "MappingFeature",
-    "AppConfig",
-    "ReasoningConfig",
-    "MappingItem",
-    "MappingTypeConfig",
-    "MappingResponse",
-    "StrictModel",
+    "FeaturesBlock",
     "JobToBeDone",
+    "MappingFeature",
+    "MappingItem",
+    "MappingResponse",
+    "MappingTypeConfig",
+    "MaturityScore",
+    "PlateauFeature",
+    "PlateauFeaturesResponse",
+    "PlateauResult",
+    "ReasoningConfig",
     "Role",
+    "SCHEMA_VERSION",
+    "ServiceEvolution",
+    "ServiceFeature",
+    "ServiceFeaturePlateau",
+    "ServiceInput",
+    "StrictModel",
 ]
