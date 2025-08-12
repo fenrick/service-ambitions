@@ -210,14 +210,10 @@ class PlateauGenerator:
                 items = payload.features.get(role, [])
                 # Fail fast if the model omitted any required features for a role.
                 if len(items) < self.required_count:
+                    # Construct a clear error message instead of returning a tuple
                     msg = (
-                        (
-                            (
-                                f"Expected at least {self.required_count} features for"
-                                f" '{role}',"
-                            ),
-                        ),
-                        f" got {len(items)}",
+                        f"Expected at least {self.required_count} features for"
+                        f" '{role}', got {len(items)}"
                     )
                     raise ValueError(msg)
             features = self._collect_features(payload)
