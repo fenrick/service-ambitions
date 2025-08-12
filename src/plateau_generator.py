@@ -132,13 +132,14 @@ class PlateauGenerator:
 
         schema = json.dumps(PlateauFeaturesResponse.model_json_schema(), indent=2)
         template = load_prompt_text("plateau_prompt")
+        roles_str = ", ".join(f'"{r}"' for r in self.roles)
         return template.format(
             required_count=self.required_count,
             service_name=self._service.name if self._service else "",
             service_description=description,
             plateau=str(level),
             schema=str(schema),
-            roles=", ".join(f'"{r}"' for r in self.roles),
+            roles=str(roles_str),
         )
 
     @logfire.instrument()

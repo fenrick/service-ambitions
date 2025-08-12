@@ -39,24 +39,24 @@ Generate service features for the {service_name} service at plateau {plateau}.
 ## Example output
 
 ```json
-{
-  "features": {
+{{
+  "features": {{
     "learners": [
-      {
+      {{
         "feature_id": "FEAT-{plateau}-learners-smart-enrolment",
         "name": "Smart enrolment",
         "description": "Students enrol through a streamlined digital process with real-time validation.",
-        "score": {
+        "score": {{
           "level": 3,
           "label": "Defined",
           "justification": "Process is documented and standardised."
-        }
-      }
+        }}
+      }}
     ],
     "academics": [],
     "professional_staff": []
-  }
-}
+  }}
+}}
 ```
 
 ## Response structure
