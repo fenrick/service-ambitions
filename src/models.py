@@ -17,8 +17,6 @@ from pydantic import (
     Field,
     field_validator,
     model_validator,
-    validator,
-    conlist,
 )
 
 SCHEMA_VERSION = "1.0"
