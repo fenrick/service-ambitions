@@ -18,7 +18,7 @@ from typing import Sequence
 import logfire
 
 from conversation import ConversationSession
-from loader import load_plateau_definitions, load_prompt_text
+from loader import load_plateau_definitions, load_prompt_text, load_roles
 from mapping import map_features
 from models import (
     DescriptionResponse,
@@ -46,9 +46,12 @@ DEFAULT_PLATEAU_MAP: dict[str, int] = {
 # Ordered list of plateau names used to iterate in ascending maturity.
 DEFAULT_PLATEAU_NAMES: list[str] = [plateau.name for plateau in _PLATEAU_DEFS]
 
-# Core customer segments targeted during feature generation. These represent the
-# default audience slices and should be updated if new segments are introduced.
-DEFAULT_CUSTOMER_TYPES: list[str] = ["learners", "academics", "professional_staff"]
+# Snapshot of role definitions sourced from configuration.
+_ROLE_DEFS = load_roles()
+
+# Core roles targeted during feature generation. These represent the default
+# audience slices and should be updated if new roles are introduced.
+DEFAULT_ROLE_IDS: list[str] = [role.role_id for role in _ROLE_DEFS]
 
 
 class PlateauGenerator:
@@ -59,17 +62,20 @@ class PlateauGenerator:
         self,
         session: ConversationSession,
         required_count: int = 5,
+        roles: Sequence[str] | None = None,
     ) -> None:
         """Initialise the generator.
 
         Args:
             session: Active conversation session for agent queries.
-            required_count: Minimum number of features per customer type.
+            required_count: Minimum number of features per role.
+            roles: Role identifiers to include during generation.
         """
         if required_count < 1:
             raise ValueError("required_count must be positive")
         self.session = session
         self.required_count = required_count
+        self.roles = list(roles or DEFAULT_ROLE_IDS)
         self._service: ServiceInput | None = None
 
     @logfire.instrument()
@@ -103,12 +109,12 @@ class PlateauGenerator:
         return response.description
 
     @logfire.instrument()
-    def _to_feature(self, item: FeatureItem, customer: str) -> PlateauFeature:
+    def _to_feature(self, item: FeatureItem, role: str) -> PlateauFeature:
         """Return a :class:`PlateauFeature` built from ``item``.
 
         Args:
             item: Raw feature details returned by the agent.
-            customer: Customer segment the feature applies to.
+            role: Role the feature applies to.
 
         Returns:
             Plateau feature populated with the provided metadata.
@@ -119,7 +125,7 @@ class PlateauGenerator:
             name=item.name,
             description=item.description,
             score=item.score,
-            customer_type=customer,
+            customer_type=role,
         )
 
     @logfire.instrument()
@@ -134,6 +140,7 @@ class PlateauGenerator:
             service_description=description,
             plateau=str(level),
             schema=str(schema),
+            roles=", ".join(f'"{r}"' for r in self.roles),
         )
 
     @logfire.instrument()
@@ -143,14 +150,12 @@ class PlateauGenerator:
         """Return PlateauFeature records extracted from ``payload``."""
 
         features: list[PlateauFeature] = []
-        for customer in ("learners", "academics", "professional_staff"):
-            with logfire.span(
-                "collect_features", attributes={"customer_type": customer}
-            ):
-                raw_features = getattr(payload, customer)
+        for role in self.roles:
+            with logfire.span("collect_features", attributes={"role": role}):
+                raw_features = payload.features.get(role, [])
                 for item in raw_features:
                     # Convert each raw item into a structured plateau feature.
-                    features.append(self._to_feature(item, customer))
+                    features.append(self._to_feature(item, role))
         return features
 
     @logfire.instrument()
@@ -169,12 +174,12 @@ class PlateauGenerator:
                 to the instance's session.
 
         The function requests a plateau-specific service description and a list
-        of features for learners, academics and professional staff. Responses
-        must contain at least ``required_count`` features for each customer
-        type. Raw features are converted to :class:`PlateauFeature` objects and
-        enriched using :func:`map_features` before being returned as part of a
-        :class:`PlateauResult`. A :class:`ValueError` is raised if the agent
-        returns invalid JSON or an insufficient number of features.
+        of features for each configured role. Responses must contain at least
+        ``required_count`` features for every role. Raw features are converted to
+        :class:`PlateauFeature` objects and enriched using :func:`map_features`
+        before being returned as part of a :class:`PlateauResult`. A
+        :class:`ValueError` is raised if the agent returns invalid JSON or an
+        insufficient number of features.
         """
         if self._service is None:
             raise ValueError(
@@ -201,17 +206,16 @@ class PlateauGenerator:
             except Exception as exc:  # pragma: no cover - logging
                 logger.error("Invalid JSON from feature response: %s", exc)
                 raise ValueError("Agent returned invalid JSON") from exc
-            for segment, items in {
-                "learners": payload.learners,
-                "academics": payload.academics,
-                "professional_staff": payload.professional_staff,
-            }.items():
-                # Fail fast if the model omitted any required features for a segment.
+            for role in self.roles:
+                items = payload.features.get(role, [])
+                # Fail fast if the model omitted any required features for a role.
                 if len(items) < self.required_count:
                     msg = (
                         (
-                            f"Expected at least {self.required_count} features for"
-                            f" '{segment}',"
+                            (
+                                f"Expected at least {self.required_count} features for"
+                                f" '{role}',"
+                            ),
                         ),
                         f" got {len(items)}",
                     )
@@ -235,20 +239,19 @@ class PlateauGenerator:
         self,
         service_input: ServiceInput,
         plateau_names: Sequence[str] | None = None,
-        customer_types: Sequence[str] | None = None,
+        role_ids: Sequence[str] | None = None,
     ) -> ServiceEvolution:
-        """Return service evolution for selected plateaus and customers.
+        """Return service evolution for selected plateaus and roles.
 
         Args:
             service_input: Service under evaluation.
             plateau_names: Optional plateau names to evaluate. Defaults to
                 :data:`DEFAULT_PLATEAU_NAMES`.
-            customer_types: Optional customer segments to include. Defaults to
-                :data:`DEFAULT_CUSTOMER_TYPES`.
+            role_ids: Optional role identifiers to include. Defaults to
+                :data:`DEFAULT_ROLE_IDS`.
 
         Returns:
-            Combined evolution limited to the default plateaus and customer
-            types.
+            Combined evolution limited to the default plateaus and roles.
 
         Side Effects:
             Stores ``service_input`` for subsequent plateau generation and seeds
@@ -266,7 +269,7 @@ class PlateauGenerator:
             self.session.add_parent_materials(service_input)
 
             plateau_names = list(plateau_names or DEFAULT_PLATEAU_NAMES)
-            customer_types = list(customer_types or DEFAULT_CUSTOMER_TYPES)
+            role_ids = list(role_ids or self.roles)
 
             async def _generate(name: str) -> PlateauResult:
                 try:
@@ -285,9 +288,7 @@ class PlateauGenerator:
             plateaus: list[PlateauResult] = []
             for result in results:
                 filtered = [
-                    feat
-                    for feat in result.features
-                    if feat.customer_type in customer_types
+                    feat for feat in result.features if feat.customer_type in role_ids
                 ]
                 plateaus.append(
                     PlateauResult(

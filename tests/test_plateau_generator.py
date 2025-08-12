@@ -62,13 +62,19 @@ def _feature_payload(count: int) -> str:
         }
         for i in range(count)
     ]
-    payload = {"learners": items, "academics": items, "professional_staff": items}
+    payload = {
+        "features": {
+            "learners": items,
+            "academics": items,
+            "professional_staff": items,
+        }
+    }
     return json.dumps(payload)
 
 
 @pytest.mark.asyncio
 async def test_generate_plateau_returns_results(monkeypatch) -> None:
-    template = "{required_count} {service_name} {service_description} {plateau}"
+    template = "{required_count} {service_name} {service_description} {plateau} {roles}"
 
     def fake_loader(name, *_, **__):
         return template if name == "plateau_prompt" else "desc {plateau}"
@@ -109,7 +115,7 @@ async def test_generate_plateau_returns_results(monkeypatch) -> None:
 
 @pytest.mark.asyncio
 async def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> None:
-    template = "{required_count} {service_name} {service_description} {plateau}"
+    template = "{required_count} {service_name} {service_description} {plateau} {roles}"
 
     def fake_loader(name, *_, **__):
         return template if name == "plateau_prompt" else "desc {plateau}"
@@ -133,7 +139,7 @@ async def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> 
 
 @pytest.mark.asyncio
 async def test_request_description_invalid_json(monkeypatch) -> None:
-    template = "{required_count} {service_name} {service_description} {plateau}"
+    template = "{required_count} {service_name} {service_description} {plateau} {roles}"
 
     def fake_loader(name, *_, **__):
         return template if name == "plateau_prompt" else "desc {plateau}"

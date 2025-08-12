@@ -51,7 +51,13 @@ def _feature_payload(count: int) -> str:
         }
         for i in range(count)
     ]
-    payload = {"learners": items, "academics": items, "professional_staff": items}
+    payload = {
+        "features": {
+            "learners": items,
+            "academics": items,
+            "professional_staff": items,
+        }
+    }
     return json.dumps(payload)
 
 
@@ -83,7 +89,7 @@ async def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
         return results
 
     monkeypatch.setattr("plateau_generator.map_features", _fake_map_features)
-    template = "{required_count} {service_name} {service_description} {plateau}"
+    template = "{required_count} {service_name} {service_description} {plateau} {roles}"
 
     def fake_loader(name, *_, **__):
         return template if name == "plateau_prompt" else "desc {plateau}"

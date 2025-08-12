@@ -15,12 +15,12 @@ Generate service features for the {service_name} service at plateau {plateau}.
 - Use short, simple sentences and active voice.
 - Avoid unnecessary jargon or “consultant speak” – explain concepts in layperson’s terms unless technical detail is needed.
 - If you must use technical terms or acronyms, briefly describe them for clarity.
-- Return a single JSON object with three keys: "learners", "academics" and "professional_staff".
+- Return a single JSON object with keys for each role: {roles}.
 - Each key must map to an array containing at least {required_count} feature objects.
 - Every feature must provide:
     - "feature_id": unique string identifier.
-        - Format: "FEAT-{plateau}-{segment}-{kebab-case-short-name}" (e.g., FEAT-2-learners-smart-enrolment).
-        - Ensure IDs are unique across all segments in this response.
+        - Format: "FEAT-{plateau}-{role}-{kebab-case-short-name}" (e.g., FEAT-2-learners-smart-enrolment).
+        - Ensure IDs are unique across all roles in this response.
     - "name": short feature title.
     - "description": explanation of the feature.
     - "score": object describing CMMI maturity with:

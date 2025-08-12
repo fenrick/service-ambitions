@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     retry_base_delay: float = Field(
         0.5, gt=0, description="Initial backoff delay in seconds."
     )
+    features_per_role: int = Field(
+        5, ge=1, description="Required number of features per role."
+    )
     openai_api_key: str = Field(..., description="OpenAI API access token.")
     logfire_token: str | None = Field(
         None, description="Logfire authentication token, if available."
@@ -78,6 +81,7 @@ def load_settings() -> Settings:
         "request_timeout": config.request_timeout,
         "retries": config.retries,
         "retry_base_delay": config.retry_base_delay,
+        "features_per_role": config.features_per_role,
     }
     env_file = Path(".env")
     env_kwargs = {"_env_file": env_file} if env_file.exists() else {}

@@ -20,6 +20,7 @@ from models import (
     AppConfig,
     MappingItem,
     MappingTypeConfig,
+    Role,
     ServiceFeaturePlateau,
     ServiceInput,
 )
@@ -216,6 +217,34 @@ def load_plateau_definitions(
     except Exception as exc:  # pylint: disable=broad-except
         logger.error("Invalid plateau definition data in %s: %s", path, exc)
         raise RuntimeError(f"Invalid plateau definitions: {exc}") from exc
+
+
+@lru_cache(maxsize=None)
+@logfire.instrument()
+def load_roles(
+    base_dir: Path | str = Path("data"),
+    filename: Path | str = Path("roles.json"),
+) -> list[Role]:
+    """Return role definitions from ``base_dir``.
+
+    Args:
+        base_dir: Directory containing data files.
+        filename: Roles definitions file name.
+
+    Returns:
+        List of :class:`Role` records.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        RuntimeError: If the file cannot be read or parsed.
+    """
+
+    path = Path(base_dir) / Path(filename)
+    try:
+        return _read_json_file(path, list[Role])
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.error("Invalid role data in %s: %s", path, exc)
+        raise RuntimeError(f"Invalid roles: {exc}") from exc
 
 
 @lru_cache(maxsize=None)
