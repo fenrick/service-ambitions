@@ -6,7 +6,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
-import pytest
 from pydantic_ai import Agent  # noqa: E402  pylint: disable=wrong-import-position
 
 from conversation import (
@@ -32,7 +31,7 @@ class DummyAgent:
         self._responses = responses
         self.prompts: list[str] = []
 
-    async def run(self, prompt: str, message_history):  # pragma: no cover - stub
+    def run_sync(self, prompt: str, message_history):  # pragma: no cover - stub
         self.prompts.append(prompt)
         return SimpleNamespace(output=self._responses.pop(0), new_messages=lambda: [])
 
@@ -61,8 +60,7 @@ def _feature_payload(count: int) -> str:
     return json.dumps(payload)
 
 
-@pytest.mark.asyncio
-async def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
+def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
     """``generate_service_evolution`` should aggregate all plateaus."""
 
     responses: list[str] = []
@@ -103,7 +101,7 @@ async def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
         description="desc",
         jobs_to_be_done=[{"name": "job"}],
     )
-    evolution = await generator.generate_service_evolution(
+    evolution = generator.generate_service_evolution(
         service,
         ["Foundational", "Enhanced", "Experimental", "Disruptive"],
         ["learners", "academics", "professional_staff"],

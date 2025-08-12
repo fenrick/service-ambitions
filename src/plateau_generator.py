@@ -9,8 +9,6 @@ history into another while still reusing the same underlying agent.
 
 from __future__ import annotations
 
-import asyncio
-import inspect
 import json
 import logging
 from typing import Sequence
@@ -79,7 +77,7 @@ class PlateauGenerator:
         self._service: ServiceInput | None = None
 
     @logfire.instrument()
-    async def _request_description(
+    def _request_description(
         self, level: int, session: ConversationSession | None = None
     ) -> str:
         """Return the service description for ``level``.
@@ -100,7 +98,7 @@ class PlateauGenerator:
         # Query the model using the provided conversation session so the
         # description becomes part of the chat history for that plateau only.
         try:
-            response = await session.ask(prompt, output_type=DescriptionResponse)
+            response = session.ask(prompt, output_type=DescriptionResponse)
         except Exception as exc:  # pragma: no cover - logging
             logger.error("Invalid plateau description: %s", exc)
             raise ValueError("Agent returned invalid plateau description") from exc
@@ -159,7 +157,7 @@ class PlateauGenerator:
         return features
 
     @logfire.instrument()
-    async def generate_plateau(
+    def generate_plateau(
         self,
         level: int,
         plateau_name: str,
@@ -195,14 +193,14 @@ class PlateauGenerator:
             span.set_attribute("plateau", level)
 
             # Ask the model to describe the service at the specified plateau level.
-            description = await self._request_description(level, session)
+            description = self._request_description(level, session)
             prompt = self._build_plateau_prompt(level, description)
             logger.info("Requesting features for level=%s", level)
 
             # Generate features within the provided conversation session so
             # history is isolated per plateau.
             try:
-                payload = await session.ask(prompt, output_type=PlateauFeaturesResponse)
+                payload = session.ask(prompt, output_type=PlateauFeaturesResponse)
             except Exception as exc:  # pragma: no cover - logging
                 logger.error("Invalid JSON from feature response: %s", exc)
                 raise ValueError("Agent returned invalid JSON") from exc
@@ -218,11 +216,7 @@ class PlateauGenerator:
                     raise ValueError(msg)
             features = self._collect_features(payload)
             # Enrich the raw features with mapping information before returning.
-            mapped_result = map_features(session, features)
-            if inspect.isawaitable(mapped_result):
-                mapped = await mapped_result
-            else:
-                mapped = mapped_result
+            mapped = map_features(session, features)
             return PlateauResult(
                 plateau=level,
                 plateau_name=plateau_name,
@@ -231,7 +225,7 @@ class PlateauGenerator:
             )
 
     @logfire.instrument()
-    async def generate_service_evolution(
+    def generate_service_evolution(
         self,
         service_input: ServiceInput,
         plateau_names: Sequence[str] | None = None,
@@ -267,7 +261,8 @@ class PlateauGenerator:
             plateau_names = list(plateau_names or DEFAULT_PLATEAU_NAMES)
             role_ids = list(role_ids or self.roles)
 
-            async def _generate(name: str) -> PlateauResult:
+            plateaus: list[PlateauResult] = []
+            for name in plateau_names:
                 try:
                     level = DEFAULT_PLATEAU_MAP[name]
                 except KeyError as exc:  # pragma: no cover - checked by tests
@@ -277,12 +272,8 @@ class PlateauGenerator:
                 # to prevent cross-plateau chatter.
                 plateau_session = ConversationSession(self.session.client)
                 plateau_session.add_parent_materials(service_input)
-                return await self.generate_plateau(level, name, session=plateau_session)
+                result = self.generate_plateau(level, name, session=plateau_session)
 
-            results = await asyncio.gather(*[_generate(name) for name in plateau_names])
-
-            plateaus: list[PlateauResult] = []
-            for result in results:
                 filtered = [
                     feat for feat in result.features if feat.customer_type in role_ids
                 ]

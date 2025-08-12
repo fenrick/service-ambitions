@@ -3,8 +3,8 @@
 This module exposes :class:`ConversationSession`, a light abstraction over a
 Pydantic-AI ``Agent``. The session records message history so that each prompt
 retains prior context and can be seeded with service details via
-``add_parent_materials``. The asynchronous :meth:`ask` method delegates to the
-underlying agent without spawning a new event loop per call.
+``add_parent_materials``. The :meth:`ask` method delegates to the underlying
+agent without relying on asynchronous execution.
 """
 
 from __future__ import annotations
@@ -59,13 +59,13 @@ class ConversationSession:
     T = TypeVar("T")
 
     @overload
-    async def ask(self, prompt: str) -> str: ...
+    def ask(self, prompt: str) -> str: ...
 
     @overload
-    async def ask(self, prompt: str, output_type: type[T]) -> T: ...
+    def ask(self, prompt: str, output_type: type[T]) -> T: ...
 
     @logfire.instrument()
-    async def ask(self, prompt: str, output_type: type[T] | None = None) -> T | str:
+    def ask(self, prompt: str, output_type: type[T] | None = None) -> T | str:
         """Return the agent's response to ``prompt``.
 
         The prompt together with accumulated message history is forwarded to the
@@ -83,7 +83,7 @@ class ConversationSession:
         """
 
         logger.debug("Sending prompt: %s", prompt)
-        result = await self.client.run(
+        result = self.client.run_sync(
             prompt, message_history=self._history, output_type=output_type
         )
         self._history.extend(result.new_messages())
