@@ -11,7 +11,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Annotated, List
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, validator, conlist
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 SCHEMA_VERSION = "1.0"
 
@@ -21,7 +27,15 @@ class StrictModel(BaseModel):
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
 
-CMMI_LABELS = {1:"Initial",2:"Managed",3:"Defined",4:"Quantitatively Managed",5:"Optimizing"}
+
+CMMI_LABELS = {
+    1: "Initial",
+    2: "Managed",
+    3: "Defined",
+    4: "Quantitatively Managed",
+    5: "Optimizing",
+}
+
 
 class MaturityScore(BaseModel):
     level: Annotated[int, Field(ge=1, le=5, description="CMMI level (1–5).")]
@@ -31,7 +45,9 @@ class MaturityScore(BaseModel):
     @model_validator(mode="after")
     def label_matches_level(self):
         if self.label != CMMI_LABELS.get(self.level):
-            raise ValueError(f"label must match level ({self.level} → {CMMI_LABELS[self.level]})")
+            raise ValueError(
+                f"label must match level ({self.level} → {CMMI_LABELS[self.level]})"
+            )
         return self
 
 
@@ -267,7 +283,7 @@ class PlateauFeature(StrictModel):
     """
 
     feature_id: Annotated[
-        str, Field(min_length=1, descriptionf="Unique identifier for the feature.")
+        str, Field(min_length=1, description="Unique identifier for the feature.")
     ]
     name: Annotated[str, Field(min_length=1, description="Feature name.")]
     description: str = Field(..., description="Explanation of the feature.")
@@ -325,19 +341,21 @@ class DescriptionResponse(StrictModel):
         ..., description="Explanation of the service at a plateau."
     )
 
+
 class FeatureItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
     feature_id: Annotated[
         str,
         Field(
             min_length=1,
-            pattern=r"^FEAT-1-(learners|academics|professional_staff)-[a-z0-9]+(?:-[a-z0-9]+)*$",
-            description="Format: FEAT-1-{role}-{kebab-case-short-name}",
+            pattern=r"^FEAT-\d+-(learners|academics|professional_staff)-[a-z0-9]+(?:-[a-z0-9]+)*$",
+            description="Format: FEAT-{plateau}-{role}-{kebab-case-short-name}",
         ),
     ]
     name: Annotated[str, Field(min_length=1)]
     description: Annotated[str, Field(min_length=1)]
     score: MaturityScore
+
 
 class FeaturesBlock(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -346,9 +364,11 @@ class FeaturesBlock(BaseModel):
     academics: Annotated[List[FeatureItem], Field(min_length=5)]
     professional_staff: Annotated[List[FeatureItem], Field(min_length=5)]
 
+
 class PlateauFeaturesResponse(BaseModel):
     """Schema for plateau feature generation responses.
     Features are grouped by role identifier to simplify downstream rendering."""
+
     model_config = ConfigDict(extra="forbid")
     features: FeaturesBlock
 
@@ -363,6 +383,7 @@ class PlateauFeaturesResponse(BaseModel):
         if len(ids) != len(set(ids)):
             raise ValueError("feature_id values must be unique across all roles")
         return self
+
 
 def _normalize_mapping_values(
     mapping: dict[str, object],
