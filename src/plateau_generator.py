@@ -165,7 +165,10 @@ class PlateauGenerator:
         features: list[PlateauFeature] = []
         for role in self.roles:
             with logfire.span("collect_features", attributes={"role": role}):
-                raw_features = payload.features.get(role, [])
+                # ``PlateauFeaturesResponse.features`` is a ``FeaturesBlock``
+                # model, not a dictionary. Retrieve role-specific items with
+                # ``getattr`` to avoid attribute errors when roles are absent.
+                raw_features = getattr(payload.features, role, [])
                 for item in raw_features:
                     # Convert each raw item into a structured plateau feature.
                     features.append(self._to_feature(item, role))
@@ -220,7 +223,10 @@ class PlateauGenerator:
                 logger.error("Invalid JSON from feature response: %s", exc)
                 raise ValueError("Agent returned invalid JSON") from exc
             for role in self.roles:
-                items = payload.features.get(role, [])
+                # ``payload.features`` uses attribute access rather than a
+                # dictionary interface. ``getattr`` gracefully falls back to an
+                # empty list when the expected role is missing.
+                items = getattr(payload.features, role, [])
                 # Fail fast if the model omitted any required features for a role.
                 if len(items) < self.required_count:
                     # Construct a clear error message instead of returning a tuple
