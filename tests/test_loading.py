@@ -11,6 +11,7 @@ from loader import (
     load_plateau_definitions,
     load_prompt,
     load_prompt_text,
+    load_roles,
     load_services,
 )
 from models import JobToBeDone
@@ -168,6 +169,19 @@ def test_load_plateau_definitions(tmp_path):
     )
     plateaus = load_plateau_definitions(str(base))
     assert plateaus[0].name == "Alpha"
+
+
+def test_load_roles_accepts_file_path(tmp_path):
+    """``load_roles`` accepts a direct file path or a data directory."""
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    roles_file = data_dir / "roles.json"
+    roles_file.write_text('[{"role_id": "r1", "label": "Role"}]', encoding="utf-8")
+
+    from_dir = load_roles(str(data_dir))
+    from_file = load_roles(str(roles_file))
+    assert from_dir == from_file
+    assert from_file[0].role_id == "r1"
 
 
 def test_load_services_reads_jsonl(tmp_path):
