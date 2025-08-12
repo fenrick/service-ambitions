@@ -30,7 +30,7 @@ class DummyAgent:
         self.called_with: list[str] = []
 
     async def run(
-        self, prompt: str, message_history: list[str]
+        self, prompt: str, message_history: list[str], output_type=None
     ):  # pragma: no cover - simple stub
         self.called_with.append(prompt)
         return SimpleNamespace(output="pong", new_messages=lambda: ["msg"])

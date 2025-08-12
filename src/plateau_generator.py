@@ -13,7 +13,6 @@ import asyncio
 import inspect
 import json
 import logging
-import re
 from typing import Sequence
 
 import logfire
@@ -50,20 +49,6 @@ DEFAULT_PLATEAU_NAMES: list[str] = [plateau.name for plateau in _PLATEAU_DEFS]
 # Core customer segments targeted during feature generation. These represent the
 # default audience slices and should be updated if new segments are introduced.
 DEFAULT_CUSTOMER_TYPES: list[str] = ["learners", "academics", "professional_staff"]
-
-
-def _strip_code_fences(payload: str) -> str:
-    """Return ``payload`` with surrounding Markdown code fences removed.
-
-    Models occasionally wrap JSON in triple backticks. Downstream parsing expects
-    raw JSON, so this function extracts the inner content when fences are
-    present.
-    """
-
-    match = re.search(r"```(?:json)?\s*(.*?)\s*```", payload.strip(), re.DOTALL)
-    if match:  # Extract content between the first pair of fences
-        return match.group(1)
-    return payload
 
 
 class PlateauGenerator:
@@ -108,17 +93,14 @@ class PlateauGenerator:
 
         # Query the model using the provided conversation session so the
         # description becomes part of the chat history for that plateau only.
-        response = await session.ask(prompt)
-        # Remove Markdown fences if the model wrapped the JSON payload.
-        response = _strip_code_fences(response)
         try:
-            description = DescriptionResponse.model_validate_json(response).description
+            response = await session.ask(prompt, output_type=DescriptionResponse)
         except Exception as exc:  # pragma: no cover - logging
             logger.error("Invalid plateau description: %s", exc)
             raise ValueError("Agent returned invalid plateau description") from exc
-        if not description:
+        if not response.description:
             raise ValueError("'description' must be a non-empty string")
-        return description
+        return response.description
 
     @logfire.instrument()
     def _to_feature(self, item: FeatureItem, customer: str) -> PlateauFeature:
@@ -153,18 +135,6 @@ class PlateauGenerator:
             plateau=str(level),
             schema=str(schema),
         )
-
-    @staticmethod
-    @logfire.instrument()
-    def _parse_feature_payload(response: str) -> PlateauFeaturesResponse:
-        """Return validated plateau feature details."""
-
-        clean = _strip_code_fences(response)
-        try:
-            return PlateauFeaturesResponse.model_validate_json(clean)
-        except Exception as exc:  # pragma: no cover - logging
-            logger.error("Invalid JSON from feature response: %s", exc)
-            raise ValueError("Agent returned invalid JSON") from exc
 
     @logfire.instrument()
     def _collect_features(
@@ -226,8 +196,11 @@ class PlateauGenerator:
 
             # Generate features within the provided conversation session so
             # history is isolated per plateau.
-            response = await session.ask(prompt)
-            payload = self._parse_feature_payload(response)
+            try:
+                payload = await session.ask(prompt, output_type=PlateauFeaturesResponse)
+            except Exception as exc:  # pragma: no cover - logging
+                logger.error("Invalid JSON from feature response: %s", exc)
+                raise ValueError("Agent returned invalid JSON") from exc
             for segment, items in {
                 "learners": payload.learners,
                 "academics": payload.academics,

@@ -32,10 +32,14 @@ class DummySession:
         self._responses = responses
         self.prompts: list[str] = []
 
-    async def ask(self, prompt: str) -> str:  # pragma: no cover - simple proxy
+    async def ask(
+        self, prompt: str, output_type=None
+    ):  # pragma: no cover - simple proxy
         self.prompts.append(prompt)
-        # Pop from the front so responses are returned in the order queued.
-        return self._responses.pop(0)
+        response = self._responses.pop(0)
+        if output_type is None:
+            return response
+        return output_type.model_validate_json(response)
 
     def add_parent_materials(
         self, service_input: ServiceInput
@@ -142,35 +146,6 @@ async def test_request_description_invalid_json(monkeypatch) -> None:
         await generator._request_description(1)
     assert len(session.prompts) == 1
     assert session.prompts[0].startswith("desc 1")
-
-
-@pytest.mark.asyncio
-async def test_request_description_strips_code_fence(monkeypatch) -> None:
-    """The generator should parse JSON wrapped in Markdown fences."""
-
-    def fake_loader(name, *_, **__):
-        return "desc {plateau}"
-
-    monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
-    response = '```json\n{"description": "hello"}\n```'
-    session = DummySession([response])
-    generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
-
-    description = await generator._request_description(1)
-
-    assert description == "hello"
-    assert session.prompts[0].startswith("desc 1")
-
-
-def test_parse_feature_payload_strips_code_fence() -> None:
-    """Feature payload parsing should ignore surrounding code fences."""
-
-    payload = _feature_payload(1)
-    fenced = f"```json\n{payload}\n```"
-
-    result = PlateauGenerator._parse_feature_payload(fenced)
-
-    assert len(result.learners) == 1
 
 
 @pytest.mark.asyncio

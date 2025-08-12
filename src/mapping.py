@@ -114,16 +114,6 @@ def _build_mapping_prompt(
     )
 
 
-def _parse_mapping_response(response: str) -> MappingResponse:
-    """Return a validated mapping response."""
-
-    try:
-        return MappingResponse.model_validate_json(response)
-    except Exception as exc:  # pragma: no cover - logging
-        logger.error("Invalid JSON from mapping response: %s", exc)
-        raise ValueError("Agent returned invalid JSON") from exc
-
-
 def _merge_mapping_results(
     features: Sequence[PlateauFeature],
     payload: MappingResponse,
@@ -190,9 +180,11 @@ async def map_features(
     for key, cfg in mapping_types.items():
         prompt = _build_mapping_prompt(results, {key: cfg})
         logger.debug("Requesting %s mappings for %s features", key, len(results))
-        response = await session.ask(prompt)
-        logger.debug("Raw %s mapping response: %s", key, response)
-        payload = _parse_mapping_response(response)
+        try:
+            payload = await session.ask(prompt, output_type=MappingResponse)
+        except Exception as exc:  # pragma: no cover - logging
+            logger.error("Invalid JSON from mapping response: %s", exc)
+            raise ValueError("Agent returned invalid JSON") from exc
         results = _merge_mapping_results(results, payload, {key: cfg})
 
     return results

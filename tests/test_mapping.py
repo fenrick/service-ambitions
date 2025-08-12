@@ -19,9 +19,12 @@ class DummySession:
         self._responses = iter(responses)
         self.prompts: list[str] = []
 
-    async def ask(self, prompt: str) -> str:  # pragma: no cover - trivial
+    async def ask(self, prompt: str, output_type=None):  # pragma: no cover - trivial
         self.prompts.append(prompt)
-        return next(self._responses)
+        response = next(self._responses)
+        if output_type is None:
+            return response
+        return output_type.model_validate_json(response)
 
 
 @pytest.mark.asyncio
