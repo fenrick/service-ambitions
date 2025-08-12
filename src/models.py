@@ -63,6 +63,16 @@ class JobToBeDone(StrictModel):
     model_config = ConfigDict(extra="allow", str_strip_whitespace=True)
 
 
+class Role(StrictModel):
+    """Role that benefits from generated service features."""
+
+    role_id: Annotated[str, Field(min_length=1, description="Unique role identifier.")]
+    name: Annotated[str, Field(min_length=1, description="Human readable role name.")]
+    description: Annotated[
+        str, Field(min_length=1, description="Explanation of the role.")
+    ]
+
+
 class ServiceInput(StrictModel):
     """Basic description of a service under consideration.
 
@@ -226,6 +236,10 @@ class AppConfig(StrictModel):
         float,
         Field(gt=0, description="Initial backoff delay in seconds."),
     ] = 0.5
+    features_per_role: Annotated[
+        int,
+        Field(ge=1, description="Required number of features per role."),
+    ] = 5
     mapping_types: dict[str, MappingTypeConfig] = Field(
         default_factory=dict,
         description="Mapping type definitions keyed by field name.",
@@ -339,13 +353,11 @@ class FeatureItem(StrictModel):
 class PlateauFeaturesResponse(StrictModel):
     """Schema for plateau feature generation responses.
 
-    Features are grouped by audience segment to simplify downstream rendering.
+    Features are grouped by role identifier to simplify downstream rendering.
     """
 
-    learners: list[FeatureItem] = Field(..., description="Features for learners.")
-    academics: list[FeatureItem] = Field(..., description="Features for academics.")
-    professional_staff: list[FeatureItem] = Field(
-        ..., description="Features for professional staff."
+    features: dict[str, list[FeatureItem]] = Field(
+        ..., description="Generated features keyed by role."
     )
 
 
@@ -466,4 +478,5 @@ __all__ = [
     "MappingResponse",
     "StrictModel",
     "JobToBeDone",
+    "Role",
 ]

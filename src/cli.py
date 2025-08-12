@@ -23,6 +23,7 @@ from loader import (
     load_ambition_prompt,
     load_evolution_prompt,
     load_plateau_definitions,
+    load_roles,
     load_services,
 )
 from models import ServiceInput
@@ -168,6 +169,8 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
         raise ValueError("concurrency must be a positive integer")
 
     semaphore = asyncio.Semaphore(concurrency)
+    roles = load_roles(Path(args.roles_file))
+    role_ids = [r.role_id for r in roles]
 
     async def process_service(service: ServiceInput) -> tuple[str, str, str]:
         """Return the evolution JSON for ``service``.
@@ -186,7 +189,11 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
         async with semaphore:
             agent = Agent(model, instructions=system_prompt)
             session = ConversationSession(agent)
-            generator = PlateauGenerator(session)
+            generator = PlateauGenerator(
+                session,
+                required_count=settings.features_per_role,
+                roles=role_ids,
+            )
             evolution = await generator.generate_service_evolution(service)
             return (
                 service.service_id,
@@ -348,6 +355,11 @@ async def main_async() -> None:
         "--output-file",
         default="evolution.jsonl",
         help="File to write the results",
+    )
+    evo.add_argument(
+        "--roles-file",
+        default="data/roles.json",
+        help="Path to the roles definition JSON file",
     )
     evo.set_defaults(func=_cmd_generate_evolution)
 

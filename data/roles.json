@@ -1,0 +1,17 @@
+[
+  {
+    "role_id": "learners",
+    "name": "Learners",
+    "description": "People engaged in learning activities."
+  },
+  {
+    "role_id": "academics",
+    "name": "Academics",
+    "description": "Academic staff involved in teaching and research."
+  },
+  {
+    "role_id": "professional_staff",
+    "name": "Professional staff",
+    "description": "Non-academic staff supporting operations."
+  }
+]

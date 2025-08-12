@@ -65,6 +65,7 @@ async def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         context_id="university",
         inspiration="general",
         reasoning=None,
+        features_per_role=5,
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -79,6 +80,7 @@ async def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         concurrency=None,
         resume=False,
         seed=None,
+        roles_file="data/roles.json",
     )
 
     await _cmd_generate_evolution(args, settings)
@@ -152,6 +154,7 @@ async def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> Non
         context_id="ctx",
         inspiration="insp",
         reasoning=None,
+        features_per_role=5,
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -166,6 +169,7 @@ async def test_generate_evolution_uses_agent_model(tmp_path, monkeypatch) -> Non
         concurrency=None,
         resume=False,
         seed=None,
+        roles_file="data/roles.json",
     )
 
     await _cmd_generate_evolution(args, settings)
@@ -247,6 +251,7 @@ async def test_generate_evolution_respects_concurrency(tmp_path, monkeypatch) ->
         context_id="ctx",
         inspiration="insp",
         reasoning=None,
+        features_per_role=5,
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -261,6 +266,7 @@ async def test_generate_evolution_respects_concurrency(tmp_path, monkeypatch) ->
         concurrency=None,
         resume=False,
         seed=None,
+        roles_file="data/roles.json",
     )
 
     await _cmd_generate_evolution(args, settings)
@@ -316,6 +322,7 @@ async def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         context_id="ctx",
         inspiration="insp",
         reasoning=None,
+        features_per_role=5,
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -330,6 +337,7 @@ async def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         concurrency=None,
         resume=False,
         seed=None,
+        roles_file="data/roles.json",
     )
 
     await _cmd_generate_evolution(args, settings)
@@ -393,6 +401,7 @@ async def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         context_id="ctx",
         inspiration="insp",
         reasoning=None,
+        features_per_role=5,
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -407,6 +416,7 @@ async def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         concurrency=None,
         resume=True,
         seed=None,
+        roles_file="data/roles.json",
     )
 
     await _cmd_generate_evolution(args, settings)

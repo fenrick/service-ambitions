@@ -21,6 +21,7 @@ def test_load_settings_reads_env(monkeypatch) -> None:
     assert settings.request_timeout == 60
     assert settings.retries == 5
     assert settings.retry_base_delay == 0.5
+    assert settings.features_per_role == 5
     assert settings.reasoning is not None
     assert settings.reasoning.effort == "medium"
 

@@ -3,8 +3,8 @@
 The evolution workflow spans the plateaus defined in
 `data/service_feature_plateaus.json`, issuing three calls per plateau
 (description, features, mapping). The CLI evaluates all plateaus in this file
-alongside all customer segments. Plateau name to level mappings are derived
-from the order of the JSON entries.
+alongside all roles defined in `data/roles.json`. Plateau name to level mappings
+are derived from the order of the JSON entries.
 
 ## Running
 
@@ -16,8 +16,11 @@ poetry run service-ambitions generate-evolution \
   --output-file evolution.jsonl
 ```
 
+Use `--roles-file` to supply an alternative roles definition file when needed.
+
 Services are processed in batches controlled by the `batch_size` setting in
-`config/app.json` to avoid scheduling all tasks at once.
+`config/app.json` to avoid scheduling all tasks at once. The required number of
+features per role comes from the `features_per_role` setting in the same file.
 
 Include `--seed <value>` to make backoff jitter and model sampling
 deterministic when supported by the provider.
