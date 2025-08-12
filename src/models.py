@@ -283,7 +283,7 @@ class PlateauFeature(StrictModel):
     """
 
     feature_id: Annotated[
-        str, Field(min_length=1, descriptionf="Unique identifier for the feature.")
+        str, Field(min_length=1, description="Unique identifier for the feature.")
     ]
     name: Annotated[str, Field(min_length=1, description="Feature name.")]
     description: str = Field(..., description="Explanation of the feature.")
@@ -348,8 +348,8 @@ class FeatureItem(BaseModel):
         str,
         Field(
             min_length=1,
-            pattern=r"^FEAT-1-(learners|academics|professional_staff)-[a-z0-9]+(?:-[a-z0-9]+)*$",
-            description="Format: FEAT-1-{role}-{kebab-case-short-name}",
+            pattern=r"^FEAT-\d+-(learners|academics|professional_staff)-[a-z0-9]+(?:-[a-z0-9]+)*$",
+            description="Format: FEAT-{plateau}-{role}-{kebab-case-short-name}",
         ),
     ]
     name: Annotated[str, Field(min_length=1)]

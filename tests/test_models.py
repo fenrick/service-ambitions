@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from models import (  # noqa: E402  pylint: disable=wrong-import-position
     Contribution,
+    FeatureItem,
     MappingResponse,
     MaturityScore,
     PlateauFeature,
@@ -58,6 +59,31 @@ def test_plateau_feature_validates_score() -> None:
             description="D",
             score=MaturityScore(level=6, label="Invalid", justification="bad"),
             customer_type="learners",
+        )
+
+
+def test_feature_item_accepts_plateau_numbers() -> None:
+    """Feature IDs should include plateau numbers."""
+
+    item = FeatureItem(
+        feature_id="FEAT-2-learners-sample",
+        name="n",
+        description="d",
+        score=MaturityScore(level=1, label="Initial", justification="j"),
+    )
+
+    assert item.feature_id.startswith("FEAT-2")
+
+
+def test_feature_item_rejects_invalid_ids() -> None:
+    """Nonconforming feature IDs should raise ``ValidationError``."""
+
+    with pytest.raises(ValidationError):
+        FeatureItem(
+            feature_id="FEAT-X-learners-test",
+            name="n",
+            description="d",
+            score=MaturityScore(level=1, label="Initial", justification="j"),
         )
 
 
