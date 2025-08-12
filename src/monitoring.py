@@ -90,10 +90,6 @@ def init_logfire(token: str | None = None) -> None:
         if instrument:
             instrument()
 
-    installer = getattr(logfire, "install_auto_tracing", None)
-    if installer:
-        installer([], min_duration=0)
-
     handler_cls = getattr(logfire, "LogfireLoggingHandler", None)
     if handler_cls:
         # Replace any existing handlers to prevent duplicate log output.
