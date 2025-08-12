@@ -225,11 +225,11 @@ def load_roles(
     base_dir: Path | str = Path("data"),
     filename: Path | str = Path("roles.json"),
 ) -> list[Role]:
-    """Return role definitions from ``base_dir``.
+    """Return role definitions from ``base_dir`` or a direct file path.
 
     Args:
-        base_dir: Directory containing data files.
-        filename: Roles definitions file name.
+        base_dir: Directory containing data files or the roles file itself.
+        filename: Roles definitions file name when ``base_dir`` is a directory.
 
     Returns:
         List of :class:`Role` records.
@@ -239,7 +239,10 @@ def load_roles(
         RuntimeError: If the file cannot be read or parsed.
     """
 
-    path = Path(base_dir) / Path(filename)
+    base_path = Path(base_dir)
+    # If ``base_dir`` points to a directory append ``filename``; otherwise treat
+    # it as the full path to the roles file.
+    path = base_path / Path(filename) if base_path.is_dir() else base_path
     try:
         return _read_json_file(path, list[Role])
     except Exception as exc:  # pylint: disable=broad-except
