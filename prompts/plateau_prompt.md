@@ -16,8 +16,9 @@ Generate service features for the {service_name} service at plateau {plateau}.
 - Use short, simple sentences and active voice.
 - Avoid unnecessary jargon or “consultant speak” – explain concepts in layperson’s terms unless technical detail is needed.
 - If you must use technical terms or acronyms, briefly describe them for clarity.
-- Return a single JSON object with keys for each role: {roles}.
-- Each key must map to an array containing at least {required_count} feature objects.
+- Return a single JSON object with a top-level "features" key.
+- "features" must include keys for each role: {roles}.
+- Each role key must map to an array containing at least {required_count} feature objects.
 - Every feature must provide:
   - "feature_id": unique string identifier.
     - Format: "FEAT-{plateau}-{{role}}-{{kebab-case-short-name}}" (e.g., FEAT-2-learners-smart-enrolment).
@@ -34,6 +35,29 @@ Generate service features for the {service_name} service at plateau {plateau}.
 - Return ONLY valid JSON. No Markdown. No backticks. No commentary. No trailing commas.
 - If you are about to include any text outside JSON, stop and return JSON only.
 - The response must adhere to the JSON schema provided below.
+
+## Example output
+
+```json
+{
+  "features": {
+    "learners": [
+      {
+        "feature_id": "FEAT-{plateau}-learners-smart-enrolment",
+        "name": "Smart enrolment",
+        "description": "Students enrol through a streamlined digital process with real-time validation.",
+        "score": {
+          "level": 3,
+          "label": "Defined",
+          "justification": "Process is documented and standardised."
+        }
+      }
+    ],
+    "academics": [],
+    "professional_staff": []
+  }
+}
+```
 
 ## Response structure
 
