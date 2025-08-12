@@ -23,15 +23,18 @@ class StrictModel(BaseModel):
 
 
 class Contribution(StrictModel):
-    """Item contributing to a feature's assessment.
+    """Weighted reference item supporting a feature.
 
-    A ``Contribution`` explains how a particular reference item supports or
-    detracts from a candidate feature when calculating plateau performance.
+    The ``contribution`` value measures how strongly the referenced item
+    influences a feature's assessment. Larger numbers indicate greater
+    importance.
     """
 
-    item: Annotated[str, Field(min_length=1, description="Name of the mapped element.")]
-    contribution: str = Field(
-        ..., description="Explanation of how the item supports the feature."
+    item: Annotated[
+        str, Field(min_length=1, description="Identifier of the mapped element.")
+    ]
+    contribution: float = Field(
+        ..., ge=0.1, le=1.0, description="Importance weight from 0.1 to 1.0."
     )
 
 
@@ -418,6 +421,20 @@ class MappingFeature(StrictModel):
         # Normalise nested mapping structures and ensure list values.
         data["mappings"] = _normalize_mapping_values(mapping)
         return data
+
+    @field_validator("mappings")
+    @classmethod
+    def _limit_mapping_items(
+        cls, value: dict[str, list[Contribution]]
+    ) -> dict[str, list[Contribution]]:
+        """Ensure each mapping list contains at most five items."""
+
+        for key, items in value.items():
+            if len(items) > 5:
+                raise ValueError(
+                    f"Too many entries for {key}: {len(items)} (maximum 5)"
+                )
+        return value
 
 
 class MappingResponse(StrictModel):

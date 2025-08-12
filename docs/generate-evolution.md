@@ -51,9 +51,9 @@ Each line in the output file is a JSON object with:
             "justification": "string"
           },
           "customer_type": "string",
-          "data": [{ "item": "string", "contribution": "string" }],
-          "applications": [{ "item": "string", "contribution": "string" }],
-          "technology": [{ "item": "string", "contribution": "string" }]
+          "data": [{ "item": "string", "contribution": 0.5 }],
+          "applications": [{ "item": "string", "contribution": 0.5 }],
+          "technology": [{ "item": "string", "contribution": 0.5 }]
         }
       ]
     }

@@ -167,8 +167,11 @@ Map each feature to relevant Data, Applications, Technologies from the lists bel
 #### Instructions
 - Return a JSON object with a top-level "features" array.
 - Each element must include "feature_id" and the following arrays: data, applications, technology.
-- Items in these arrays must provide "item" and "contribution" fields.
-- Use only identifiers from the provided lists.
+- For each mapping list, return at most 5 items.
+- Items in these arrays must provide "item" and "contribution" fields. The
+  "contribution" value is a number in [0.1, 1.0] where 1.0 = critical, 0.5 =
+  helpful and 0.1 = weak.
+- Do not invent IDs; only use those provided.
 - Maintain terminology consistent with the situational context, definitions and inspirations.
 - Do not include any text outside the JSON object.
 - The response must adhere to the JSON schema provided below.
@@ -184,9 +187,9 @@ Map each feature to relevant Data, Applications, Technologies from the lists bel
         "type": "object",
         "properties": {
           "feature_id": {"type": "string"},
-          "data": {"type": "array", "items": {"type": "object", "properties": {"item": {"type": "string"}, "contribution": {"type": "string"}}, "required": ["item", "contribution"]}},
-          "applications": {"type": "array", "items": {"type": "object", "properties": {"item": {"type": "string"}, "contribution": {"type": "string"}}, "required": ["item", "contribution"]}},
-          "technology": {"type": "array", "items": {"type": "object", "properties": {"item": {"type": "string"}, "contribution": {"type": "string"}}, "required": ["item", "contribution"]}}
+          "data": {"type": "array", "maxItems": 5, "items": {"type": "object", "properties": {"item": {"type": "string"}, "contribution": {"type": "number", "minimum": 0.1, "maximum": 1.0}}, "required": ["item", "contribution"]}},
+          "applications": {"type": "array", "maxItems": 5, "items": {"type": "object", "properties": {"item": {"type": "string"}, "contribution": {"type": "number", "minimum": 0.1, "maximum": 1.0}}, "required": ["item", "contribution"]}},
+          "technology": {"type": "array", "maxItems": 5, "items": {"type": "object", "properties": {"item": {"type": "string"}, "contribution": {"type": "number", "minimum": 0.1, "maximum": 1.0}}, "required": ["item", "contribution"]}}
         },
         "required": ["feature_id", "data", "applications", "technology"]
       }
