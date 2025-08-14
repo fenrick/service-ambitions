@@ -119,7 +119,12 @@ def _merge_mapping_results(
     payload: MappingResponse,
     mapping_types: Mapping[str, MappingTypeConfig],
 ) -> list[PlateauFeature]:
-    """Return ``features`` merged with mapping ``payload``."""
+    """Return ``features`` merged with mapping ``payload``.
+
+    Any mappings referencing unknown item identifiers are dropped rather than
+    causing an error. This allows the calling code to rerun generation without
+    manual intervention when the agent invents IDs.
+    """
     # Build a lookup of valid item identifiers for each mapping type to
     # prevent the agent from inventing IDs that do not exist in reference
     # datasets.
@@ -149,12 +154,21 @@ def _merge_mapping_results(
                     "Missing mappings: feature=%s key=%s", feature.feature_id, key
                 )
             else:
+                valid_values: list[Contribution] = []
                 for item in values:
                     if item.item not in valid_ids[key]:
-                        raise MappingError(
-                            f"Unknown {key} ID {item.item} for feature"
-                            f" {feature.feature_id}"
+                        # Drop invalid mapping references so feature generation
+                        # can proceed without manual intervention. These
+                        # entries may be regenerated in a future run.
+                        logger.warning(
+                            "Dropping unknown %s ID %s for feature %s",
+                            key,
+                            item.item,
+                            feature.feature_id,
                         )
+                        continue
+                    valid_values.append(item)
+                values = valid_values
             update_data[key] = values
         merged = feature.model_copy(update={"mappings": feature.mappings | update_data})
         results.append(merged)

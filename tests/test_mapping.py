@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from mapping import MappingError, map_feature, map_features
+from mapping import map_feature, map_features
 from models import MappingItem, MaturityScore, PlateauFeature
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -194,8 +194,7 @@ async def test_map_feature_rejects_invalid_json(monkeypatch) -> None:
         await map_feature(session, feature)  # type: ignore[arg-type]
 
 
-@pytest.mark.asyncio
-async def test_map_feature_rejects_unknown_ids(monkeypatch) -> None:
+def test_map_feature_ignores_unknown_ids(monkeypatch) -> None:
     template = "{mapping_labels} {mapping_sections} {mapping_fields} {features}"
 
     def fake_loader(name, *_, **__):
@@ -210,7 +209,18 @@ async def test_map_feature_rejects_unknown_ids(monkeypatch) -> None:
             "technologies": [],
         },
     )
-    session = DummySession(
+
+    class SyncSession:
+        def __init__(self, responses: list[str]) -> None:
+            self._responses = iter(responses)
+
+        def ask(self, prompt: str, output_type=None):
+            response = next(self._responses)
+            if output_type is None:
+                return response
+            return output_type.model_validate_json(response)
+
+    session = SyncSession(
         [
             json.dumps(
                 {
@@ -221,18 +231,21 @@ async def test_map_feature_rejects_unknown_ids(monkeypatch) -> None:
                         }
                     ]
                 }
-            )
+            ),
+            json.dumps({"features": [{"feature_id": "f1", "applications": []}]}),
+            json.dumps({"features": [{"feature_id": "f1", "technology": []}]}),
         ]
     )
     feature = PlateauFeature(
         feature_id="f1",
         name="Integration",
         description="desc",
-        score=0.5,
+        score=MaturityScore(level=3, label="Defined", justification="j"),
         customer_type="learners",
     )
-    with pytest.raises(MappingError):
-        await map_feature(session, feature)  # type: ignore[arg-type]
+    result = map_feature(session, feature)
+
+    assert result.mappings["data"] == []
 
 
 @pytest.mark.asyncio
