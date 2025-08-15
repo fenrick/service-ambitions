@@ -25,12 +25,12 @@ from loader import (
     load_evolution_prompt,
     load_plateau_definitions,
     load_roles,
-    load_services,
 )
 from models import ServiceInput
 from monitoring import LOG_FILE_NAME, init_logfire
 from persistence import atomic_write, read_lines
 from plateau_generator import PlateauGenerator
+from service_loader import load_services
 from settings import load_settings
 
 logger = logging.getLogger(__name__)

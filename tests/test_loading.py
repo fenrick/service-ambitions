@@ -12,9 +12,9 @@ from loader import (
     load_prompt,
     load_prompt_text,
     load_roles,
-    load_services,
 )
 from models import JobToBeDone
+from service_loader import load_services
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
