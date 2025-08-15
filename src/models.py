@@ -9,7 +9,7 @@ throughout the system.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated, List
+from typing import Annotated, List, Literal
 
 from pydantic import (
     BaseModel,
@@ -211,10 +211,10 @@ class ReasoningConfig(StrictModel):
     provided without code changes.
     """
 
-    effort: str | None = Field(
+    effort: Literal['minimal', 'low', 'medium', 'high'] | None = Field(
         None, description="Effort level for OpenAI reasoning tasks."
     )
-    summary: str | None = Field(None, description="Summary style for reasoning traces.")
+    summary: Literal['detailed', 'concise'] | None = Field(None, description="Summary style for reasoning traces.")
 
     # Permit other reasoning settings that may be added by OpenAI.
     model_config = ConfigDict(extra="allow")
