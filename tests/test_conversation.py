@@ -83,9 +83,7 @@ def test_add_parent_materials_includes_features() -> None:
     )
     session.add_parent_materials(service)
 
-    part = cast(
-        messages.UserPromptPart, session._history[0].parts[0]
-    )  # noqa: SLF001 - test helper
+    part = cast(messages.UserPromptPart, session._history[0].parts[0])  # noqa: SLF001 - test helper
     material = cast(str, part.content)
     data = json.loads(material.split("SERVICE_CONTEXT:\n", 1)[1])
     assert data["features"] == [
