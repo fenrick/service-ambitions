@@ -69,25 +69,25 @@ def load_settings() -> Settings:
     """
 
     config = load_app_config()
-    data = {
-        "model": config.model,
-        "reasoning": config.reasoning,
-        "log_level": config.log_level,
-        "prompt_dir": config.prompt_dir,
-        "context_id": config.context_id,
-        "inspiration": config.inspiration,
-        "concurrency": config.concurrency,
-        "batch_size": config.batch_size,
-        "request_timeout": config.request_timeout,
-        "retries": config.retries,
-        "retry_base_delay": config.retry_base_delay,
-        "features_per_role": config.features_per_role,
-    }
-    env_file = Path(".env")
-    env_kwargs = {"_env_file": env_file} if env_file.exists() else {}
+    env_file_path = Path(".env")
+    env_file = env_file_path if env_file_path.exists() else None
     try:
         # Validate and merge configuration from file, env file and environment.
-        return Settings(**data, **env_kwargs)
+        return Settings(
+            model=config.model,
+            reasoning=config.reasoning,
+            log_level=config.log_level,
+            prompt_dir=config.prompt_dir,
+            context_id=config.context_id,
+            inspiration=config.inspiration,
+            concurrency=config.concurrency,
+            batch_size=config.batch_size,
+            request_timeout=config.request_timeout,
+            retries=config.retries,
+            retry_base_delay=config.retry_base_delay,
+            features_per_role=config.features_per_role,
+            _env_file=env_file,
+        )
     except ValidationError as exc:
         # Summarise validation issues so the caller receives clear feedback.
         details = "; ".join(
