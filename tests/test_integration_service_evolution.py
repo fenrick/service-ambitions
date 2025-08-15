@@ -63,10 +63,8 @@ def _feature_payload(count: int) -> str:
 def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
     """``generate_service_evolution`` should aggregate all plateaus."""
 
-    responses: list[str] = []
-    for _ in range(4):
-        responses.append(json.dumps({"description": "desc"}))
-        responses.append(_feature_payload(5))
+    responses: list[str] = [json.dumps({"description": "desc"}) for _ in range(4)]
+    responses += [_feature_payload(5) for _ in range(4)]
     agent = DummyAgent(responses)
     session = ConversationSession(cast(Agent[None, str], agent))
     generator = PlateauGenerator(session, required_count=5)

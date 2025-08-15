@@ -85,6 +85,10 @@ Hyperloop mass transit beyond isolated test tracks; Space elevators or lunar mas
 
 ## Stage 5 – Foundational Plateau (Level 1)
 
+Descriptions for all plateaus are gathered in a single request prior to feature
+generation. The stages below show the structure of prompts and responses for
+each plateau individually.
+
 ### Description Prompt
 Refer to the situational context, definitions and inspirations provided earlier to maintain consistent terminology across stages.
 

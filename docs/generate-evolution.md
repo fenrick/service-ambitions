@@ -1,10 +1,11 @@
 # Generate evolution
 
 The evolution workflow spans the plateaus defined in
-`data/service_feature_plateaus.json`, issuing three calls per plateau
-(description, features, mapping). The CLI evaluates all plateaus in this file
-alongside all roles defined in `data/roles.json`. Plateau name to level mappings
-are derived from the order of the JSON entries.
+`data/service_feature_plateaus.json`. It first collects descriptions for all
+plateaus in a single request and then generates and maps features for every plateau. The CLI
+evaluates all plateaus in this file alongside all roles defined in
+`data/roles.json`. Plateau name to level mappings are derived from the order of
+the JSON entries.
 
 ## Running
 

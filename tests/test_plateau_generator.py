@@ -218,6 +218,33 @@ def test_request_description_strips_preamble(monkeypatch) -> None:
     assert result == "actual details"
 
 
+def test_request_descriptions_returns_mapping(monkeypatch) -> None:
+    """_request_descriptions should parse batch responses."""
+
+    def fake_loader(name, *_, **__):
+        return "template" if name == "plateau_descriptions_prompt" else ""
+
+    monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
+    payload = json.dumps(
+        {
+            "descriptions": [
+                {
+                    "plateau": 1,
+                    "plateau_name": "Foundational",
+                    "description": "desc one",
+                }
+            ]
+        }
+    )
+    session = DummySession([payload])
+    generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
+
+    result = generator._request_descriptions(["Foundational"])
+
+    assert result == {"Foundational": "desc one"}
+    assert len(session.prompts) == 1
+
+
 def test_generate_service_evolution_filters(monkeypatch) -> None:
     service = ServiceInput(
         service_id="svc-1",
@@ -237,7 +264,9 @@ def test_generate_service_evolution_filters(monkeypatch) -> None:
     called: list[int] = []
     sessions: set[int] = set()
 
-    def fake_generate_plateau(self, level, plateau_name, session=None):
+    def fake_generate_plateau(
+        self, level, plateau_name, session=None, description=None
+    ):
         called.append(level)
         sessions.add(id(session))
         feats = [
@@ -272,6 +301,11 @@ def test_generate_service_evolution_filters(monkeypatch) -> None:
 
     monkeypatch.setattr(
         PlateauGenerator, "generate_plateau", fake_generate_plateau, raising=False
+    )
+    monkeypatch.setattr(
+        PlateauGenerator,
+        "_request_descriptions",
+        lambda self, names, session=None: {name: "desc" for name in names},
     )
 
     evo = generator.generate_service_evolution(

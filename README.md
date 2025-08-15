@@ -72,15 +72,15 @@ behaviour such as backoff jitter deterministic during tests and demos.
 ## Plateau-first workflow
 
 Each service is evaluated across the plateaus defined in
-`data/service_feature_plateaus.json`. Every plateau requires three sequential
-calls:
+`data/service_feature_plateaus.json`. Generation occurs in two phases:
 
-1. **Description** – request a plateau-specific service narrative.
-2. **Features** – generate learner, academic and professional staff features.
-3. **Mapping** – link each feature to reference Data, Applications and
-   Technologies.
+1. **Descriptions** – a single request returns narratives for all plateaus.
+2. **Features and Mapping** – for each plateau, generate learner, academic and
+   professional staff features and link them to reference Data, Applications
+   and Technologies using the previously collected description.
 
-This workflow issues three calls per plateau and produces a complete
+This workflow issues one call to fetch all descriptions, then queries each
+plateau separately for feature generation. The result is a complete
 `ServiceEvolution` record for every service.
 
 Plateau names and descriptions are sourced entirely from
