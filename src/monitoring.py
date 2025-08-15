@@ -8,12 +8,11 @@ remain oblivious to telemetry concerns.
 
 from __future__ import annotations
 
-import importlib
 import json
 import logging
 import os
 
-logger = logging.getLogger(__name__)
+import logfire
 
 # Default log file used across the application
 LOG_FILE_NAME = "service.log"
@@ -31,17 +30,6 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload)
 
 
-def _configure_json_logging(level: int) -> None:
-    """Attach a JSON formatter to the root logger."""
-
-    root_logger = logging.getLogger()
-    handler = logging.FileHandler(LOG_FILE_NAME)
-    handler.setLevel(level)
-    handler.setFormatter(JsonFormatter())
-    root_logger.handlers.clear()
-    root_logger.addHandler(handler)
-
-
 def init_logfire(token: str | None = None) -> None:
     """Configure Logfire if a token is available.
 
@@ -56,26 +44,7 @@ def init_logfire(token: str | None = None) -> None:
     duplicate output.
     """
 
-    # Use the explicit token if provided, otherwise fall back to the environment.
-    root_logger = logging.getLogger()
-    # Preserve existing level and formatter when swapping handlers.
-    level = root_logger.level
-    formatter = root_logger.handlers[0].formatter if root_logger.handlers else None
-
     key = token or os.getenv("LOGFIRE_TOKEN")
-    if not key:
-        logger.debug("LOGFIRE_TOKEN not set; skipping Logfire setup")
-        _configure_json_logging(level)
-        return
-
-    try:
-        # ``logfire`` is an optional dependency; import lazily to avoid
-        # requiring it for users that do not enable telemetry.
-        logfire = importlib.import_module("logfire")
-    except ImportError:
-        logger.warning("logfire package not installed; skipping Logfire setup")
-        _configure_json_logging(level)
-        return
 
     logfire.configure(token=key, service_name="service-ambition-generator")
     logfire.instrument_system_metrics(base="full")
@@ -90,14 +59,4 @@ def init_logfire(token: str | None = None) -> None:
         if instrument:
             instrument()
 
-    handler_cls = getattr(logfire, "LogfireLoggingHandler", None)
-    if handler_cls:
-        # Replace any existing handlers to prevent duplicate log output.
-        root_logger.handlers.clear()
-        handler = handler_cls()
-        handler.setLevel(level)
-        if formatter:
-            handler.setFormatter(formatter)
-        root_logger.addHandler(handler)
-
-    logger.info("Logfire telemetry enabled")
+    logfire.info("Logfire telemetry enabled")

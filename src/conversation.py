@@ -9,15 +9,12 @@ agent without relying on asynchronous execution.
 
 from __future__ import annotations
 
-import logging
 from typing import TypeVar, overload
 
 import logfire
 from pydantic_ai import Agent, messages
 
 from models import ServiceInput
-
-logger = logging.getLogger(__name__)
 
 
 class ConversationSession:
@@ -51,7 +48,7 @@ class ConversationSession:
             history.
         """
         ctx = "SERVICE_CONTEXT:\n" + service_input.model_dump_json()
-        logger.debug(f"Adding service material to history: {ctx}")
+        logfire.debug("Adding service material to history: %s", ctx)
         self._history.append(
             messages.ModelRequest(parts=[messages.UserPromptPart(ctx)])
         )
@@ -82,12 +79,12 @@ class ConversationSession:
             agent's raw response text.
         """
 
-        logger.debug(f"Sending prompt: {prompt}")
+        logfire.debug("Sending prompt: %s", prompt)
         result = self.client.run_sync(
             prompt, message_history=self._history, output_type=output_type
         )
         self._history.extend(result.new_messages())
-        logger.debug(f"Received response: {result.output}")
+        logfire.debug("Received response: %s", result.output)
         return result.output
 
 

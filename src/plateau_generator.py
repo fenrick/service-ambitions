@@ -10,7 +10,6 @@ history into another while still reusing the same underlying agent.
 from __future__ import annotations
 
 import json
-import logging
 import re
 from typing import Sequence
 
@@ -29,8 +28,6 @@ from models import (
     ServiceEvolution,
     ServiceInput,
 )
-
-logger = logging.getLogger(__name__)
 
 # Snapshot of plateau definitions sourced from configuration.
 _PLATEAU_DEFS = load_plateau_definitions()
@@ -57,7 +54,6 @@ DEFAULT_ROLE_IDS: list[str] = [role.role_id for role in _ROLE_DEFS]
 class PlateauGenerator:
     """Generate plateau features and service evolution summaries."""
 
-    @logfire.instrument()
     def __init__(
         self,
         session: ConversationSession,
@@ -102,7 +98,7 @@ class PlateauGenerator:
         try:
             response = session.ask(prompt, output_type=DescriptionResponse)
         except Exception as exc:
-            logger.error(f"Invalid plateau description: {exc}")
+            logfire.error("Invalid plateau description: %s", exc)
             raise ValueError("Agent returned invalid plateau description") from exc
         if not response.description:
             raise ValueError("'description' must be a non-empty string")
@@ -142,7 +138,7 @@ class PlateauGenerator:
         try:
             payload = session.ask(prompt, output_type=PlateauDescriptionsResponse)
         except Exception as exc:
-            logger.error(f"Invalid plateau descriptions: {exc}")
+            logfire.error("Invalid plateau descriptions: %s", exc)
             raise ValueError("Agent returned invalid plateau descriptions") from exc
 
         results: dict[str, str] = {}
@@ -253,14 +249,14 @@ class PlateauGenerator:
             if description is None:
                 description = self._request_description(level, session)
             prompt = self._build_plateau_prompt(level, description)
-            logger.info(f"Requesting features for level={level}")
+            logfire.info("Requesting features for level=%s", level)
 
             # Generate features within the provided conversation session so
             # history is isolated per plateau.
             try:
                 payload = session.ask(prompt, output_type=PlateauFeaturesResponse)
             except Exception as exc:
-                logger.error(f"Invalid JSON from feature response: {exc}")
+                logfire.error("Invalid JSON from feature response: %s", exc)
                 raise ValueError("Agent returned invalid JSON") from exc
             for role in self.roles:
                 # ``payload.features`` uses attribute access rather than a

@@ -8,7 +8,6 @@ avoid overwhelming upstream APIs while still maximising throughput.
 from __future__ import annotations
 
 import asyncio
-import logging
 import os
 import random
 from asyncio import Lock, Semaphore, TaskGroup
@@ -22,9 +21,6 @@ from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModel
 from tqdm import tqdm
 
 from models import ReasoningConfig, ServiceInput
-
-logger = logging.getLogger(__name__)
-
 
 T = TypeVar("T")
 
@@ -259,12 +255,12 @@ class ServiceAmbitionGenerator:
                     span.set_attribute("service.id", service.service_id)
                     if service.customer_type:
                         span.set_attribute("customer_type", service.customer_type)
-                    logger.info(f"Processing service {service.name}")
+                    logfire.info(f"Processing service {service.name}")
                     try:
                         result = await self.process_service(service)
                     except Exception as exc:
                         # Continue processing other services but record the failure.
-                        logger.error(f"Failed to process service {service.name}: {exc}")
+                        logfire.error(f"Failed to process service {service.name}: {exc}")
                         return
                     line = AmbitionModel.model_validate(result).model_dump_json()
                     async with lock:
@@ -309,7 +305,7 @@ class ServiceAmbitionGenerator:
         try:
             return await self._process_all(services, output_path, progress)
         except Exception as exc:
-            logger.error(f"Failed to write results to {output_path}: {exc}")
+            logfire.error(f"Failed to write results to {output_path}: {exc}")
             raise
         finally:
             self._prompt = None

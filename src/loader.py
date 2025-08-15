@@ -8,7 +8,6 @@ callers receive concise exceptions.
 
 from __future__ import annotations
 
-import logging
 from functools import lru_cache
 from pathlib import Path
 from typing import Sequence, TypeVar, cast
@@ -23,8 +22,6 @@ from models import (
     Role,
     ServiceFeaturePlateau,
 )
-
-logger = logging.getLogger(__name__)
 
 # Directory containing prompt templates.  Mutable so tests or callers may point
 # to alternative directories via ``configure_prompt_dir``.
@@ -52,7 +49,6 @@ def configure_prompt_dir(path: Path | str) -> None:
     PROMPT_DIR = Path(path)
 
 
-@logfire.instrument()
 def _read_file(path: Path) -> str:
     """Return the contents of ``path``.
 
@@ -71,10 +67,10 @@ def _read_file(path: Path) -> str:
         with path.open("r", encoding="utf-8") as file:
             return file.read().strip()
     except FileNotFoundError:
-        logger.error(f"Prompt file not found: {path}")
+        logfire.error("Prompt file not found: %s", path)
         raise
     except Exception as exc:
-        logger.error(f"Error reading prompt file {path}: {exc}")
+        logfire.error("Error reading prompt file %s: %s", path, exc)
         raise RuntimeError(
             f"An error occurred while reading the prompt file: {exc}"
         ) from exc
@@ -83,7 +79,6 @@ def _read_file(path: Path) -> str:
 T = TypeVar("T")
 
 
-@logfire.instrument()
 def _read_json_file(path: Path, schema: type[T]) -> T:
     """Return JSON data loaded from ``path`` validated against ``schema``.
 
@@ -97,7 +92,7 @@ def _read_json_file(path: Path, schema: type[T]) -> T:
     except FileNotFoundError:
         raise
     except Exception as exc:
-        logger.error(f"Error reading JSON file {path}: {exc}")
+        logfire.error("Error reading JSON file %s: %s", path, exc)
         raise RuntimeError(
             f"An error occurred while reading the JSON file: {exc}"
         ) from exc
@@ -162,7 +157,6 @@ def load_mapping_items(
 
 
 @lru_cache(maxsize=None)
-@logfire.instrument()
 def load_app_config(
     base_dir: Path | str = Path("config"),
     filename: Path | str = Path("app.json"),
@@ -191,7 +185,6 @@ def load_mapping_type_config(
 
 
 @lru_cache(maxsize=None)
-@logfire.instrument()
 def load_plateau_definitions(
     base_dir: Path | str = Path("data"),
     filename: Path | str = Path("service_feature_plateaus.json"),
@@ -214,12 +207,11 @@ def load_plateau_definitions(
     try:
         return _read_json_file(path, list[ServiceFeaturePlateau])
     except Exception as exc:
-        logger.error(f"Invalid plateau definition data in {path}: {exc}")
+        logfire.error("Invalid plateau definition data in %s: %s", path, exc)
         raise RuntimeError(f"Invalid plateau definitions: {exc}") from exc
 
 
 @lru_cache(maxsize=None)
-@logfire.instrument()
 def load_roles(
     base_dir: Path | str = Path("data"),
     filename: Path | str = Path("roles.json"),
@@ -245,7 +237,7 @@ def load_roles(
     try:
         return _read_json_file(path, list[Role])
     except Exception as exc:
-        logger.error(f"Invalid role data in {path}: {exc}")
+        logfire.error("Invalid role data in %s: %s", path, exc)
         raise RuntimeError(f"Invalid roles: {exc}") from exc
 
 

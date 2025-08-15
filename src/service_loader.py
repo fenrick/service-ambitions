@@ -7,7 +7,6 @@ reading newline-delimited JSON service definitions and yielding validated
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 from typing import Generator, Iterator
 
@@ -16,10 +15,7 @@ from pydantic import TypeAdapter
 
 from models import ServiceInput
 
-logger = logging.getLogger(__name__)
 
-
-@logfire.instrument()
 def _load_service_entries(path: Path | str) -> Generator[ServiceInput, None, None]:
     """Yield services from ``path`` while validating each JSON line."""
 
@@ -35,16 +31,16 @@ def _load_service_entries(path: Path | str) -> Generator[ServiceInput, None, Non
                     try:
                         yield adapter.validate_json(line)
                     except Exception as exc:
-                        logger.error(f"Invalid service entry in {path_obj}: {exc}")
+                        logfire.error("Invalid service entry in %s: %s", path_obj, exc)
                         raise RuntimeError("Invalid service definition") from exc
         except FileNotFoundError:
-            logger.error(f"Services file not found: {path_obj}")
+            logfire.error("Services file not found: %s", path_obj)
             raise FileNotFoundError(
                 "Services file not found. Please create a %s file in the current"
                 " directory." % path_obj
             ) from None
         except Exception as exc:
-            logger.error(f"Error reading services file {path_obj}: {exc}")
+            logfire.error("Error reading services file %s: %s", path_obj, exc)
             raise RuntimeError(
                 f"An error occurred while reading the services file: {exc}"
             ) from exc

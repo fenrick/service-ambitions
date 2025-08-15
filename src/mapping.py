@@ -9,8 +9,9 @@ contributions back into :class:`PlateauFeature` objects.
 from __future__ import annotations
 
 import json
-import logging
 from typing import TYPE_CHECKING, Mapping, Sequence
+
+import logfire
 
 from loader import load_mapping_items, load_mapping_type_config, load_prompt_text
 from models import (
@@ -23,8 +24,6 @@ from models import (
 
 if TYPE_CHECKING:
     from conversation import ConversationSession
-
-logger = logging.getLogger(__name__)
 
 
 class MappingError(RuntimeError):
@@ -150,8 +149,8 @@ def _merge_mapping_results(
                 # Log missing or empty mappings rather than failing outright so
                 # feature generation can continue when the agent omits a
                 # category.  An empty list is stored for the mapping type.
-                logger.warning(
-                    f"Missing mappings: feature={feature.feature_id} key={key}"
+                logfire.warning(
+                    "Missing mappings: feature=%s key=%s", feature.feature_id, key
                 )
             else:
                 valid_values: list[Contribution] = []
@@ -160,9 +159,11 @@ def _merge_mapping_results(
                         # Drop invalid mapping references so feature generation
                         # can proceed without manual intervention. These
                         # entries may be regenerated in a future run.
-                        logger.warning(
-                            f"Dropping unknown {key} ID {item.item} for feature"
-                            f" {feature.feature_id}"
+                        logfire.warning(
+                            "Dropping unknown %s ID %s for feature %s",
+                            key,
+                            item.item,
+                            feature.feature_id,
                         )
                         continue
                     valid_values.append(item)
@@ -191,11 +192,11 @@ def map_features(
 
     for key, cfg in mapping_types.items():
         prompt = _build_mapping_prompt(results, {key: cfg})
-        logger.debug(f"Requesting {key} mappings for {len(results)} features")
+        logfire.debug("Requesting %s mappings for %s features", key, len(results))
         try:
             payload = session.ask(prompt, output_type=MappingResponse)
         except Exception as exc:
-            logger.error(f"Invalid JSON from mapping response: {exc}")
+            logfire.error("Invalid JSON from mapping response: %s", exc)
             raise ValueError("Agent returned invalid JSON") from exc
         results = _merge_mapping_results(results, payload, {key: cfg})
 
