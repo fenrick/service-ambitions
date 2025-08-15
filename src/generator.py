@@ -260,7 +260,8 @@ class ServiceAmbitionGenerator:
                         result = await self.process_service(service)
                     except Exception as exc:
                         # Continue processing other services but record the failure.
-                        logfire.error(f"Failed to process service {service.name}: {exc}")
+                        msg = f"Failed to process service {service.name}: {exc}"
+                        logfire.error(msg)
                         return
                     line = AmbitionModel.model_validate(result).model_dump_json()
                     async with lock:

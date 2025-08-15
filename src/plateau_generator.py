@@ -98,7 +98,7 @@ class PlateauGenerator:
         try:
             response = session.ask(prompt, output_type=DescriptionResponse)
         except Exception as exc:
-            logfire.error("Invalid plateau description: %s", exc)
+            logfire.error(f"Invalid plateau description: {exc}")
             raise ValueError("Agent returned invalid plateau description") from exc
         if not response.description:
             raise ValueError("'description' must be a non-empty string")
@@ -138,7 +138,7 @@ class PlateauGenerator:
         try:
             payload = session.ask(prompt, output_type=PlateauDescriptionsResponse)
         except Exception as exc:
-            logfire.error("Invalid plateau descriptions: %s", exc)
+            logfire.error(f"Invalid plateau descriptions: {exc}")
             raise ValueError("Agent returned invalid plateau descriptions") from exc
 
         results: dict[str, str] = {}
@@ -249,14 +249,14 @@ class PlateauGenerator:
             if description is None:
                 description = self._request_description(level, session)
             prompt = self._build_plateau_prompt(level, description)
-            logfire.info("Requesting features for level=%s", level)
+            logfire.info(f"Requesting features for level={level}")
 
             # Generate features within the provided conversation session so
             # history is isolated per plateau.
             try:
                 payload = session.ask(prompt, output_type=PlateauFeaturesResponse)
             except Exception as exc:
-                logfire.error("Invalid JSON from feature response: %s", exc)
+                logfire.error(f"Invalid JSON from feature response: {exc}")
                 raise ValueError("Agent returned invalid JSON") from exc
             for role in self.roles:
                 # ``payload.features`` uses attribute access rather than a

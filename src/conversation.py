@@ -48,7 +48,7 @@ class ConversationSession:
             history.
         """
         ctx = "SERVICE_CONTEXT:\n" + service_input.model_dump_json()
-        logfire.debug("Adding service material to history: %s", ctx)
+        logfire.debug(f"Adding service material to history: {ctx}")
         self._history.append(
             messages.ModelRequest(parts=[messages.UserPromptPart(ctx)])
         )
@@ -79,12 +79,12 @@ class ConversationSession:
             agent's raw response text.
         """
 
-        logfire.debug("Sending prompt: %s", prompt)
+        logfire.debug(f"Sending prompt: {prompt}")
         result = self.client.run_sync(
             prompt, message_history=self._history, output_type=output_type
         )
         self._history.extend(result.new_messages())
-        logfire.debug("Received response: %s", result.output)
+        logfire.debug(f"Received response: {result.output}")
         return result.output
 
 
