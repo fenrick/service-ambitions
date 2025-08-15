@@ -71,10 +71,10 @@ def _read_file(path: Path) -> str:
         with path.open("r", encoding="utf-8") as file:
             return file.read().strip()
     except FileNotFoundError:
-        logger.error("Prompt file not found: %s", path)
+        logger.error(f"Prompt file not found: {path}")
         raise
     except Exception as exc:
-        logger.error("Error reading prompt file %s: %s", path, exc)
+        logger.error(f"Error reading prompt file {path}: {exc}")
         raise RuntimeError(
             f"An error occurred while reading the prompt file: {exc}"
         ) from exc
@@ -97,7 +97,7 @@ def _read_json_file(path: Path, schema: type[T]) -> T:
     except FileNotFoundError:
         raise
     except Exception as exc:
-        logger.error("Error reading JSON file %s: %s", path, exc)
+        logger.error(f"Error reading JSON file {path}: {exc}")
         raise RuntimeError(
             f"An error occurred while reading the JSON file: {exc}"
         ) from exc
@@ -214,7 +214,7 @@ def load_plateau_definitions(
     try:
         return _read_json_file(path, list[ServiceFeaturePlateau])
     except Exception as exc:
-        logger.error("Invalid plateau definition data in %s: %s", path, exc)
+        logger.error(f"Invalid plateau definition data in {path}: {exc}")
         raise RuntimeError(f"Invalid plateau definitions: {exc}") from exc
 
 
@@ -245,7 +245,7 @@ def load_roles(
     try:
         return _read_json_file(path, list[Role])
     except Exception as exc:
-        logger.error("Invalid role data in %s: %s", path, exc)
+        logger.error(f"Invalid role data in {path}: {exc}")
         raise RuntimeError(f"Invalid roles: {exc}") from exc
 
 

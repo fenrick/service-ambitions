@@ -51,7 +51,7 @@ class ConversationSession:
             history.
         """
         ctx = "SERVICE_CONTEXT:\n" + service_input.model_dump_json()
-        logger.debug("Adding service material to history: %s", ctx)
+        logger.debug(f"Adding service material to history: {ctx}")
         self._history.append(
             messages.ModelRequest(parts=[messages.UserPromptPart(ctx)])
         )
@@ -82,12 +82,12 @@ class ConversationSession:
             agent's raw response text.
         """
 
-        logger.debug("Sending prompt: %s", prompt)
+        logger.debug(f"Sending prompt: {prompt}")
         result = self.client.run_sync(
             prompt, message_history=self._history, output_type=output_type
         )
         self._history.extend(result.new_messages())
-        logger.debug("Received response: %s", result.output)
+        logger.debug(f"Received response: {result.output}")
         return result.output
 
 

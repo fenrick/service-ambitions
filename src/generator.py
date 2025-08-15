@@ -259,16 +259,12 @@ class ServiceAmbitionGenerator:
                     span.set_attribute("service.id", service.service_id)
                     if service.customer_type:
                         span.set_attribute("customer_type", service.customer_type)
-                    logger.info("Processing service %s", service.name)
+                    logger.info(f"Processing service {service.name}")
                     try:
                         result = await self.process_service(service)
                     except Exception as exc:
                         # Continue processing other services but record the failure.
-                        logger.error(
-                            "Failed to process service %s: %s",
-                            service.name,
-                            exc,
-                        )
+                        logger.error(f"Failed to process service {service.name}: {exc}")
                         return
                     line = AmbitionModel.model_validate(result).model_dump_json()
                     async with lock:
@@ -313,7 +309,7 @@ class ServiceAmbitionGenerator:
         try:
             return await self._process_all(services, output_path, progress)
         except Exception as exc:
-            logger.error("Failed to write results to %s: %s", output_path, exc)
+            logger.error(f"Failed to write results to {output_path}: {exc}")
             raise
         finally:
             self._prompt = None
