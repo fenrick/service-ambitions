@@ -1,8 +1,8 @@
-"""Utilities for loading prompts, configuration and data files.
+"""Utilities for loading prompts, configuration and reference data.
 
-The helpers in this module centralise file-system access for prompts, mapping
-metadata and service definitions. Several functions are cached to avoid
-re-reading static content, and many include lightweight error handling so
+The helpers in this module centralise file-system access for prompt templates,
+mapping metadata and other shared data files. Several functions are cached to
+avoid re-reading static content, and many include lightweight error handling so
 callers receive concise exceptions.
 """
 
@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from functools import lru_cache
 from pathlib import Path
-from typing import Generator, Iterator, Sequence, TypeVar, cast
+from typing import Sequence, TypeVar, cast
 
 import logfire
 from pydantic import TypeAdapter
@@ -22,7 +22,6 @@ from models import (
     MappingTypeConfig,
     Role,
     ServiceFeaturePlateau,
-    ServiceInput,
 )
 
 logger = logging.getLogger(__name__)
@@ -408,62 +407,3 @@ def load_ambition_prompt(
 
 # Backward compatibility alias
 load_prompt = load_evolution_prompt
-
-
-@logfire.instrument()
-def _load_service_entries(path: Path | str) -> Generator[ServiceInput, None, None]:
-    """Yield services from ``path`` while validating each JSON line."""
-
-    path_obj = Path(path)
-    with logfire.span("Calling loader.load_services"):
-        adapter = TypeAdapter(ServiceInput)
-        try:
-            with path_obj.open("r", encoding="utf-8") as file:
-                for line in file:
-                    line = line.strip()
-                    if not line:
-                        continue  # Skip blank lines.
-                    try:
-                        # Validate each line against the schema before yielding.
-                        yield adapter.validate_json(line)
-                    except Exception as exc:  # pragma: no cover - logging
-                        logger.error("Invalid service entry in %s: %s", path_obj, exc)
-                        raise RuntimeError("Invalid service definition") from exc
-        except FileNotFoundError:  # pragma: no cover - logging
-            logger.error("Services file not found: %s", path_obj)
-            raise FileNotFoundError(
-                "Services file not found. Please create a %s file in the current"
-                " directory." % path_obj
-            ) from None
-        except Exception as exc:  # pylint: disable=broad-except
-            logger.error("Error reading services file %s: %s", path_obj, exc)
-            raise RuntimeError(
-                f"An error occurred while reading the services file: {exc}"
-            ) from exc
-
-
-class ServiceLoader:
-    """Iterator and context manager for service definitions."""
-
-    def __init__(self, path: Path | str) -> None:
-        self._path = path
-
-    def __iter__(self) -> Iterator[ServiceInput]:
-        return _load_service_entries(self._path)
-
-    def __enter__(self) -> Iterator[ServiceInput]:
-        return self.__iter__()
-
-    def __exit__(self, exc_type, exc, tb) -> None:  # pragma: no cover - no cleanup
-        return None
-
-
-def load_services(path: Path | str) -> ServiceLoader:
-    """Return an iterable over services defined in ``path``.
-
-    The returned object can be used either as an iterator or as a context
-    manager, mirroring the previous behaviour of this function while allowing
-    direct iteration as used in tests.
-    """
-
-    return ServiceLoader(path)
