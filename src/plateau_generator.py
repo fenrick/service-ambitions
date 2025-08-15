@@ -22,6 +22,7 @@ from mapping import map_features
 from models import (
     DescriptionResponse,
     FeatureItem,
+    PlateauDescriptionsResponse,
     PlateauFeature,
     PlateauFeaturesResponse,
     PlateauResult,
@@ -121,6 +122,40 @@ class PlateauGenerator:
         return re.sub(pattern, "", text, flags=re.IGNORECASE)
 
     @logfire.instrument()
+    def _request_descriptions(
+        self,
+        plateau_names: Sequence[str],
+        session: ConversationSession | None = None,
+    ) -> dict[str, str]:
+        session = session or self.session
+        lines: list[str] = []
+        for name in plateau_names:
+            try:
+                level = DEFAULT_PLATEAU_MAP[name]
+            except KeyError as exc:  # pragma: no cover - validated by tests
+                raise ValueError(f"Unknown plateau name: {name}") from exc
+            lines.append(f"{level}. {name}")
+        plateaus_str = "\n".join(lines)
+        schema = json.dumps(PlateauDescriptionsResponse.model_json_schema(), indent=2)
+        template = load_prompt_text("plateau_descriptions_prompt")
+        prompt = template.format(plateaus=plateaus_str, schema=str(schema))
+        try:
+            payload = session.ask(prompt, output_type=PlateauDescriptionsResponse)
+        except Exception as exc:  # pragma: no cover - logging
+            logger.error("Invalid plateau descriptions: %s", exc)
+            raise ValueError("Agent returned invalid plateau descriptions") from exc
+
+        results: dict[str, str] = {}
+        for item in payload.descriptions:
+            if not item.description:
+                raise ValueError("'description' must be a non-empty string")
+            cleaned = self._sanitize_description(item.description)
+            if not cleaned:
+                raise ValueError("'description' must be a non-empty string")
+            results[item.plateau_name] = cleaned
+        return results
+
+    @logfire.instrument()
     def _to_feature(self, item: FeatureItem, role: str) -> PlateauFeature:
         """Return a :class:`PlateauFeature` built from ``item``.
 
@@ -180,6 +215,7 @@ class PlateauGenerator:
         level: int,
         plateau_name: str,
         session: ConversationSession | None = None,
+        description: str | None = None,
     ) -> PlateauResult:
         """Return mapped plateau features for ``level``.
 
@@ -188,14 +224,17 @@ class PlateauGenerator:
             plateau_name: Human readable name of the plateau.
             session: Conversation session used for model interactions. Defaults
                 to the instance's session.
+            description: Optional pre-generated service description. When
+                provided, the function uses this text instead of requesting a
+                new description from the agent.
 
-        The function requests a plateau-specific service description and a list
-        of features for each configured role. Responses must contain at least
-        ``required_count`` features for every role. Raw features are converted to
-        :class:`PlateauFeature` objects and enriched using :func:`map_features`
-        before being returned as part of a :class:`PlateauResult`. A
-        :class:`ValueError` is raised if the agent returns invalid JSON or an
-        insufficient number of features.
+        The function requests a plateau-specific service description when one is
+        not supplied and then gathers a list of features for each configured
+        role. Responses must contain at least ``required_count`` features for
+        every role. Raw features are converted to :class:`PlateauFeature`
+        objects and enriched using :func:`map_features` before being returned as
+        part of a :class:`PlateauResult`. A :class:`ValueError` is raised if the
+        agent returns invalid JSON or an insufficient number of features.
         """
         if self._service is None:
             raise ValueError(
@@ -210,8 +249,9 @@ class PlateauGenerator:
             span.set_attribute("service.id", self._service.service_id)
             span.set_attribute("plateau", level)
 
-            # Ask the model to describe the service at the specified plateau level.
-            description = self._request_description(level, session)
+            # Ask the model to describe the service unless supplied by caller.
+            if description is None:
+                description = self._request_description(level, session)
             prompt = self._build_plateau_prompt(level, description)
             logger.info("Requesting features for level=%s", level)
 
@@ -266,7 +306,9 @@ class PlateauGenerator:
 
         Side Effects:
             Stores ``service_input`` for subsequent plateau generation and seeds
-            the conversation session with its details.
+            the conversation session with its details. Descriptions for all
+            plateaus are gathered first to keep their feature generation
+            isolated.
         """
         self._service = service_input
 
@@ -282,6 +324,9 @@ class PlateauGenerator:
             plateau_names = list(plateau_names or DEFAULT_PLATEAU_NAMES)
             role_ids = list(role_ids or self.roles)
 
+            # Gather descriptions for all requested plateaus in a single call.
+            desc_map = self._request_descriptions(plateau_names)
+
             plateaus: list[PlateauResult] = []
             for name in plateau_names:
                 try:
@@ -289,11 +334,17 @@ class PlateauGenerator:
                 except KeyError as exc:  # pragma: no cover - checked by tests
                     raise ValueError(f"Unknown plateau name: {name}") from exc
 
-                # Create an isolated session for this plateau using the same agent
-                # to prevent cross-plateau chatter.
                 plateau_session = ConversationSession(self.session.client)
                 plateau_session.add_parent_materials(service_input)
-                result = self.generate_plateau(level, name, session=plateau_session)
+                description = desc_map[name]
+
+                # Generate plateau features using the pre-collected description.
+                result = self.generate_plateau(
+                    level,
+                    name,
+                    session=plateau_session,
+                    description=description,
+                )
 
                 filtered = [
                     feat for feat in result.features if feat.customer_type in role_ids

@@ -342,6 +342,29 @@ class DescriptionResponse(StrictModel):
     )
 
 
+class PlateauDescription(StrictModel):
+    """Single plateau description entry."""
+
+    plateau: Annotated[int, Field(ge=1, description="Plateau level (1-indexed).")]
+    plateau_name: Annotated[str, Field(min_length=1, description="Plateau label.")]
+    description: Annotated[
+        str,
+        Field(
+            min_length=1,
+            description="Narrative explaining the service at this plateau.",
+        ),
+    ]
+
+
+class PlateauDescriptionsResponse(StrictModel):
+    """Schema for batch plateau description responses."""
+
+    descriptions: Annotated[
+        List[PlateauDescription],
+        Field(min_length=1, description="Ordered plateau descriptions."),
+    ]
+
+
 class FeatureItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
     feature_id: Annotated[
@@ -485,6 +508,8 @@ __all__ = [
     "AppConfig",
     "Contribution",
     "DescriptionResponse",
+    "PlateauDescription",
+    "PlateauDescriptionsResponse",
     "FeatureItem",
     "FeaturesBlock",
     "JobToBeDone",

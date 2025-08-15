@@ -1,6 +1,7 @@
 # Plateau feature generation
 
-Generate service features for the {service_name} service at plateau {plateau}.
+Generate service features for the {service_name} service at plateau {plateau}
+using the previously supplied description.
 
 ## Service description (for reference; do not repeat verbatim)
 

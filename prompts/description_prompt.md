@@ -4,6 +4,10 @@ Refer to the situational context, definitions and inspirations provided earlier 
 
 Provide a description of the service at plateau {plateau}.
 
+All plateau descriptions are gathered before feature generation. Ensure this
+response stands alone and does not reference other plateau levels or later
+stages.
+
 ## Instructions
 
 - Do not refer to the service by name or as "this service".
