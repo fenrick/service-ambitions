@@ -7,15 +7,15 @@ from types import SimpleNamespace
 from typing import cast
 
 import pytest
-from pydantic_ai import (  # noqa: E402  pylint: disable=wrong-import-position
+from pydantic_ai import (
     Agent,
     messages,
 )
 
 from conversation import (
     ConversationSession,
-)  # noqa: E402  pylint: disable=wrong-import-position
-from models import (  # noqa: E402  pylint: disable=wrong-import-position
+)
+from models import (
     ServiceFeature,
     ServiceInput,
 )
@@ -26,12 +26,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 class DummyAgent:
     """Minimal stand-in for a Pydantic-AI agent."""
 
-    def __init__(self) -> None:  # pragma: no cover - trivial init
+    def __init__(self) -> None:
         self.called_with: list[str] = []
 
-    async def run(
-        self, prompt: str, message_history: list[str], output_type=None
-    ):  # pragma: no cover - simple stub
+    async def run(self, prompt: str, message_history: list[str], output_type=None):
         self.called_with.append(prompt)
         return SimpleNamespace(output="pong", new_messages=lambda: ["msg"])
 
@@ -49,9 +47,9 @@ def test_add_parent_materials_records_history() -> None:
     )
     session.add_parent_materials(service)
 
-    assert len(session._history) == 1  # noqa: SLF001 - accessing test-only attribute
+    assert len(session._history) == 1
     assert isinstance(session._history[0], messages.ModelRequest)
-    part = session._history[0].parts[0]  # noqa: SLF001 - test helper
+    part = session._history[0].parts[0]
     assert isinstance(part, messages.UserPromptPart)
     material = cast(str, part.content)
     assert material.startswith("SERVICE_CONTEXT:\n")
@@ -83,7 +81,7 @@ def test_add_parent_materials_includes_features() -> None:
     )
     session.add_parent_materials(service)
 
-    part = cast(messages.UserPromptPart, session._history[0].parts[0])  # noqa: SLF001 - test helper
+    part = cast(messages.UserPromptPart, session._history[0].parts[0])
     material = cast(str, part.content)
     data = json.loads(material.split("SERVICE_CONTEXT:\n", 1)[1])
     assert data["features"] == [
@@ -103,7 +101,7 @@ async def test_ask_adds_responses_to_history() -> None:
     reply = await session.ask("ping")
 
     assert reply == "pong"
-    assert session._history[-1] == "msg"  # noqa: SLF001 - accessing test-only attribute
+    assert session._history[-1] == "msg"
 
 
 @pytest.mark.asyncio

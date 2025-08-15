@@ -329,7 +329,7 @@ def main() -> None:
     _configure_logging(args, settings)
 
     result = args.func(args, settings)
-    if inspect.isawaitable(result):  # pragma: no cover - depends on command
+    if inspect.isawaitable(result):
         # Cast ensures that asyncio.run receives a proper Coroutine
         asyncio.run(cast(Coroutine[Any, Any, Any], result))
 

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from settings import load_settings  # noqa: E402  pylint: disable=wrong-import-position
+from settings import load_settings
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 

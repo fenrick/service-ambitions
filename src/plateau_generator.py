@@ -101,7 +101,7 @@ class PlateauGenerator:
         # description becomes part of the chat history for that plateau only.
         try:
             response = session.ask(prompt, output_type=DescriptionResponse)
-        except Exception as exc:  # pragma: no cover - logging
+        except Exception as exc:
             logger.error("Invalid plateau description: %s", exc)
             raise ValueError("Agent returned invalid plateau description") from exc
         if not response.description:
@@ -132,7 +132,7 @@ class PlateauGenerator:
         for name in plateau_names:
             try:
                 level = DEFAULT_PLATEAU_MAP[name]
-            except KeyError as exc:  # pragma: no cover - validated by tests
+            except KeyError as exc:
                 raise ValueError(f"Unknown plateau name: {name}") from exc
             lines.append(f"{level}. {name}")
         plateaus_str = "\n".join(lines)
@@ -141,7 +141,7 @@ class PlateauGenerator:
         prompt = template.format(plateaus=plateaus_str, schema=str(schema))
         try:
             payload = session.ask(prompt, output_type=PlateauDescriptionsResponse)
-        except Exception as exc:  # pragma: no cover - logging
+        except Exception as exc:
             logger.error("Invalid plateau descriptions: %s", exc)
             raise ValueError("Agent returned invalid plateau descriptions") from exc
 
@@ -259,7 +259,7 @@ class PlateauGenerator:
             # history is isolated per plateau.
             try:
                 payload = session.ask(prompt, output_type=PlateauFeaturesResponse)
-            except Exception as exc:  # pragma: no cover - logging
+            except Exception as exc:
                 logger.error("Invalid JSON from feature response: %s", exc)
                 raise ValueError("Agent returned invalid JSON") from exc
             for role in self.roles:
@@ -331,7 +331,7 @@ class PlateauGenerator:
             for name in plateau_names:
                 try:
                     level = DEFAULT_PLATEAU_MAP[name]
-                except KeyError as exc:  # pragma: no cover - checked by tests
+                except KeyError as exc:
                     raise ValueError(f"Unknown plateau name: {name}") from exc
 
                 plateau_session = ConversationSession(self.session.client)

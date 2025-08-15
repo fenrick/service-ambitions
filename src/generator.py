@@ -31,19 +31,19 @@ T = TypeVar("T")
 
 # Transient failures that warrant a retry. Provider specific errors are optional
 # to avoid hard dependencies when the SDK is absent.
-if TYPE_CHECKING:  # pragma: no cover - used for type hints only
+if TYPE_CHECKING:
     from openai import APIConnectionError as OpenAIAPIConnectionError
     from openai import RateLimitError as OpenAIRateLimitError
-else:  # pragma: no cover - openai may be missing
+else:
     try:
         from openai import APIConnectionError as OpenAIAPIConnectionError
         from openai import RateLimitError as OpenAIRateLimitError
     except Exception:
 
-        class OpenAIAPIConnectionError(Exception):  # type: ignore[empty-body]
+        class OpenAIAPIConnectionError(Exception):
             """Fallback when OpenAI SDK is absent."""
 
-        class OpenAIRateLimitError(Exception):  # type: ignore[empty-body]
+        class OpenAIRateLimitError(Exception):
             """Fallback when OpenAI SDK is absent."""
 
 
@@ -88,7 +88,7 @@ def _retry_after_seconds(exc: BaseException) -> float | None:
                 if dt is None:
                     return None
                 return max(0.0, (dt - datetime.now(timezone.utc)).total_seconds())
-            except Exception:  # pragma: no cover - best effort parsing
+            except Exception:
                 return None
     return None
 
@@ -125,7 +125,7 @@ async def _with_retry(
     for attempt in range(attempts):
         try:
             return await asyncio.wait_for(coro_factory(), timeout=request_timeout)
-        except TRANSIENT_EXCEPTIONS as exc:  # pragma: no cover - handled retries
+        except TRANSIENT_EXCEPTIONS as exc:
             if attempt == attempts - 1:
                 raise
             delay = min(cap, base * (2**attempt))
@@ -262,7 +262,7 @@ class ServiceAmbitionGenerator:
                     logger.info("Processing service %s", service.name)
                     try:
                         result = await self.process_service(service)
-                    except Exception as exc:  # pylint: disable=broad-except
+                    except Exception as exc:
                         # Continue processing other services but record the failure.
                         logger.error(
                             "Failed to process service %s: %s",
@@ -312,7 +312,7 @@ class ServiceAmbitionGenerator:
         self._prompt = prompt
         try:
             return await self._process_all(services, output_path, progress)
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception as exc:
             logger.error("Failed to write results to %s: %s", output_path, exc)
             raise
         finally:
@@ -372,7 +372,7 @@ def build_model(
         # Map each reasoning field to the ``openai_reasoning_*`` parameter.
         for key, value in reasoning.model_dump(exclude_none=True).items():
             settings_kwargs[f"openai_reasoning_{key}"] = value
-    settings = OpenAIResponsesModelSettings(**settings_kwargs)  # type: ignore[typeddict-item]
+    settings = OpenAIResponsesModelSettings(**settings_kwargs)
     return OpenAIResponsesModel(model_name, settings=settings)
 
 

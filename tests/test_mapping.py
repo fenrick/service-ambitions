@@ -15,11 +15,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 class DummySession:
     """Simple stand-in for a conversation session."""
 
-    def __init__(self, responses: list[str]) -> None:  # pragma: no cover - simple init
+    def __init__(self, responses: list[str]) -> None:
         self._responses = iter(responses)
         self.prompts: list[str] = []
 
-    async def ask(self, prompt: str, output_type=None):  # pragma: no cover - trivial
+    async def ask(self, prompt: str, output_type=None):
         self.prompts.append(prompt)
         response = next(self._responses)
         if output_type is None:
@@ -89,7 +89,7 @@ async def test_map_feature_returns_mappings(monkeypatch) -> None:
         customer_type="learners",
     )
 
-    result = await map_feature(session, feature)  # type: ignore[arg-type]
+    result = await map_feature(session, feature)
 
     assert isinstance(result, PlateauFeature)
     assert result.mappings["data"][0].item == "INF-1"
@@ -158,7 +158,7 @@ async def test_map_feature_injects_reference_data(monkeypatch) -> None:
         score=MaturityScore(level=3, label="Defined", justification="j"),
         customer_type="learners",
     )
-    await map_feature(session, feature)  # type: ignore[arg-type]
+    await map_feature(session, feature)
 
     assert len(session.prompts) == 3
     assert "User Data" in session.prompts[0]
@@ -191,7 +191,7 @@ async def test_map_feature_rejects_invalid_json(monkeypatch) -> None:
         customer_type="learners",
     )
     with pytest.raises(ValueError):
-        await map_feature(session, feature)  # type: ignore[arg-type]
+        await map_feature(session, feature)
 
 
 def test_map_feature_ignores_unknown_ids(monkeypatch) -> None:
@@ -296,7 +296,7 @@ async def test_map_feature_flattens_nested_mappings(monkeypatch) -> None:
         customer_type="learners",
     )
 
-    result = await map_feature(session, feature)  # type: ignore[arg-type]
+    result = await map_feature(session, feature)
 
     assert result.mappings["data"][0].item == "INF-1"
     assert result.mappings["applications"][0].item == "APP-1"
@@ -357,7 +357,7 @@ async def test_map_feature_flattens_repeated_mapping_keys(monkeypatch) -> None:
         customer_type="learners",
     )
 
-    result = await map_feature(session, feature)  # type: ignore[arg-type]
+    result = await map_feature(session, feature)
 
     assert result.mappings["data"][0].item == "INF-1"
     assert result.mappings["applications"][0].item == "APP-1"
@@ -423,7 +423,7 @@ async def test_map_features_returns_mappings(monkeypatch) -> None:
         customer_type="learners",
     )
 
-    result = await map_features(session, [feature])  # type: ignore[arg-type]
+    result = await map_features(session, [feature])
 
     assert result[0].mappings["data"][0].item == "INF-1"
     assert "User Data" in session.prompts[0]
@@ -472,7 +472,7 @@ async def test_map_features_allows_empty_lists(monkeypatch) -> None:
         customer_type="learners",
     )
 
-    result = await map_features(session, [feature])  # type: ignore[arg-type]
+    result = await map_features(session, [feature])
 
     assert result[0].mappings["data"] == []
     assert result[0].mappings["applications"] == []

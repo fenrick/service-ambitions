@@ -8,7 +8,7 @@ import monitoring
 
 def test_init_logfire_replaces_root_handlers(monkeypatch):
     class DummyHandler(logging.Handler):
-        def emit(self, record):  # pragma: no cover - no output
+        def emit(self, record):
             pass
 
     root_logger = logging.getLogger()
@@ -20,7 +20,7 @@ def test_init_logfire_replaces_root_handlers(monkeypatch):
     root_logger.addHandler(handler)
 
     class LFHandler(logging.Handler):
-        def emit(self, record):  # pragma: no cover - no output
+        def emit(self, record):
             pass
 
     installed = False

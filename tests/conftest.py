@@ -29,5 +29,5 @@ def _mock_openai(monkeypatch):
                 ),
                 raising=False,
             )
-    except Exception:  # pragma: no cover - safety net
+    except Exception:
         pass

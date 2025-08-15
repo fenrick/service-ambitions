@@ -34,16 +34,16 @@ def _load_service_entries(path: Path | str) -> Generator[ServiceInput, None, Non
                         continue  # Skip blank lines
                     try:
                         yield adapter.validate_json(line)
-                    except Exception as exc:  # pragma: no cover - logging
+                    except Exception as exc:
                         logger.error("Invalid service entry in %s: %s", path_obj, exc)
                         raise RuntimeError("Invalid service definition") from exc
-        except FileNotFoundError:  # pragma: no cover - logging
+        except FileNotFoundError:
             logger.error("Services file not found: %s", path_obj)
             raise FileNotFoundError(
                 "Services file not found. Please create a %s file in the current"
                 " directory." % path_obj
             ) from None
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception as exc:
             logger.error("Error reading services file %s: %s", path_obj, exc)
             raise RuntimeError(
                 f"An error occurred while reading the services file: {exc}"
@@ -62,7 +62,7 @@ class ServiceLoader:
     def __enter__(self) -> Iterator[ServiceInput]:
         return self.__iter__()
 
-    def __exit__(self, exc_type, exc, tb) -> None:  # pragma: no cover - no cleanup
+    def __exit__(self, exc_type, exc, tb) -> None:
         return None
 
 

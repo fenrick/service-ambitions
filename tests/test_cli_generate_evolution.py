@@ -32,7 +32,7 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         return object()
 
     class DummyAgent:
-        def __init__(self, model, instructions):  # pragma: no cover - simple stub
+        def __init__(self, model, instructions):
             self.model = model
             self.instructions = instructions
 
@@ -90,11 +90,11 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
     output_path = tmp_path / "out.jsonl"
     input_path.write_text("{}\n", encoding="utf-8")
 
-    def fake_build_model(*args, **kwargs):  # pragma: no cover - stub
+    def fake_build_model(*args, **kwargs):
         return object()
 
     class DummyAgent:
-        def __init__(self, model, instructions):  # pragma: no cover - stub
+        def __init__(self, model, instructions):
             pass
 
     called = {"ran": False}
@@ -165,7 +165,7 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         return object()
 
     class DummyAgent:
-        def __init__(self, model, instructions):  # pragma: no cover - stub
+        def __init__(self, model, instructions):
             pass
 
     processed: list[str] = []

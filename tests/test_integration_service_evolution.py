@@ -6,12 +6,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
-from pydantic_ai import Agent  # noqa: E402  pylint: disable=wrong-import-position
+from pydantic_ai import Agent
 
 from conversation import (
     ConversationSession,
-)  # noqa: E402  pylint: disable=wrong-import-position
-from models import (  # noqa: E402  pylint: disable=wrong-import-position
+)
+from models import (
     Contribution,
     PlateauFeature,
     ServiceEvolution,
@@ -19,7 +19,7 @@ from models import (  # noqa: E402  pylint: disable=wrong-import-position
 )
 from plateau_generator import (
     PlateauGenerator,
-)  # noqa: E402  pylint: disable=wrong-import-position
+)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -31,7 +31,7 @@ class DummyAgent:
         self._responses = responses
         self.prompts: list[str] = []
 
-    def run_sync(self, prompt: str, message_history):  # pragma: no cover - stub
+    def run_sync(self, prompt: str, message_history):
         self.prompts.append(prompt)
         return SimpleNamespace(output=self._responses.pop(0), new_messages=lambda: [])
 

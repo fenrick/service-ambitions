@@ -6,12 +6,12 @@ from pathlib import Path
 from typing import cast
 
 import pytest
-from pydantic_ai import Agent  # noqa: E402  pylint: disable=wrong-import-position
+from pydantic_ai import Agent
 
 from conversation import (
     ConversationSession,
-)  # noqa: E402  pylint: disable=wrong-import-position
-from models import (  # noqa: E402  pylint: disable=wrong-import-position
+)
+from models import (
     Contribution,
     MaturityScore,
     PlateauFeature,
@@ -20,7 +20,7 @@ from models import (  # noqa: E402  pylint: disable=wrong-import-position
 )
 from plateau_generator import (
     PlateauGenerator,
-)  # noqa: E402  pylint: disable=wrong-import-position
+)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -32,18 +32,14 @@ class DummySession:
         self._responses = responses
         self.prompts: list[str] = []
 
-    def ask(
-        self, prompt: str, output_type=None
-    ) -> object:  # pragma: no cover - simple proxy
+    def ask(self, prompt: str, output_type=None) -> object:
         self.prompts.append(prompt)
         response = self._responses.pop(0)
         if output_type is None:
             return response
         return output_type.model_validate_json(response)
 
-    def add_parent_materials(
-        self, service_input: ServiceInput
-    ) -> None:  # pragma: no cover - simple stub
+    def add_parent_materials(self, service_input: ServiceInput) -> None:
         pass
 
 
@@ -255,7 +251,7 @@ def test_generate_service_evolution_filters(monkeypatch) -> None:
     )
 
     class DummyAgent:
-        def run_sync(self, prompt, message_history):  # pragma: no cover - stub
+        def run_sync(self, prompt, message_history):
             return type("R", (), {"output": "", "new_messages": lambda: []})()
 
     session = ConversationSession(cast(Agent[None, str], DummyAgent()))

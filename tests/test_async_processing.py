@@ -17,7 +17,7 @@ class DummyAgent:
         self.model = model
         self.instructions = instructions
 
-    async def run(self, user_prompt: str, output_type):  # pragma: no cover - stub
+    async def run(self, user_prompt: str, output_type):
         return SimpleNamespace(
             output=SimpleNamespace(model_dump=lambda: {"service": user_prompt})
         )
@@ -42,7 +42,7 @@ def test_process_service_retries(monkeypatch):
     attempts = {"count": 0}
 
     class FlakyAgent(DummyAgent):
-        async def run(self, user_prompt: str, output_type):  # pragma: no cover - stub
+        async def run(self, user_prompt: str, output_type):
             attempts["count"] += 1
             if attempts["count"] < 3:
                 # Connection errors are considered transient and should retry.

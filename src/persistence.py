@@ -27,7 +27,7 @@ def read_lines(path: Path) -> List[str]:
 
     try:
         return path.read_text(encoding="utf-8").splitlines()
-    except FileNotFoundError:  # pragma: no cover - best effort
+    except FileNotFoundError:
         return []
 
 

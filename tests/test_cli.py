@@ -589,7 +589,7 @@ def test_cli_resume_skips_processed(tmp_path, monkeypatch):
 def test_cli_flushes_logfire_on_error(monkeypatch):
     """``logfire.force_flush`` runs even when the CLI raises."""
 
-    async def boom():  # pragma: no cover - exercised via CLI
+    async def boom():
         raise RuntimeError("fail")
 
     called: dict[str, bool] = {"flushed": False}

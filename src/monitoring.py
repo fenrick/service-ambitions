@@ -72,7 +72,7 @@ def init_logfire(token: str | None = None) -> None:
         # ``logfire`` is an optional dependency; import lazily to avoid
         # requiring it for users that do not enable telemetry.
         logfire = importlib.import_module("logfire")
-    except ImportError:  # pragma: no cover - depends on optional package
+    except ImportError:
         logger.warning("logfire package not installed; skipping Logfire setup")
         _configure_json_logging(level)
         return

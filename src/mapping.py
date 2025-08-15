@@ -21,7 +21,7 @@ from models import (
     PlateauFeature,
 )
 
-if TYPE_CHECKING:  # pragma: no cover - import for type checking only
+if TYPE_CHECKING:
     from conversation import ConversationSession
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 class MappingError(RuntimeError):
     """Raised when a mapping response is missing required data."""
 
-    def __init__(self, message: str) -> None:  # pragma: no cover - simple init
+    def __init__(self, message: str) -> None:
         super().__init__(message)
 
 
@@ -196,7 +196,7 @@ def map_features(
         logger.debug("Requesting %s mappings for %s features", key, len(results))
         try:
             payload = session.ask(prompt, output_type=MappingResponse)
-        except Exception as exc:  # pragma: no cover - logging
+        except Exception as exc:
             logger.error("Invalid JSON from mapping response: %s", exc)
             raise ValueError("Agent returned invalid JSON") from exc
         results = _merge_mapping_results(results, payload, {key: cfg})

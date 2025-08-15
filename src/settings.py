@@ -87,8 +87,8 @@ def load_settings() -> Settings:
     env_kwargs = {"_env_file": env_file} if env_file.exists() else {}
     try:
         # Validate and merge configuration from file, env file and environment.
-        return Settings(**data, **env_kwargs)  # type: ignore[arg-type]
-    except ValidationError as exc:  # pragma: no cover - exercised in tests
+        return Settings(**data, **env_kwargs)
+    except ValidationError as exc:
         # Summarise validation issues so the caller receives clear feedback.
         details = "; ".join(
             f"{'.'.join(map(str, error['loc']))}: {error['msg']}"

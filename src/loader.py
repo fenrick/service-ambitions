@@ -70,10 +70,10 @@ def _read_file(path: Path) -> str:
     try:
         with path.open("r", encoding="utf-8") as file:
             return file.read().strip()
-    except FileNotFoundError:  # pragma: no cover - logging
+    except FileNotFoundError:
         logger.error("Prompt file not found: %s", path)
         raise
-    except Exception as exc:  # pylint: disable=broad-except
+    except Exception as exc:
         logger.error("Error reading prompt file %s: %s", path, exc)
         raise RuntimeError(
             f"An error occurred while reading the prompt file: {exc}"
@@ -96,7 +96,7 @@ def _read_json_file(path: Path, schema: type[T]) -> T:
         return adapter.validate_json(_read_file(path))
     except FileNotFoundError:
         raise
-    except Exception as exc:  # pylint: disable=broad-except
+    except Exception as exc:
         logger.error("Error reading JSON file %s: %s", path, exc)
         raise RuntimeError(
             f"An error occurred while reading the JSON file: {exc}"
@@ -213,7 +213,7 @@ def load_plateau_definitions(
     path = Path(base_dir) / Path(filename)
     try:
         return _read_json_file(path, list[ServiceFeaturePlateau])
-    except Exception as exc:  # pylint: disable=broad-except
+    except Exception as exc:
         logger.error("Invalid plateau definition data in %s: %s", path, exc)
         raise RuntimeError(f"Invalid plateau definitions: {exc}") from exc
 
@@ -244,7 +244,7 @@ def load_roles(
     path = base_path / Path(filename) if base_path.is_dir() else base_path
     try:
         return _read_json_file(path, list[Role])
-    except Exception as exc:  # pylint: disable=broad-except
+    except Exception as exc:
         logger.error("Invalid role data in %s: %s", path, exc)
         raise RuntimeError(f"Invalid roles: {exc}") from exc
 
