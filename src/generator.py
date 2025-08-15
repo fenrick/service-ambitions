@@ -361,18 +361,22 @@ def build_model(
         os.environ.setdefault("OPENAI_API_KEY", api_key)
     # Allow callers to pass provider-prefixed names such as ``openai:gpt-4``.
     model_name = model_name.split(":", 1)[-1]
-    extra = {"seed": seed} if seed is not None else {}
-    settings_kwargs: dict[str, Any] = {**extra}
+    settings: OpenAIResponsesModelSettings = {}
+    if seed is not None:
+        settings["seed"] = seed
     if web_search:
         # Allow optional access to the ``web_search_preview`` tool which provides
         # browsing capabilities. Disabling keeps runs deterministic and avoids
         # additional cost for schema-only generation.
-        settings_kwargs["openai_builtin_tools"] = [{"type": "web_search_preview"}]
+        settings["openai_builtin_tools"] = [{"type": "web_search_preview"}]
     if reasoning:
-        # Map each reasoning field to the ``openai_reasoning_*`` parameter.
-        for key, value in reasoning.model_dump(exclude_none=True).items():
-            settings_kwargs[f"openai_reasoning_{key}"] = value
-    settings = OpenAIResponsesModelSettings(**settings_kwargs)
+        # Map each supported reasoning field to the ``openai_reasoning_*``
+        # parameter. Extra fields allowed by ``ReasoningConfig`` are ignored to
+        # keep type checking strict.
+        if reasoning.effort is not None:
+            settings["openai_reasoning_effort"] = reasoning.effort
+        if reasoning.summary is not None:
+            settings["openai_reasoning_summary"] = reasoning.summary
     return OpenAIResponsesModel(model_name, settings=settings)
 
 
