@@ -74,7 +74,7 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
 
     # Prefer model specified on the CLI, falling back to settings
     model_name = args.model or settings.model
-    logger.info("Generating ambitions using model %s", model_name)
+    logger.info(f"Generating ambitions using model {model_name}")
 
     model = build_model(
         model_name,
@@ -121,7 +121,7 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
             services = svc_iter
 
         if args.dry_run:
-            logger.info("Validated %d services", len(services_list or []))
+            logger.info(f"Validated {len(services_list or [])} services")
             return
 
         if show_progress:
@@ -144,7 +144,7 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
         processed_ids = new_ids
 
     atomic_write(processed_path, sorted(processed_ids))
-    logger.info("Results written to %s", output_path)
+    logger.info(f"Results written to {output_path}")
 
 
 def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
@@ -182,7 +182,7 @@ def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
         services = [s for s in svc_iter if s.service_id not in processed_ids]
 
     if args.dry_run:
-        logger.info("Validated %d services", len(services))
+        logger.info(f"Validated {len(services)} services")
         return
 
     new_ids: set[str] = set()
@@ -201,7 +201,7 @@ def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
             evolution = generator.generate_service_evolution(service)
             output.write(f"{evolution.model_dump_json()}\n")
             new_ids.add(service.service_id)
-            logger.info("Generated evolution for %s", service.name)
+            logger.info(f"Generated evolution for {service.name}")
             if progress:
                 progress.update(1)
     if progress:

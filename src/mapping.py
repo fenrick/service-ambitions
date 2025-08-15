@@ -151,7 +151,7 @@ def _merge_mapping_results(
                 # feature generation can continue when the agent omits a
                 # category.  An empty list is stored for the mapping type.
                 logger.warning(
-                    "Missing mappings: feature=%s key=%s", feature.feature_id, key
+                    f"Missing mappings: feature={feature.feature_id} key={key}"
                 )
             else:
                 valid_values: list[Contribution] = []
@@ -161,10 +161,8 @@ def _merge_mapping_results(
                         # can proceed without manual intervention. These
                         # entries may be regenerated in a future run.
                         logger.warning(
-                            "Dropping unknown %s ID %s for feature %s",
-                            key,
-                            item.item,
-                            feature.feature_id,
+                            f"Dropping unknown {key} ID {item.item} for feature"
+                            f" {feature.feature_id}"
                         )
                         continue
                     valid_values.append(item)
@@ -193,11 +191,11 @@ def map_features(
 
     for key, cfg in mapping_types.items():
         prompt = _build_mapping_prompt(results, {key: cfg})
-        logger.debug("Requesting %s mappings for %s features", key, len(results))
+        logger.debug(f"Requesting {key} mappings for {len(results)} features")
         try:
             payload = session.ask(prompt, output_type=MappingResponse)
         except Exception as exc:
-            logger.error("Invalid JSON from mapping response: %s", exc)
+            logger.error(f"Invalid JSON from mapping response: {exc}")
             raise ValueError("Agent returned invalid JSON") from exc
         results = _merge_mapping_results(results, payload, {key: cfg})
 
