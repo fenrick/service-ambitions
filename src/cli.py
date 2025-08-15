@@ -11,7 +11,7 @@ import random
 import sys
 from itertools import islice
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Coroutine, Iterable, cast
 
 import logfire
 from pydantic_ai import Agent
@@ -330,7 +330,8 @@ def main() -> None:
 
     result = args.func(args, settings)
     if inspect.isawaitable(result):  # pragma: no cover - depends on command
-        asyncio.run(result)
+        # Cast ensures that asyncio.run receives a proper Coroutine
+        asyncio.run(cast(Coroutine[Any, Any, Any], result))
 
     logfire.force_flush()
 
