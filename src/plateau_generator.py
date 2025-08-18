@@ -117,27 +117,6 @@ class PlateauGenerator:
         return cleaned
 
     @logfire.instrument()
-    async def _request_description_async(
-        self, level: int, session: ConversationSession | None = None
-    ) -> str:
-        """Asynchronously return the service description for ``level``."""
-
-        session = session or self.description_session
-        template = load_prompt_text("description_prompt")
-        schema = json.dumps(DescriptionResponse.model_json_schema(), indent=2)
-        prompt = template.format(plateau=level, schema=str(schema))
-        try:
-            response = await session.ask_async(prompt, output_type=DescriptionResponse)
-        except Exception as exc:
-            logfire.error(f"Invalid plateau description: {exc}")
-            raise ValueError("Agent returned invalid plateau description") from exc
-        if not response.description:
-            raise ValueError("'description' must be a non-empty string")
-        cleaned = self._sanitize_description(response.description)
-        if not cleaned:
-            raise ValueError("'description' must be a non-empty string")
-        return cleaned
-
     @staticmethod
     def _sanitize_description(text: str) -> str:
         """Remove any model-added preamble from ``text``.
@@ -316,10 +295,21 @@ class PlateauGenerator:
         self,
         level: int,
         plateau_name: str,
+        *,
         session: ConversationSession | None = None,
-        description: str | None = None,
+        description: str,
     ) -> PlateauResult:
-        """Asynchronously return mapped plateau features for ``level``."""
+        """Asynchronously return mapped plateau features for ``level``.
+
+        Args:
+            level: Numeric plateau level.
+            plateau_name: Human readable name of the plateau.
+            session: Conversation session used for feature generation.
+            description: Pre-fetched description for the target plateau.
+
+        Returns:
+            PlateauResult populated with mapped features.
+        """
 
         if self._service is None:
             raise ValueError(
@@ -332,8 +322,6 @@ class PlateauGenerator:
             span.set_attribute("service.id", self._service.service_id)
             span.set_attribute("plateau", level)
 
-            if description is None:
-                description = await self._request_description_async(level, session)
             prompt = self._build_plateau_prompt(level, description)
             logfire.info(f"Requesting features for level={level}")
 
@@ -379,13 +367,26 @@ class PlateauGenerator:
         self,
         level: int,
         plateau_name: str,
+        *,
         session: ConversationSession | None = None,
-        description: str | None = None,
+        description: str,
     ) -> PlateauResult:
-        """Return mapped plateau features for ``level``."""
+        """Return mapped plateau features for ``level``.
+
+        Args:
+            level: Numeric plateau level.
+            plateau_name: Human readable name of the plateau.
+            session: Conversation session used for feature generation.
+            description: Pre-fetched description for the target plateau.
+        """
 
         return asyncio.run(
-            self.generate_plateau_async(level, plateau_name, session, description)
+            self.generate_plateau_async(
+                level,
+                plateau_name,
+                session=session,
+                description=description,
+            )
         )
 
     @logfire.instrument()
