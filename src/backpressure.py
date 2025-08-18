@@ -220,16 +220,21 @@ class AdaptiveSemaphore:
 
 
 class RollingMetrics:
-    """Track rolling request rates and error ratios."""
+    """Track rolling request, error and token rates."""
 
     def __init__(self, window: float = 60.0) -> None:
         self._window = window
         self._requests: Deque[float] = deque()
         self._errors: Deque[float] = deque()
+        self._tokens: Deque[tuple[float, int]] = deque()
 
     def _trim(self, buf: Deque[float], now: float) -> None:
         while buf and now - buf[0] > self._window:
             buf.popleft()
+
+    def _trim_tokens(self, now: float) -> None:
+        while self._tokens and now - self._tokens[0][0] > self._window:
+            self._tokens.popleft()
 
     def record_request(self) -> None:
         """Record a request and emit updated metrics."""
@@ -249,6 +254,15 @@ class RollingMetrics:
         now = time.monotonic()
         self._errors.append(now)
         self._trim(self._errors, now)
+
+    def record_tokens(self, count: int) -> None:
+        """Record estimated token usage and emit aggregate metrics."""
+
+        now = time.monotonic()
+        self._tokens.append((now, count))
+        self._trim_tokens(now)
+        total_tokens = sum(t for _, t in self._tokens)
+        logfire.metric("tokens_per_second", total_tokens / self._window)
 
 
 __all__ = ["AdaptiveSemaphore", "RollingMetrics"]

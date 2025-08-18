@@ -121,7 +121,7 @@ async def test_multi_weight_acquisition_release_counts():
 
 
 def test_rolling_metrics_reports(monkeypatch):
-    """Metrics emit request rate and error rate."""
+    """Metrics emit request, error and token rates."""
 
     calls: list[SimpleNamespace] = []
 
@@ -132,7 +132,8 @@ def test_rolling_metrics_reports(monkeypatch):
     metrics = RollingMetrics(window=1)
     metrics.record_request()
     metrics.record_error()
+    metrics.record_tokens(5)
     metrics.record_request()
 
     names = {c.name for c in calls}
-    assert {"requests_per_second", "error_rate"} <= names
+    assert {"requests_per_second", "error_rate", "tokens_per_second"} <= names

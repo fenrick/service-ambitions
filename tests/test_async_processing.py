@@ -8,6 +8,7 @@ from typing import Iterable
 
 import pytest
 
+import backpressure
 import generator
 from models import ServiceInput
 
@@ -205,6 +206,7 @@ async def test_weighted_acquisition(monkeypatch, tmp_path):
     """The generator acquires limiter permits proportional to token estimates."""
 
     captured: list[int] = []
+    metrics_calls: list[SimpleNamespace] = []
 
     class DummyLimiter:
         def __call__(self, weight: int = 1):
@@ -229,17 +231,24 @@ async def test_weighted_acquisition(monkeypatch, tmp_path):
     monkeypatch.setattr(
         generator.ServiceAmbitionGenerator, "process_service", fake_process_service
     )
+    monkeypatch.setattr(
+        backpressure.logfire,
+        "metric",
+        lambda n, v: metrics_calls.append(SimpleNamespace(name=n, value=v)),
+    )
 
     gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
     gen._prompt = "p"
     gen._limiter = DummyLimiter()
-    gen._metrics = generator.RollingMetrics()
+    gen._metrics = generator.RollingMetrics(window=1)
     services = [
         ServiceInput(service_id="svc1", name="s1", description="d", jobs_to_be_done=[]),
         ServiceInput(service_id="svc2", name="s2", description="d", jobs_to_be_done=[]),
     ]
     await gen._process_all(services, str(tmp_path / "out.jsonl"))
     assert sorted(captured) == [1, 3]
+    names = {c.name for c in metrics_calls}
+    assert "tokens_per_second" in names
 
 
 def test_generate_async_consumes_in_batches(tmp_path, monkeypatch):

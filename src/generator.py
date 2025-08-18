@@ -304,6 +304,8 @@ class ServiceAmbitionGenerator:
             if limiter is None:  # pragma: no cover - defensive
                 raise RuntimeError("Limiter not initialized")
             async with limiter(weight_estimate):
+                if self._metrics:
+                    self._metrics.record_tokens(weight_estimate)
                 # Record service metadata on the span so that traces include the
                 # originating service identifier and customer segment.
                 with logfire.span("process_service") as span:
