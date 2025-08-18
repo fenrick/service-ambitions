@@ -73,6 +73,20 @@ def _feature_payload(count: int, level: int = 1) -> str:
     return json.dumps(payload)
 
 
+def test_predict_token_load_uses_estimate_tokens(monkeypatch) -> None:
+    """Token load predictions should call ``estimate_tokens``."""
+
+    called: dict[str, tuple[str, int]] = {}
+
+    def fake_estimate(text: str, expected: int) -> int:
+        called["args"] = (text, expected)
+        return 9
+
+    monkeypatch.setattr("plateau_generator.estimate_tokens", fake_estimate)
+    assert PlateauGenerator._predict_token_load("hello") == 9
+    assert called["args"] == ("hello", 0)
+
+
 def test_build_plateau_prompt_preserves_role_placeholder(monkeypatch) -> None:
     """_build_plateau_prompt should retain role placeholders."""
 
