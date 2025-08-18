@@ -22,6 +22,7 @@ from mapping import map_features_async
 from models import (
     DescriptionResponse,
     FeatureItem,
+    FeaturesBlock,
     PlateauDescriptionsResponse,
     PlateauFeature,
     PlateauFeaturesResponse,
@@ -117,8 +118,8 @@ class PlateauGenerator:
             raise ValueError("'description' must be a non-empty string")
         return cleaned
 
-    @logfire.instrument()
     @staticmethod
+    @logfire.instrument()
     def _sanitize_description(text: str) -> str:
         """Remove any model-added preamble from ``text``.
 
@@ -261,6 +262,43 @@ class PlateauGenerator:
         return features
 
     @logfire.instrument()
+    async def _request_role_features_async(
+        self,
+        level: int,
+        role: str,
+        description: str,
+        count: int,
+        session: ConversationSession,
+        *,
+        reason: str = "invalid features",
+    ) -> list[FeatureItem]:
+        """Return ``count`` features for ``role`` when initial parsing fails."""
+
+        example = {
+            "features": [
+                {
+                    "feature_id": f"FEAT-{level}-{role}-example",
+                    "name": "Example feature",
+                    "description": "Example description.",
+                    "score": {
+                        "level": 3,
+                        "label": "Defined",
+                        "justification": "Example justification.",
+                    },
+                }
+            ]
+        }
+        schema = json.dumps(RoleFeaturesResponse.model_json_schema(), indent=2)
+        prompt = (
+            f"Previous output returned {reason} for role '{role}'.\nProvide exactly"
+            f" {count} unique features for this role at plateau {level}.\n\nService"
+            f" description:\n{description}\n\nExample"
+            f" output:\n{json.dumps(example, indent=2)}\n\nJSON schema:\n{schema}"
+        )
+        payload = await session.ask_async(prompt, output_type=RoleFeaturesResponse)
+        return payload.features
+
+    @logfire.instrument()
     async def _request_missing_features_async(
         self,
         level: int,
@@ -333,31 +371,59 @@ class PlateauGenerator:
             logfire.info(f"Requesting features for level={level}")
 
             try:
-                payload = await session.ask_async(
-                    prompt, output_type=PlateauFeaturesResponse
-                )
+                raw = await session.ask_async(prompt)
+                data = json.loads(raw)
             except Exception as exc:
                 logfire.error(f"Invalid JSON from feature response: {exc}")
                 raise ValueError("Agent returned invalid JSON") from exc
+
+            if not isinstance(data, dict) or "features" not in data:
+                raise ValueError("Agent returned invalid JSON")
+
+            role_data = data.get("features", {})
+            valid: dict[str, list[FeatureItem]] = {}
+            invalid_roles: list[str] = []
             missing: dict[str, int] = {}
+
             for role in self.roles:
-                items = getattr(payload.features, role, [])
+                items = role_data.get(role, [])
+                try:
+                    block = RoleFeaturesResponse(features=items)
+                except Exception:
+                    invalid_roles.append(role)
+                    valid[role] = []
+                    continue
+                valid[role] = list(block.features)
+                if len(block.features) < self.required_count:
+                    missing[role] = self.required_count - len(block.features)
+
+            for role in invalid_roles:
+                valid[role] = await self._request_role_features_async(
+                    level, role, description, self.required_count, session
+                )
+
+            for role, need in missing.items():
+                extras = await self._request_missing_features_async(
+                    level, role, description, need, session
+                )
+                valid[role].extend(extras)
+
+            for role in self.roles:
+                items = valid.get(role, [])
                 if len(items) < self.required_count:
-                    missing[role] = self.required_count - len(items)
-            if missing:
-                for role, need in missing.items():
-                    extras = await self._request_missing_features_async(
-                        level, role, description, need, session
+                    msg = (
+                        f"Expected at least {self.required_count} features for"
+                        f" '{role}', got {len(items)} after retry"
                     )
-                    getattr(payload.features, role).extend(extras)
-                for role in self.roles:
-                    items = getattr(payload.features, role, [])
-                    if len(items) < self.required_count:
-                        msg = (
-                            f"Expected at least {self.required_count} features for"
-                            f" '{role}', got {len(items)} after retry"
-                        )
-                        raise ValueError(msg)
+                    raise ValueError(msg)
+
+            block = FeaturesBlock(
+                learners=valid.get("learners", []),
+                academics=valid.get("academics", []),
+                professional_staff=valid.get("professional_staff", []),
+            )
+            payload = PlateauFeaturesResponse(features=block)
+
             features = self._collect_features(payload)
             map_session = ConversationSession(self.mapping_session.client)
             if self._service is not None:

@@ -32,6 +32,7 @@ class DummySession:
     def __init__(self, responses: list[str]) -> None:
         self._responses = responses
         self.prompts: list[str] = []
+        self.client = None
 
     def ask(self, prompt: str, output_type=None) -> object:
         self.prompts.append(prompt)
@@ -47,28 +48,26 @@ class DummySession:
         pass
 
 
-def _feature_payload(count: int) -> str:
-    # Build a uniform payload with ``count`` features per customer type.
-    items = [
-        {
-            "feature_id": f"f{i}",
-            "name": f"Feature {i}",
-            "description": f"Desc {i}",
-            "score": {
-                "level": 3,
-                "label": "Defined",
-                "justification": "test",
-            },
-        }
-        for i in range(count)
-    ]
-    payload = {
-        "features": {
-            "learners": items,
-            "academics": items,
-            "professional_staff": items,
-        }
-    }
+def _feature_payload(count: int, level: int = 1) -> str:
+    # Build a uniform payload with ``count`` valid features per customer type.
+    features = {"learners": [], "academics": [], "professional_staff": []}
+    for role in features:
+        items = []
+        for i in range(count):
+            items.append(
+                {
+                    "feature_id": f"FEAT-{level}-{role}-f{i}",
+                    "name": f"Feature {i}",
+                    "description": f"Desc {i}",
+                    "score": {
+                        "level": 3,
+                        "label": "Defined",
+                        "justification": "test",
+                    },
+                }
+            )
+        features[role] = items
+    payload = {"features": features}
     return json.dumps(payload)
 
 
@@ -121,15 +120,15 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
 
     call = {"n": 0}
 
-    def dummy_map_features(sess, feats):
+    async def dummy_map_features(sess, feats):
         call["n"] += 1
         for feat in feats:
-            feat.mappings["data"] = [Contribution(item="d", contribution="c")]
-            feat.mappings["applications"] = [Contribution(item="a", contribution="c")]
-            feat.mappings["technology"] = [Contribution(item="t", contribution="c")]
+            feat.mappings["data"] = [Contribution(item="d", contribution=0.5)]
+            feat.mappings["applications"] = [Contribution(item="a", contribution=0.5)]
+            feat.mappings["technology"] = [Contribution(item="t", contribution=0.5)]
         return feats
 
-    monkeypatch.setattr("plateau_generator.map_features", dummy_map_features)
+    monkeypatch.setattr("plateau_generator.map_features_async", dummy_map_features)
 
     generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
     service = ServiceInput(
@@ -169,7 +168,7 @@ def test_generate_plateau_repairs_missing_features(monkeypatch) -> None:
                 "learners": [],
                 "academics": [
                     {
-                        "feature_id": "fa",
+                        "feature_id": "FEAT-1-academics-a",
                         "name": "A",
                         "description": "da",
                         "score": {"level": 3, "label": "Defined", "justification": "j"},
@@ -177,7 +176,7 @@ def test_generate_plateau_repairs_missing_features(monkeypatch) -> None:
                 ],
                 "professional_staff": [
                     {
-                        "feature_id": "fp",
+                        "feature_id": "FEAT-1-professional_staff-p",
                         "name": "P",
                         "description": "dp",
                         "score": {"level": 3, "label": "Defined", "justification": "j"},
@@ -190,7 +189,7 @@ def test_generate_plateau_repairs_missing_features(monkeypatch) -> None:
         {
             "features": [
                 {
-                    "feature_id": "fl",
+                    "feature_id": "FEAT-1-learners-l",
                     "name": "L",
                     "description": "dl",
                     "score": {"level": 3, "label": "Defined", "justification": "j"},
@@ -211,10 +210,94 @@ def test_generate_plateau_repairs_missing_features(monkeypatch) -> None:
     )
     session = DummySession([desc_payload, initial, repair])
 
-    def dummy_map_features(sess, feats):
+    async def dummy_map_features(sess, feats):
         return feats
 
-    monkeypatch.setattr("plateau_generator.map_features", dummy_map_features)
+    monkeypatch.setattr("plateau_generator.map_features_async", dummy_map_features)
+
+    generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
+    service = ServiceInput(
+        service_id="svc-1",
+        name="svc",
+        customer_type="retail",
+        description="desc",
+        jobs_to_be_done=[{"name": "job"}],
+    )
+    generator._service = service
+
+    desc_map = asyncio.run(generator._request_descriptions_async(["Foundational"]))
+    plateau = generator.generate_plateau(
+        1, "Foundational", description=desc_map["Foundational"]
+    )
+
+    assert len(session.prompts) == 3
+    learners = [f for f in plateau.features if f.customer_type == "learners"]
+    assert len(learners) == 1
+
+
+def test_generate_plateau_repairs_invalid_role(monkeypatch) -> None:
+    template = "{required_count} {service_name} {service_description} {plateau} {roles}"
+
+    def fake_loader(name, *_, **__):
+        if name == "plateau_prompt":
+            return template
+        if name == "plateau_descriptions_prompt":
+            return "desc {plateaus} {schema}"
+        return ""
+
+    monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
+    initial = json.dumps(
+        {
+            "features": {
+                "learners": [{"feature_id": "FEAT-1-learners-bad"}],
+                "academics": [
+                    {
+                        "feature_id": "FEAT-1-academics-a",
+                        "name": "A",
+                        "description": "da",
+                        "score": {"level": 3, "label": "Defined", "justification": "j"},
+                    }
+                ],
+                "professional_staff": [
+                    {
+                        "feature_id": "FEAT-1-professional_staff-p",
+                        "name": "P",
+                        "description": "dp",
+                        "score": {"level": 3, "label": "Defined", "justification": "j"},
+                    }
+                ],
+            }
+        }
+    )
+    repair = json.dumps(
+        {
+            "features": [
+                {
+                    "feature_id": "FEAT-1-learners-l",
+                    "name": "L",
+                    "description": "dl",
+                    "score": {"level": 3, "label": "Defined", "justification": "j"},
+                }
+            ]
+        }
+    )
+    desc_payload = json.dumps(
+        {
+            "descriptions": [
+                {
+                    "plateau": 1,
+                    "plateau_name": "Foundational",
+                    "description": "desc",
+                }
+            ]
+        }
+    )
+    session = DummySession([desc_payload, initial, repair])
+
+    async def dummy_map_features(sess, feats):
+        return feats
+
+    monkeypatch.setattr("plateau_generator.map_features_async", dummy_map_features)
 
     generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
     service = ServiceInput(
@@ -445,13 +528,11 @@ def test_generate_service_evolution_filters(monkeypatch) -> None:
         PlateauGenerator,
         "generate_plateau_async",
         fake_generate_plateau_async,
-        raising=False,
     )
     monkeypatch.setattr(
         PlateauGenerator,
         "_request_descriptions_async",
         fake_request_descriptions_async,
-        raising=False,
     )
 
     evo = generator.generate_service_evolution(
