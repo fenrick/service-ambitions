@@ -5,6 +5,8 @@ import asyncio
 import json
 from types import SimpleNamespace
 
+import pytest
+
 from cli import _cmd_generate_evolution
 from models import SCHEMA_VERSION, ServiceEvolution, ServiceInput
 
@@ -218,3 +220,61 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
     lines = output_path.read_text(encoding="utf-8").strip().splitlines()
     assert len(lines) == 2
     assert processed_path.read_text(encoding="utf-8").splitlines() == ["s1", "s2"]
+
+
+def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -> None:
+    """Invalid concurrency should raise an error rather than deadlock."""
+
+    input_path = tmp_path / "services.jsonl"
+    output_path = tmp_path / "out.jsonl"
+    input_path.write_text("{}\n", encoding="utf-8")
+
+    def fake_build_model(*args, **kwargs):
+        return object()
+
+    class DummyAgent:
+        def __init__(self, model, instructions):
+            pass
+
+    async def fake_generate(self, service: ServiceInput) -> ServiceEvolution:
+        return ServiceEvolution(service=service, plateaus=[])
+
+    monkeypatch.setattr("cli.build_model", fake_build_model)
+    monkeypatch.setattr("cli.Agent", DummyAgent)
+    monkeypatch.setattr(
+        "cli.PlateauGenerator.generate_service_evolution_async", fake_generate
+    )
+    monkeypatch.setattr("cli.configure_prompt_dir", lambda _path: None)
+    monkeypatch.setattr("cli.load_evolution_prompt", lambda _ctx, _insp: "prompt")
+    monkeypatch.setattr("cli.logfire.force_flush", lambda: None)
+
+    settings = SimpleNamespace(
+        model="m",
+        log_level="INFO",
+        openai_api_key="k",
+        logfire_token=None,
+        concurrency=1,
+        prompt_dir="prompts",
+        context_id="ctx",
+        inspiration="insp",
+        reasoning=None,
+        features_per_role=5,
+    )
+    args = argparse.Namespace(
+        input_file=str(input_path),
+        output_file=str(output_path),
+        model=None,
+        logfire_service=None,
+        log_level=None,
+        verbose=0,
+        max_services=None,
+        dry_run=False,
+        progress=False,
+        concurrency=0,
+        resume=False,
+        seed=None,
+        roles_file="data/roles.json",
+    )
+
+    with pytest.raises(ValueError, match="concurrency must be a positive integer"):
+        asyncio.run(_cmd_generate_evolution(args, settings))
