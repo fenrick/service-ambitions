@@ -145,7 +145,7 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
     logfire.info(f"Results written to {output_path}")
 
 
-def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
+async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
     """Generate service evolution summaries."""
 
     model_name = args.model or settings.model
@@ -183,12 +183,15 @@ def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
         logfire.info(f"Validated {len(services)} services")
         return
 
+    concurrency = args.concurrency or settings.concurrency
+    sem = asyncio.Semaphore(concurrency)
+    lock = asyncio.Lock()
     new_ids: set[str] = set()
     show_progress = args.progress and sys.stdout.isatty()
     progress = tqdm(total=len(services)) if show_progress else None
 
-    with open(part_path, "w", encoding="utf-8") as output:
-        for service in services:
+    async def run_one(service: ServiceInput) -> None:
+        async with sem:
             agent = Agent(model, instructions=system_prompt)
             session = ConversationSession(agent)
             generator = PlateauGenerator(
@@ -196,12 +199,19 @@ def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
                 required_count=settings.features_per_role,
                 roles=role_ids,
             )
-            evolution = generator.generate_service_evolution(service)
-            output.write(f"{evolution.model_dump_json()}\n")
-            new_ids.add(service.service_id)
+            evolution = await generator.generate_service_evolution_async(service)
+            line = f"{evolution.model_dump_json()}\n"
+            async with lock:
+                output.write(line)
+                new_ids.add(service.service_id)
             logfire.info(f"Generated evolution for {service.name}")
             if progress:
                 progress.update(1)
+
+    with open(part_path, "w", encoding="utf-8") as output:
+        async with asyncio.TaskGroup() as tg:
+            for service in services:
+                tg.create_task(run_one(service))
     if progress:
         progress.close()
 

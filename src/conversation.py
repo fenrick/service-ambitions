@@ -53,6 +53,14 @@ class ConversationSession:
             messages.ModelRequest(parts=[messages.UserPromptPart(ctx)])
         )
 
+    @logfire.instrument()
+    def derive(self) -> "ConversationSession":
+        """Return a new session copying the current history."""
+
+        clone = ConversationSession(self.client)
+        clone._history = list(self._history)
+        return clone
+
     T = TypeVar("T")
 
     @overload
@@ -81,6 +89,26 @@ class ConversationSession:
 
         logfire.debug(f"Sending prompt: {prompt}")
         result = self.client.run_sync(
+            prompt, message_history=self._history, output_type=output_type
+        )
+        self._history.extend(result.new_messages())
+        logfire.debug(f"Received response: {result.output}")
+        return result.output
+
+    @overload
+    async def ask_async(self, prompt: str) -> str: ...
+
+    @overload
+    async def ask_async(self, prompt: str, output_type: type[T]) -> T: ...
+
+    @logfire.instrument()
+    async def ask_async(
+        self, prompt: str, output_type: type[T] | None = None
+    ) -> T | str:
+        """Asynchronously return the agent's response to ``prompt``."""
+
+        logfire.debug(f"Sending prompt: {prompt}")
+        result = await self.client.run(
             prompt, message_history=self._history, output_type=output_type
         )
         self._history.extend(result.new_messages())

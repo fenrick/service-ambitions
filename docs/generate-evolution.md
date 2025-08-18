@@ -19,9 +19,10 @@ poetry run service-ambitions generate-evolution \
 
 Use `--roles-file` to supply an alternative roles definition file when needed.
 
-Services are processed in batches controlled by the `batch_size` setting in
-`config/app.json` to avoid scheduling all tasks at once. The required number of
-features per role comes from the `features_per_role` setting in the same file.
+Services run concurrently using a bounded worker pool configured via the
+`--concurrency` flag or the `concurrency` setting in `config/app.json`. The
+required number of features per role comes from the `features_per_role` setting
+in the same file.
 
 Include `--seed <value>` to make backoff jitter and model sampling
 deterministic when supported by the provider.

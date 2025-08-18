@@ -1,6 +1,7 @@
 """Tests for the generate-evolution CLI subcommand."""
 
 import argparse
+import asyncio
 import json
 from types import SimpleNamespace
 
@@ -36,16 +37,16 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
             self.model = model
             self.instructions = instructions
 
-    def fake_generate(self, service: ServiceInput) -> ServiceEvolution:
+    async def fake_generate(self, service: ServiceInput) -> ServiceEvolution:
         return ServiceEvolution(service=service, plateaus=[])
 
     monkeypatch.setattr("cli.build_model", fake_build_model)
     monkeypatch.setattr("cli.Agent", DummyAgent)
     monkeypatch.setattr(
-        "cli.PlateauGenerator.generate_service_evolution", fake_generate
+        "cli.PlateauGenerator.generate_service_evolution_async", fake_generate
     )
     monkeypatch.setattr("cli.configure_prompt_dir", lambda _path: None)
-    monkeypatch.setattr("cli.load_prompt", lambda _ctx, _insp: "prompt")
+    monkeypatch.setattr("cli.load_evolution_prompt", lambda _ctx, _insp: "prompt")
     monkeypatch.setattr("cli.logfire.force_flush", lambda: None)
 
     settings = SimpleNamespace(
@@ -76,7 +77,7 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         roles_file="data/roles.json",
     )
 
-    _cmd_generate_evolution(args, settings)
+    asyncio.run(_cmd_generate_evolution(args, settings))
 
     payload = json.loads(output_path.read_text(encoding="utf-8").strip())
     assert payload["service"]["name"] == "svc"
@@ -99,17 +100,17 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
 
     called = {"ran": False}
 
-    def fake_generate(self, service: ServiceInput) -> ServiceEvolution:
+    async def fake_generate(self, service: ServiceInput) -> ServiceEvolution:
         called["ran"] = True
         return ServiceEvolution(service=service, plateaus=[])
 
     monkeypatch.setattr("cli.build_model", fake_build_model)
     monkeypatch.setattr("cli.Agent", DummyAgent)
     monkeypatch.setattr(
-        "cli.PlateauGenerator.generate_service_evolution", fake_generate
+        "cli.PlateauGenerator.generate_service_evolution_async", fake_generate
     )
     monkeypatch.setattr("cli.configure_prompt_dir", lambda _path: None)
-    monkeypatch.setattr("cli.load_prompt", lambda _ctx, _insp: "prompt")
+    monkeypatch.setattr("cli.load_evolution_prompt", lambda _ctx, _insp: "prompt")
     monkeypatch.setattr("cli.logfire.force_flush", lambda: None)
 
     settings = SimpleNamespace(
@@ -140,7 +141,7 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         roles_file="data/roles.json",
     )
 
-    _cmd_generate_evolution(args, settings)
+    asyncio.run(_cmd_generate_evolution(args, settings))
 
     assert not output_path.exists()
     assert not called["ran"]
@@ -170,17 +171,17 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
 
     processed: list[str] = []
 
-    def fake_generate(self, service: ServiceInput) -> ServiceEvolution:
+    async def fake_generate(self, service: ServiceInput) -> ServiceEvolution:
         processed.append(service.service_id)
         return ServiceEvolution(service=service, plateaus=[])
 
     monkeypatch.setattr("cli.build_model", fake_build_model)
     monkeypatch.setattr("cli.Agent", DummyAgent)
     monkeypatch.setattr(
-        "cli.PlateauGenerator.generate_service_evolution", fake_generate
+        "cli.PlateauGenerator.generate_service_evolution_async", fake_generate
     )
     monkeypatch.setattr("cli.configure_prompt_dir", lambda _path: None)
-    monkeypatch.setattr("cli.load_prompt", lambda _ctx, _insp: "prompt")
+    monkeypatch.setattr("cli.load_evolution_prompt", lambda _ctx, _insp: "prompt")
     monkeypatch.setattr("cli.logfire.force_flush", lambda: None)
 
     settings = SimpleNamespace(
@@ -211,7 +212,7 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         roles_file="data/roles.json",
     )
 
-    _cmd_generate_evolution(args, settings)
+    asyncio.run(_cmd_generate_evolution(args, settings))
 
     assert processed == ["s2"]
     lines = output_path.read_text(encoding="utf-8").strip().splitlines()
