@@ -25,6 +25,7 @@ from tqdm import tqdm
 
 from backpressure import AdaptiveSemaphore, RollingMetrics
 from models import ReasoningConfig, ServiceInput
+from token_utils import estimate_tokens
 
 T = TypeVar("T")
 
@@ -173,6 +174,7 @@ class ServiceAmbitionGenerator:
         request_timeout: float = 60,
         retries: int = 5,
         retry_base_delay: float = 0.5,
+        expected_output_tokens: int = 256,
     ) -> None:
         """Initialize the generator.
 
@@ -184,6 +186,8 @@ class ServiceAmbitionGenerator:
             request_timeout: Per-request timeout in seconds.
             retries: Number of retry attempts on failure.
             retry_base_delay: Initial backoff delay in seconds.
+            expected_output_tokens: Anticipated tokens in each response used to
+                weight concurrency limits.
 
         Raises:
             ValueError: If ``concurrency`` is less than one.
@@ -198,6 +202,7 @@ class ServiceAmbitionGenerator:
         self.request_timeout = request_timeout
         self.retries = retries
         self.retry_base_delay = retry_base_delay
+        self.expected_output_tokens = expected_output_tokens
         self._prompt: str | None = None
         self._limiter: AdaptiveSemaphore | None = None
         self._metrics: RollingMetrics | None = None
@@ -287,7 +292,18 @@ class ServiceAmbitionGenerator:
         async def run_one(service: ServiceInput) -> None:
             """Process a single service and enqueue its JSON line."""
 
-            async with self._limiter:
+            # Estimate the total tokens for the request and anticipated response
+            # so larger requests reserve more semaphore capacity.
+            service_json = service.model_dump_json()
+            prompt_payload = (self._prompt or "") + service_json
+            weight_estimate = estimate_tokens(
+                prompt_payload, self.expected_output_tokens
+            )
+
+            limiter = self._limiter
+            if limiter is None:  # pragma: no cover - defensive
+                raise RuntimeError("Limiter not initialized")
+            async with limiter(weight_estimate):
                 # Record service metadata on the span so that traces include the
                 # originating service identifier and customer segment.
                 with logfire.span("process_service") as span:

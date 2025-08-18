@@ -1,6 +1,7 @@
 import asyncio
 import json
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Iterable
@@ -197,6 +198,48 @@ def test_generate_async_saves_transcripts(tmp_path, monkeypatch):
     asyncio.run(run())
     transcript_path = transcripts / "svc.json"
     assert transcript_path.exists()
+
+
+@pytest.mark.asyncio()
+async def test_weighted_acquisition(monkeypatch, tmp_path):
+    """The generator acquires limiter permits proportional to token estimates."""
+
+    captured: list[int] = []
+
+    class DummyLimiter:
+        def __call__(self, weight: int = 1):
+            captured.append(weight)
+
+            @asynccontextmanager
+            async def manager():
+                yield
+
+            return manager()
+
+        def throttle(self, _delay: float) -> None:  # pragma: no cover - no-op
+            pass
+
+    async def fake_process_service(self, service, prompt=None):
+        return {"id": service.service_id}
+
+    def fake_estimate(prompt: str, expected: int) -> int:
+        return 3 if "svc1" in prompt else 1
+
+    monkeypatch.setattr(generator, "estimate_tokens", fake_estimate)
+    monkeypatch.setattr(
+        generator.ServiceAmbitionGenerator, "process_service", fake_process_service
+    )
+
+    gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
+    gen._prompt = "p"
+    gen._limiter = DummyLimiter()
+    gen._metrics = generator.RollingMetrics()
+    services = [
+        ServiceInput(service_id="svc1", name="s1", description="d", jobs_to_be_done=[]),
+        ServiceInput(service_id="svc2", name="s2", description="d", jobs_to_be_done=[]),
+    ]
+    await gen._process_all(services, str(tmp_path / "out.jsonl"))
+    assert sorted(captured) == [1, 3]
 
 
 def test_generate_async_consumes_in_batches(tmp_path, monkeypatch):
