@@ -184,6 +184,9 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
         return
 
     concurrency = args.concurrency or settings.concurrency
+    if concurrency < 1:
+        # A zero semaphore would deadlock all tasks, so fail fast on invalid input.
+        raise ValueError("concurrency must be a positive integer")
     sem = asyncio.Semaphore(concurrency)
     lock = asyncio.Lock()
     new_ids: set[str] = set()

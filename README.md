@@ -103,6 +103,9 @@ Basic invocation:
 ./run.sh generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl
 ```
 
+Processing happens concurrently; control parallel workers with `--concurrency`
+which defaults to the `concurrency` value in your settings.
+
 ### Conversation seed
 
 The model conversation is seeded with service metadata so each request retains
