@@ -1,10 +1,32 @@
 """Adaptive backpressure utilities.
 
 This module provides helpers for rate limiting and telemetry. The
-``AdaptiveSemaphore`` dynamically reduces concurrency when upstream services
-signal throttling via ``Retry-After`` hints and gradually restores capacity.
-``RollingMetrics`` exposes simple request and error counters to Logfire for
-observability.
+``AdaptiveSemaphore`` is a weighted semaphore tuned for language model
+workloads. Tasks may reserve multiple permits proportional to their estimated
+output tokens so large responses cannot monopolise concurrency. The
+``Generator`` class derives these weights from its
+``expected_output_tokens`` configuration.
+
+When upstream services send ``Retry-After`` hints, the semaphore halves the
+available permits and enters a slow-start recovery. After the hinted delay it
+releases one permit at a time, doubling the interval between releases on each
+consecutive throttle. ``RollingMetrics`` exposes request and error counters to
+Logfire for observability.
+
+Example:
+    ```python
+    from service_ambitions.backpressure import AdaptiveSemaphore
+    import math
+
+    expected_output_tokens = 256
+    limiter = AdaptiveSemaphore(permits=5, ramp_interval=1.0)
+
+    token_estimate = 800
+    weight = math.ceil(token_estimate / expected_output_tokens)
+
+    async with limiter(weight):
+        ...
+    ```
 """
 
 from __future__ import annotations
@@ -30,14 +52,14 @@ else:  # pragma: no cover - default stub for metrics
 
 
 class AdaptiveSemaphore:
-    """Semaphore that reacts to rate limit signals.
+    """Semaphore that reacts to rate limit signals with weighted permits.
 
-    The limiter supports weighted permits so tasks can reserve multiple units
-    of capacity at once. When a ``Retry-After`` hint is observed the semaphore
-    temporarily reduces the number of available permits to half the current
-    limit. After the hinted delay it releases one permit at a time until the
-    original concurrency is restored. This helps avoid cascading failures when
-    providers apply throttling.
+    Tasks may acquire multiple permits to reflect anticipated token usage,
+    typically derived from ``expected_output_tokens``. On ``Retry-After`` the
+    limiter halves its concurrency and then gradually restores capacity using a
+    ramp strategy: permits are released one at a time with an exponentially
+    increasing delay after consecutive throttles. This slow-start recovery helps
+    avoid cascading failures when providers apply throttling.
     """
 
     def __init__(
@@ -51,7 +73,8 @@ class AdaptiveSemaphore:
 
         Args:
             permits: Initial maximum concurrency.
-            ramp_interval: Base delay between permit releases during recovery.
+            ramp_interval: Base delay between permit releases during recovery;
+                consecutive throttles double this interval to slow-start.
             grace_period: Time window in seconds after which slow-start resets if
                 no further throttling occurs.
         """
@@ -109,10 +132,15 @@ class AdaptiveSemaphore:
     def __call__(self, weight: int = 1) -> AsyncContextManager["AdaptiveSemaphore"]:
         """Return a context manager acquiring ``weight`` permits.
 
+        Use this to weight concurrency by estimated tokens.
+
         Example:
             ```python
-            async with limiter(2):
-                ...  # uses two permits
+            import math
+            token_estimate = 800
+            weight = math.ceil(token_estimate / expected_output_tokens)
+            async with limiter(weight):
+                ...
             ```
         """
 
