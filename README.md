@@ -41,6 +41,12 @@ tool and then install the project's dependencies with:
 poetry install
 ```
 
+For more accurate token estimation, include the optional ``tiktoken`` extra:
+
+```bash
+poetry install -E tiktoken
+```
+
 After installation the `service-ambitions` console script is available.
 Run the CLI through Poetry to ensure it uses the managed environment. Use
 subcommands to select the desired operation:
