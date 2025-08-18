@@ -70,6 +70,40 @@ CI environments or when stdout is not a TTY. Provide `--seed` to make
 stochastic behaviour such as backoff jitter deterministic during tests and
 demos.
 
+## Adaptive backpressure
+
+The generator coordinates concurrent requests with an `AdaptiveSemaphore` so
+token-heavy completions do not monopolise throughput. Each request estimates its
+response size and reserves a weighted permit based on the
+`expected_output_tokens` configuration. Larger outputs therefore reduce
+available concurrency proportionally.
+
+Configure the baseline token size by passing `expected_output_tokens` to
+`Generator`:
+
+```python
+generator = Generator(model, expected_output_tokens=512)
+```
+
+When an upstream service signals `Retry-After`, the semaphore halves the current
+limit and then gradually restores capacity. The `ramp_interval` parameter
+controls this ramp strategy. Consecutive throttling doubles the interval between
+permit releases, implementing slow-start recovery until a grace period elapses.
+
+```python
+from service_ambitions.backpressure import AdaptiveSemaphore
+import math
+
+expected_output_tokens = 256
+limiter = AdaptiveSemaphore(permits=5, ramp_interval=1.0)
+
+token_estimate = 800
+weight = math.ceil(token_estimate / expected_output_tokens)
+
+async with limiter(weight):
+    ...
+```
+
 ## Plateau-first workflow
 
 Each service is evaluated across the plateaus defined in
