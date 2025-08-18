@@ -175,3 +175,24 @@ def test_with_retry_honours_retry_after(monkeypatch):
     assert result == "ok"
     assert slept["delay"] == 10.0
     assert throttled["called"] == 1
+
+
+def test_generate_async_saves_transcripts(tmp_path, monkeypatch):
+    """Setting ``transcripts_dir`` writes per-service transcripts."""
+
+    monkeypatch.setattr(generator, "Agent", DummyAgent)
+    service = ServiceInput(
+        service_id="svc", name="alpha", description="d", jobs_to_be_done=[]
+    )
+    gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
+    out_file = tmp_path / "out.jsonl"
+    transcripts = tmp_path / "t"
+
+    async def run() -> None:
+        await gen.generate_async(
+            [service], "prompt", str(out_file), transcripts_dir=transcripts
+        )
+
+    asyncio.run(run())
+    transcript_path = transcripts / "svc.json"
+    assert transcript_path.exists()
