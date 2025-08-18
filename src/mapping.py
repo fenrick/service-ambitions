@@ -95,7 +95,11 @@ async def _catalogue_embeddings(
 async def _embedding_top_k_items(
     features: Sequence[PlateauFeature], dataset: str, k: int = 40
 ) -> list[MappingItem]:
-    """Return ``k`` catalogue items closest to ``features`` using embeddings."""
+    """Return ``k`` catalogue items closest to ``features`` using embeddings.
+
+    Results are ordered lexicographically by item identifier so selections
+    remain stable across runs even when similarity scores tie.
+    """
 
     item_vecs, items = await _catalogue_embeddings(dataset)
     client = await _get_embed_client()
@@ -108,7 +112,7 @@ async def _embedding_top_k_items(
         ranking = sorted(enumerate(row), key=lambda x: (-x[1], items[x[0]].id))
         idxs = [idx for idx, _ in ranking[:k]]
         top_indices.update(idxs)
-    return [items[i] for i in sorted(top_indices)]
+    return sorted((items[i] for i in top_indices), key=lambda item: item.id)
 
 
 async def _preselect_items(
@@ -171,7 +175,8 @@ def _top_k_items(
     """Return ``k`` catalogue items most similar to ``features`` using TF-IDF.
 
     Ties are broken by lexicographic item identifier to keep results stable
-    across runs.
+    across runs. Returned items are also ordered by their identifier so the
+    output sequence is deterministic.
     """
 
     vectorizer, item_vecs, items = _catalogue_vectors(dataset)
@@ -183,7 +188,7 @@ def _top_k_items(
         ranking = sorted(enumerate(row), key=lambda x: (-x[1], items[x[0]].id))
         idxs = [idx for idx, _ in ranking[:k]]
         top_indices.update(idxs)
-    return [items[i] for i in sorted(top_indices)]
+    return sorted((items[i] for i in top_indices), key=lambda item: item.id)
 
 
 async def map_feature_async(
