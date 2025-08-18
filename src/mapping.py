@@ -8,6 +8,7 @@ contributions back into :class:`PlateauFeature` objects.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import TYPE_CHECKING, Mapping, Sequence
 
@@ -62,28 +63,24 @@ def _render_features(features: Sequence[PlateauFeature]) -> str:
     )
 
 
+async def map_feature_async(
+    session: ConversationSession,
+    feature: PlateauFeature,
+    mapping_types: Mapping[str, MappingTypeConfig] | None = None,
+) -> PlateauFeature:
+    """Asynchronously return ``feature`` augmented with mapping data."""
+
+    return (await map_features_async(session, [feature], mapping_types))[0]
+
+
 def map_feature(
     session: ConversationSession,
     feature: PlateauFeature,
     mapping_types: Mapping[str, MappingTypeConfig] | None = None,
 ) -> PlateauFeature:
-    """Return ``feature`` augmented with mapping information.
+    """Return ``feature`` augmented with mapping information."""
 
-    This is a convenience wrapper around :func:`map_features` for mapping a
-    single feature while preserving the interface of the bulk function. Each
-    mapping type is queried separately to reduce prompt complexity.
-
-    Args:
-        session: Active conversation session used to query the agent.
-        feature: Plateau feature to map.
-        mapping_types: Mapping configuration to apply. Defaults to
-            :func:`loader.load_mapping_type_config`.
-
-    Returns:
-        A :class:`PlateauFeature` with mapping information applied.
-    """
-
-    return map_features(session, [feature], mapping_types)[0]
+    return asyncio.run(map_feature_async(session, feature, mapping_types))
 
 
 def _build_mapping_prompt(
@@ -172,33 +169,47 @@ def _merge_mapping_results(
     return results
 
 
+async def map_features_async(
+    session: ConversationSession,
+    features: Sequence[PlateauFeature],
+    mapping_types: Mapping[str, MappingTypeConfig] | None = None,
+) -> list[PlateauFeature]:
+    """Asynchronously return ``features`` with mapping information."""
+
+    mapping_types = mapping_types or load_mapping_type_config()
+
+    async def one(
+        key: str, cfg: MappingTypeConfig
+    ) -> tuple[str, MappingTypeConfig, MappingResponse]:
+        sub_session = session.derive()
+        prompt = _build_mapping_prompt(features, {key: cfg})
+        logfire.debug(f"Requesting {key} mappings for {len(features)} features")
+        payload = await sub_session.ask_async(prompt, output_type=MappingResponse)
+        return key, cfg, payload
+
+    tasks = [one(k, cfg) for k, cfg in mapping_types.items()]
+    results_payloads = await asyncio.gather(*tasks)
+
+    results: list[PlateauFeature] = list(features)
+    for key, cfg, payload in results_payloads:
+        results = _merge_mapping_results(results, payload, {key: cfg})
+    return results
+
+
 def map_features(
     session: ConversationSession,
     features: Sequence[PlateauFeature],
     mapping_types: Mapping[str, MappingTypeConfig] | None = None,
 ) -> list[PlateauFeature]:
-    """Return ``features`` augmented with mapping information.
+    """Return ``features`` augmented with mapping information."""
 
-    Each mapping type (for example data, applications and technologies) is
-    requested individually so the agent processes one category at a time.
-    Missing mapping keys raise :class:`MappingError` while empty lists are
-    accepted and stored.
-    """
-    # Use configured mappings when none are explicitly supplied.
-    mapping_types = mapping_types or load_mapping_type_config()
-    results: list[PlateauFeature] = list(features)
-
-    for key, cfg in mapping_types.items():
-        prompt = _build_mapping_prompt(results, {key: cfg})
-        logfire.debug(f"Requesting {key} mappings for {len(results)} features")
-        try:
-            payload = session.ask(prompt, output_type=MappingResponse)
-        except Exception as exc:
-            logfire.error(f"Invalid JSON from mapping response: {exc}")
-            raise ValueError("Agent returned invalid JSON") from exc
-        results = _merge_mapping_results(results, payload, {key: cfg})
-
-    return results
+    return asyncio.run(map_features_async(session, features, mapping_types))
 
 
-__all__ = ["map_feature", "map_features", "MappingError"]
+__all__ = [
+    "map_feature",
+    "map_feature_async",
+    "map_features",
+    "map_features_async",
+    "MappingError",
+]

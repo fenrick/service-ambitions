@@ -9,6 +9,7 @@ history into another while still reusing the same underlying agent.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from typing import Sequence
@@ -17,7 +18,7 @@ import logfire
 
 from conversation import ConversationSession
 from loader import load_plateau_definitions, load_prompt_text, load_roles
-from mapping import map_features
+from mapping import map_features_async
 from models import (
     DescriptionResponse,
     FeatureItem,
@@ -107,6 +108,28 @@ class PlateauGenerator:
             raise ValueError("'description' must be a non-empty string")
         return cleaned
 
+    @logfire.instrument()
+    async def _request_description_async(
+        self, level: int, session: ConversationSession | None = None
+    ) -> str:
+        """Asynchronously return the service description for ``level``."""
+
+        session = session or self.session
+        template = load_prompt_text("description_prompt")
+        schema = json.dumps(DescriptionResponse.model_json_schema(), indent=2)
+        prompt = template.format(plateau=level, schema=str(schema))
+        try:
+            response = await session.ask_async(prompt, output_type=DescriptionResponse)
+        except Exception as exc:
+            logfire.error(f"Invalid plateau description: {exc}")
+            raise ValueError("Agent returned invalid plateau description") from exc
+        if not response.description:
+            raise ValueError("'description' must be a non-empty string")
+        cleaned = self._sanitize_description(response.description)
+        if not cleaned:
+            raise ValueError("'description' must be a non-empty string")
+        return cleaned
+
     @staticmethod
     def _sanitize_description(text: str) -> str:
         """Remove any model-added preamble from ``text``.
@@ -137,6 +160,44 @@ class PlateauGenerator:
         prompt = template.format(plateaus=plateaus_str, schema=str(schema))
         try:
             payload = session.ask(prompt, output_type=PlateauDescriptionsResponse)
+        except Exception as exc:
+            logfire.error(f"Invalid plateau descriptions: {exc}")
+            raise ValueError("Agent returned invalid plateau descriptions") from exc
+
+        results: dict[str, str] = {}
+        for item in payload.descriptions:
+            if not item.description:
+                raise ValueError("'description' must be a non-empty string")
+            cleaned = self._sanitize_description(item.description)
+            if not cleaned:
+                raise ValueError("'description' must be a non-empty string")
+            results[item.plateau_name] = cleaned
+        return results
+
+    @logfire.instrument()
+    async def _request_descriptions_async(
+        self,
+        plateau_names: Sequence[str],
+        session: ConversationSession | None = None,
+    ) -> dict[str, str]:
+        """Asynchronously return descriptions for ``plateau_names``."""
+
+        session = session or self.session
+        lines: list[str] = []
+        for name in plateau_names:
+            try:
+                level = DEFAULT_PLATEAU_MAP[name]
+            except KeyError as exc:
+                raise ValueError(f"Unknown plateau name: {name}") from exc
+            lines.append(f"{level}. {name}")
+        plateaus_str = "\n".join(lines)
+        schema = json.dumps(PlateauDescriptionsResponse.model_json_schema(), indent=2)
+        template = load_prompt_text("plateau_descriptions_prompt")
+        prompt = template.format(plateaus=plateaus_str, schema=str(schema))
+        try:
+            payload = await session.ask_async(
+                prompt, output_type=PlateauDescriptionsResponse
+            )
         except Exception as exc:
             logfire.error(f"Invalid plateau descriptions: {exc}")
             raise ValueError("Agent returned invalid plateau descriptions") from exc
@@ -206,32 +267,15 @@ class PlateauGenerator:
         return features
 
     @logfire.instrument()
-    def generate_plateau(
+    async def generate_plateau_async(
         self,
         level: int,
         plateau_name: str,
         session: ConversationSession | None = None,
         description: str | None = None,
     ) -> PlateauResult:
-        """Return mapped plateau features for ``level``.
+        """Asynchronously return mapped plateau features for ``level``."""
 
-        Args:
-            level: Numeric identifier for the plateau.
-            plateau_name: Human readable name of the plateau.
-            session: Conversation session used for model interactions. Defaults
-                to the instance's session.
-            description: Optional pre-generated service description. When
-                provided, the function uses this text instead of requesting a
-                new description from the agent.
-
-        The function requests a plateau-specific service description when one is
-        not supplied and then gathers a list of features for each configured
-        role. Responses must contain at least ``required_count`` features for
-        every role. Raw features are converted to :class:`PlateauFeature`
-        objects and enriched using :func:`map_features` before being returned as
-        part of a :class:`PlateauResult`. A :class:`ValueError` is raised if the
-        agent returns invalid JSON or an insufficient number of features.
-        """
         if self._service is None:
             raise ValueError(
                 "ServiceInput not set. Call generate_service_evolution first."
@@ -239,41 +283,32 @@ class PlateauGenerator:
 
         session = session or self.session
 
-        # Attach useful context to the span so traces include the target service
-        # and plateau level being generated.
         with logfire.span("generate_plateau") as span:
             span.set_attribute("service.id", self._service.service_id)
             span.set_attribute("plateau", level)
 
-            # Ask the model to describe the service unless supplied by caller.
             if description is None:
-                description = self._request_description(level, session)
+                description = await self._request_description_async(level, session)
             prompt = self._build_plateau_prompt(level, description)
             logfire.info(f"Requesting features for level={level}")
 
-            # Generate features within the provided conversation session so
-            # history is isolated per plateau.
             try:
-                payload = session.ask(prompt, output_type=PlateauFeaturesResponse)
+                payload = await session.ask_async(
+                    prompt, output_type=PlateauFeaturesResponse
+                )
             except Exception as exc:
                 logfire.error(f"Invalid JSON from feature response: {exc}")
                 raise ValueError("Agent returned invalid JSON") from exc
             for role in self.roles:
-                # ``payload.features`` uses attribute access rather than a
-                # dictionary interface. ``getattr`` gracefully falls back to an
-                # empty list when the expected role is missing.
                 items = getattr(payload.features, role, [])
-                # Fail fast if the model omitted any required features for a role.
                 if len(items) < self.required_count:
-                    # Construct a clear error message instead of returning a tuple
                     msg = (
                         f"Expected at least {self.required_count} features for"
                         f" '{role}', got {len(items)}"
                     )
                     raise ValueError(msg)
             features = self._collect_features(payload)
-            # Enrich the raw features with mapping information before returning.
-            mapped = map_features(session, features)
+            mapped = await map_features_async(session, features)
             return PlateauResult(
                 plateau=level,
                 plateau_name=plateau_name,
@@ -281,67 +316,61 @@ class PlateauGenerator:
                 features=mapped,
             )
 
+    def generate_plateau(
+        self,
+        level: int,
+        plateau_name: str,
+        session: ConversationSession | None = None,
+        description: str | None = None,
+    ) -> PlateauResult:
+        """Return mapped plateau features for ``level``."""
+
+        return asyncio.run(
+            self.generate_plateau_async(level, plateau_name, session, description)
+        )
+
     @logfire.instrument()
-    def generate_service_evolution(
+    async def generate_service_evolution_async(
         self,
         service_input: ServiceInput,
         plateau_names: Sequence[str] | None = None,
         role_ids: Sequence[str] | None = None,
     ) -> ServiceEvolution:
-        """Return service evolution for selected plateaus and roles.
+        """Asynchronously return service evolution for selected plateaus."""
 
-        Args:
-            service_input: Service under evaluation.
-            plateau_names: Optional plateau names to evaluate. Defaults to
-                :data:`DEFAULT_PLATEAU_NAMES`.
-            role_ids: Optional role identifiers to include. Defaults to
-                :data:`DEFAULT_ROLE_IDS`.
-
-        Returns:
-            Combined evolution limited to the default plateaus and roles.
-
-        Side Effects:
-            Stores ``service_input`` for subsequent plateau generation and seeds
-            the conversation session with its details. Descriptions for all
-            plateaus are gathered first to keep their feature generation
-            isolated.
-        """
         self._service = service_input
 
-        # Record identifying attributes on the span for observability.
         with logfire.span("generate_service_evolution") as span:
             span.set_attribute("service.id", service_input.service_id)
             if service_input.customer_type:
                 span.set_attribute("customer_type", service_input.customer_type)
 
-            # Seed the conversation so later model queries have the service context.
             self.session.add_parent_materials(service_input)
 
             plateau_names = list(plateau_names or DEFAULT_PLATEAU_NAMES)
             role_ids = list(role_ids or self.roles)
 
-            # Gather descriptions for all requested plateaus in a single call.
-            desc_map = self._request_descriptions(plateau_names)
+            desc_map = await self._request_descriptions_async(plateau_names)
 
-            plateaus: list[PlateauResult] = []
-            for name in plateau_names:
+            async def one(name: str) -> PlateauResult:
                 try:
                     level = DEFAULT_PLATEAU_MAP[name]
                 except KeyError as exc:
                     raise ValueError(f"Unknown plateau name: {name}") from exc
-
                 plateau_session = ConversationSession(self.session.client)
                 plateau_session.add_parent_materials(service_input)
                 description = desc_map[name]
-
-                # Generate plateau features using the pre-collected description.
-                result = self.generate_plateau(
+                return await self.generate_plateau_async(
                     level,
                     name,
                     session=plateau_session,
                     description=description,
                 )
 
+            results = await asyncio.gather(*(one(n) for n in plateau_names))
+
+            plateaus: list[PlateauResult] = []
+            for result in results:
                 filtered = [
                     feat for feat in result.features if feat.customer_type in role_ids
                 ]
@@ -355,3 +384,17 @@ class PlateauGenerator:
                 )
 
             return ServiceEvolution(service=service_input, plateaus=plateaus)
+
+    def generate_service_evolution(
+        self,
+        service_input: ServiceInput,
+        plateau_names: Sequence[str] | None = None,
+        role_ids: Sequence[str] | None = None,
+    ) -> ServiceEvolution:
+        """Return service evolution for selected plateaus and roles."""
+
+        return asyncio.run(
+            self.generate_service_evolution_async(
+                service_input, plateau_names, role_ids
+            )
+        )

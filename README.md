@@ -64,10 +64,11 @@ Alternatively, use the provided shell script which forwards all arguments to the
 output file will also be in JSON Lines format. Use `--concurrency` to control
 parallel workers, `--max-services` to limit how many entries are processed, and
 `--dry-run` to validate inputs without calling the API. Evolution processing
-happens in batches sized by the `batch_size` setting in `config/app.json`. Pass `--progress` to
-display a progress bar during long runs; it is suppressed automatically in CI
-environments or when stdout is not a TTY. Provide `--seed` to make stochastic
-behaviour such as backoff jitter deterministic during tests and demos.
+runs concurrently with a worker pool bounded by this setting. Pass `--progress`
+to display a progress bar during long runs; it is suppressed automatically in
+CI environments or when stdout is not a TTY. Provide `--seed` to make
+stochastic behaviour such as backoff jitter deterministic during tests and
+demos.
 
 ## Plateau-first workflow
 
