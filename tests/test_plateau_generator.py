@@ -1,5 +1,6 @@
 """Tests for plateau feature generation."""
 
+import asyncio
 import json
 import sys
 from pathlib import Path
@@ -97,10 +98,25 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
     template = "{required_count} {service_name} {service_description} {plateau} {roles}"
 
     def fake_loader(name, *_, **__):
-        return template if name == "plateau_prompt" else "desc {plateau}"
+        if name == "plateau_prompt":
+            return template
+        if name == "plateau_descriptions_prompt":
+            return "desc {plateaus} {schema}"
+        return ""
 
     monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
-    responses = [json.dumps({"description": "desc"}), _feature_payload(1)]
+    desc_payload = json.dumps(
+        {
+            "descriptions": [
+                {
+                    "plateau": 1,
+                    "plateau_name": "Foundational",
+                    "description": "desc",
+                }
+            ]
+        }
+    )
+    responses = [desc_payload, _feature_payload(1)]
     session = DummySession(responses)
 
     call = {"n": 0}
@@ -125,7 +141,10 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
     )
     generator._service = service
 
-    plateau = generator.generate_plateau(1, "Foundational")
+    desc_map = asyncio.run(generator._request_descriptions_async(["Foundational"]))
+    plateau = generator.generate_plateau(
+        1, "Foundational", description=desc_map["Foundational"]
+    )
 
     assert isinstance(plateau, PlateauResult)
     assert len(plateau.features) == 3
@@ -137,7 +156,11 @@ def test_generate_plateau_repairs_missing_features(monkeypatch) -> None:
     template = "{required_count} {service_name} {service_description} {plateau} {roles}"
 
     def fake_loader(name, *_, **__):
-        return template if name == "plateau_prompt" else "desc {plateau}"
+        if name == "plateau_prompt":
+            return template
+        if name == "plateau_descriptions_prompt":
+            return "desc {plateaus} {schema}"
+        return ""
 
     monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
     initial = json.dumps(
@@ -175,7 +198,18 @@ def test_generate_plateau_repairs_missing_features(monkeypatch) -> None:
             ]
         }
     )
-    session = DummySession([json.dumps({"description": "desc"}), initial, repair])
+    desc_payload = json.dumps(
+        {
+            "descriptions": [
+                {
+                    "plateau": 1,
+                    "plateau_name": "Foundational",
+                    "description": "desc",
+                }
+            ]
+        }
+    )
+    session = DummySession([desc_payload, initial, repair])
 
     def dummy_map_features(sess, feats):
         return feats
@@ -192,7 +226,10 @@ def test_generate_plateau_repairs_missing_features(monkeypatch) -> None:
     )
     generator._service = service
 
-    plateau = generator.generate_plateau(1, "Foundational")
+    desc_map = asyncio.run(generator._request_descriptions_async(["Foundational"]))
+    plateau = generator.generate_plateau(
+        1, "Foundational", description=desc_map["Foundational"]
+    )
 
     assert len(session.prompts) == 3
     learners = [f for f in plateau.features if f.customer_type == "learners"]
@@ -203,17 +240,26 @@ def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> None:
     template = "{required_count} {service_name} {service_description} {plateau} {roles}"
 
     def fake_loader(name, *_, **__):
-        return template if name == "plateau_prompt" else "desc {plateau}"
+        if name == "plateau_prompt":
+            return template
+        if name == "plateau_descriptions_prompt":
+            return "desc {plateaus} {schema}"
+        return ""
 
     monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
     repair = json.dumps({"features": []})
-    responses = [
-        json.dumps({"description": "desc"}),
-        _feature_payload(1),
-        repair,
-        repair,
-        repair,
-    ]
+    desc_payload = json.dumps(
+        {
+            "descriptions": [
+                {
+                    "plateau": 1,
+                    "plateau_name": "Foundational",
+                    "description": "desc",
+                }
+            ]
+        }
+    )
+    responses = [desc_payload, _feature_payload(1), repair, repair, repair]
     session = DummySession(responses)
     generator = PlateauGenerator(cast(ConversationSession, session), required_count=2)
     service = ServiceInput(
@@ -225,18 +271,36 @@ def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> None:
     )
     generator._service = service
 
+    desc_map = asyncio.run(generator._request_descriptions_async(["Foundational"]))
     with pytest.raises(ValueError):
-        generator.generate_plateau(1, "Foundational")
+        generator.generate_plateau(
+            1, "Foundational", description=desc_map["Foundational"]
+        )
 
 
 def test_generate_plateau_missing_features(monkeypatch) -> None:
     template = "{required_count} {service_name} {service_description} {plateau} {roles}"
 
     def fake_loader(name, *_, **__):
-        return template if name == "plateau_prompt" else "desc {plateau}"
+        if name == "plateau_prompt":
+            return template
+        if name == "plateau_descriptions_prompt":
+            return "desc {plateaus} {schema}"
+        return ""
 
     monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
-    responses = [json.dumps({"description": "desc"}), "{}"]
+    desc_payload = json.dumps(
+        {
+            "descriptions": [
+                {
+                    "plateau": 1,
+                    "plateau_name": "Foundational",
+                    "description": "desc",
+                }
+            ]
+        }
+    )
+    responses = [desc_payload, "{}"]
     session = DummySession(responses)
     generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
     service = ServiceInput(
@@ -248,8 +312,11 @@ def test_generate_plateau_missing_features(monkeypatch) -> None:
     )
     generator._service = service
 
+    desc_map = asyncio.run(generator._request_descriptions_async(["Foundational"]))
     with pytest.raises(ValueError) as exc:
-        generator.generate_plateau(1, "Foundational")
+        generator.generate_plateau(
+            1, "Foundational", description=desc_map["Foundational"]
+        )
 
     assert "invalid JSON" in str(exc.value)
 
@@ -336,9 +403,9 @@ def test_generate_service_evolution_filters(monkeypatch) -> None:
     called: list[int] = []
     sessions: set[int] = set()
 
-    def fake_generate_plateau(
-        self, level, plateau_name, session=None, description=None
-    ):
+    async def fake_generate_plateau_async(
+        self, level, plateau_name, *, session=None, description
+    ) -> PlateauResult:
         called.append(level)
         sessions.add(id(session))
         feats = [
@@ -371,13 +438,20 @@ def test_generate_service_evolution_filters(monkeypatch) -> None:
             features=feats,
         )
 
+    async def fake_request_descriptions_async(self, names, session=None):
+        return {name: "desc" for name in names}
+
     monkeypatch.setattr(
-        PlateauGenerator, "generate_plateau", fake_generate_plateau, raising=False
+        PlateauGenerator,
+        "generate_plateau_async",
+        fake_generate_plateau_async,
+        raising=False,
     )
     monkeypatch.setattr(
         PlateauGenerator,
-        "_request_descriptions",
-        lambda self, names, session=None: {name: "desc" for name in names},
+        "_request_descriptions_async",
+        fake_request_descriptions_async,
+        raising=False,
     )
 
     evo = generator.generate_service_evolution(

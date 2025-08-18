@@ -8,18 +8,9 @@ from typing import cast
 
 from pydantic_ai import Agent
 
-from conversation import (
-    ConversationSession,
-)
-from models import (
-    Contribution,
-    PlateauFeature,
-    ServiceEvolution,
-    ServiceInput,
-)
-from plateau_generator import (
-    PlateauGenerator,
-)
+from conversation import ConversationSession
+from models import Contribution, PlateauFeature, ServiceEvolution, ServiceInput
+from plateau_generator import PlateauGenerator
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -63,7 +54,21 @@ def _feature_payload(count: int) -> str:
 def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
     """``generate_service_evolution`` should aggregate all plateaus."""
 
-    responses: list[str] = [json.dumps({"description": "desc"}) for _ in range(4)]
+    desc_payload = json.dumps(
+        {
+            "descriptions": [
+                {"plateau": 1, "plateau_name": "Foundational", "description": "desc"},
+                {"plateau": 2, "plateau_name": "Enhanced", "description": "desc"},
+                {
+                    "plateau": 3,
+                    "plateau_name": "Experimental",
+                    "description": "desc",
+                },
+                {"plateau": 4, "plateau_name": "Disruptive", "description": "desc"},
+            ]
+        }
+    )
+    responses: list[str] = [desc_payload]
     responses += [_feature_payload(5) for _ in range(4)]
     agent = DummyAgent(responses)
     session = ConversationSession(cast(Agent[None, str], agent))
@@ -88,7 +93,11 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
     template = "{required_count} {service_name} {service_description} {plateau} {roles}"
 
     def fake_loader(name, *_, **__):
-        return template if name == "plateau_prompt" else "desc {plateau}"
+        if name == "plateau_prompt":
+            return template
+        if name == "plateau_descriptions_prompt":
+            return "desc {plateaus} {schema}"
+        return ""
 
     monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
 
@@ -108,9 +117,9 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
     assert len(evolution.plateaus) == 4
     assert sum(len(p.features) for p in evolution.plateaus) == 60
     assert all(len(p.features) >= 15 for p in evolution.plateaus)
-    assert len(agent.prompts) == 8
+    assert len(agent.prompts) == 5
     assert map_calls["n"] == 4
-    assert len(agent.prompts) + map_calls["n"] == 12
+    assert len(agent.prompts) + map_calls["n"] == 9
     for plateau in evolution.plateaus:
         for feature in plateau.features:
             assert feature.mappings["data"]
