@@ -3,6 +3,7 @@
 import asyncio
 import json
 import sys
+import time
 from pathlib import Path
 from typing import cast
 
@@ -14,6 +15,7 @@ from conversation import (
 )
 from models import (
     Contribution,
+    FeatureItem,
     MaturityScore,
     PlateauFeature,
     PlateauResult,
@@ -233,6 +235,124 @@ def test_generate_plateau_repairs_missing_features(monkeypatch) -> None:
     assert len(session.prompts) == 3
     learners = [f for f in plateau.features if f.customer_type == "learners"]
     assert len(learners) == 1
+
+
+def test_generate_plateau_requests_missing_features_concurrently(
+    monkeypatch,
+) -> None:
+    template = "{required_count} {service_name} {service_description} {plateau} {roles}"
+
+    def fake_loader(name, *_, **__):
+        if name == "plateau_prompt":
+            return template
+        if name == "plateau_descriptions_prompt":
+            return "desc {plateaus} {schema}"
+        return ""
+
+    monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
+
+    initial = json.dumps(
+        {
+            "features": {
+                "learners": [
+                    {
+                        "feature_id": "FEAT-1-learners-a",
+                        "name": "A",
+                        "description": "da",
+                        "score": {"level": 3, "label": "Defined", "justification": "j"},
+                    },
+                    {
+                        "feature_id": "FEAT-1-learners-b",
+                        "name": "B",
+                        "description": "db",
+                        "score": {"level": 3, "label": "Defined", "justification": "j"},
+                    },
+                ],
+                "academics": [
+                    {
+                        "feature_id": "FEAT-1-academics-a",
+                        "name": "A",
+                        "description": "da",
+                        "score": {"level": 3, "label": "Defined", "justification": "j"},
+                    }
+                ],
+                "professional_staff": [
+                    {
+                        "feature_id": "FEAT-1-professional_staff-a",
+                        "name": "A",
+                        "description": "da",
+                        "score": {"level": 3, "label": "Defined", "justification": "j"},
+                    }
+                ],
+            }
+        }
+    )
+    desc_payload = json.dumps(
+        {
+            "descriptions": [
+                {
+                    "plateau": 1,
+                    "plateau_name": "Foundational",
+                    "description": "desc",
+                }
+            ]
+        }
+    )
+    session = DummySession([desc_payload, initial])
+
+    async def dummy_map_features(sess, feats):
+        return feats
+
+    monkeypatch.setattr("plateau_generator.map_features_async", dummy_map_features)
+
+    generator = PlateauGenerator(cast(ConversationSession, session), required_count=2)
+    service = ServiceInput(
+        service_id="svc-1",
+        name="svc",
+        customer_type="retail",
+        description="desc",
+        jobs_to_be_done=[{"name": "job"}],
+    )
+    generator._service = service
+
+    async def fake_request(self, level, role, description, missing, session):
+        await asyncio.sleep(0.1)  # Simulate network delay per role request.
+        return [
+            FeatureItem(
+                feature_id=f"FEAT-1-{role}-extra",
+                name=f"Extra {role}",
+                description="d",
+                score=MaturityScore(level=3, label="Defined", justification="j"),
+            )
+        ]
+
+    monkeypatch.setattr(
+        PlateauGenerator, "_request_missing_features_async", fake_request
+    )
+
+    async def run() -> tuple[PlateauResult, float]:
+        desc_map = await generator._request_descriptions_async(["Foundational"])
+        start = time.perf_counter()
+        plateau = await generator.generate_plateau_async(
+            1,
+            "Foundational",
+            session=cast(ConversationSession, session),
+            description=desc_map["Foundational"],
+        )
+        duration = time.perf_counter() - start
+        return plateau, duration
+
+    plateau, duration = asyncio.run(run())
+
+    academics = [
+        f for f in plateau.features if f.customer_type == "academics"
+    ]  # Extract academic features.
+    professional = [
+        f for f in plateau.features if f.customer_type == "professional_staff"
+    ]  # Extract professional staff features.
+    assert len(academics) == 2
+    assert len(professional) == 2
+    assert duration < 0.19  # Parallel calls should take ~0.1s overall.
 
 
 def test_generate_plateau_repairs_invalid_role(monkeypatch) -> None:
