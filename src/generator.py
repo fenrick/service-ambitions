@@ -12,6 +12,7 @@ import json
 import os
 import random
 from asyncio import TaskGroup
+from itertools import islice
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, TypeVar
 
@@ -168,6 +169,7 @@ class ServiceAmbitionGenerator:
         self,
         model: Model,
         concurrency: int = 5,
+        batch_size: int | None = None,
         request_timeout: float = 60,
         retries: int = 5,
         retry_base_delay: float = 0.5,
@@ -177,6 +179,8 @@ class ServiceAmbitionGenerator:
         Args:
             model: Model used for ambition generation.
             concurrency: Maximum number of concurrent requests.
+            batch_size: Number of services scheduled per batch. ``None``
+                schedules all services at once.
             request_timeout: Per-request timeout in seconds.
             retries: Number of retry attempts on failure.
             retry_base_delay: Initial backoff delay in seconds.
@@ -190,6 +194,7 @@ class ServiceAmbitionGenerator:
             raise ValueError("concurrency must be a positive integer")
         self.model = model
         self.concurrency = concurrency
+        self.batch_size = batch_size
         self.request_timeout = request_timeout
         self.retries = retries
         self.retry_base_delay = retry_base_delay
@@ -249,7 +254,8 @@ class ServiceAmbitionGenerator:
         """Process ``services`` and stream results to ``out_path``.
 
         Args:
-            services: Collection of services requiring ambition generation.
+            services: Collection of services requiring ambition generation. The
+                iterable is consumed incrementally in batches.
             out_path: Destination path for the JSONL results.
             progress: Optional progress bar updated as services complete.
             transcripts_dir: Directory to store per-service transcripts. ``None``
@@ -311,9 +317,18 @@ class ServiceAmbitionGenerator:
                     await queue.put((line, service.service_id))
 
         writer_task = asyncio.create_task(writer())
-        async with TaskGroup() as tg:
-            for service in services:
-                tg.create_task(run_one(service))
+        services_iter = iter(services)
+
+        while True:
+            # Process services in bounded batches to avoid creating excessive
+            # pending tasks when the input iterable is large.
+            batch = list(islice(services_iter, self.batch_size))
+            if not batch:
+                break  # Exhausted the input iterator
+            async with TaskGroup() as tg:
+                for service in batch:
+                    tg.create_task(run_one(service))
+
         await queue.put(None)
         await writer_task
         return processed
@@ -331,7 +346,8 @@ class ServiceAmbitionGenerator:
 
         Args:
             services: Collection of services requiring ambition generation. The
-                iterable is consumed incrementally to keep memory usage low.
+                iterable is consumed incrementally in batches to keep memory
+                usage low.
             prompt: Instructions guiding the model's output.
             output_path: Destination path for the JSONL results.
             progress: Optional progress bar updated as services complete.

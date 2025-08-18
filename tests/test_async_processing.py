@@ -3,6 +3,7 @@ import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Iterable
 
 import pytest
 
@@ -196,3 +197,44 @@ def test_generate_async_saves_transcripts(tmp_path, monkeypatch):
     asyncio.run(run())
     transcript_path = transcripts / "svc.json"
     assert transcript_path.exists()
+
+
+def test_generate_async_consumes_in_batches(tmp_path, monkeypatch):
+    """The generator only consumes inputs in ``batch_size`` chunks."""
+
+    counter = {"count": 0}
+
+    def services() -> Iterable[ServiceInput]:
+        for i in range(10):  # Yield a fixed number of services lazily
+            counter["count"] += 1
+            yield ServiceInput(
+                service_id=f"svc{i}",
+                name=f"s{i}",
+                description="d",
+                jobs_to_be_done=[],
+            )
+
+    gen = generator.ServiceAmbitionGenerator(
+        SimpleNamespace(), concurrency=2, batch_size=3
+    )
+
+    async def run() -> None:
+        event = asyncio.Event()
+
+        async def fake_process_service(self, service, prompt=None):
+            await event.wait()
+            return {"id": service.service_id}
+
+        monkeypatch.setattr(
+            generator.ServiceAmbitionGenerator, "process_service", fake_process_service
+        )
+
+        task = asyncio.create_task(
+            gen.generate_async(services(), "p", str(tmp_path / "out.jsonl"))
+        )
+        await asyncio.sleep(0.1)  # Allow the first batch to be scheduled
+        assert counter["count"] == 3  # Only one batch should be consumed
+        event.set()
+        await task
+
+    asyncio.run(run())
