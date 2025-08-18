@@ -144,9 +144,13 @@ def test_with_retry_honours_retry_after(monkeypatch):
         return "ok"
 
     slept = {"delay": 0.0}
+    throttled = {"called": 0}
 
     async def fake_sleep(seconds: float) -> None:
         slept["delay"] = seconds
+
+    def fake_throttle(_: float) -> None:
+        throttled["called"] += 1
 
     monkeypatch.setattr(generator, "RateLimitError", DummyRateLimitError)
     monkeypatch.setattr(
@@ -159,9 +163,15 @@ def test_with_retry_honours_retry_after(monkeypatch):
 
     result = asyncio.run(
         generator._with_retry(
-            lambda: flaky(), request_timeout=0.1, attempts=2, base=0.1
+            lambda: flaky(),
+            request_timeout=0.1,
+            attempts=2,
+            base=0.1,
+            on_retry_after=fake_throttle,
+            metrics=generator.RollingMetrics(window=1),
         )
     )
 
     assert result == "ok"
     assert slept["delay"] == 10.0
+    assert throttled["called"] == 1

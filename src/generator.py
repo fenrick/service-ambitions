@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import os
 import random
-from asyncio import Lock, Semaphore, TaskGroup
+from asyncio import Lock, TaskGroup
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, TypeVar
 
 import logfire
@@ -20,6 +20,7 @@ from pydantic_ai.models import Model
 from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModelSettings
 from tqdm import tqdm
 
+from backpressure import AdaptiveSemaphore, RollingMetrics
 from models import ReasoningConfig, ServiceInput
 
 T = TypeVar("T")
@@ -96,6 +97,8 @@ async def _with_retry(
     attempts: int = 5,
     base: float = 0.5,
     cap: float = 8.0,
+    on_retry_after: Callable[[float], None] | None = None,
+    metrics: RollingMetrics | None = None,
 ) -> T:
     """Execute ``coro_factory`` with exponential backoff and jitter.
 
@@ -119,9 +122,13 @@ async def _with_retry(
     """
 
     for attempt in range(attempts):
+        if metrics:
+            metrics.record_request()
         try:
             return await asyncio.wait_for(coro_factory(), timeout=request_timeout)
         except TRANSIENT_EXCEPTIONS as exc:
+            if metrics:
+                metrics.record_error()
             if attempt == attempts - 1:
                 raise
             delay = min(cap, base * (2**attempt))
@@ -129,6 +136,8 @@ async def _with_retry(
             hint = _retry_after_seconds(exc)
             if hint is not None:
                 delay = max(delay, hint)
+                if on_retry_after:
+                    on_retry_after(hint)
             await asyncio.sleep(delay)
     raise RuntimeError("Unreachable retry state")
 
@@ -183,6 +192,8 @@ class ServiceAmbitionGenerator:
         self.retries = retries
         self.retry_base_delay = retry_base_delay
         self._prompt: str | None = None
+        self._limiter: AdaptiveSemaphore | None = None
+        self._metrics: RollingMetrics | None = None
 
     @logfire.instrument()
     async def process_service(
@@ -220,6 +231,8 @@ class ServiceAmbitionGenerator:
             request_timeout=self.request_timeout,
             attempts=self.retries,
             base=self.retry_base_delay,
+            on_retry_after=self._limiter.throttle if self._limiter else None,
+            metrics=self._metrics,
         )
         return result.output.model_dump()
 
@@ -237,7 +250,10 @@ class ServiceAmbitionGenerator:
             out_path: Destination path for the JSONL results.
             progress: Optional progress bar updated as services complete.
         """
-        sem = Semaphore(self.concurrency)
+        if self._limiter is None:
+            self._limiter = AdaptiveSemaphore(self.concurrency)
+        if self._metrics is None:
+            self._metrics = RollingMetrics()
         lock = Lock()
         processed: set[str] = set()
 
@@ -248,7 +264,7 @@ class ServiceAmbitionGenerator:
                 service: Service to analyse.
             """
 
-            async with sem:
+            async with self._limiter:
                 # Record service metadata on the span so that traces include the
                 # originating service identifier and customer segment.
                 with logfire.span("process_service") as span:
@@ -304,12 +320,16 @@ class ServiceAmbitionGenerator:
 
         self._prompt = prompt
         try:
+            self._limiter = AdaptiveSemaphore(self.concurrency)
+            self._metrics = RollingMetrics()
             return await self._process_all(services, output_path, progress)
         except Exception as exc:
             logfire.error(f"Failed to write results to {output_path}: {exc}")
             raise
         finally:
             self._prompt = None
+            self._limiter = None
+            self._metrics = None
 
     async def generate(
         self,
