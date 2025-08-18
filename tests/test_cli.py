@@ -119,7 +119,9 @@ def test_cli_dry_run_skips_processing(tmp_path, monkeypatch):
 
     called = {"ran": False}
 
-    async def fake_generate_async(self, services, prompt, output_path, progress=None):
+    async def fake_generate_async(
+        self, services, prompt, output_path, progress=None, transcripts_dir=None
+    ):
         called["ran"] = True
 
     monkeypatch.setattr(ServiceAmbitionGenerator, "generate_async", fake_generate_async)
@@ -620,3 +622,44 @@ def test_cli_flushes_logfire_on_error(monkeypatch):
         cli.main()
 
     assert called["flushed"]
+
+
+def test_cli_validate_only(tmp_path, monkeypatch):
+    output_file = tmp_path / "out.jsonl"
+    output_file.write_text('{"a": 1}\n', encoding="utf-8")
+
+    settings = SimpleNamespace(
+        model="cfg",
+        log_level="INFO",
+        prompt_dir=str(tmp_path),
+        context_id="ctx",
+        inspiration="insp",
+        concurrency=1,
+        batch_size=5,
+        openai_api_key="dummy",
+        logfire_token=None,
+        reasoning=None,
+        models=None,
+    )
+
+    monkeypatch.setattr(cli, "load_settings", lambda: settings)
+
+    called = {"ran": False}
+
+    async def fake_generate_async(self, *a, **k):
+        called["ran"] = True
+
+    monkeypatch.setattr(ServiceAmbitionGenerator, "generate_async", fake_generate_async)
+
+    argv = [
+        "main",
+        "generate-ambitions",
+        "--output-file",
+        str(output_file),
+        "--validate-only",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+
+    cli.main()
+
+    assert not called["ran"]

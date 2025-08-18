@@ -8,9 +8,11 @@ avoid overwhelming upstream APIs while still maximising throughput.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import random
-from asyncio import Lock, TaskGroup
+from asyncio import TaskGroup
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, TypeVar
 
 import logfire
@@ -242,6 +244,7 @@ class ServiceAmbitionGenerator:
         services: Iterable[ServiceInput],
         out_path: str,
         progress: tqdm[Any] | None = None,
+        transcripts_dir: Path | None = None,
     ) -> set[str]:
         """Process ``services`` and stream results to ``out_path``.
 
@@ -249,20 +252,34 @@ class ServiceAmbitionGenerator:
             services: Collection of services requiring ambition generation.
             out_path: Destination path for the JSONL results.
             progress: Optional progress bar updated as services complete.
+            transcripts_dir: Directory to store per-service transcripts. ``None``
+                disables transcript persistence.
         """
         if self._limiter is None:
             self._limiter = AdaptiveSemaphore(self.concurrency)
         if self._metrics is None:
             self._metrics = RollingMetrics()
-        lock = Lock()
+        queue: asyncio.Queue[tuple[str, str]] = asyncio.Queue()
         processed: set[str] = set()
 
-        async def run_one(service: ServiceInput) -> None:
-            """Process a single service and append its JSON line to disk.
+        async def writer() -> None:
+            """Consume lines from ``queue`` and write them to disk."""
 
-            Args:
-                service: Service to analyse.
-            """
+            with open(out_path, "a", encoding="utf-8") as handle:
+                while True:
+                    item = await queue.get()
+                    if item is None:
+                        break
+                    line, svc_id = item
+                    await asyncio.to_thread(handle.write, f"{line}\n")
+                    processed.add(svc_id)
+                    if progress:
+                        # Updating the progress bar can block, so keep it in writer.
+                        progress.update(1)
+                await asyncio.to_thread(handle.flush)
+
+        async def run_one(service: ServiceInput) -> None:
+            """Process a single service and enqueue its JSON line."""
 
             async with self._limiter:
                 # Record service metadata on the span so that traces include the
@@ -280,18 +297,25 @@ class ServiceAmbitionGenerator:
                         logfire.error(msg)
                         return
                     line = AmbitionModel.model_validate(result).model_dump_json()
-                    async with lock:
-                        handle.write(f"{line}\n")
-                        processed.add(service.service_id)
-                    if progress:
-                        # Advance the progress bar for each completed service.
-                        progress.update(1)
+                    if transcripts_dir is not None:
+                        payload = {
+                            "request": service.model_dump(),
+                            "response": json.loads(line),
+                        }
+                        path = transcripts_dir / f"{service.service_id}.json"
+                        await asyncio.to_thread(
+                            path.write_text,
+                            json.dumps(payload, ensure_ascii=False),
+                            encoding="utf-8",
+                        )
+                    await queue.put((line, service.service_id))
 
-        with open(out_path, "a", encoding="utf-8") as handle:
-            async with TaskGroup() as tg:
-                for service in services:
-                    tg.create_task(run_one(service))
-            handle.flush()
+        writer_task = asyncio.create_task(writer())
+        async with TaskGroup() as tg:
+            for service in services:
+                tg.create_task(run_one(service))
+        await queue.put(None)
+        await writer_task
         return processed
 
     @logfire.instrument()
@@ -301,6 +325,7 @@ class ServiceAmbitionGenerator:
         prompt: str,
         output_path: str,
         progress: tqdm[Any] | None = None,
+        transcripts_dir: Path | None = None,
     ) -> set[str]:
         """Process ``services`` lazily and write ambitions to ``output_path``.
 
@@ -310,9 +335,12 @@ class ServiceAmbitionGenerator:
             prompt: Instructions guiding the model's output.
             output_path: Destination path for the JSONL results.
             progress: Optional progress bar updated as services complete.
+            transcripts_dir: Optional directory used to persist per-service
+                request/response transcripts.
 
         Side Effects:
-            Creates/overwrites ``output_path`` with one JSON record per line.
+            Creates/overwrites ``output_path`` with one JSON record per line and
+            optionally stores transcripts in ``transcripts_dir``.
 
         Raises:
             OSError: Propagated if writing to ``output_path`` fails.
@@ -322,7 +350,9 @@ class ServiceAmbitionGenerator:
         try:
             self._limiter = AdaptiveSemaphore(self.concurrency)
             self._metrics = RollingMetrics()
-            return await self._process_all(services, output_path, progress)
+            return await self._process_all(
+                services, output_path, progress, transcripts_dir=transcripts_dir
+            )
         except Exception as exc:
             logfire.error(f"Failed to write results to {output_path}: {exc}")
             raise
@@ -393,4 +423,4 @@ def build_model(
     return OpenAIResponsesModel(model_name, settings=settings)
 
 
-__all__ = ["ServiceAmbitionGenerator", "build_model"]
+__all__ = ["AmbitionModel", "ServiceAmbitionGenerator", "build_model"]

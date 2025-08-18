@@ -18,7 +18,8 @@ from pydantic_ai import Agent
 from tqdm import tqdm
 
 from conversation import ConversationSession
-from generator import ServiceAmbitionGenerator
+from diagnostics import validate_jsonl
+from generator import AmbitionModel, ServiceAmbitionGenerator
 from loader import (
     configure_prompt_dir,
     load_ambition_prompt,
@@ -67,6 +68,12 @@ def _configure_logging(args: argparse.Namespace, settings) -> None:
 async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
     """Generate service ambitions and write them to disk."""
 
+    output_path = Path(args.output_file)
+    if args.validate_only:
+        count = validate_jsonl(output_path, AmbitionModel)
+        logfire.info(f"Validated {count} lines in {output_path}")
+        return
+
     # Load prompt components from the configured directory
     configure_prompt_dir(settings.prompt_dir)
     system_prompt = load_ambition_prompt(settings.context_id, settings.inspiration)
@@ -94,7 +101,6 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
         retry_base_delay=settings.retry_base_delay,
     )
 
-    output_path = Path(args.output_file)
     part_path = output_path.with_suffix(
         output_path.suffix + ".tmp"
         if not args.resume
@@ -104,6 +110,10 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
 
     processed_ids: set[str] = set(read_lines(processed_path)) if args.resume else set()
     existing_lines: list[str] = read_lines(output_path) if args.resume else []
+    transcripts_dir: Path | None = None
+    if args.save_transcripts:
+        transcripts_dir = output_path.with_name(f"{output_path.stem}_transcripts")
+        transcripts_dir.mkdir(parents=True, exist_ok=True)
 
     with load_services(Path(args.input_file)) as svc_iter:
         if args.max_services is not None:
@@ -131,7 +141,11 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
         else:
             progress = None
         new_ids = await generator.generate_async(
-            services, system_prompt, str(part_path), progress=progress
+            services,
+            system_prompt,
+            str(part_path),
+            progress=progress,
+            transcripts_dir=transcripts_dir,
         )
         if progress:
             progress.close()
@@ -341,6 +355,16 @@ def main() -> None:
         "--output-file",
         default="ambitions.jsonl",
         help="File to write the results",
+    )
+    amb.add_argument(
+        "--save-transcripts",
+        action="store_true",
+        help="Persist per-service request/response transcripts",
+    )
+    amb.add_argument(
+        "--validate-only",
+        action="store_true",
+        help="Validate an existing output file and exit",
     )
     amb.set_defaults(func=_cmd_generate_ambitions)
 
