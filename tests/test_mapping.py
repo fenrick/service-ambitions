@@ -3,10 +3,13 @@
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
+import numpy as np
 import pytest
 
-from mapping import map_feature, map_features, map_features_async
+import mapping
+from mapping import map_feature, map_feature_async, map_features_async
 from models import MappingItem, MappingTypeConfig, MaturityScore, PlateauFeature
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -95,7 +98,7 @@ async def test_map_feature_returns_mappings(monkeypatch) -> None:
         customer_type="learners",
     )
 
-    result = await map_feature(session, feature)
+    result = await map_feature_async(session, feature)
 
     assert isinstance(result, PlateauFeature)
     assert result.mappings["data"][0].item == "INF-1"
@@ -164,7 +167,7 @@ async def test_map_feature_injects_reference_data(monkeypatch) -> None:
         score=MaturityScore(level=3, label="Defined", justification="j"),
         customer_type="learners",
     )
-    await map_feature(session, feature)
+    await map_feature_async(session, feature)
 
     assert len(session.prompts) == 3
     assert "User Data" in session.prompts[0]
@@ -197,7 +200,7 @@ async def test_map_feature_rejects_invalid_json(monkeypatch) -> None:
         customer_type="learners",
     )
     with pytest.raises(ValueError):
-        await map_feature(session, feature)
+        await map_feature_async(session, feature)
 
 
 def test_map_feature_ignores_unknown_ids(monkeypatch) -> None:
@@ -302,7 +305,7 @@ async def test_map_feature_flattens_nested_mappings(monkeypatch) -> None:
         customer_type="learners",
     )
 
-    result = await map_feature(session, feature)
+    result = await map_feature_async(session, feature)
 
     assert result.mappings["data"][0].item == "INF-1"
     assert result.mappings["applications"][0].item == "APP-1"
@@ -363,7 +366,7 @@ async def test_map_feature_flattens_repeated_mapping_keys(monkeypatch) -> None:
         customer_type="learners",
     )
 
-    result = await map_feature(session, feature)
+    result = await map_feature_async(session, feature)
 
     assert result.mappings["data"][0].item == "INF-1"
     assert result.mappings["applications"][0].item == "APP-1"
@@ -429,7 +432,7 @@ async def test_map_features_returns_mappings(monkeypatch) -> None:
         customer_type="learners",
     )
 
-    result = await map_features(session, [feature])
+    result = await map_features_async(session, [feature])
 
     assert result[0].mappings["data"][0].item == "INF-1"
     assert "User Data" in session.prompts[0]
@@ -478,7 +481,7 @@ async def test_map_features_allows_empty_lists(monkeypatch) -> None:
         customer_type="learners",
     )
 
-    result = await map_features(session, [feature])
+    result = await map_features_async(session, [feature])
 
     assert result[0].mappings["data"] == []
     assert result[0].mappings["applications"] == []
@@ -529,3 +532,103 @@ async def test_map_features_retries_on_empty(monkeypatch) -> None:
 
     assert len(session.prompts) == 2
     assert result[0].mappings["data"][0].item == "INF-1"
+
+
+def test_top_k_items_breaks_ties_lexicographically(monkeypatch) -> None:
+    """Ensure TF-IDF ranking resolves equal scores by item identifier."""
+
+    items = {
+        "catalogue": [
+            MappingItem(id="B", name="Same", description="entry"),
+            MappingItem(id="A", name="Same", description="entry"),
+        ]
+    }
+    monkeypatch.setattr("mapping.load_mapping_items", lambda types, *a, **k: items)
+    mapping._catalogue_vectors.cache_clear()
+
+    feature = PlateauFeature(
+        feature_id="f1",
+        name="Same",
+        description="entry",
+        score=MaturityScore(level=3, label="Defined", justification="j"),
+        customer_type="learners",
+    )
+
+    result = mapping._top_k_items([feature], "catalogue", k=2)
+    assert [item.id for item in result] == ["A", "B"]
+
+
+def test_catalogue_vectorizer_cached(monkeypatch) -> None:
+    """TfidfVectorizer fitting should occur only once per dataset."""
+
+    calls: dict[str, int] = {"load": 0, "fit": 0}
+
+    def fake_loader(types, *_, **__):
+        calls["load"] += 1
+        return {"catalogue": [MappingItem(id="A", name="One", description="")]}
+
+    monkeypatch.setattr("mapping.load_mapping_items", fake_loader)
+
+    orig_fit = mapping.TfidfVectorizer.fit
+
+    def wrapped_fit(self, raw_documents, y=None):
+        calls["fit"] += 1
+        return orig_fit(self, raw_documents, y)
+
+    monkeypatch.setattr(mapping.TfidfVectorizer, "fit", wrapped_fit)
+    mapping._catalogue_vectors.cache_clear()
+
+    feature = PlateauFeature(
+        feature_id="f1",
+        name="One",
+        description="",
+        score=MaturityScore(level=3, label="Defined", justification="j"),
+        customer_type="learners",
+    )
+
+    mapping._top_k_items([feature], "catalogue", k=1)
+    mapping._top_k_items([feature], "catalogue", k=1)
+
+    assert calls["load"] == 1
+    assert calls["fit"] == 1
+
+
+@pytest.mark.asyncio
+async def test_embedding_top_k_items_breaks_ties(monkeypatch) -> None:
+    """Embedding selection also orders items lexicographically when scores tie."""
+
+    items = [
+        MappingItem(id="B", name="Same", description="entry"),
+        MappingItem(id="A", name="Same", description="entry"),
+    ]
+    item_vecs = np.array([[1.0, 0.0], [1.0, 0.0]])
+
+    async def fake_catalogue_embeddings(dataset: str):
+        return item_vecs, items
+
+    monkeypatch.setattr("mapping._catalogue_embeddings", fake_catalogue_embeddings)
+
+    class DummyEmbeddings:
+        async def create(self, model: str, input: list[str]):
+            return SimpleNamespace(
+                data=[SimpleNamespace(embedding=[1.0, 0.0]) for _ in input]
+            )
+
+    class DummyClient:
+        embeddings = DummyEmbeddings()
+
+    async def fake_client():
+        return DummyClient()
+
+    monkeypatch.setattr("mapping._get_embed_client", fake_client)
+
+    feature = PlateauFeature(
+        feature_id="f1",
+        name="Same",
+        description="entry",
+        score=MaturityScore(level=3, label="Defined", justification="j"),
+        customer_type="learners",
+    )
+
+    result = await mapping._embedding_top_k_items([feature], "catalogue", k=2)
+    assert [item.id for item in result] == ["A", "B"]
