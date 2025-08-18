@@ -85,7 +85,7 @@ response size and reserves a weighted permit based on the
 available concurrency proportionally.
 
 Configure the baseline token size by passing `expected_output_tokens` to
-`Generator`:
+`Generator` or via the CLI flag `--expected-output-tokens`:
 
 ```python
 generator = Generator(model, expected_output_tokens=512)
