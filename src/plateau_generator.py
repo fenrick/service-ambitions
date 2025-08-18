@@ -402,11 +402,18 @@ class PlateauGenerator:
                     level, role, description, self.required_count, session
                 )
 
-            for role, need in missing.items():
-                extras = await self._request_missing_features_async(
-                    level, role, description, need, session
+            tasks = {
+                role: asyncio.create_task(
+                    self._request_missing_features_async(
+                        level, role, description, need, session
+                    )
                 )
-                valid[role].extend(extras)
+                for role, need in missing.items()
+            }
+            if tasks:  # Only await when there are missing roles
+                results = await asyncio.gather(*tasks.values())
+                for role, extras in zip(tasks.keys(), results, strict=False):
+                    valid[role].extend(extras)
 
             for role in self.roles:
                 items = valid.get(role, [])
