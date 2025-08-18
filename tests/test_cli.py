@@ -481,6 +481,69 @@ def test_cli_help_shows_parameters(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "Generate service ambitions" in out
     assert "--input-file" in out
+    assert "--expected-output-tokens" in out
+
+
+def test_cli_passes_expected_output_tokens(tmp_path, monkeypatch):
+    base = tmp_path / "prompts"
+    (base / "situational_context").mkdir(parents=True)
+    (base / "inspirations").mkdir(parents=True)
+    (base / "situational_context" / "ctx.md").write_text("c", encoding="utf-8")
+    (base / "inspirations" / "insp.md").write_text("i", encoding="utf-8")
+    (base / "task_definition.md").write_text("t", encoding="utf-8")
+    (base / "response_structure.md").write_text("r", encoding="utf-8")
+
+    input_file = tmp_path / "services.jsonl"
+    input_file.write_text('{"name": "alpha"}\n', encoding="utf-8")
+    output_file = tmp_path / "out.jsonl"
+
+    settings = SimpleNamespace(
+        model="cfg",
+        log_level="INFO",
+        prompt_dir=str(base),
+        context_id="ctx",
+        inspiration="insp",
+        concurrency=1,
+        batch_size=5,
+        openai_api_key="dummy",
+        logfire_token=None,
+        reasoning=None,
+        models=None,
+    )
+
+    captured: dict[str, int] = {}
+
+    def fake_init(
+        self,
+        model,
+        concurrency=5,
+        batch_size=None,
+        request_timeout=60,
+        retries=5,
+        retry_base_delay=0.5,
+        expected_output_tokens=256,
+    ) -> None:
+        captured["expected"] = expected_output_tokens
+
+    monkeypatch.setattr(ServiceAmbitionGenerator, "__init__", fake_init)
+    monkeypatch.setattr(cli, "load_settings", lambda: settings)
+
+    argv = [
+        "main",
+        "generate-ambitions",
+        "--input-file",
+        str(input_file),
+        "--output-file",
+        str(output_file),
+        "--dry-run",
+        "--expected-output-tokens",
+        "512",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+
+    cli.main()
+
+    assert captured["expected"] == 512
 
 
 def test_cli_verbose_logging(tmp_path, monkeypatch):
