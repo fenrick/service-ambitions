@@ -17,6 +17,8 @@ def test_load_settings_reads_env(monkeypatch) -> None:
     settings = load_settings()
     assert settings.openai_api_key == "token"
     assert settings.model == "openai:gpt-5"
+    assert settings.models is not None
+    assert settings.models.descriptions == "openai:o4-mini"
     assert settings.log_level == "INFO"
     assert settings.request_timeout == 60
     assert settings.retries == 5

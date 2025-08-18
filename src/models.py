@@ -222,6 +222,45 @@ class ReasoningConfig(StrictModel):
     model_config = ConfigDict(extra="allow")
 
 
+class StageModels(StrictModel):
+    """Optional per-stage model configuration."""
+
+    descriptions: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description=(
+                "Model used for plateau descriptions in '<provider>:<model>' format."
+            ),
+        ),
+    ]
+    features: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description=(
+                "Model used for feature generation in '<provider>:<model>' format."
+            ),
+        ),
+    ]
+    mapping: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description=(
+                "Model used for feature mapping in '<provider>:<model>' format."
+            ),
+        ),
+    ]
+    search: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description="Model used for web search in '<provider>:<model>' format.",
+        ),
+    ]
+
+
 class AppConfig(StrictModel):
     """Top-level application configuration controlling generation behaviour."""
 
@@ -229,6 +268,7 @@ class AppConfig(StrictModel):
         str,
         Field(min_length=1, description="Chat model in '<provider>:<model>' format."),
     ] = "openai:gpt-5"
+    models: StageModels | None = Field(None, description="Per-stage model overrides.")
     reasoning: ReasoningConfig | None = Field(
         None, description="Optional reasoning configuration for the model."
     )
@@ -523,6 +563,7 @@ __all__ = [
     "PlateauFeature",
     "PlateauFeaturesResponse",
     "PlateauResult",
+    "StageModels",
     "ReasoningConfig",
     "Role",
     "SCHEMA_VERSION",

@@ -7,8 +7,23 @@ from types import SimpleNamespace
 
 import pytest
 
+import cli
 from cli import _cmd_generate_evolution
 from models import SCHEMA_VERSION, ServiceEvolution, ServiceInput
+
+
+class DummyFactory:
+    def __init__(self, *a, **k):
+        pass
+
+    def model_name(self, stage, override=None):
+        return "m"
+
+    def get(self, stage, override=None):
+        return object()
+
+
+cli.ModelFactory = DummyFactory
 
 
 def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
@@ -29,11 +44,6 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         encoding="utf-8",
     )
 
-    def fake_build_model(
-        model_name, api_key, *, seed=None, reasoning=None, web_search=False
-    ):
-        return object()
-
     class DummyAgent:
         def __init__(self, model, instructions):
             self.model = model
@@ -42,7 +52,6 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
     async def fake_generate(self, service: ServiceInput) -> ServiceEvolution:
         return ServiceEvolution(service=service, plateaus=[])
 
-    monkeypatch.setattr("cli.build_model", fake_build_model)
     monkeypatch.setattr("cli.Agent", DummyAgent)
     monkeypatch.setattr(
         "cli.PlateauGenerator.generate_service_evolution_async", fake_generate
@@ -62,6 +71,7 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         inspiration="general",
         reasoning=None,
         features_per_role=5,
+        models=None,
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -93,9 +103,6 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
     output_path = tmp_path / "out.jsonl"
     input_path.write_text("{}\n", encoding="utf-8")
 
-    def fake_build_model(*args, **kwargs):
-        return object()
-
     class DummyAgent:
         def __init__(self, model, instructions):
             pass
@@ -106,7 +113,6 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         called["ran"] = True
         return ServiceEvolution(service=service, plateaus=[])
 
-    monkeypatch.setattr("cli.build_model", fake_build_model)
     monkeypatch.setattr("cli.Agent", DummyAgent)
     monkeypatch.setattr(
         "cli.PlateauGenerator.generate_service_evolution_async", fake_generate
@@ -126,6 +132,7 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         inspiration="insp",
         reasoning=None,
         features_per_role=5,
+        models=None,
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -164,9 +171,6 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
     output_path.write_text(json.dumps({"service_id": "s1"}) + "\n", encoding="utf-8")
     processed_path.write_text("s1\n", encoding="utf-8")
 
-    def fake_build_model(*args, **kwargs):
-        return object()
-
     class DummyAgent:
         def __init__(self, model, instructions):
             pass
@@ -177,7 +181,6 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         processed.append(service.service_id)
         return ServiceEvolution(service=service, plateaus=[])
 
-    monkeypatch.setattr("cli.build_model", fake_build_model)
     monkeypatch.setattr("cli.Agent", DummyAgent)
     monkeypatch.setattr(
         "cli.PlateauGenerator.generate_service_evolution_async", fake_generate
@@ -197,6 +200,7 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         inspiration="insp",
         reasoning=None,
         features_per_role=5,
+        models=None,
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -229,9 +233,6 @@ def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -
     output_path = tmp_path / "out.jsonl"
     input_path.write_text("{}\n", encoding="utf-8")
 
-    def fake_build_model(*args, **kwargs):
-        return object()
-
     class DummyAgent:
         def __init__(self, model, instructions):
             pass
@@ -239,7 +240,6 @@ def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -
     async def fake_generate(self, service: ServiceInput) -> ServiceEvolution:
         return ServiceEvolution(service=service, plateaus=[])
 
-    monkeypatch.setattr("cli.build_model", fake_build_model)
     monkeypatch.setattr("cli.Agent", DummyAgent)
     monkeypatch.setattr(
         "cli.PlateauGenerator.generate_service_evolution_async", fake_generate
@@ -259,6 +259,7 @@ def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -
         inspiration="insp",
         reasoning=None,
         features_per_role=5,
+        models=None,
     )
     args = argparse.Namespace(
         input_file=str(input_path),

@@ -15,6 +15,20 @@ from monitoring import LOG_FILE_NAME
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
+class DummyFactory:
+    def __init__(self, *a, **k):
+        pass
+
+    def model_name(self, stage, override=None):
+        return "dummy"
+
+    def get(self, stage, override=None):
+        return object()
+
+
+cli.ModelFactory = DummyFactory
+
+
 def test_cli_generates_output(tmp_path, monkeypatch):
     base = tmp_path / "prompts"
     (base / "situational_context").mkdir(parents=True)
@@ -42,6 +56,7 @@ def test_cli_generates_output(tmp_path, monkeypatch):
         openai_api_key="dummy",
         logfire_token=None,
         reasoning=None,
+        models=None,
     )
 
     async def fake_process_service(self, service, prompt=None):
@@ -99,6 +114,7 @@ def test_cli_dry_run_skips_processing(tmp_path, monkeypatch):
         openai_api_key="dummy",
         logfire_token=None,
         reasoning=None,
+        models=None,
     )
 
     called = {"ran": False}
