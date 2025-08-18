@@ -32,6 +32,7 @@ from models import (
     ServiceInput,
 )
 from token_scheduler import TokenScheduler
+from token_utils import estimate_tokens
 
 # Snapshot of plateau definitions sourced from configuration.
 _PLATEAU_DEFS = load_plateau_definitions()
@@ -131,9 +132,9 @@ class PlateauGenerator:
 
     @staticmethod
     def _predict_token_load(text: str) -> int:
-        """Return a crude token count prediction for ``text``."""
+        """Return a token count prediction for ``text``."""
 
-        return max(1, len(text.split()))
+        return max(1, estimate_tokens(text, 0))
 
     @logfire.instrument()
     def _request_descriptions(
