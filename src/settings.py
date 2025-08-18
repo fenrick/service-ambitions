@@ -14,13 +14,14 @@ from pydantic import Field, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from loader import load_app_config
-from models import ReasoningConfig
+from models import ReasoningConfig, StageModels
 
 
 class Settings(BaseSettings):
     """Application settings combining file-based and environment configuration."""
 
     model: str = Field(..., description="Chat model in '<provider>:<model>' format.")
+    models: StageModels | None = Field(None, description="Per-stage model overrides.")
     reasoning: ReasoningConfig | None = Field(
         None, description="Optional reasoning configuration for the model."
     )
@@ -75,6 +76,7 @@ def load_settings() -> Settings:
         # Validate and merge configuration from file, env file and environment.
         return Settings(
             model=config.model,
+            models=config.models,
             reasoning=config.reasoning,
             log_level=config.log_level,
             prompt_dir=config.prompt_dir,

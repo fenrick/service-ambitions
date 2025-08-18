@@ -272,6 +272,20 @@ def test_load_app_config(tmp_path):
     assert "beta" in config.mapping_types
 
 
+def test_load_app_config_models(tmp_path):
+    base = tmp_path / "config"
+    base.mkdir()
+    (base / "app.json").write_text(
+        '{"models": {"features": "m1", "mapping": "m2"}}',
+        encoding="utf-8",
+    )
+    load_app_config.cache_clear()
+    config = load_app_config(str(base))
+    assert config.models is not None
+    assert config.models.features == "m1"
+    assert config.models.mapping == "m2"
+
+
 def test_load_app_config_reasoning(tmp_path):
     base = tmp_path / "config"
     base.mkdir()

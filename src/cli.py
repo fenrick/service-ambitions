@@ -18,7 +18,7 @@ from pydantic_ai import Agent
 from tqdm import tqdm
 
 from conversation import ConversationSession
-from generator import ServiceAmbitionGenerator, build_model
+from generator import ServiceAmbitionGenerator
 from loader import (
     configure_prompt_dir,
     load_ambition_prompt,
@@ -26,6 +26,7 @@ from loader import (
     load_plateau_definitions,
     load_roles,
 )
+from model_factory import ModelFactory
 from models import ServiceInput
 from monitoring import LOG_FILE_NAME, init_logfire
 from persistence import atomic_write, read_lines
@@ -70,17 +71,20 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
     configure_prompt_dir(settings.prompt_dir)
     system_prompt = load_ambition_prompt(settings.context_id, settings.inspiration)
 
-    # Prefer model specified on the CLI, falling back to settings
-    model_name = args.model or settings.model
-    logfire.info(f"Generating ambitions using model {model_name}")
-
-    model = build_model(
-        model_name,
+    factory = ModelFactory(
+        settings.model,
         settings.openai_api_key,
-        seed=args.seed,
+        stage_models=getattr(settings, "models", None),
         reasoning=settings.reasoning,
+        seed=args.seed,
         web_search=args.web_search,
     )
+
+    feat_name = factory.model_name("features", args.features_model or args.model)
+    logfire.info(f"Generating evolution using features model {feat_name}")
+    model_name = factory.model_name("features", args.features_model or args.model)
+    logfire.info(f"Generating ambitions using model {model_name}")
+    model = factory.get("features", args.features_model or args.model)
     concurrency = args.concurrency or settings.concurrency
     generator = ServiceAmbitionGenerator(
         model,
@@ -148,12 +152,12 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
 async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
     """Generate service evolution summaries."""
 
-    model_name = args.model or settings.model
-    model = build_model(
-        model_name,
+    factory = ModelFactory(
+        settings.model,
         settings.openai_api_key,
-        seed=args.seed,
+        stage_models=getattr(settings, "models", None),
         reasoning=settings.reasoning,
+        seed=args.seed,
         web_search=args.web_search,
     )
 
@@ -195,12 +199,26 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
 
     async def run_one(service: ServiceInput) -> None:
         async with sem:
-            agent = Agent(model, instructions=system_prompt)
-            session = ConversationSession(agent)
+            desc_model = factory.get(
+                "descriptions", args.descriptions_model or args.model
+            )
+            feat_model = factory.get("features", args.features_model or args.model)
+            map_model = factory.get("mapping", args.mapping_model or args.model)
+
+            desc_agent = Agent(desc_model, instructions=system_prompt)
+            feat_agent = Agent(feat_model, instructions=system_prompt)
+            map_agent = Agent(map_model, instructions=system_prompt)
+
+            desc_session = ConversationSession(desc_agent)
+            feat_session = ConversationSession(feat_agent)
+            map_session = ConversationSession(map_agent)
+
             generator = PlateauGenerator(
-                session,
+                feat_session,
                 required_count=settings.features_per_role,
                 roles=role_ids,
+                description_session=desc_session,
+                mapping_session=map_session,
             )
             evolution = await generator.generate_service_evolution_async(service)
             line = f"{evolution.model_dump_json()}\n"
@@ -245,6 +263,22 @@ def main() -> None:
     common.add_argument(
         "--model",
         help="Chat model name. Can also be set via the MODEL env variable.",
+    )
+    common.add_argument(
+        "--descriptions-model",
+        help="Model for plateau descriptions",
+    )
+    common.add_argument(
+        "--features-model",
+        help="Model for feature generation",
+    )
+    common.add_argument(
+        "--mapping-model",
+        help="Model for feature mapping",
+    )
+    common.add_argument(
+        "--search-model",
+        help="Model for web search",
     )
     common.add_argument(
         "-v",

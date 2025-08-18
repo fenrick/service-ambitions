@@ -60,17 +60,24 @@ class PlateauGenerator:
         session: ConversationSession,
         required_count: int = 5,
         roles: Sequence[str] | None = None,
+        *,
+        description_session: ConversationSession | None = None,
+        mapping_session: ConversationSession | None = None,
     ) -> None:
         """Initialise the generator.
 
         Args:
-            session: Active conversation session for agent queries.
+            session: Active conversation session for feature generation.
             required_count: Minimum number of features per role.
             roles: Role identifiers to include during generation.
+            description_session: Session used for plateau descriptions.
+            mapping_session: Session used for feature mapping.
         """
         if required_count < 1:
             raise ValueError("required_count must be positive")
         self.session = session
+        self.description_session = description_session or session
+        self.mapping_session = mapping_session or session
         self.required_count = required_count
         self.roles = list(roles or DEFAULT_ROLE_IDS)
         self._service: ServiceInput | None = None
@@ -86,7 +93,7 @@ class PlateauGenerator:
         response parsed. A :class:`ValueError` is raised if the response cannot
         be validated or the description field is empty.
         """
-        session = session or self.session
+        session = session or self.description_session
         template = load_prompt_text("description_prompt")
         schema = json.dumps(DescriptionResponse.model_json_schema(), indent=2)
         prompt = template.format(
@@ -114,7 +121,7 @@ class PlateauGenerator:
     ) -> str:
         """Asynchronously return the service description for ``level``."""
 
-        session = session or self.session
+        session = session or self.description_session
         template = load_prompt_text("description_prompt")
         schema = json.dumps(DescriptionResponse.model_json_schema(), indent=2)
         prompt = template.format(plateau=level, schema=str(schema))
@@ -146,7 +153,7 @@ class PlateauGenerator:
         plateau_names: Sequence[str],
         session: ConversationSession | None = None,
     ) -> dict[str, str]:
-        session = session or self.session
+        session = session or self.description_session
         lines: list[str] = []
         for name in plateau_names:
             try:
@@ -182,7 +189,7 @@ class PlateauGenerator:
     ) -> dict[str, str]:
         """Asynchronously return descriptions for ``plateau_names``."""
 
-        session = session or self.session
+        session = session or self.description_session
         lines: list[str] = []
         for name in plateau_names:
             try:
@@ -308,7 +315,10 @@ class PlateauGenerator:
                     )
                     raise ValueError(msg)
             features = self._collect_features(payload)
-            mapped = await map_features_async(session, features)
+            map_session = ConversationSession(self.mapping_session.client)
+            if self._service is not None:
+                map_session.add_parent_materials(self._service)
+            mapped = await map_features_async(map_session, features)
             return PlateauResult(
                 plateau=level,
                 plateau_name=plateau_name,
@@ -346,11 +356,15 @@ class PlateauGenerator:
                 span.set_attribute("customer_type", service_input.customer_type)
 
             self.session.add_parent_materials(service_input)
+            self.description_session.add_parent_materials(service_input)
+            self.mapping_session.add_parent_materials(service_input)
 
             plateau_names = list(plateau_names or DEFAULT_PLATEAU_NAMES)
             role_ids = list(role_ids or self.roles)
 
-            desc_map = await self._request_descriptions_async(plateau_names)
+            desc_map = await self._request_descriptions_async(
+                plateau_names, session=self.description_session
+            )
 
             async def one(name: str) -> PlateauResult:
                 try:
