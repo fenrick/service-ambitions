@@ -15,7 +15,7 @@ from asyncio import Lock, Semaphore
 from collections import deque
 from contextlib import asynccontextmanager
 from types import ModuleType
-from typing import AsyncContextManager, AsyncIterator, Deque
+from typing import AsyncContextManager, AsyncIterator, Deque, Optional
 
 try:
     import logfire as _logfire
@@ -40,12 +40,32 @@ class AdaptiveSemaphore:
     providers apply throttling.
     """
 
-    def __init__(self, permits: int, *, ramp_interval: float = 1.0) -> None:
+    def __init__(
+        self,
+        permits: int,
+        *,
+        ramp_interval: float = 1.0,
+        grace_period: float = 60.0,
+    ) -> None:
+        """Create the semaphore.
+
+        Args:
+            permits: Initial maximum concurrency.
+            ramp_interval: Base delay between permit releases during recovery.
+            grace_period: Time window in seconds after which slow-start resets if
+                no further throttling occurs.
+        """
+
         self._sem = Semaphore(permits)
         self._max = permits
         self._current = permits
+        self._base_ramp = ramp_interval
         self._ramp_interval = ramp_interval
+        self._grace_period = grace_period
         self._lock = Lock()
+        self._consecutive = 0
+        self._last_throttle = 0.0
+        self._reset_task: Optional[asyncio.Task[None]] = None
 
     async def acquire(self, weight: int = 1) -> None:
         """Acquire one or more permits.
@@ -122,10 +142,35 @@ class AdaptiveSemaphore:
 
         asyncio.create_task(self._throttle(delay))
 
+    def _schedule_reset(self) -> None:
+        """Reset slow-start state after the grace period."""
+
+        if self._reset_task and not self._reset_task.done():
+            self._reset_task.cancel()
+        self._reset_task = asyncio.create_task(self._reset_after_grace())
+
+    async def _reset_after_grace(self) -> None:
+        await asyncio.sleep(self._grace_period)
+        self._consecutive = 0
+        self._ramp_interval = self._base_ramp
+
     async def _throttle(self, delay: float) -> None:
         async with self._lock:
+            now = time.monotonic()
+            # Reset slow-start counters if enough time has elapsed.
+            if now - self._last_throttle > self._grace_period:
+                self._consecutive = 0
+                self._ramp_interval = self._base_ramp
+
+            self._consecutive += 1
+            self._last_throttle = now
+            if self._consecutive > 1:
+                # Exponential backoff of the ramp interval during slow-start.
+                self._ramp_interval = self._base_ramp * (2 ** (self._consecutive - 1))
+
             if self._current <= 1:
                 # Already at minimum concurrency; nothing to adjust.
+                self._schedule_reset()
                 return
             target = max(1, self._current // 2)
             reduction = self._current - target
@@ -133,6 +178,10 @@ class AdaptiveSemaphore:
             # tasks beyond the desired limit.
             await self.acquire(reduction)
             self._current = target
+
+        # Reset counters once no additional throttles occur for the grace
+        # window.
+        self._schedule_reset()
 
         # Wait for the provider hint before slowly ramping back up.
         await asyncio.sleep(delay)

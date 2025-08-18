@@ -3,10 +3,17 @@ from types import SimpleNamespace
 
 import pytest
 
+import backpressure
 from backpressure import AdaptiveSemaphore, RollingMetrics
 
+pytestmark = pytest.mark.anyio
 
-@pytest.mark.asyncio()
+
+@pytest.fixture
+def anyio_backend() -> str:
+    return "asyncio"
+
+
 async def test_adaptive_semaphore_throttles():
     """Semaphore halves concurrency and restores it."""
 
@@ -20,7 +27,41 @@ async def test_adaptive_semaphore_throttles():
     assert sem.limit == 4
 
 
-@pytest.mark.asyncio()
+async def test_slow_start_on_consecutive_throttles():
+    """Recovery slows with consecutive throttle events."""
+
+    sem = AdaptiveSemaphore(4, ramp_interval=0.01, grace_period=0.05)
+    sem.throttle(0.01)
+    await asyncio.sleep(0.04)
+    sem.throttle(0.01)
+    await asyncio.sleep(0.02)
+    assert sem.limit == 2
+    # Not enough time has passed for slow-start to restore all permits.
+    await asyncio.sleep(0.02)
+    assert sem.limit < 4
+    await asyncio.sleep(0.05)
+    assert sem.limit == 4
+
+
+async def test_slow_start_resets_after_grace():
+    """Grace period clears slow-start state for future throttles."""
+
+    sem = AdaptiveSemaphore(4, ramp_interval=0.01, grace_period=0.05)
+    sem.throttle(0.01)
+    await asyncio.sleep(0.04)
+    sem.throttle(0.01)
+    # Allow slow-start recovery to finish.
+    await asyncio.sleep(0.1)
+    assert sem.limit == 4
+    # Wait past the grace period so counters reset.
+    await asyncio.sleep(0.06)
+    sem.throttle(0.01)
+    await asyncio.sleep(0.02)
+    assert sem.limit == 2
+    await asyncio.sleep(0.05)
+    assert sem.limit == 4
+
+
 async def test_weighted_permits_respected():
     """Weighted acquisition blocks until enough permits are free."""
 
@@ -48,7 +89,7 @@ def test_rolling_metrics_reports(monkeypatch):
     def fake_metric(name: str, value: float) -> None:
         calls.append(SimpleNamespace(name=name, value=value))
 
-    monkeypatch.setattr("backpressure.logfire", "metric", fake_metric)
+    monkeypatch.setattr(backpressure.logfire, "metric", fake_metric)
     metrics = RollingMetrics(window=1)
     metrics.record_request()
     metrics.record_error()
