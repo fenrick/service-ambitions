@@ -10,9 +10,14 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import TYPE_CHECKING, Mapping, Sequence
+import os
+from functools import lru_cache
+from typing import TYPE_CHECKING, Iterable, Mapping, Sequence
 
 import logfire
+import numpy as np
+from openai import AsyncOpenAI
+from scipy.sparse import csr_matrix
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 from loader import load_mapping_items, load_mapping_type_config, load_prompt_text
@@ -26,6 +31,100 @@ from models import (
 
 if TYPE_CHECKING:
     from conversation import ConversationSession
+
+
+EMBED_MODEL = "text-embedding-3-small"
+"""Embedding model used for catalogue pre-filtering."""
+
+_EMBED_CLIENT: AsyncOpenAI | None = None
+_EMBED_CACHE: dict[str, tuple[np.ndarray, list[MappingItem]]] = {}
+_CHUNK_SIZE = 20
+
+
+def _chunked(
+    seq: Sequence[PlateauFeature], size: int
+) -> Iterable[Sequence[PlateauFeature]]:
+    """Yield successive ``size``-sized chunks from ``seq``."""
+
+    for i in range(0, len(seq), size):
+        yield seq[i : i + size]
+
+
+@lru_cache(maxsize=None)
+def _catalogue_vectors(
+    dataset: str,
+) -> tuple[TfidfVectorizer, csr_matrix, list[MappingItem]]:
+    """Return cached TF-IDF vectoriser and matrix for ``dataset`` catalogue."""
+
+    items = load_mapping_items((dataset,))[dataset]
+    item_texts = [f"{it.name} {it.description}" for it in items]
+    vectorizer = TfidfVectorizer().fit(item_texts)
+    item_vecs = vectorizer.transform(item_texts)
+    return vectorizer, item_vecs, items
+
+
+async def _get_embed_client() -> AsyncOpenAI:
+    """Return a cached OpenAI client for embedding requests."""
+
+    global _EMBED_CLIENT
+    if _EMBED_CLIENT is None:
+        if not os.getenv("OPENAI_API_KEY"):
+            raise RuntimeError("OPENAI_API_KEY missing")
+        _EMBED_CLIENT = AsyncOpenAI()
+    return _EMBED_CLIENT
+
+
+async def _catalogue_embeddings(
+    dataset: str,
+) -> tuple[np.ndarray, list[MappingItem]]:
+    """Return embedding vectors and items for the ``dataset`` catalogue."""
+
+    cache = _EMBED_CACHE.get(dataset)
+    if cache is not None:
+        return cache
+    client = await _get_embed_client()
+    items = load_mapping_items((dataset,))[dataset]
+    texts = [f"{it.name} {it.description}" for it in items]
+    resp = await client.embeddings.create(model=EMBED_MODEL, input=texts)
+    vectors = np.array([d.embedding for d in resp.data])
+    cache = (vectors, items)
+    _EMBED_CACHE[dataset] = cache
+    return cache
+
+
+async def _embedding_top_k_items(
+    features: Sequence[PlateauFeature], dataset: str, k: int = 40
+) -> list[MappingItem]:
+    """Return ``k`` catalogue items closest to ``features`` using embeddings."""
+
+    item_vecs, items = await _catalogue_embeddings(dataset)
+    client = await _get_embed_client()
+    feature_texts = [f"{f.name} {f.description}" for f in features]
+    resp = await client.embeddings.create(model=EMBED_MODEL, input=feature_texts)
+    feat_vecs = np.array([d.embedding for d in resp.data])
+    sims = feat_vecs @ item_vecs.T
+    top_indices: set[int] = set()
+    for row in sims:
+        ranking = sorted(enumerate(row), key=lambda x: (-x[1], items[x[0]].id))
+        idxs = [idx for idx, _ in ranking[:k]]
+        top_indices.update(idxs)
+    return [items[i] for i in sorted(top_indices)]
+
+
+async def _preselect_items(
+    features: Sequence[PlateauFeature],
+    cfg: MappingTypeConfig,
+    *,
+    k: int = 40,
+) -> dict[str, list[MappingItem]] | None:
+    """Return mapping catalogue overrides selected via embeddings."""
+
+    try:
+        slice_items = await _embedding_top_k_items(features, cfg.dataset, k)
+    except Exception as exc:  # pragma: no cover - best effort
+        logfire.warning(f"Embedding pre-filter failed: {exc}")
+        return None
+    return {cfg.dataset: slice_items}
 
 
 class MappingError(RuntimeError):
@@ -66,21 +165,23 @@ def _render_features(features: Sequence[PlateauFeature]) -> str:
 
 def _top_k_items(
     features: Sequence[PlateauFeature],
-    items: list[MappingItem],
+    dataset: str,
     k: int = 5,
 ) -> list[MappingItem]:
-    """Return ``k`` catalogue items most similar to ``features`` using TF-IDF."""
+    """Return ``k`` catalogue items most similar to ``features`` using TF-IDF.
 
+    Ties are broken by lexicographic item identifier to keep results stable
+    across runs.
+    """
+
+    vectorizer, item_vecs, items = _catalogue_vectors(dataset)
     feature_texts = [f"{f.name} {f.description}" for f in features]
-    item_texts = [f"{it.name} {it.description}" for it in items]
-    vectorizer = TfidfVectorizer().fit(feature_texts + item_texts)
     feat_vecs = vectorizer.transform(feature_texts)
-    item_vecs = vectorizer.transform(item_texts)
     scores = feat_vecs @ item_vecs.T
     top_indices: set[int] = set()
-    for row in scores:
-        arr = row.toarray().ravel()
-        idxs = arr.argsort()[::-1][:k]
+    for row in scores.toarray():
+        ranking = sorted(enumerate(row), key=lambda x: (-x[1], items[x[0]].id))
+        idxs = [idx for idx, _ in ranking[:k]]
         top_indices.update(idxs)
     return [items[i] for i in sorted(top_indices)]
 
@@ -207,32 +308,47 @@ async def map_features_async(
     """Asynchronously return ``features`` with mapping information."""
 
     mapping_types = mapping_types or load_mapping_type_config()
-    results_payloads: list[tuple[str, MappingTypeConfig, MappingResponse]] = []
-    for key, cfg in mapping_types.items():
-        sub_session = session.derive()
-        prompt = _build_mapping_prompt(features, {key: cfg})
-        logfire.debug(f"Requesting {key} mappings for {len(features)} features")
-        payload = await sub_session.ask_async(prompt, output_type=MappingResponse)
-        if all(not f.mappings.get(key) for f in payload.features):
-            catalogue = load_mapping_items((cfg.dataset,))[cfg.dataset]
-            slice_items = _top_k_items(features, catalogue)
-            reminder = (
-                "Previous response contained no mappings. Select relevant items "
-                "from the reduced catalogue below."
-            )
-            prompt = _build_mapping_prompt(
-                features,
-                {key: cfg},
-                item_overrides={cfg.dataset: slice_items},
-                extra_instructions=reminder,
-            )
-            payload = await sub_session.ask_async(prompt, output_type=MappingResponse)
-        results_payloads.append((key, cfg, payload))
+    results: dict[str, PlateauFeature] = {f.feature_id: f for f in features}
 
-    results: list[PlateauFeature] = list(features)
-    for key, cfg, payload in results_payloads:
-        results = _merge_mapping_results(results, payload, {key: cfg})
-    return results
+    for batch in _chunked(features, _CHUNK_SIZE):
+        tasks: list[asyncio.Task[MappingResponse]] = []
+        task_meta: list[tuple[str, MappingTypeConfig, ConversationSession]] = []
+        for key, cfg in mapping_types.items():
+            sub_session = session.derive()
+            overrides = await _preselect_items(batch, cfg)
+            prompt = _build_mapping_prompt(batch, {key: cfg}, item_overrides=overrides)
+            logfire.debug(f"Requesting {key} mappings for {len(batch)} features")
+            task_meta.append((key, cfg, sub_session))
+            tasks.append(
+                asyncio.create_task(
+                    sub_session.ask_async(prompt, output_type=MappingResponse)
+                )
+            )
+        payloads = await asyncio.gather(*tasks)
+
+        batch_results: list[PlateauFeature] = list(batch)
+        for (key, cfg, sub_session), payload in zip(task_meta, payloads, strict=False):
+            if all(not f.mappings.get(key) for f in payload.features):
+                slice_items = _top_k_items(batch, cfg.dataset)
+                reminder = (
+                    "Previous response contained no mappings. Select relevant items "
+                    "from the reduced catalogue below."
+                )
+                prompt = _build_mapping_prompt(
+                    batch,
+                    {key: cfg},
+                    item_overrides={cfg.dataset: slice_items},
+                    extra_instructions=reminder,
+                )
+                payload = await sub_session.ask_async(
+                    prompt, output_type=MappingResponse
+                )
+            batch_results = _merge_mapping_results(batch_results, payload, {key: cfg})
+
+        for updated in batch_results:
+            results[updated.feature_id] = updated
+
+    return [results[f.feature_id] for f in features]
 
 
 def map_features(
