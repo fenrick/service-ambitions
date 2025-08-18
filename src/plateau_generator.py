@@ -30,6 +30,7 @@ from models import (
     ServiceEvolution,
     ServiceInput,
 )
+from token_scheduler import TokenScheduler
 
 # Snapshot of plateau definitions sourced from configuration.
 _PLATEAU_DEFS = load_plateau_definitions()
@@ -126,6 +127,12 @@ class PlateauGenerator:
         """
         pattern = r"^Prepared plateau-\d+ description for [^:]+:\s*"
         return re.sub(pattern, "", text, flags=re.IGNORECASE)
+
+    @staticmethod
+    def _predict_token_load(text: str) -> int:
+        """Return a crude token count prediction for ``text``."""
+
+        return max(1, len(text.split()))
 
     @logfire.instrument()
     def _request_descriptions(
@@ -416,22 +423,29 @@ class PlateauGenerator:
                 plateau_names, session=self.description_session
             )
 
-            async def one(name: str) -> PlateauResult:
-                try:
-                    level = DEFAULT_PLATEAU_MAP[name]
-                except KeyError as exc:
-                    raise ValueError(f"Unknown plateau name: {name}") from exc
-                plateau_session = ConversationSession(self.session.client)
-                plateau_session.add_parent_materials(service_input)
-                description = desc_map[name]
-                return await self.generate_plateau_async(
-                    level,
-                    name,
-                    session=plateau_session,
-                    description=description,
-                )
+            scheduler = TokenScheduler(max_workers=min(4, len(plateau_names)))
 
-            results = await asyncio.gather(*(one(n) for n in plateau_names))
+            for name in plateau_names:
+                description = desc_map[name]
+                tokens = self._predict_token_load(description)
+
+                async def task(n: str = name, d: str = description) -> PlateauResult:
+                    try:
+                        level = DEFAULT_PLATEAU_MAP[n]
+                    except KeyError as exc:
+                        raise ValueError(f"Unknown plateau name: {n}") from exc
+                    plateau_session = ConversationSession(self.session.client)
+                    plateau_session.add_parent_materials(service_input)
+                    return await self.generate_plateau_async(
+                        level,
+                        n,
+                        session=plateau_session,
+                        description=d,
+                    )
+
+                scheduler.submit(task, tokens)
+
+            results = await scheduler.run()
 
             plateaus: list[PlateauResult] = []
             for result in results:
