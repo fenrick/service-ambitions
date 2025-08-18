@@ -20,6 +20,26 @@ async def test_adaptive_semaphore_throttles():
     assert sem.limit == 4
 
 
+@pytest.mark.asyncio()
+async def test_weighted_permits_respected():
+    """Weighted acquisition blocks until enough permits are free."""
+
+    sem = AdaptiveSemaphore(3)
+    order: list[int] = []
+
+    async def worker(weight: int, mark: int) -> None:
+        async with sem(weight):
+            order.append(mark)
+            await asyncio.sleep(0.01)
+
+    first = asyncio.create_task(worker(2, 1))
+    await asyncio.sleep(0.001)
+    second = asyncio.create_task(worker(2, 2))
+    await asyncio.gather(first, second)
+
+    assert order == [1, 2]
+
+
 def test_rolling_metrics_reports(monkeypatch):
     """Metrics emit request rate and error rate."""
 

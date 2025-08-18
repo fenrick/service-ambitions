@@ -13,19 +13,31 @@ import asyncio
 import time
 from asyncio import Lock, Semaphore
 from collections import deque
-from typing import Deque
+from contextlib import asynccontextmanager
+from types import ModuleType
+from typing import AsyncContextManager, AsyncIterator, Deque
 
-import logfire
+try:
+    import logfire as _logfire
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    _logfire = None
+
+if _logfire and hasattr(_logfire, "metric"):
+    logfire = _logfire
+else:  # pragma: no cover - default stub for metrics
+    logfire = ModuleType("logfire")
+    logfire.metric = lambda name, value: None  # type: ignore[attr-defined]
 
 
 class AdaptiveSemaphore:
     """Semaphore that reacts to rate limit signals.
 
-    When a ``Retry-After`` hint is observed the semaphore temporarily reduces
-    the number of available permits to half the current limit. After the hinted
-    delay it releases one permit at a time until the original concurrency is
-    restored. This helps avoid cascading failures when providers apply
-    throttling.
+    The limiter supports weighted permits so tasks can reserve multiple units
+    of capacity at once. When a ``Retry-After`` hint is observed the semaphore
+    temporarily reduces the number of available permits to half the current
+    limit. After the hinted delay it releases one permit at a time until the
+    original concurrency is restored. This helps avoid cascading failures when
+    providers apply throttling.
     """
 
     def __init__(self, permits: int, *, ramp_interval: float = 1.0) -> None:
@@ -35,15 +47,37 @@ class AdaptiveSemaphore:
         self._ramp_interval = ramp_interval
         self._lock = Lock()
 
-    async def acquire(self) -> None:
-        """Acquire a permit from the underlying semaphore."""
+    async def acquire(self, weight: int = 1) -> None:
+        """Acquire one or more permits.
 
-        await self._sem.acquire()
+        Args:
+            weight: Number of permits to reserve. Must be positive.
 
-    def release(self) -> None:
-        """Release a permit back to the semaphore."""
+        Raises:
+            ValueError: If ``weight`` is less than one.
+        """
 
-        self._sem.release()
+        if weight < 1:
+            raise ValueError("weight must be positive")
+
+        for _ in range(weight):
+            await self._sem.acquire()
+
+    def release(self, weight: int = 1) -> None:
+        """Release one or more permits back to the semaphore.
+
+        Args:
+            weight: Number of permits to release. Must be positive.
+
+        Raises:
+            ValueError: If ``weight`` is less than one.
+        """
+
+        if weight < 1:
+            raise ValueError("weight must be positive")
+
+        for _ in range(weight):
+            self._sem.release()
 
     async def __aenter__(self) -> "AdaptiveSemaphore":
         await self.acquire()
@@ -51,6 +85,26 @@ class AdaptiveSemaphore:
 
     async def __aexit__(self, exc_type, exc, tb) -> None:  # noqa: D401 - standard
         self.release()
+
+    def __call__(self, weight: int = 1) -> AsyncContextManager["AdaptiveSemaphore"]:
+        """Return a context manager acquiring ``weight`` permits.
+
+        Example:
+            ```python
+            async with limiter(2):
+                ...  # uses two permits
+            ```
+        """
+
+        @asynccontextmanager
+        async def _manager() -> AsyncIterator["AdaptiveSemaphore"]:
+            await self.acquire(weight)
+            try:
+                yield self
+            finally:
+                self.release(weight)
+
+        return _manager()
 
     @property
     def limit(self) -> int:
@@ -75,17 +129,16 @@ class AdaptiveSemaphore:
                 return
             target = max(1, self._current // 2)
             reduction = self._current - target
-            for _ in range(reduction):
-                # Each acquire reduces the available permits without blocking
-                # new tasks beyond the desired limit.
-                await self._sem.acquire()
+            # Each acquire reduces the available permits without blocking new
+            # tasks beyond the desired limit.
+            await self.acquire(reduction)
             self._current = target
 
         # Wait for the provider hint before slowly ramping back up.
         await asyncio.sleep(delay)
         while self._current < self._max:
             await asyncio.sleep(self._ramp_interval)
-            self._sem.release()
+            self.release()
             self._current += 1
 
 
