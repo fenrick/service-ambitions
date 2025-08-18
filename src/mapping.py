@@ -300,6 +300,22 @@ def _merge_mapping_results(
     return results
 
 
+async def _request_mapping(
+    session: ConversationSession,
+    batch: Sequence[PlateauFeature],
+    key: str,
+    cfg: MappingTypeConfig,
+) -> tuple[str, MappingTypeConfig, ConversationSession, MappingResponse]:
+    """Return mapping response for ``key`` type for ``batch`` features."""
+
+    sub_session = session.derive()
+    overrides = await _preselect_items(batch, cfg)
+    prompt = _build_mapping_prompt(batch, {key: cfg}, item_overrides=overrides)
+    logfire.debug(f"Requesting {key} mappings for {len(batch)} features")
+    payload = await sub_session.ask_async(prompt, output_type=MappingResponse)
+    return key, cfg, sub_session, payload
+
+
 async def map_features_async(
     session: ConversationSession,
     features: Sequence[PlateauFeature],
@@ -311,24 +327,18 @@ async def map_features_async(
     results: dict[str, PlateauFeature] = {f.feature_id: f for f in features}
 
     for batch in _chunked(features, _CHUNK_SIZE):
-        tasks: list[asyncio.Task[MappingResponse]] = []
-        task_meta: list[tuple[str, MappingTypeConfig, ConversationSession]] = []
-        for key, cfg in mapping_types.items():
-            sub_session = session.derive()
-            overrides = await _preselect_items(batch, cfg)
-            prompt = _build_mapping_prompt(batch, {key: cfg}, item_overrides=overrides)
-            logfire.debug(f"Requesting {key} mappings for {len(batch)} features")
-            task_meta.append((key, cfg, sub_session))
-            tasks.append(
-                asyncio.create_task(
-                    sub_session.ask_async(prompt, output_type=MappingResponse)
-                )
-            )
-        payloads = await asyncio.gather(*tasks)
+        tasks = [
+            _request_mapping(session, batch, key, cfg)
+            for key, cfg in mapping_types.items()
+        ]
+        # Dispatch all mapping type requests concurrently for this batch.
+        responses = await asyncio.gather(*tasks)
 
         batch_results: list[PlateauFeature] = list(batch)
-        for (key, cfg, sub_session), payload in zip(task_meta, payloads, strict=False):
+        for key, cfg, sub_session, payload in responses:
             if all(not f.mappings.get(key) for f in payload.features):
+                # Reissue the request with a narrowed catalogue if the agent
+                # returned no mappings initially.
                 slice_items = _top_k_items(batch, cfg.dataset)
                 reminder = (
                     "Previous response contained no mappings. Select relevant items "
