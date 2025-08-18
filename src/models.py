@@ -424,10 +424,10 @@ class FeatureItem(BaseModel):
 
 class FeaturesBlock(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    # Required arrays, each with ≥5 items
-    learners: Annotated[List[FeatureItem], Field(min_length=5)]
-    academics: Annotated[List[FeatureItem], Field(min_length=5)]
-    professional_staff: Annotated[List[FeatureItem], Field(min_length=5)]
+    # Feature lists for each role; lists may be empty when responses are partial.
+    learners: Annotated[List[FeatureItem], Field(default_factory=list)]
+    academics: Annotated[List[FeatureItem], Field(default_factory=list)]
+    professional_staff: Annotated[List[FeatureItem], Field(default_factory=list)]
 
 
 class PlateauFeaturesResponse(BaseModel):
@@ -448,6 +448,13 @@ class PlateauFeaturesResponse(BaseModel):
         if len(ids) != len(set(ids)):
             raise ValueError("feature_id values must be unique across all roles")
         return self
+
+
+class RoleFeaturesResponse(BaseModel):
+    """Schema used when repairing missing role features."""
+
+    model_config = ConfigDict(extra="forbid")
+    features: list[FeatureItem]
 
 
 def _normalize_mapping_values(
@@ -562,6 +569,7 @@ __all__ = [
     "MaturityScore",
     "PlateauFeature",
     "PlateauFeaturesResponse",
+    "RoleFeaturesResponse",
     "PlateauResult",
     "StageModels",
     "ReasoningConfig",
