@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from mapping import map_feature, map_features
-from models import MappingItem, MaturityScore, PlateauFeature
+from mapping import map_feature, map_features, map_features_async
+from models import MappingItem, MappingTypeConfig, MaturityScore, PlateauFeature
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -25,6 +25,12 @@ class DummySession:
         if output_type is None:
             return response
         return output_type.model_validate_json(response)
+
+    def derive(self):
+        return self
+
+    async def ask_async(self, prompt: str, output_type=None):
+        return await self.ask(prompt, output_type)
 
 
 @pytest.mark.asyncio
@@ -477,3 +483,49 @@ async def test_map_features_allows_empty_lists(monkeypatch) -> None:
     assert result[0].mappings["data"] == []
     assert result[0].mappings["applications"] == []
     assert result[0].mappings["technology"] == []
+
+
+@pytest.mark.asyncio
+async def test_map_features_retries_on_empty(monkeypatch) -> None:
+    template = "{mapping_labels} {mapping_sections} {mapping_fields} {features}"
+
+    def fake_loader(name, *_, **__):
+        return template
+
+    items = {
+        "information": [
+            MappingItem(id="INF-1", name="User Data", description="user info"),
+            MappingItem(id="INF-2", name="Traffic", description="traffic stats"),
+        ]
+    }
+    monkeypatch.setattr("mapping.load_prompt_text", fake_loader)
+    monkeypatch.setattr("mapping.load_mapping_items", lambda types, *a, **k: items)
+
+    initial = json.dumps({"features": [{"feature_id": "f1", "data": []}]})
+    repaired = json.dumps(
+        {
+            "features": [
+                {
+                    "feature_id": "f1",
+                    "data": [{"item": "INF-1", "contribution": 0.9}],
+                }
+            ]
+        }
+    )
+    session = DummySession([initial, repaired])
+    feature = PlateauFeature(
+        feature_id="f1",
+        name="Integration",
+        description="Uses user data",
+        score=MaturityScore(level=3, label="Defined", justification="j"),
+        customer_type="learners",
+    )
+
+    result = await map_features_async(
+        session,
+        [feature],
+        {"data": MappingTypeConfig(dataset="information", label="Info")},
+    )
+
+    assert len(session.prompts) == 2
+    assert result[0].mappings["data"][0].item == "INF-1"

@@ -26,6 +26,7 @@ from models import (
     PlateauFeature,
     PlateauFeaturesResponse,
     PlateauResult,
+    RoleFeaturesResponse,
     ServiceEvolution,
     ServiceInput,
 )
@@ -274,6 +275,43 @@ class PlateauGenerator:
         return features
 
     @logfire.instrument()
+    async def _request_missing_features_async(
+        self,
+        level: int,
+        role: str,
+        description: str,
+        missing: int,
+        session: ConversationSession,
+    ) -> list[FeatureItem]:
+        """Return additional features for ``role`` to meet the required count."""
+
+        example = {
+            "features": [
+                {
+                    "feature_id": f"FEAT-{level}-{role}-example",
+                    "name": "Example feature",
+                    "description": "Example description.",
+                    "score": {
+                        "level": 3,
+                        "label": "Defined",
+                        "justification": "Example justification.",
+                    },
+                }
+            ]
+        }
+        schema = json.dumps(RoleFeaturesResponse.model_json_schema(), indent=2)
+        prompt = (
+            f"Previous output returned insufficient features for role '{role}'.\n"
+            f"Provide exactly {missing} additional unique features for this role"
+            f" at plateau {level}.\n\n"
+            f"Service description:\n{description}\n\n"
+            f"Example output:\n{json.dumps(example, indent=2)}\n\n"
+            f"JSON schema:\n{schema}"
+        )
+        payload = await session.ask_async(prompt, output_type=RoleFeaturesResponse)
+        return payload.features
+
+    @logfire.instrument()
     async def generate_plateau_async(
         self,
         level: int,
@@ -306,14 +344,25 @@ class PlateauGenerator:
             except Exception as exc:
                 logfire.error(f"Invalid JSON from feature response: {exc}")
                 raise ValueError("Agent returned invalid JSON") from exc
+            missing: dict[str, int] = {}
             for role in self.roles:
                 items = getattr(payload.features, role, [])
                 if len(items) < self.required_count:
-                    msg = (
-                        f"Expected at least {self.required_count} features for"
-                        f" '{role}', got {len(items)}"
+                    missing[role] = self.required_count - len(items)
+            if missing:
+                for role, need in missing.items():
+                    extras = await self._request_missing_features_async(
+                        level, role, description, need, session
                     )
-                    raise ValueError(msg)
+                    getattr(payload.features, role).extend(extras)
+                for role in self.roles:
+                    items = getattr(payload.features, role, [])
+                    if len(items) < self.required_count:
+                        msg = (
+                            f"Expected at least {self.required_count} features for"
+                            f" '{role}', got {len(items)} after retry"
+                        )
+                        raise ValueError(msg)
             features = self._collect_features(payload)
             map_session = ConversationSession(self.mapping_session.client)
             if self._service is not None:

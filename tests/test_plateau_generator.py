@@ -39,6 +39,9 @@ class DummySession:
             return response
         return output_type.model_validate_json(response)
 
+    async def ask_async(self, prompt: str, output_type=None) -> object:
+        return self.ask(prompt, output_type)
+
     def add_parent_materials(self, service_input: ServiceInput) -> None:
         pass
 
@@ -130,6 +133,72 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
     assert len(session.prompts) == 2
 
 
+def test_generate_plateau_repairs_missing_features(monkeypatch) -> None:
+    template = "{required_count} {service_name} {service_description} {plateau} {roles}"
+
+    def fake_loader(name, *_, **__):
+        return template if name == "plateau_prompt" else "desc {plateau}"
+
+    monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
+    initial = json.dumps(
+        {
+            "features": {
+                "learners": [],
+                "academics": [
+                    {
+                        "feature_id": "fa",
+                        "name": "A",
+                        "description": "da",
+                        "score": {"level": 3, "label": "Defined", "justification": "j"},
+                    }
+                ],
+                "professional_staff": [
+                    {
+                        "feature_id": "fp",
+                        "name": "P",
+                        "description": "dp",
+                        "score": {"level": 3, "label": "Defined", "justification": "j"},
+                    }
+                ],
+            }
+        }
+    )
+    repair = json.dumps(
+        {
+            "features": [
+                {
+                    "feature_id": "fl",
+                    "name": "L",
+                    "description": "dl",
+                    "score": {"level": 3, "label": "Defined", "justification": "j"},
+                }
+            ]
+        }
+    )
+    session = DummySession([json.dumps({"description": "desc"}), initial, repair])
+
+    def dummy_map_features(sess, feats):
+        return feats
+
+    monkeypatch.setattr("plateau_generator.map_features", dummy_map_features)
+
+    generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
+    service = ServiceInput(
+        service_id="svc-1",
+        name="svc",
+        customer_type="retail",
+        description="desc",
+        jobs_to_be_done=[{"name": "job"}],
+    )
+    generator._service = service
+
+    plateau = generator.generate_plateau(1, "Foundational")
+
+    assert len(session.prompts) == 3
+    learners = [f for f in plateau.features if f.customer_type == "learners"]
+    assert len(learners) == 1
+
+
 def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> None:
     template = "{required_count} {service_name} {service_description} {plateau} {roles}"
 
@@ -137,7 +206,14 @@ def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> None:
         return template if name == "plateau_prompt" else "desc {plateau}"
 
     monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
-    responses = [json.dumps({"description": "desc"}), _feature_payload(1)]
+    repair = json.dumps({"features": []})
+    responses = [
+        json.dumps({"description": "desc"}),
+        _feature_payload(1),
+        repair,
+        repair,
+        repair,
+    ]
     session = DummySession(responses)
     generator = PlateauGenerator(cast(ConversationSession, session), required_count=2)
     service = ServiceInput(

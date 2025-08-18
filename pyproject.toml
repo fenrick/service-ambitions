@@ -21,6 +21,7 @@ dependencies = [
     "opentelemetry-instrumentation-requests",
     "tqdm",
     "types-tqdm (>=4.67.0.20250809,<5.0.0.0)",
+    "scikit-learn",
 ]
 
 [project.scripts]

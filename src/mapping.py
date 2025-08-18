@@ -13,6 +13,7 @@ import json
 from typing import TYPE_CHECKING, Mapping, Sequence
 
 import logfire
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 from loader import load_mapping_items, load_mapping_type_config, load_prompt_text
 from models import (
@@ -63,6 +64,27 @@ def _render_features(features: Sequence[PlateauFeature]) -> str:
     )
 
 
+def _top_k_items(
+    features: Sequence[PlateauFeature],
+    items: list[MappingItem],
+    k: int = 5,
+) -> list[MappingItem]:
+    """Return ``k`` catalogue items most similar to ``features`` using TF-IDF."""
+
+    feature_texts = [f"{f.name} {f.description}" for f in features]
+    item_texts = [f"{it.name} {it.description}" for it in items]
+    vectorizer = TfidfVectorizer().fit(feature_texts + item_texts)
+    feat_vecs = vectorizer.transform(feature_texts)
+    item_vecs = vectorizer.transform(item_texts)
+    scores = feat_vecs @ item_vecs.T
+    top_indices: set[int] = set()
+    for row in scores:
+        arr = row.toarray().ravel()
+        idxs = arr.argsort()[::-1][:k]
+        top_indices.update(idxs)
+    return [items[i] for i in sorted(top_indices)]
+
+
 async def map_feature_async(
     session: ConversationSession,
     feature: PlateauFeature,
@@ -86,6 +108,9 @@ def map_feature(
 def _build_mapping_prompt(
     features: Sequence[PlateauFeature],
     mapping_types: Mapping[str, MappingTypeConfig],
+    *,
+    item_overrides: Mapping[str, list[MappingItem]] | None = None,
+    extra_instructions: str | None = None,
 ) -> str:
     """Return a prompt requesting mappings for ``features``."""
 
@@ -94,20 +119,25 @@ def _build_mapping_prompt(
     items = load_mapping_items(tuple(cfg.dataset for cfg in mapping_types.values()))
     sections = []
     for cfg in mapping_types.values():
-        # Include a bullet list of reference items for each mapping type.
-        sections.append(
-            f"## Available {cfg.label}\n\n{_render_items(items[cfg.dataset])}\n"
+        dataset_items = (
+            item_overrides.get(cfg.dataset)
+            if item_overrides and cfg.dataset in item_overrides
+            else items[cfg.dataset]
         )
+        sections.append(f"## Available {cfg.label}\n\n{_render_items(dataset_items)}\n")
     mapping_sections = "\n".join(sections)
     mapping_labels = ", ".join(cfg.label for cfg in mapping_types.values())
     mapping_fields = ", ".join(mapping_types.keys())
-    return template.format(
+    prompt = template.format(
         mapping_labels=mapping_labels,
         mapping_sections=mapping_sections,
         mapping_fields=mapping_fields,
         features=_render_features(features),
         schema=str(schema),
     )
+    if extra_instructions:
+        prompt = f"{prompt}\n\n{extra_instructions}"
+    return prompt
 
 
 def _merge_mapping_results(
@@ -177,18 +207,27 @@ async def map_features_async(
     """Asynchronously return ``features`` with mapping information."""
 
     mapping_types = mapping_types or load_mapping_type_config()
-
-    async def one(
-        key: str, cfg: MappingTypeConfig
-    ) -> tuple[str, MappingTypeConfig, MappingResponse]:
+    results_payloads: list[tuple[str, MappingTypeConfig, MappingResponse]] = []
+    for key, cfg in mapping_types.items():
         sub_session = session.derive()
         prompt = _build_mapping_prompt(features, {key: cfg})
         logfire.debug(f"Requesting {key} mappings for {len(features)} features")
         payload = await sub_session.ask_async(prompt, output_type=MappingResponse)
-        return key, cfg, payload
-
-    tasks = [one(k, cfg) for k, cfg in mapping_types.items()]
-    results_payloads = await asyncio.gather(*tasks)
+        if all(not f.mappings.get(key) for f in payload.features):
+            catalogue = load_mapping_items((cfg.dataset,))[cfg.dataset]
+            slice_items = _top_k_items(features, catalogue)
+            reminder = (
+                "Previous response contained no mappings. Select relevant items "
+                "from the reduced catalogue below."
+            )
+            prompt = _build_mapping_prompt(
+                features,
+                {key: cfg},
+                item_overrides={cfg.dataset: slice_items},
+                extra_instructions=reminder,
+            )
+            payload = await sub_session.ask_async(prompt, output_type=MappingResponse)
+        results_payloads.append((key, cfg, payload))
 
     results: list[PlateauFeature] = list(features)
     for key, cfg, payload in results_payloads:
