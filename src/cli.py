@@ -96,6 +96,11 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
     logfire.info(f"Generating ambitions using model {model_name}")
     model = factory.get("features", args.features_model or args.model)
     concurrency = args.concurrency or settings.concurrency
+    token_weighting = (
+        args.token_weighting
+        if args.token_weighting is not None
+        else settings.token_weighting
+    )
     generator = ServiceAmbitionGenerator(
         model,
         concurrency=concurrency,
@@ -104,7 +109,7 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
         retries=settings.retries,
         retry_base_delay=settings.retry_base_delay,
         expected_output_tokens=args.expected_output_tokens,
-        token_weighting=settings.token_weighting,
+        token_weighting=token_weighting,
     )
 
     part_path = output_path.with_suffix(
@@ -345,6 +350,12 @@ def main() -> None:
         action=argparse.BooleanOptionalAction,
         default=None,
         help="Enable or disable parallel mapping type requests",
+    )
+    common.add_argument(
+        "--token-weighting",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Enable or disable token-based concurrency weighting",
     )
     common.add_argument(
         "--seed",
