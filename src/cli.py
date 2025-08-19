@@ -307,23 +307,29 @@ def main() -> None:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument(
         "--model",
-        help="Chat model name. Can also be set via the MODEL env variable.",
+        help=(
+            "Global chat model name (default openai:gpt-5). "
+            "Can also be set via the MODEL env variable."
+        ),
     )
     common.add_argument(
         "--descriptions-model",
-        help="Model for plateau descriptions",
+        help="Model for plateau descriptions (default openai:o4-mini)",
     )
     common.add_argument(
         "--features-model",
-        help="Model for feature generation",
+        help=(
+            "Model for feature generation (default openai:gpt-5; "
+            "use openai:o4-mini for lower cost)"
+        ),
     )
     common.add_argument(
         "--mapping-model",
-        help="Model for feature mapping",
+        help="Model for feature mapping (default openai:o4-mini)",
     )
     common.add_argument(
         "--search-model",
-        help="Model for web search",
+        help="Model for web search (default openai:gpt-4o-search-preview)",
     )
     common.add_argument(
         "-v",
@@ -384,7 +390,10 @@ def main() -> None:
         "--web-search",
         action=argparse.BooleanOptionalAction,
         default=None,
-        help="Enable or disable web search for model browsing",
+        help=(
+            "Enable web search when prompts need external lookups. "
+            "Adds latency and cost"
+        ),
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)

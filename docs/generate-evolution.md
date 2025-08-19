@@ -27,6 +27,28 @@ in the same file.
 Include `--seed <value>` to make backoff jitter and model sampling
 deterministic when supported by the provider.
 
+### Model selection
+
+Defaults come from `config/app.json`:
+
+| Stage        | Default model               | Fast/cheap alternative |
+|--------------|-----------------------------|------------------------|
+| Descriptions | `openai:o4-mini`            | Already cost optimised |
+| Features     | `openai:gpt-5`              | `openai:o4-mini`       |
+| Mapping      | `openai:o4-mini`            | Already cost optimised |
+| Search       | `openai:gpt-4o-search-preview` | n/a |
+
+OpenAI advises using lower‑capacity models like `o4-mini` for budget‑sensitive
+workloads and reserving larger models such as `gpt-5` for highest quality
+results. See the [model selection guide](https://platform.openai.com/docs/guides/model-selection)
+for more guidance.
+
+### When to enable web search
+
+Pass `--web-search` when prompts require external lookups, such as verifying
+recent facts or sourcing current statistics. The preview tool adds latency and
+cost, so leave it disabled for self‑contained tasks.
+
 ## Output schema
 
 Each line in the output file is a JSON object with:
