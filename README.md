@@ -88,6 +88,7 @@ subcommands to select the desired operation:
 ```bash
 poetry run service-ambitions generate-ambitions --input-file sample-services.jsonl --output-file ambitions.jsonl
 poetry run service-ambitions generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl
+poetry run service-ambitions migrate-jsonl --from 1.0 --to 2.0 --input-file evolution.jsonl --output-file evolution_v2.jsonl
 ```
 
 Alternatively, use the provided shell script which forwards all arguments to the CLI:
@@ -95,6 +96,7 @@ Alternatively, use the provided shell script which forwards all arguments to the
 ```bash
 ./run.sh generate-ambitions --input-file sample-services.jsonl --output-file ambitions.jsonl
 ./run.sh generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl
+./run.sh migrate-jsonl --from 1.0 --to 2.0 --input-file evolution.jsonl --output-file evolution_v2.jsonl
 ```
 
 ## Usage

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import inspect
+import json
 import logging
 import os
 import random
@@ -26,6 +27,7 @@ from loader import (
     load_role_ids,
 )
 from mapping import init_embeddings
+from migration import migrate_record
 from model_factory import ModelFactory
 from models import ServiceInput
 from monitoring import LOG_FILE_NAME, init_logfire, logfire
@@ -410,6 +412,57 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
     )
 
 
+def _cmd_migrate_jsonl(args: argparse.Namespace, _settings) -> None:
+    """Upgrade JSONL records to a target schema version."""
+
+    input_path = Path(args.input_file)
+    output_path = Path(args.output_file)
+    attrs = {
+        "input_path": str(input_path),
+        "output_path": str(output_path),
+        "target_version": args.to,
+    }
+    with logfire.span("cmd_migrate_jsonl", attributes=attrs):
+        count = 0
+        try:
+            detected_version: str | None = args.from_
+            with (
+                open(input_path, "r", encoding="utf-8") as src,
+                open(output_path, "w", encoding="utf-8") as dst,
+            ):
+                for line in src:
+                    if not line.strip():
+                        continue
+                    record = json.loads(line)
+                    src_version = record.get("schema_version")
+                    if detected_version is None:
+                        detected_version = src_version
+                    elif src_version is not None and src_version != detected_version:
+                        raise ValueError("Mixed schema versions detected")
+                    if detected_version is None:
+                        raise ValueError("Unable to determine source schema version")
+                    migrated = migrate_record(record, detected_version, args.to)
+                    dst.write(f"{json.dumps(migrated)}\n")
+                    count += 1
+            LINES_WRITTEN.add(count)
+            logfire.info(
+                "Migration complete",
+                input_path=str(input_path),
+                output_path=str(output_path),
+                records=count,
+                source_version=detected_version or "",
+                target_version=args.to,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logfire.exception(
+                "JSONL migration failed",
+                input_path=str(input_path),
+                output_path=str(output_path),
+                error=str(exc),
+            )
+            raise
+
+
 def main() -> None:
     """Parse arguments and dispatch to the requested subcommand."""
 
@@ -579,6 +632,27 @@ def main() -> None:
         help="Path to the roles definition JSON file",
     )
     evo.set_defaults(func=_cmd_generate_evolution)
+
+    mig = subparsers.add_parser(
+        "migrate-jsonl",
+        parents=[common],
+        help="Migrate JSONL records to a new schema version",
+    )
+    mig.add_argument(
+        "--from",
+        dest="from_",
+        help="Source schema version (auto-detected if omitted)",
+    )
+    mig.add_argument("--to", required=True, help="Target schema version")
+    mig.add_argument(
+        "--input-file", required=True, help="Path to the source JSONL file"
+    )
+    mig.add_argument(
+        "--output-file",
+        required=True,
+        help="Destination file for migrated records",
+    )
+    mig.set_defaults(func=_cmd_migrate_jsonl)
 
     args = parser.parse_args()
 
