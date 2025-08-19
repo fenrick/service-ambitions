@@ -132,8 +132,14 @@ def test_rolling_metrics_reports(monkeypatch):
     metrics = RollingMetrics(window=1)
     metrics.record_request()
     metrics.record_error()
-    metrics.record_tokens(5)
+    metrics.record_start_tokens(5)
+    metrics.record_end_tokens(5)
     metrics.record_request()
 
     names = {c.name for c in calls}
-    assert {"requests_per_second", "error_rate", "tokens_per_second"} <= names
+    assert {
+        "requests_per_second",
+        "error_rate",
+        "tokens_per_second",
+        "tokens_in_flight",
+    } <= names

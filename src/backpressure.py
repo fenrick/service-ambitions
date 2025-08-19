@@ -227,6 +227,7 @@ class RollingMetrics:
         self._requests: Deque[float] = deque()
         self._errors: Deque[float] = deque()
         self._tokens: Deque[tuple[float, int]] = deque()
+        self._in_flight = 0
 
     def _trim(self, buf: Deque[float], now: float) -> None:
         while buf and now - buf[0] > self._window:
@@ -255,14 +256,27 @@ class RollingMetrics:
         self._errors.append(now)
         self._trim(self._errors, now)
 
-    def record_tokens(self, count: int) -> None:
-        """Record estimated token usage and emit aggregate metrics."""
+    def record_start_tokens(self, count: int) -> None:
+        """Increment in-flight tokens and emit the current count."""
+
+        self._in_flight += count
+        logfire.metric("tokens_in_flight", self._in_flight)
+
+    def record_end_tokens(self, count: int) -> None:
+        """Decrement in-flight tokens and update aggregate throughput."""
 
         now = time.monotonic()
+        self._in_flight = max(self._in_flight - count, 0)
         self._tokens.append((now, count))
         self._trim_tokens(now)
         total_tokens = sum(t for _, t in self._tokens)
+        logfire.metric("tokens_in_flight", self._in_flight)
         logfire.metric("tokens_per_second", total_tokens / self._window)
+
+    def record_tokens(self, count: int) -> None:  # pragma: no cover - backwards compat
+        """Alias for :meth:`record_end_tokens` for backwards compatibility."""
+
+        self.record_end_tokens(count)
 
 
 __all__ = ["AdaptiveSemaphore", "RollingMetrics"]

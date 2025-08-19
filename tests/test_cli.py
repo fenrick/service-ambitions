@@ -60,6 +60,7 @@ def test_cli_generates_output(tmp_path, monkeypatch):
         reasoning=None,
         models=None,
         web_search=False,
+        token_weighting=True,
     )
 
     async def fake_process_service(self, service, prompt=None):
@@ -121,6 +122,7 @@ def test_cli_dry_run_skips_processing(tmp_path, monkeypatch):
         reasoning=None,
         models=None,
         web_search=False,
+        token_weighting=True,
     )
 
     called = {"ran": False}
@@ -196,6 +198,7 @@ def test_cli_switches_context(tmp_path, monkeypatch):
         logfire_token=None,
         reasoning=None,
         web_search=False,
+        token_weighting=True,
     )
 
     async def fake_process_service(self, service, prompt=None):
@@ -260,6 +263,7 @@ def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
         logfire_token=None,
         reasoning=None,
         web_search=False,
+        token_weighting=True,
     )
 
     captured: dict[str, str] = {}
@@ -334,6 +338,7 @@ def test_cli_seed_sets_random(tmp_path, monkeypatch):
         logfire_token=None,
         reasoning=None,
         web_search=False,
+        token_weighting=True,
     )
 
     captured: dict[str, int | None] = {}
@@ -416,6 +421,7 @@ def test_cli_enables_logfire(tmp_path, monkeypatch):
         logfire_token="lf-key",
         reasoning=None,
         web_search=False,
+        token_weighting=True,
     )
 
     async def fake_process_service(self, service, prompt=None):
@@ -485,6 +491,7 @@ def test_cli_rejects_invalid_concurrency(monkeypatch):
         logfire_token=None,
         reasoning=None,
         web_search=False,
+        token_weighting=True,
     )
     monkeypatch.setattr(cli, "load_settings", lambda: settings)
 
@@ -533,6 +540,7 @@ def test_cli_passes_expected_output_tokens(tmp_path, monkeypatch):
         reasoning=None,
         models=None,
         web_search=False,
+        token_weighting=True,
     )
 
     captured: dict[str, int] = {}
@@ -546,6 +554,7 @@ def test_cli_passes_expected_output_tokens(tmp_path, monkeypatch):
         retries=5,
         retry_base_delay=0.5,
         expected_output_tokens=256,
+        token_weighting=True,
     ) -> None:
         captured["expected"] = expected_output_tokens
 
@@ -597,6 +606,7 @@ def test_cli_verbose_logging(tmp_path, monkeypatch):
         logfire_token=None,
         reasoning=None,
         web_search=False,
+        token_weighting=True,
     )
 
     async def fake_process_service(self, service, prompt=None):
@@ -737,6 +747,7 @@ def test_cli_validate_only(tmp_path, monkeypatch):
         reasoning=None,
         models=None,
         web_search=False,
+        token_weighting=True,
     )
 
     monkeypatch.setattr(cli, "load_settings", lambda: settings)

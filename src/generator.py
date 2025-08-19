@@ -176,6 +176,7 @@ class ServiceAmbitionGenerator:
         retry_base_delay: float = 0.5,
         expected_output_tokens: int = 256,
         flush_interval: int = 100,
+        token_weighting: bool = True,
     ) -> None:
         """Initialize the generator.
 
@@ -191,6 +192,7 @@ class ServiceAmbitionGenerator:
                 weight concurrency limits.
             flush_interval: Number of lines to write before forcing a flush and
                 ``os.fsync`` to ensure results are durably persisted.
+            token_weighting: Apply token-based weighting to semaphore permits.
 
         Raises:
             ValueError: If ``concurrency`` is less than one.
@@ -207,6 +209,7 @@ class ServiceAmbitionGenerator:
         self.retry_base_delay = retry_base_delay
         self.expected_output_tokens = expected_output_tokens
         self.flush_interval = flush_interval
+        self.token_weighting = token_weighting
         self._prompt: str | None = None
         self._limiter: AdaptiveSemaphore | None = None
         self._metrics: RollingMetrics | None = None
@@ -312,47 +315,54 @@ class ServiceAmbitionGenerator:
         async def run_one(service: ServiceInput) -> None:
             """Process a single service and enqueue its JSON line."""
 
-            # Estimate the total tokens for the request and anticipated response
-            # so larger requests reserve more semaphore capacity.
-            service_json = service.model_dump_json()
-            prompt_payload = (self._prompt or "") + service_json
-            weight_estimate = estimate_tokens(
-                prompt_payload, self.expected_output_tokens
-            )
+            weight_estimate = 1
+            if self.token_weighting:
+                # Estimate the total tokens for the request and anticipated
+                # response so larger requests reserve more semaphore capacity.
+                service_json = service.model_dump_json()
+                prompt_payload = (self._prompt or "") + service_json
+                weight_estimate = estimate_tokens(
+                    prompt_payload, self.expected_output_tokens
+                )
 
             limiter = self._limiter
             if limiter is None:  # pragma: no cover - defensive
                 raise RuntimeError("Limiter not initialized")
-            async with limiter(weight_estimate):
-                if self._metrics:
-                    self._metrics.record_tokens(weight_estimate)
-                # Record service metadata on the span so that traces include the
-                # originating service identifier and customer segment.
-                with logfire.span("process_service") as span:
-                    span.set_attribute("service.id", service.service_id)
-                    if service.customer_type:
-                        span.set_attribute("customer_type", service.customer_type)
-                    logfire.info(f"Processing service {service.name}")
-                    try:
-                        result = await self.process_service(service)
-                    except Exception as exc:
-                        # Continue processing other services but record the failure.
-                        msg = f"Failed to process service {service.name}: {exc}"
-                        logfire.error(msg)
-                        return
-                    line = AmbitionModel.model_validate(result).model_dump_json()
-                    if transcripts_dir is not None:
-                        payload = {
-                            "request": service.model_dump(),
-                            "response": json.loads(line),
-                        }
-                        path = transcripts_dir / f"{service.service_id}.json"
-                        await asyncio.to_thread(
-                            path.write_text,
-                            json.dumps(payload, ensure_ascii=False),
-                            encoding="utf-8",
-                        )
-                    await queue.put((line, service.service_id))
+            weight = weight_estimate if self.token_weighting else 1
+            async with limiter(weight):
+                if self._metrics and self.token_weighting:
+                    self._metrics.record_start_tokens(weight_estimate)
+                try:
+                    # Record service metadata on the span so that traces include the
+                    # originating service identifier and customer segment.
+                    with logfire.span("process_service") as span:
+                        span.set_attribute("service.id", service.service_id)
+                        if service.customer_type:
+                            span.set_attribute("customer_type", service.customer_type)
+                        logfire.info(f"Processing service {service.name}")
+                        try:
+                            result = await self.process_service(service)
+                        except Exception as exc:
+                            # Continue processing other services but record the failure.
+                            msg = f"Failed to process service {service.name}: {exc}"
+                            logfire.error(msg)
+                            return
+                        line = AmbitionModel.model_validate(result).model_dump_json()
+                        if transcripts_dir is not None:
+                            payload = {
+                                "request": service.model_dump(),
+                                "response": json.loads(line),
+                            }
+                            path = transcripts_dir / f"{service.service_id}.json"
+                            await asyncio.to_thread(
+                                path.write_text,
+                                json.dumps(payload, ensure_ascii=False),
+                                encoding="utf-8",
+                            )
+                        await queue.put((line, service.service_id))
+                finally:
+                    if self._metrics and self.token_weighting:
+                        self._metrics.record_end_tokens(weight_estimate)
 
         writer_task = asyncio.create_task(writer())
         services_iter = iter(services)

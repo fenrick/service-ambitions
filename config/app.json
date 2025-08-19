@@ -1,37 +1,27 @@
 {
-  "model": "openai:gpt-5",
-  "models": {
-    "descriptions": "openai:o4-mini",
-    "features": "openai:gpt-5",
-    "mapping": "openai:o4-mini",
-    "search": "openai:gpt-4o-search-preview"
-  },
-  "reasoning": {
-    "effort": "medium"
-  },
-  "web_search": false,
-  "log_level": "INFO",
-  "mapping_types": {
-    "data": {
-      "dataset": "information",
-      "label": "Data"
+    "model": "openai:gpt-5",
+    "models": {
+        "descriptions": "openai:o4-mini",
+        "features": "openai:gpt-5",
+        "mapping": "openai:o4-mini",
+        "search": "openai:gpt-4o-search-preview",
     },
-    "applications": {
-      "dataset": "applications",
-      "label": "Applications"
+    "reasoning": {"effort": "medium"},
+    "web_search": false,
+    "log_level": "INFO",
+    "mapping_types": {
+        "data": {"dataset": "information", "label": "Data"},
+        "applications": {"dataset": "applications", "label": "Applications"},
+        "technology": {"dataset": "technologies", "label": "Technologies"},
     },
-    "technology": {
-      "dataset": "technologies",
-      "label": "Technologies"
-    }
-  },
-  "prompt_dir": "prompts",
-  "context_id": "university",
-  "inspiration": "general",
-  "concurrency": 5,
-  "batch_size": 25,
-  "request_timeout": 60,
-  "retries": 5,
-  "retry_base_delay": 0.5,
-  "features_per_role": 5
+    "prompt_dir": "prompts",
+    "context_id": "university",
+    "inspiration": "general",
+    "concurrency": 5,
+    "token_weighting": true,
+    "batch_size": 25,
+    "request_timeout": 60,
+    "retries": 5,
+    "retry_base_delay": 0.5,
+    "features_per_role": 5,
 }

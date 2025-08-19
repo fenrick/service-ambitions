@@ -104,6 +104,7 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
         retries=settings.retries,
         retry_base_delay=settings.retry_base_delay,
         expected_output_tokens=args.expected_output_tokens,
+        token_weighting=settings.token_weighting,
     )
 
     part_path = output_path.with_suffix(

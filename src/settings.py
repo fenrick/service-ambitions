@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     concurrency: int = Field(
         ..., ge=1, description="Number of services to process concurrently."
     )
+    token_weighting: bool = Field(
+        True, description="Weight semaphore permits by estimated token usage."
+    )
     batch_size: int | None = Field(
         None, ge=1, description="Number of services to schedule per batch."
     )
@@ -95,6 +98,7 @@ def load_settings() -> Settings:
             context_id=config.context_id,
             inspiration=config.inspiration,
             concurrency=config.concurrency,
+            token_weighting=config.token_weighting,
             batch_size=config.batch_size,
             request_timeout=config.request_timeout,
             retries=config.retries,
