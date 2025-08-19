@@ -36,6 +36,8 @@ from models import (
 from token_scheduler import TokenScheduler
 from token_utils import estimate_tokens
 
+A_NON_EMPTY_STRING = "'description' must be a non-empty string"
+
 logfire = cast(Any, _logfire)
 
 # Snapshot of plateau definitions sourced from configuration.
@@ -124,10 +126,10 @@ class PlateauGenerator:
             logfire.error(f"Invalid plateau description: {exc}")
             raise ValueError("Agent returned invalid plateau description") from exc
         if not response.description:
-            raise ValueError("'description' must be a non-empty string")
+            raise ValueError(A_NON_EMPTY_STRING)
         cleaned = self._sanitize_description(response.description)
         if not cleaned:
-            raise ValueError("'description' must be a non-empty string")
+            raise ValueError(A_NON_EMPTY_STRING)
         return cleaned
 
     @staticmethod
@@ -174,10 +176,10 @@ class PlateauGenerator:
         results: dict[str, str] = {}
         for item in payload.descriptions:
             if not item.description:
-                raise ValueError("'description' must be a non-empty string")
+                raise ValueError(A_NON_EMPTY_STRING)
             cleaned = self._sanitize_description(item.description)
             if not cleaned:
-                raise ValueError("'description' must be a non-empty string")
+                raise ValueError(A_NON_EMPTY_STRING)
             results[item.plateau_name] = cleaned
         return results
 
@@ -212,10 +214,10 @@ class PlateauGenerator:
         results: dict[str, str] = {}
         for item in payload.descriptions:
             if not item.description:
-                raise ValueError("'description' must be a non-empty string")
+                raise ValueError(A_NON_EMPTY_STRING)
             cleaned = self._sanitize_description(item.description)
             if not cleaned:
-                raise ValueError("'description' must be a non-empty string")
+                raise ValueError(A_NON_EMPTY_STRING)
             results[item.plateau_name] = cleaned
         return results
 
