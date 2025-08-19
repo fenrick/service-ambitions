@@ -251,6 +251,50 @@ async def test_weighted_acquisition(monkeypatch, tmp_path):
     assert "tokens_per_second" in names
 
 
+@pytest.mark.asyncio()
+async def test_process_all_fsyncs(tmp_path, monkeypatch):
+    """Writer flushes and fsyncs periodically to ensure durability."""
+
+    fsync_calls: list[int] = []
+
+    def fake_fsync(fd: int) -> None:
+        fsync_calls.append(fd)
+
+    monkeypatch.setattr(generator.os, "fsync", fake_fsync)
+    monkeypatch.setattr(generator, "estimate_tokens", lambda _p, _e: 1)
+
+    class DummyLimiter:
+        def __call__(self, weight: int = 1):  # pragma: no cover - trivial
+            @asynccontextmanager
+            async def manager():
+                yield
+
+            return manager()
+
+        def throttle(self, _delay: float) -> None:  # pragma: no cover - no-op
+            pass
+
+    async def fake_process_service(self, service, prompt=None):
+        return {"id": service.service_id}
+
+    monkeypatch.setattr(
+        generator.ServiceAmbitionGenerator, "process_service", fake_process_service
+    )
+
+    gen = generator.ServiceAmbitionGenerator(SimpleNamespace(), flush_interval=1)
+    gen._prompt = "p"
+    gen._limiter = DummyLimiter()
+
+    services = [
+        ServiceInput(service_id="svc1", name="s1", description="d", jobs_to_be_done=[]),
+        ServiceInput(service_id="svc2", name="s2", description="d", jobs_to_be_done=[]),
+    ]
+
+    await gen._process_all(services, str(tmp_path / "out.jsonl"))
+    # Two lines plus a final sync at close.
+    assert len(fsync_calls) == 3
+
+
 def test_generate_async_consumes_in_batches(tmp_path, monkeypatch):
     """The generator only consumes inputs in ``batch_size`` chunks."""
 
