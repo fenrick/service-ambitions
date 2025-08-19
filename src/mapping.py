@@ -91,6 +91,30 @@ async def _catalogue_embeddings(
     return cache
 
 
+async def init_embeddings() -> None:
+    """Pre-populate embedding vectors for all mapping datasets.
+
+    Any errors during pre-computation are logged and ignored so that embedding
+    vectors will be generated lazily when first requested.
+    """
+
+    try:
+        cfg = load_mapping_type_config()
+    except Exception as exc:  # pragma: no cover - best effort
+        # Loading configuration is a best-effort step; missing config merely
+        # delays embedding generation until first use.
+        logfire.warning(f"Failed to load mapping config: {exc}")
+        return
+
+    datasets = {c.dataset for c in cfg.values()}
+    for name in datasets:
+        try:
+            await _catalogue_embeddings(name)
+        except Exception as exc:  # pragma: no cover - best effort
+            # Log and continue so the cache can be populated lazily later.
+            logfire.warning(f"Failed to warm embeddings for {name}: {exc}")
+
+
 async def _embedding_top_k_items(
     features: Sequence[PlateauFeature], dataset: str, k: int = 40
 ) -> list[MappingItem]:
@@ -426,4 +450,5 @@ __all__ = [
     "map_features",
     "map_features_async",
     "MappingError",
+    "init_embeddings",
 ]
