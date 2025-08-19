@@ -33,10 +33,33 @@ from persistence import atomic_write, read_lines
 from plateau_generator import PlateauGenerator
 from service_loader import load_services
 from settings import load_settings
+from stage_metrics import iter_stage_totals, reset_stage_totals
 
 SERVICES_PROCESSED = logfire.metric_counter("services_processed")
 EVOLUTIONS_GENERATED = logfire.metric_counter("evolutions_generated")
 LINES_WRITTEN = logfire.metric_counter("lines_written")
+
+
+def _log_stage_totals() -> None:
+    """Emit aggregated per-stage metrics."""
+
+    for stage, totals in iter_stage_totals():
+        tokens_sec = (
+            totals.total_tokens / totals.total_duration
+            if totals.total_duration
+            else 0.0
+        )
+        avg_latency = totals.total_duration / totals.prompts if totals.prompts else 0.0
+        rate_429 = totals.errors_429 / totals.prompts if totals.prompts else 0.0
+        logfire.info(
+            "Stage totals",
+            stage=stage,
+            total_tokens=totals.total_tokens,
+            estimated_cost=totals.estimated_cost,
+            tokens_per_sec=tokens_sec,
+            avg_latency=avg_latency,
+            rate_429=rate_429,
+        )
 
 
 def _configure_logging(args: argparse.Namespace, settings) -> None:
@@ -209,6 +232,7 @@ async def _generate_evolution_for_service(
 
 async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
     """Generate service ambitions and write them to disk."""
+    reset_stage_totals()
     output_path = Path(args.output_file)
     attrs = {"output_path": str(output_path), "resume": args.resume}
     with logfire.span("cmd_generate_ambitions", attributes=attrs) as span:
@@ -320,10 +344,14 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
                 error=str(exc),
             )
             raise
+        finally:
+            _log_stage_totals()
 
 
 async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
     """Generate service evolution summaries."""
+
+    reset_stage_totals()
 
     use_web_search = (
         args.web_search if args.web_search is not None else settings.web_search
@@ -399,15 +427,18 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
     if progress:
         progress.close()
 
-    processed_ids = _save_results(
-        resume=args.resume,
-        part_path=part_path,
-        output_path=output_path,
-        existing_lines=existing_lines,
-        processed_ids=processed_ids,
-        new_ids=new_ids,
-        processed_path=processed_path,
-    )
+    try:
+        processed_ids = _save_results(
+            resume=args.resume,
+            part_path=part_path,
+            output_path=output_path,
+            existing_lines=existing_lines,
+            processed_ids=processed_ids,
+            new_ids=new_ids,
+            processed_path=processed_path,
+        )
+    finally:
+        _log_stage_totals()
 
 
 def main() -> None:

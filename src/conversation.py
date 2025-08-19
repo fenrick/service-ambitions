@@ -9,12 +9,14 @@ agent without relying on asynchronous execution.
 
 from __future__ import annotations
 
+import time
 from typing import TypeVar, overload
 
 import logfire
 from pydantic_ai import Agent, messages
 
 from models import ServiceInput
+from stage_metrics import record_stage_metrics
 from token_utils import estimate_cost
 
 PROMPTS_SENT = logfire.metric_counter("prompts_sent")
@@ -94,6 +96,8 @@ class ConversationSession:
         PROMPTS_SENT.add(1)
         tokens = 0
         cost = 0.0
+        error_429 = False
+        start = time.monotonic()
         with logfire.span("ConversationSession.ask") as span:
             span.set_attribute("stage", stage)
             span.set_attribute("model_name", model_name)
@@ -115,6 +119,7 @@ class ConversationSession:
                 )
                 return result.output
             except Exception as exc:  # pragma: no cover - defensive logging
+                error_429 = "429" in getattr(exc, "args", ("",))[0]
                 logfire.error(
                     "Prompt failed",
                     stage=stage,
@@ -125,9 +130,11 @@ class ConversationSession:
                 )
                 raise
             finally:
+                duration = time.monotonic() - start
                 span.set_attribute("total_tokens", tokens)
                 span.set_attribute("estimated_cost", cost)
                 TOKENS_CONSUMED.add(tokens)
+                record_stage_metrics(stage, tokens, cost, duration, error_429)
 
     @overload
     async def ask_async(self, prompt: str) -> str: ...
@@ -145,6 +152,8 @@ class ConversationSession:
         PROMPTS_SENT.add(1)
         tokens = 0
         cost = 0.0
+        error_429 = False
+        start = time.monotonic()
         with logfire.span("ConversationSession.ask_async") as span:
             span.set_attribute("stage", stage)
             span.set_attribute("model_name", model_name)
@@ -166,6 +175,7 @@ class ConversationSession:
                 )
                 return result.output
             except Exception as exc:  # pragma: no cover - defensive logging
+                error_429 = "429" in getattr(exc, "args", ("",))[0]
                 logfire.error(
                     "Prompt failed",
                     stage=stage,
@@ -176,9 +186,11 @@ class ConversationSession:
                 )
                 raise
             finally:
+                duration = time.monotonic() - start
                 span.set_attribute("total_tokens", tokens)
                 span.set_attribute("estimated_cost", cost)
                 TOKENS_CONSUMED.add(tokens)
+                record_stage_metrics(stage, tokens, cost, duration, error_429)
 
 
 __all__ = ["ConversationSession"]
