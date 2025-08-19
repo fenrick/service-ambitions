@@ -27,6 +27,10 @@ from backpressure import AdaptiveSemaphore, RollingMetrics
 from models import ReasoningConfig, ServiceInput
 from token_utils import estimate_tokens
 
+SERVICES_PROCESSED = logfire.metric_counter("services_processed")
+SERVICES_FAILED = logfire.metric_counter("services_failed")
+TOKENS_IN_FLIGHT = logfire.metric_counter("tokens_in_flight")
+
 T = TypeVar("T")
 
 
@@ -146,6 +150,11 @@ async def _with_retry(
             return await asyncio.wait_for(coro_factory(), timeout=request_timeout)
         except TRANSIENT_EXCEPTIONS as exc:
             delay = _handle_retry(exc, attempt)
+            logfire.warning(
+                "Retrying request",
+                attempt=attempt + 1,
+                backoff_delay=delay,
+            )
             await asyncio.sleep(delay)
     raise RuntimeError("Unreachable retry state")
 
@@ -299,24 +308,36 @@ class ServiceAmbitionGenerator:
         transcripts_dir: Path | None,
     ) -> None:
         """Process a single service and enqueue its result."""
-
-        weight_estimate = self._estimate_weight(service) if self.token_weighting else 1
-        limiter = self._limiter
-        if limiter is None:  # pragma: no cover - defensive
-            raise RuntimeError("Limiter not initialized")
-        weight = weight_estimate if self.token_weighting else 1
-        async with limiter(weight):
-            if self._metrics and self.token_weighting:
-                self._metrics.record_start_tokens(weight_estimate)
-            try:
-                line, svc_id = await self._process_service_line(
-                    service, transcripts_dir
-                )
-                if line is not None:
-                    await queue.put((line, svc_id))
-            finally:
+        with logfire.span("run_one") as span:
+            span.set_attribute("service.id", service.service_id)
+            span.set_attribute("concurrency", self.concurrency)
+            span.set_attribute("batch_size", self.batch_size)
+            span.set_attribute("queue_length_before", queue.qsize())
+            weight_estimate = (
+                self._estimate_weight(service) if self.token_weighting else 1
+            )
+            limiter = self._limiter
+            if limiter is None:  # pragma: no cover - defensive
+                raise RuntimeError("Limiter not initialized")
+            weight = weight_estimate if self.token_weighting else 1
+            async with limiter(weight):
                 if self._metrics and self.token_weighting:
-                    self._metrics.record_end_tokens(weight_estimate)
+                    self._metrics.record_start_tokens(weight_estimate)
+                TOKENS_IN_FLIGHT.add(weight_estimate)
+                try:
+                    line, svc_id = await self._process_service_line(
+                        service, transcripts_dir
+                    )
+                    if line is not None:
+                        await queue.put((line, svc_id))
+                        SERVICES_PROCESSED.add(1)
+                        span.set_attribute("queue_length_after", queue.qsize())
+                    else:
+                        SERVICES_FAILED.add(1)
+                finally:
+                    if self._metrics and self.token_weighting:
+                        self._metrics.record_end_tokens(weight_estimate)
+                    TOKENS_IN_FLIGHT.add(-weight_estimate)
 
     @logfire.instrument()
     async def process_service(
@@ -376,26 +397,31 @@ class ServiceAmbitionGenerator:
             transcripts_dir: Directory to store per-service transcripts. ``None``
                 disables transcript persistence.
         """
-        self._setup_controls()
-        queue: asyncio.Queue[tuple[str, str] | None] = asyncio.Queue()
-        processed: set[str] = set()
-        writer_task = asyncio.create_task(
-            _write_queue(out_path, queue, processed, progress, self.flush_interval)
-        )
+        with logfire.span("process_all") as span:
+            span.set_attribute("concurrency", self.concurrency)
+            span.set_attribute("batch_size", self.batch_size)
+            self._setup_controls()
+            queue: asyncio.Queue[tuple[str, str] | None] = asyncio.Queue()
+            processed: set[str] = set()
+            writer_task = asyncio.create_task(
+                _write_queue(out_path, queue, processed, progress, self.flush_interval)
+            )
 
-        services_iter = iter(services)
+            services_iter = iter(services)
 
-        while True:
-            batch = list(islice(services_iter, self.batch_size))
-            if not batch:
-                break
-            async with TaskGroup() as tg:
-                for service in batch:
-                    tg.create_task(self._run_one(service, queue, transcripts_dir))
+            while True:
+                batch = list(islice(services_iter, self.batch_size))
+                if not batch:
+                    break
+                span.set_attribute("service_ids", [svc.service_id for svc in batch])
+                span.set_attribute("queue_length", queue.qsize())
+                async with TaskGroup() as tg:
+                    for service in batch:
+                        tg.create_task(self._run_one(service, queue, transcripts_dir))
 
-        await queue.put(None)
-        await writer_task
-        return processed
+            await queue.put(None)
+            await writer_task
+            return processed
 
     async def generate_async(
         self,
@@ -425,20 +451,26 @@ class ServiceAmbitionGenerator:
             OSError: Propagated if writing to ``output_path`` fails.
         """
 
-        self._prompt = prompt
-        try:
-            self._limiter = AdaptiveSemaphore(self.concurrency)
-            self._metrics = RollingMetrics()
-            return await self._process_all(
-                services, output_path, progress, transcripts_dir=transcripts_dir
-            )
-        except Exception as exc:
-            logfire.error(f"Failed to write results to {output_path}: {exc}")
-            raise
-        finally:
-            self._prompt = None
-            self._limiter = None
-            self._metrics = None
+        with logfire.span("generate_async") as span:
+            span.set_attribute("concurrency", self.concurrency)
+            span.set_attribute("batch_size", self.batch_size)
+            span.set_attribute("queue_length", 0)
+            self._prompt = prompt
+            try:
+                self._limiter = AdaptiveSemaphore(self.concurrency)
+                self._metrics = RollingMetrics()
+                processed = await self._process_all(
+                    services, output_path, progress, transcripts_dir=transcripts_dir
+                )
+                span.set_attribute("service_ids", list(processed))
+                return processed
+            except Exception as exc:
+                logfire.error(f"Failed to write results to {output_path}: {exc}")
+                raise
+            finally:
+                self._prompt = None
+                self._limiter = None
+                self._metrics = None
 
     async def generate(
         self,
