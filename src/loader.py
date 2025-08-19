@@ -12,7 +12,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Sequence, TypeVar, cast
 
-import logfire
+import logfire  # type: ignore[import-not-found]
 from pydantic import TypeAdapter
 
 from models import (

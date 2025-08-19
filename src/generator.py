@@ -16,7 +16,7 @@ from itertools import islice
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, TypeVar
 
-import logfire
+import logfire  # type: ignore[import-not-found]
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.models import Model

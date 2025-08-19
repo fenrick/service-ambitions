@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 from typing import Iterable, List
 
-import logfire
+import logfire  # type: ignore[import-not-found]
 
 
 @logfire.instrument()

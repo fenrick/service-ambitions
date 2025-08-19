@@ -11,10 +11,11 @@ from __future__ import annotations
 
 from typing import TypeVar, overload
 
-import logfire
+import logfire  # type: ignore[import-not-found]
 from pydantic_ai import Agent, messages
 
 from models import ServiceInput
+from token_utils import estimate_cost
 
 
 class ConversationSession:
@@ -26,14 +27,16 @@ class ConversationSession:
     """
 
     @logfire.instrument()
-    def __init__(self, client: Agent) -> None:
+    def __init__(self, client: Agent, *, stage: str | None = None) -> None:
         """Initialise the session with a configured LLM client.
 
         Args:
             client: Pydantic-AI ``Agent`` used for exchanges with the model.
+            stage: Optional name of the generation stage for observability.
         """
 
         self.client = client
+        self.stage = stage
         self._history: list[messages.ModelMessage] = []
 
     @logfire.instrument()
@@ -57,7 +60,7 @@ class ConversationSession:
     def derive(self) -> "ConversationSession":
         """Return a new session copying the current history."""
 
-        clone = ConversationSession(self.client)
+        clone = ConversationSession(self.client, stage=self.stage)
         clone._history = list(self._history)
         return clone
 
@@ -92,6 +95,13 @@ class ConversationSession:
             prompt, message_history=self._history, output_type=output_type
         )
         self._history.extend(result.new_messages())
+        usage = result.usage()
+        if usage.total_tokens:
+            stage = self.stage or "unknown"
+            model_name = getattr(getattr(self.client, "model", None), "model_name", "")
+            cost = estimate_cost(model_name, usage.total_tokens)
+            logfire.metric(f"{stage}.tokens", usage.total_tokens)
+            logfire.metric(f"{stage}.cost_usd", cost)
         logfire.debug(f"Received response: {result.output}")
         return result.output
 
@@ -112,6 +122,13 @@ class ConversationSession:
             prompt, message_history=self._history, output_type=output_type
         )
         self._history.extend(result.new_messages())
+        usage = result.usage()
+        if usage.total_tokens:
+            stage = self.stage or "unknown"
+            model_name = getattr(getattr(self.client, "model", None), "model_name", "")
+            cost = estimate_cost(model_name, usage.total_tokens)
+            logfire.metric(f"{stage}.tokens", usage.total_tokens)
+            logfire.metric(f"{stage}.cost_usd", cost)
         logfire.debug(f"Received response: {result.output}")
         return result.output
 

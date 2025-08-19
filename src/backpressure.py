@@ -40,7 +40,7 @@ from types import ModuleType
 from typing import AsyncContextManager, AsyncIterator, Deque, Optional
 
 try:
-    import logfire as _logfire
+    import logfire as _logfire  # type: ignore[import-not-found]
 except ModuleNotFoundError:  # pragma: no cover - optional dependency
     _logfire = None
 

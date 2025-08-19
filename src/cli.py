@@ -13,7 +13,7 @@ from itertools import islice
 from pathlib import Path
 from typing import Any, Coroutine, Iterable, cast
 
-import logfire
+import logfire  # type: ignore[import-not-found]
 from pydantic_ai import Agent
 from tqdm import tqdm
 
@@ -78,13 +78,16 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
     configure_prompt_dir(settings.prompt_dir)
     system_prompt = load_ambition_prompt(settings.context_id, settings.inspiration)
 
+    use_web_search = (
+        args.web_search if args.web_search is not None else settings.web_search
+    )
     factory = ModelFactory(
         settings.model,
         settings.openai_api_key,
         stage_models=getattr(settings, "models", None),
         reasoning=settings.reasoning,
         seed=args.seed,
-        web_search=args.web_search,
+        web_search=use_web_search,
     )
 
     feat_name = factory.model_name("features", args.features_model or args.model)
@@ -168,13 +171,16 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
 async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
     """Generate service evolution summaries."""
 
+    use_web_search = (
+        args.web_search if args.web_search is not None else settings.web_search
+    )
     factory = ModelFactory(
         settings.model,
         settings.openai_api_key,
         stage_models=getattr(settings, "models", None),
         reasoning=settings.reasoning,
         seed=args.seed,
-        web_search=args.web_search,
+        web_search=use_web_search,
     )
 
     configure_prompt_dir(settings.prompt_dir)
@@ -225,9 +231,9 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
             feat_agent = Agent(feat_model, instructions=system_prompt)
             map_agent = Agent(map_model, instructions=system_prompt)
 
-            desc_session = ConversationSession(desc_agent)
-            feat_session = ConversationSession(feat_agent)
-            map_session = ConversationSession(map_agent)
+            desc_session = ConversationSession(desc_agent, stage="descriptions")
+            feat_session = ConversationSession(feat_agent, stage="features")
+            map_session = ConversationSession(map_agent, stage="mapping")
 
             generator = PlateauGenerator(
                 feat_session,
@@ -336,8 +342,9 @@ def main() -> None:
     )
     common.add_argument(
         "--web-search",
-        action="store_true",
-        help="Enable web search for model browsing",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Enable or disable web search for model browsing",
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)

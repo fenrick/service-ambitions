@@ -13,7 +13,7 @@ import token_utils
 def test_estimate_tokens_with_tiktoken(monkeypatch) -> None:
     """Ensure ``estimate_tokens`` uses ``tiktoken`` when available."""
     dummy_module = types.ModuleType("tiktoken")
-    dummy_module.get_encoding = lambda name: SimpleNamespace(
+    dummy_module.get_encoding = lambda name: SimpleNamespace(  # type: ignore[attr-defined]
         encode=lambda text: list(text)
     )
     monkeypatch.setitem(sys.modules, "tiktoken", dummy_module)
@@ -36,7 +36,7 @@ def test_estimate_tokens_empty_prompt_with_tiktoken(monkeypatch) -> None:
     """Empty prompts still account for expected output when using tiktoken."""
 
     dummy_module = types.ModuleType("tiktoken")
-    dummy_module.get_encoding = lambda name: SimpleNamespace(
+    dummy_module.get_encoding = lambda name: SimpleNamespace(  # type: ignore[attr-defined]
         encode=lambda text: list(text)
     )
     monkeypatch.setitem(sys.modules, "tiktoken", dummy_module)

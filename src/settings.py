@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     logfire_token: str | None = Field(
         None, description="Logfire authentication token, if available."
     )
+    web_search: bool = Field(
+        False, description="Enable OpenAI web search tooling for model browsing."
+    )
 
     model_config = SettingsConfigDict(extra="ignore")
 
@@ -88,6 +91,7 @@ def load_settings() -> Settings:
             retries=config.retries,
             retry_base_delay=config.retry_base_delay,
             features_per_role=config.features_per_role,
+            web_search=config.web_search,
             _env_file=env_file,
         )
     except ValidationError as exc:
