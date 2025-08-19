@@ -12,15 +12,13 @@ import asyncio
 import json
 import os
 from functools import lru_cache
-from typing import TYPE_CHECKING, Iterable, Mapping, Sequence
+from typing import TYPE_CHECKING, Callable, Iterable, Mapping, Sequence
 
 import logfire
 import numpy as np
 from openai import AsyncOpenAI
 from scipy.sparse import csr_matrix
-from sklearn.feature_extraction.text import (
-    TfidfVectorizer,
-)
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 from loader import load_mapping_items, load_mapping_type_config, load_prompt_text
 from models import (
@@ -30,6 +28,7 @@ from models import (
     MappingTypeConfig,
     PlateauFeature,
 )
+from retry_utils import _with_retry
 
 if TYPE_CHECKING:
     from conversation import ConversationSession
@@ -362,6 +361,10 @@ async def _map_parallel(
     session: "ConversationSession",
     batches: list[Sequence[PlateauFeature]],
     mapping_types: Mapping[str, MappingTypeConfig],
+    *,
+    request_timeout: float,
+    attempts: int,
+    on_retry_after: Callable[[float], None] | None,
 ) -> dict[str, PlateauFeature]:
     """Return mapping results when mapping types run in parallel."""
 
@@ -369,7 +372,16 @@ async def _map_parallel(
         i: list(batch) for i, batch in enumerate(batches)
     }
     tasks = [
-        _request_mapping(session, batch, i, key, cfg)
+        _request_mapping(
+            session,
+            batch,
+            i,
+            key,
+            cfg,
+            request_timeout=request_timeout,
+            attempts=attempts,
+            on_retry_after=on_retry_after,
+        )
         for i, batch in enumerate(batches)
         for key, cfg in mapping_types.items()
     ]
@@ -406,6 +418,10 @@ async def _map_sequential(
     session: "ConversationSession",
     batches: list[Sequence[PlateauFeature]],
     mapping_types: Mapping[str, MappingTypeConfig],
+    *,
+    request_timeout: float,
+    attempts: int,
+    on_retry_after: Callable[[float], None] | None,
 ) -> dict[str, PlateauFeature]:
     """Return mapping results when mapping types run sequentially."""
 
@@ -414,7 +430,14 @@ async def _map_sequential(
         batch_list = list(batch)
         for key, cfg in mapping_types.items():
             _, _, _, sub_session, payload = await _request_mapping(
-                session, batch, i, key, cfg
+                session,
+                batch,
+                i,
+                key,
+                cfg,
+                request_timeout=request_timeout,
+                attempts=attempts,
+                on_retry_after=on_retry_after,
             )
             if all(not f.mappings.get(key) for f in payload.features):
                 slice_items = _top_k_items(batch, cfg.dataset)
@@ -447,6 +470,10 @@ async def _request_mapping(
     batch_index: int,
     key: str,
     cfg: MappingTypeConfig,
+    *,
+    request_timeout: float,
+    attempts: int,
+    on_retry_after: Callable[[float], None] | None,
 ) -> tuple[int, str, MappingTypeConfig, ConversationSession, MappingResponse]:
     """Return mapping response for ``key`` type for ``batch`` features."""
 
@@ -454,7 +481,12 @@ async def _request_mapping(
     overrides = await _preselect_items(batch, cfg)
     prompt = _build_mapping_prompt(batch, {key: cfg}, item_overrides=overrides)
     logfire.debug(f"Requesting {key} mappings for {len(batch)} features")
-    payload = await sub_session.ask_async(prompt, output_type=MappingResponse)
+    payload = await _with_retry(
+        lambda: sub_session.ask_async(prompt, output_type=MappingResponse),
+        request_timeout=request_timeout,
+        attempts=attempts,
+        on_retry_after=on_retry_after,
+    )
     return batch_index, key, cfg, sub_session, payload
 
 
@@ -465,6 +497,9 @@ async def map_features_async(
     *,
     batch_size: int = 30,
     parallel_types: bool = True,
+    request_timeout: float = 60,
+    attempts: int = 5,
+    on_retry_after: Callable[[float], None] | None = None,
 ) -> list[PlateauFeature]:
     """Asynchronously return ``features`` with mapping information.
 
@@ -475,14 +510,32 @@ async def map_features_async(
         batch_size: Number of features per mapping request batch.
         parallel_types: Dispatch mapping type requests concurrently across all
             batches when ``True``.
+        request_timeout: Per-request timeout in seconds.
+        attempts: Maximum number of retry attempts per request.
+        on_retry_after: Optional callback invoked with provider ``Retry-After``
+            hint in seconds.
     """
 
     mapping_types = mapping_types or load_mapping_type_config()
     batches = list(_chunked(features, batch_size))
     if parallel_types:
-        results = await _map_parallel(session, batches, mapping_types)
+        results = await _map_parallel(
+            session,
+            batches,
+            mapping_types,
+            request_timeout=request_timeout,
+            attempts=attempts,
+            on_retry_after=on_retry_after,
+        )
     else:
-        results = await _map_sequential(session, batches, mapping_types)
+        results = await _map_sequential(
+            session,
+            batches,
+            mapping_types,
+            request_timeout=request_timeout,
+            attempts=attempts,
+            on_retry_after=on_retry_after,
+        )
     return [results[f.feature_id] for f in features]
 
 
@@ -493,6 +546,9 @@ def map_features(
     *,
     batch_size: int = 30,
     parallel_types: bool = True,
+    request_timeout: float = 60,
+    attempts: int = 5,
+    on_retry_after: Callable[[float], None] | None = None,
 ) -> list[PlateauFeature]:
     """Return ``features`` augmented with mapping information.
 
@@ -503,6 +559,10 @@ def map_features(
         batch_size: Number of features per mapping request batch.
         parallel_types: Dispatch mapping type requests concurrently across all
             batches when ``True``.
+        request_timeout: Per-request timeout in seconds.
+        attempts: Maximum number of retry attempts per request.
+        on_retry_after: Optional callback invoked when rate limiting is
+            encountered.
     """
 
     return asyncio.run(
@@ -512,6 +572,9 @@ def map_features(
             mapping_types,
             batch_size=batch_size,
             parallel_types=parallel_types,
+            request_timeout=request_timeout,
+            attempts=attempts,
+            on_retry_after=on_retry_after,
         )
     )
 

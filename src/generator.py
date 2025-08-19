@@ -10,11 +10,11 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import random
+import random  # noqa: F401
 from asyncio import TaskGroup
 from itertools import islice
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, TypeVar
+from typing import Any, Awaitable, Callable, Iterable, TypeVar
 
 import logfire
 from pydantic import BaseModel
@@ -25,6 +25,15 @@ from tqdm import tqdm
 
 from backpressure import AdaptiveSemaphore, RollingMetrics
 from models import ReasoningConfig, ServiceInput
+from retry_utils import (
+    TRANSIENT_EXCEPTIONS as DEFAULT_TRANSIENT_EXCEPTIONS,
+)
+from retry_utils import (  # noqa: F401
+    RateLimitError,
+)
+from retry_utils import (
+    _with_retry as shared_with_retry,
+)
 from token_utils import estimate_tokens
 
 SERVICES_PROCESSED = logfire.metric_counter("services_processed")
@@ -33,69 +42,9 @@ TOKENS_IN_FLIGHT = logfire.metric_counter("tokens_in_flight")
 
 T = TypeVar("T")
 
-
-# Transient failures that warrant a retry. Provider specific errors are optional
-# to avoid hard dependencies when the SDK is absent.
-if TYPE_CHECKING:
-    from openai import APIConnectionError as OpenAIAPIConnectionError
-    from openai import RateLimitError as OpenAIRateLimitError
-else:
-    try:
-        from openai import APIConnectionError as OpenAIAPIConnectionError
-        from openai import RateLimitError as OpenAIRateLimitError
-    except Exception:
-
-        class OpenAIAPIConnectionError(Exception):
-            """Fallback when OpenAI SDK is absent."""
-
-        class OpenAIRateLimitError(Exception):
-            """Fallback when OpenAI SDK is absent."""
-
-
-TRANSIENT_EXCEPTIONS: tuple[type[BaseException], ...] = (
-    asyncio.TimeoutError,
-    ConnectionError,
-    OpenAIAPIConnectionError,
-    OpenAIRateLimitError,
-)
-
-RateLimitError = OpenAIRateLimitError
-
-
-def _retry_after_seconds(exc: BaseException) -> float | None:
-    """Return ``Retry-After`` hint in seconds if available.
-
-    Providers may include a ``Retry-After`` header on rate limit errors to
-    indicate how long clients should pause before retrying.  When present, this
-    delay is returned in seconds; otherwise ``None`` is returned.
-
-    Args:
-        exc: Exception raised by the provider.
-
-    Returns:
-        Suggested delay in seconds or ``None`` if unavailable.
-    """
-
-    if RateLimitError is not None and isinstance(exc, RateLimitError):
-        headers = getattr(getattr(exc, "response", None), "headers", {})
-        # Header keys may vary in capitalisation
-        retry_after = headers.get("Retry-After") or headers.get("retry-after")
-        if retry_after is None:
-            return None
-        try:
-            return float(retry_after)
-        except (TypeError, ValueError):
-            try:
-                from datetime import datetime, timezone
-                from email.utils import parsedate_to_datetime
-
-                dt = parsedate_to_datetime(retry_after)
-                if dt is None:
-                    return None
-                return max(0.0, (dt - datetime.now(timezone.utc)).total_seconds())
-            except Exception:
-                return None
-    return None
+# Local copy so tests can monkeypatch ``TRANSIENT_EXCEPTIONS`` without affecting
+# other modules importing the shared implementation.
+TRANSIENT_EXCEPTIONS = DEFAULT_TRANSIENT_EXCEPTIONS
 
 
 async def _with_retry(
@@ -108,55 +57,19 @@ async def _with_retry(
     on_retry_after: Callable[[float], None] | None = None,
     metrics: RollingMetrics | None = None,
 ) -> T:
-    """Execute ``coro_factory`` with exponential backoff and jitter.
+    """Delegate to shared retry helper using module-level exceptions."""
 
-    Each attempt is wrapped in ``asyncio.wait_for`` to enforce a sixty second
-    timeout. Only transient network or provider errors listed in
-    ``TRANSIENT_EXCEPTIONS`` trigger a retry with exponential backoff capped at
-    ``cap`` seconds and up to twenty-five percent random jitter.
-
-    Args:
-        coro_factory: Factory returning the coroutine to execute.
-        attempts: Maximum number of attempts before giving up.
-        base: Initial delay in seconds used for backoff.
-        cap: Maximum backoff in seconds.
-
-    Returns:
-        The result of the successful coroutine.
-
-    Raises:
-        Exception: Propagates the last exception if all attempts fail or if the
-            error is not transient.
-    """
-
-    def _handle_retry(exc: BaseException, attempt: int) -> float:
-        if metrics:
-            metrics.record_error()
-        if attempt == attempts - 1:
-            raise
-        delay = min(cap, base * (2**attempt))
-        delay *= 1 + random.random() * 0.25
-        hint = _retry_after_seconds(exc)
-        if hint is not None:
-            delay = max(delay, hint)
-            if on_retry_after:
-                on_retry_after(hint)
-        return delay
-
-    for attempt in range(attempts):
-        if metrics:
-            metrics.record_request()
-        try:
-            return await asyncio.wait_for(coro_factory(), timeout=request_timeout)
-        except TRANSIENT_EXCEPTIONS as exc:
-            delay = _handle_retry(exc, attempt)
-            logfire.warning(
-                "Retrying request",
-                attempt=attempt + 1,
-                backoff_delay=delay,
-            )
-            await asyncio.sleep(delay)
-    raise RuntimeError("Unreachable retry state")
+    return await shared_with_retry(
+        coro_factory,
+        request_timeout=request_timeout,
+        attempts=attempts,
+        base=base,
+        cap=cap,
+        on_retry_after=on_retry_after,
+        metrics=metrics,
+        transient_exceptions=TRANSIENT_EXCEPTIONS,
+        rate_limit_error=RateLimitError,
+    )
 
 
 async def _write_queue(

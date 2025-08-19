@@ -68,6 +68,7 @@ warn_redundant_casts = true
 disallow_any_generics = true
 warn_unused_ignores = true
 files = ["src"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
