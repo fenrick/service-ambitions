@@ -38,8 +38,6 @@ from collections import deque
 from contextlib import asynccontextmanager
 from typing import AsyncContextManager, AsyncIterator, Deque, Optional
 
-import logfire
-
 
 class AdaptiveSemaphore:
     """Semaphore that reacts to rate limit signals with weighted permits.
@@ -234,8 +232,6 @@ class RollingMetrics:
         self._requests.append(now)
         self._trim(self._requests, now)
         self._trim(self._errors, now)
-        rps = len(self._requests) / self._window
-        error_rate = len(self._errors) / len(self._requests) if self._requests else 0.0
 
     def record_error(self) -> None:
         """Record an error occurrence."""
@@ -256,7 +252,6 @@ class RollingMetrics:
         self._in_flight = max(self._in_flight - count, 0)
         self._tokens.append((now, count))
         self._trim_tokens(now)
-        total_tokens = sum(t for _, t in self._tokens)
 
     def record_tokens(self, count: int) -> None:
         """Alias for :meth:`record_end_tokens` for backwards compatibility."""
