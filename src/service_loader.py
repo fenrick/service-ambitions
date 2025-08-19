@@ -7,6 +7,7 @@ reading newline-delimited JSON service definitions and yielding validated
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Generator, Iterator
 
@@ -24,15 +25,33 @@ def _load_service_entries(path: Path | str) -> Generator[ServiceInput, None, Non
         adapter = TypeAdapter(ServiceInput)
         try:
             with path_obj.open("r", encoding="utf-8") as file:
-                for line in file:
+                for line_number, line in enumerate(file, start=1):
                     line = line.strip()
                     if not line:
                         continue  # Skip blank lines
                     try:
                         yield adapter.validate_json(line)
                     except Exception as exc:
-                        logfire.error(f"Invalid service entry in {path_obj}: {exc}")
-                        raise RuntimeError("Invalid service definition") from exc
+                        # Persist invalid entries for later inspection
+                        quarantine_dir = path_obj.parent / "quarantine"
+                        quarantine_dir.mkdir(exist_ok=True)
+
+                        service_id: str | None = None
+                        try:
+                            # Attempt to extract a service identifier from the JSON
+                            service_id = json.loads(line).get("service_id")
+                        except Exception:
+                            pass  # Parsing failed; fall back to line number
+
+                        filename = f"{service_id or line_number}.json"
+                        quarantine_path = quarantine_dir / filename
+                        quarantine_path.write_text(line, encoding="utf-8")
+
+                        logfire.error(
+                            f"Invalid service entry in {path_obj}: {exc}. "
+                            f"Quarantined at {quarantine_path}"
+                        )
+                        continue  # Keep processing subsequent services
         except FileNotFoundError:
             logfire.error(f"Services file not found: {path_obj}")
             raise FileNotFoundError(
