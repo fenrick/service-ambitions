@@ -70,6 +70,7 @@ class PlateauGenerator:
         mapping_session: ConversationSession | None = None,
         mapping_batch_size: int = 30,
         mapping_parallel_types: bool = True,
+        strict: bool = True,
     ) -> None:
         """Initialise the generator.
 
@@ -82,6 +83,7 @@ class PlateauGenerator:
             mapping_batch_size: Number of features per mapping request batch.
             mapping_parallel_types: Dispatch mapping type requests concurrently
                 across all batches when ``True``.
+            strict: Fail when mappings are missing or roles are incomplete.
         """
         if required_count < 1:
             raise ValueError("required_count must be positive")
@@ -92,6 +94,7 @@ class PlateauGenerator:
         self.roles = list(roles or DEFAULT_ROLE_IDS)
         self.mapping_batch_size = mapping_batch_size
         self.mapping_parallel_types = mapping_parallel_types
+        self.strict = strict
         self._service: ServiceInput | None = None
 
     def _request_description(
@@ -524,25 +527,26 @@ class PlateauGenerator:
             role_data = data.get("features", {})
             valid, invalid_roles, missing = self._validate_roles(role_data)
 
-            fixes = await self._recover_invalid_roles(
-                invalid_roles, level, description, session
-            )
-            valid.update(fixes)
-
-            tasks = {
-                role: asyncio.create_task(
-                    self._request_missing_features_async(
-                        level, role, description, need, session
-                    )
+            if self.strict:
+                fixes = await self._recover_invalid_roles(
+                    invalid_roles, level, description, session
                 )
-                for role, need in missing.items()
-            }
-            if tasks:
-                results = await asyncio.gather(*tasks.values())
-                for role, extras in zip(tasks.keys(), results, strict=False):
-                    valid[role].extend(extras)
+                valid.update(fixes)
 
-            self._enforce_min_features(valid)
+                tasks = {
+                    role: asyncio.create_task(
+                        self._request_missing_features_async(
+                            level, role, description, need, session
+                        )
+                    )
+                    for role, need in missing.items()
+                }
+                if tasks:
+                    results = await asyncio.gather(*tasks.values())
+                    for role, extras in zip(tasks.keys(), results, strict=False):
+                        valid[role].extend(extras)
+
+                self._enforce_min_features(valid)
 
             block = FeaturesBlock(
                 learners=valid.get("learners", []),
@@ -563,6 +567,12 @@ class PlateauGenerator:
                 batch_size=self.mapping_batch_size,
                 parallel_types=self.mapping_parallel_types,
             )
+            if self.strict:
+                for feat in mapped:
+                    if not feat.mappings:
+                        raise ValueError(
+                            f"Feature '{feat.feature_id}' missing mappings"
+                        )
             return PlateauResult(
                 plateau=level,
                 plateau_name=plateau_name,

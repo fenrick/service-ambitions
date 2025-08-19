@@ -8,7 +8,7 @@ def test_model_factory_resolves_models(monkeypatch) -> None:
 
     monkeypatch.setattr("model_factory.build_model", fake_build_model)
 
-    stage = StageModels(features="cfg-feat")
+    stage = StageModels(features="cfg-feat")  # type: ignore[call-arg]
     factory = ModelFactory("default", "key", stage_models=stage)
 
     assert factory.model_name("features") == "cfg-feat"

@@ -53,9 +53,13 @@ class DummySession:
 
 def _feature_payload(count: int, level: int = 1) -> str:
     # Build a uniform payload with ``count`` valid features per customer type.
-    features = {"learners": [], "academics": [], "professional_staff": []}
+    features: dict[str, list[dict[str, object]]] = {
+        "learners": [],
+        "academics": [],
+        "professional_staff": [],
+    }
     for role in features:
-        items = []
+        items: list[dict[str, object]] = []
         for i in range(count):
             items.append(
                 {

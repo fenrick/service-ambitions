@@ -4,6 +4,7 @@ import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import numpy as np
 import pytest
@@ -56,7 +57,7 @@ async def test_map_feature_returns_mappings(monkeypatch) -> None:
             ],
         },
     )
-    session = DummySession(
+    session: Any = DummySession(
         [
             json.dumps(
                 {
@@ -126,7 +127,7 @@ async def test_map_feature_injects_reference_data(monkeypatch) -> None:
             ],
         },
     )
-    session = DummySession(
+    session: Any = DummySession(
         [
             json.dumps(
                 {
@@ -191,7 +192,7 @@ async def test_map_feature_rejects_invalid_json(monkeypatch) -> None:
             "technologies": [],
         },
     )
-    session = DummySession(["not-json"])
+    session: Any = DummySession(["not-json"])
     feature = PlateauFeature(
         feature_id="f1",
         name="Integration",
@@ -229,7 +230,7 @@ def test_map_feature_ignores_unknown_ids(monkeypatch) -> None:
                 return response
             return output_type.model_validate_json(response)
 
-    session = SyncSession(
+    session: Any = SyncSession(
         [
             json.dumps(
                 {
@@ -273,7 +274,7 @@ async def test_map_feature_flattens_nested_mappings(monkeypatch) -> None:
             "technologies": [MappingItem(id="TEC-1", name="Tech", description="d")],
         },
     )
-    session = DummySession(
+    session: Any = DummySession(
         [
             json.dumps(
                 {
@@ -328,7 +329,7 @@ async def test_map_feature_flattens_repeated_mapping_keys(monkeypatch) -> None:
             "technologies": [MappingItem(id="TEC-1", name="Tech", description="d")],
         },
     )
-    session = DummySession(
+    session: Any = DummySession(
         [
             json.dumps(
                 {
@@ -390,7 +391,7 @@ async def test_map_features_returns_mappings(monkeypatch) -> None:
         },
     )
 
-    session = DummySession(
+    session: Any = DummySession(
         [
             json.dumps(
                 {
@@ -457,7 +458,7 @@ async def test_map_features_allows_empty_lists(monkeypatch) -> None:
         },
     )
 
-    session = DummySession(
+    session: Any = DummySession(
         [
             json.dumps(
                 {
@@ -515,7 +516,7 @@ async def test_map_features_retries_on_empty(monkeypatch) -> None:
             ]
         }
     )
-    session = DummySession([initial, repaired])
+    session: Any = DummySession([initial, repaired])
     feature = PlateauFeature(
         feature_id="f1",
         name="Integration",
@@ -583,7 +584,7 @@ async def test_map_features_reprompts_per_feature(monkeypatch, parallel) -> None
         }
     )
 
-    session = DummySession([initial, repaired])
+    session: Any = DummySession([initial, repaired])
     features = [
         PlateauFeature(
             feature_id="f1",

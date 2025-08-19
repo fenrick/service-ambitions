@@ -179,6 +179,7 @@ async def _generate_evolution_for_service(
                 mapping_session=map_session,
                 mapping_batch_size=mapping_batch_size,
                 mapping_parallel_types=mapping_parallel_types,
+                strict=args.strict,
             )
             evolution = await generator.generate_service_evolution_async(
                 service, transcripts_dir=transcripts_dir
@@ -502,6 +503,15 @@ def main() -> None:
         dest="resume",
         action="store_true",
         help="Resume processing using processed_ids.txt",
+    )
+    common.add_argument(
+        "--strict",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Fail when any feature lacks mapping data or roles are incomplete; "
+            "use --no-strict to allow partial results"
+        ),
     )
     common.add_argument(
         "--web-search",

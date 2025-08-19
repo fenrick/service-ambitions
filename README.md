@@ -110,6 +110,11 @@ CI environments or when stdout is not a TTY. Provide `--seed` to make
 stochastic behaviour such as backoff jitter deterministic during tests and
 demos.
 
+Generation runs in *strict* mode by default, which raises an error when any
+feature lacks mapping data or when roles return fewer features than expected.
+Use `--no-strict` to permit partial role coverage and unmapped features when
+exploratory runs should continue despite incomplete responses.
+
 ## Adaptive backpressure
 
 The generator coordinates concurrent requests with an `AdaptiveSemaphore` so

@@ -24,7 +24,7 @@ class DummyFactory:
         return object()
 
 
-cli.ModelFactory = DummyFactory
+cli.ModelFactory = DummyFactory  # type: ignore[misc,assignment]
 
 
 async def _noop_init_embeddings() -> None:
@@ -108,6 +108,7 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         mapping_parallel_types=None,
         transcripts_dir=None,
         web_search=None,
+        strict=True,
     )
 
     asyncio.run(_cmd_generate_evolution(args, settings))
@@ -182,6 +183,7 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         mapping_parallel_types=None,
         transcripts_dir=None,
         web_search=None,
+        strict=True,
     )
 
     asyncio.run(_cmd_generate_evolution(args, settings))
@@ -263,6 +265,7 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         mapping_parallel_types=None,
         transcripts_dir=None,
         web_search=None,
+        strict=True,
     )
 
     asyncio.run(_cmd_generate_evolution(args, settings))
@@ -335,6 +338,7 @@ def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -
         mapping_parallel_types=None,
         transcripts_dir=None,
         web_search=None,
+        strict=True,
     )
 
     with pytest.raises(ValueError, match="concurrency must be a positive integer"):
@@ -453,9 +457,182 @@ def test_generate_evolution_writes_transcripts(tmp_path, monkeypatch) -> None:
         mapping_parallel_types=None,
         transcripts_dir=None,
         web_search=None,
+        strict=True,
     )
 
     asyncio.run(_cmd_generate_evolution(args, settings))
 
     transcript = output_path.parent / "_transcripts" / "svc-1.json"
     assert transcript.exists()
+
+
+def test_generate_evolution_strict_fails_on_empty_mapping(
+    tmp_path, monkeypatch
+) -> None:
+    """Strict mode raises when a feature has no mappings."""
+
+    input_path = tmp_path / "services.jsonl"
+    output_path = tmp_path / "out.jsonl"
+    input_path.write_text(
+        json.dumps(
+            {
+                "service_id": "svc-1",
+                "name": "svc",
+                "description": "desc",
+                "jobs_to_be_done": [{"name": "job"}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    class DummyAgent:
+        def __init__(self, model, instructions):
+            self.model = model
+            self.instructions = instructions
+
+    async def fake_generate(
+        self,
+        service: ServiceInput,
+        plateau_names=None,
+        role_ids=None,
+        transcripts_dir=None,
+    ) -> ServiceEvolution:
+        assert self.strict
+        raise ValueError("empty mapping")
+
+    monkeypatch.setattr("cli.Agent", DummyAgent)
+    monkeypatch.setattr(
+        "cli.PlateauGenerator.generate_service_evolution_async", fake_generate
+    )
+    monkeypatch.setattr("cli.configure_prompt_dir", lambda _path: None)
+    monkeypatch.setattr("cli.load_evolution_prompt", lambda _ctx, _insp: "prompt")
+    monkeypatch.setattr("cli.logfire.force_flush", lambda: None)
+    monkeypatch.setattr("cli.init_embeddings", _noop_init_embeddings)
+
+    settings = SimpleNamespace(
+        model="test-model",
+        log_level="INFO",
+        openai_api_key="key",
+        logfire_token=None,
+        concurrency=2,
+        prompt_dir="prompts",
+        context_id="university",
+        inspiration="general",
+        reasoning=None,
+        features_per_role=5,
+        mapping_batch_size=30,
+        mapping_parallel_types=True,
+        models=None,
+        web_search=False,
+    )
+    args = argparse.Namespace(
+        input_file=str(input_path),
+        output_file=str(output_path),
+        model=None,
+        logfire_service=None,
+        log_level=None,
+        verbose=0,
+        max_services=None,
+        dry_run=False,
+        progress=False,
+        concurrency=None,
+        resume=False,
+        seed=None,
+        roles_file="data/roles.json",
+        mapping_batch_size=None,
+        mapping_parallel_types=None,
+        transcripts_dir=None,
+        web_search=None,
+        strict=True,
+    )
+
+    with pytest.raises(ValueError, match="empty mapping"):
+        asyncio.run(_cmd_generate_evolution(args, settings))
+
+
+def test_generate_evolution_no_strict_allows_partial_roles(
+    tmp_path, monkeypatch
+) -> None:
+    """Non-strict mode permits partial role coverage."""
+
+    input_path = tmp_path / "services.jsonl"
+    output_path = tmp_path / "out.jsonl"
+    input_path.write_text(
+        json.dumps(
+            {
+                "service_id": "svc-1",
+                "name": "svc",
+                "description": "desc",
+                "jobs_to_be_done": [{"name": "job"}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    class DummyAgent:
+        def __init__(self, model, instructions):
+            self.model = model
+            self.instructions = instructions
+
+    async def fake_generate(
+        self,
+        service: ServiceInput,
+        plateau_names=None,
+        role_ids=None,
+        transcripts_dir=None,
+    ) -> ServiceEvolution:
+        assert not self.strict
+        return ServiceEvolution(service=service, plateaus=[])
+
+    monkeypatch.setattr("cli.Agent", DummyAgent)
+    monkeypatch.setattr(
+        "cli.PlateauGenerator.generate_service_evolution_async", fake_generate
+    )
+    monkeypatch.setattr("cli.configure_prompt_dir", lambda _path: None)
+    monkeypatch.setattr("cli.load_evolution_prompt", lambda _ctx, _insp: "prompt")
+    monkeypatch.setattr("cli.logfire.force_flush", lambda: None)
+    monkeypatch.setattr("cli.init_embeddings", _noop_init_embeddings)
+
+    settings = SimpleNamespace(
+        model="test-model",
+        log_level="INFO",
+        openai_api_key="key",
+        logfire_token=None,
+        concurrency=2,
+        prompt_dir="prompts",
+        context_id="university",
+        inspiration="general",
+        reasoning=None,
+        features_per_role=5,
+        mapping_batch_size=30,
+        mapping_parallel_types=True,
+        models=None,
+        web_search=False,
+    )
+    args = argparse.Namespace(
+        input_file=str(input_path),
+        output_file=str(output_path),
+        model=None,
+        logfire_service=None,
+        log_level=None,
+        verbose=0,
+        max_services=None,
+        dry_run=False,
+        progress=False,
+        concurrency=None,
+        resume=False,
+        seed=None,
+        roles_file="data/roles.json",
+        mapping_batch_size=None,
+        mapping_parallel_types=None,
+        transcripts_dir=None,
+        web_search=None,
+        strict=False,
+    )
+
+    asyncio.run(_cmd_generate_evolution(args, settings))
+
+    payload = json.loads(output_path.read_text(encoding="utf-8").strip())
+    assert payload["service"]["service_id"] == "svc-1"

@@ -98,7 +98,7 @@ async def test_ask_adds_responses_to_history() -> None:
     """``ask`` should forward prompts and store new messages."""
 
     session = ConversationSession(cast(Agent[None, str], DummyAgent()))
-    reply = await session.ask("ping")
+    reply = await session.ask("ping")  # type: ignore[misc]
 
     assert reply == "pong"
     assert session._history[-1] == "msg"
@@ -109,5 +109,5 @@ async def test_ask_forwards_prompt_to_agent() -> None:
     """``ask`` should delegate to the underlying agent."""
     agent = DummyAgent()
     session = ConversationSession(cast(Agent[None, str], agent))
-    await session.ask("hello")
+    await session.ask("hello")  # type: ignore[misc]
     assert agent.called_with == ["hello"]
