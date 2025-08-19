@@ -14,9 +14,9 @@ import hashlib
 import json
 import re
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence, cast
 
-import logfire  # type: ignore[import-not-found]
+import logfire as _logfire
 
 from conversation import ConversationSession
 from loader import load_plateau_definitions, load_prompt_text, load_roles
@@ -35,6 +35,8 @@ from models import (
 )
 from token_scheduler import TokenScheduler
 from token_utils import estimate_tokens
+
+logfire = cast(Any, _logfire)
 
 # Snapshot of plateau definitions sourced from configuration.
 _PLATEAU_DEFS = load_plateau_definitions()
@@ -398,14 +400,14 @@ class PlateauGenerator:
             for role in self.roles:
                 items = role_data.get(role, [])
                 try:
-                    block = RoleFeaturesResponse(features=items)
+                    role_block = RoleFeaturesResponse(features=items)
                 except Exception:
                     invalid_roles.append(role)
                     valid[role] = []
                     continue
-                valid[role] = list(block.features)
-                if len(block.features) < self.required_count:
-                    missing[role] = self.required_count - len(block.features)
+                valid[role] = list(role_block.features)
+                if len(role_block.features) < self.required_count:
+                    missing[role] = self.required_count - len(role_block.features)
 
             for role in invalid_roles:
                 valid[role] = await self._request_role_features_async(

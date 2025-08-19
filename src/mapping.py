@@ -12,13 +12,15 @@ import asyncio
 import json
 import os
 from functools import lru_cache
-from typing import TYPE_CHECKING, Iterable, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Iterable, Mapping, Sequence, cast
 
-import logfire  # type: ignore[import-not-found]
+import logfire as _logfire
 import numpy as np
 from openai import AsyncOpenAI
-from scipy.sparse import csr_matrix
-from sklearn.feature_extraction.text import TfidfVectorizer
+from scipy.sparse import csr_matrix  # type: ignore[import-untyped]
+from sklearn.feature_extraction.text import (
+    TfidfVectorizer,  # type: ignore[import-untyped]
+)
 
 from loader import load_mapping_items, load_mapping_type_config, load_prompt_text
 from models import (
@@ -28,6 +30,8 @@ from models import (
     MappingTypeConfig,
     PlateauFeature,
 )
+
+logfire = cast(Any, _logfire)
 
 if TYPE_CHECKING:
     from conversation import ConversationSession
@@ -248,11 +252,10 @@ def _build_mapping_prompt(
     items = load_mapping_items(tuple(cfg.dataset for cfg in mapping_types.values()))
     sections = []
     for cfg in mapping_types.values():
-        dataset_items = (
-            item_overrides.get(cfg.dataset)
-            if item_overrides and cfg.dataset in item_overrides
-            else items[cfg.dataset]
-        )
+        if item_overrides and cfg.dataset in item_overrides:
+            dataset_items = item_overrides[cfg.dataset]
+        else:
+            dataset_items = items[cfg.dataset]
         sections.append(f"## Available {cfg.label}\n\n{_render_items(dataset_items)}\n")
     mapping_sections = "\n".join(sections)
     mapping_labels = ", ".join(cfg.label for cfg in mapping_types.values())
@@ -369,7 +372,7 @@ async def map_features_async(
     batches = list(_chunked(features, batch_size))
 
     if parallel_types:
-        batch_results: dict[int, list[PlateauFeature]] = {
+        batch_map: dict[int, list[PlateauFeature]] = {
             i: list(batch) for i, batch in enumerate(batches)
         }
         tasks = [
@@ -395,15 +398,13 @@ async def map_features_async(
                 payload = await sub_session.ask_async(
                     prompt, output_type=MappingResponse
                 )
-            batch_results[idx] = _merge_mapping_results(
-                batch_results[idx], payload, {key: cfg}
-            )
-        for batch in batch_results.values():
+            batch_map[idx] = _merge_mapping_results(batch_map[idx], payload, {key: cfg})
+        for batch in batch_map.values():
             for updated in batch:
                 results[updated.feature_id] = updated
     else:
         for i, batch in enumerate(batches):
-            batch_results = list(batch)
+            batch_list = list(batch)
             for key, cfg in mapping_types.items():
                 _, _, _, sub_session, payload = await _request_mapping(
                     session, batch, i, key, cfg
@@ -423,10 +424,8 @@ async def map_features_async(
                     payload = await sub_session.ask_async(
                         prompt, output_type=MappingResponse
                     )
-                batch_results = _merge_mapping_results(
-                    batch_results, payload, {key: cfg}
-                )
-            for updated in batch_results:
+                batch_list = _merge_mapping_results(batch_list, payload, {key: cfg})
+            for updated in batch_list:
                 results[updated.feature_id] = updated
 
     return [results[f.feature_id] for f in features]

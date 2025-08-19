@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Generator, Iterator
+from typing import Any, Generator, Iterator, cast
 
-import logfire  # type: ignore[import-not-found]
+import logfire as _logfire
 from pydantic import TypeAdapter
 
 from models import ServiceInput
+
+logfire = cast(Any, _logfire)
 
 
 def _load_service_entries(path: Path | str) -> Generator[ServiceInput, None, None]:

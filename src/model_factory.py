@@ -25,7 +25,12 @@ class ModelFactory:
     ) -> None:
         self._default = default_model
         self._api_key = api_key
-        self._stage_models = stage_models or StageModels()
+        self._stage_models = stage_models or StageModels(
+            descriptions=None,
+            features=None,
+            mapping=None,
+            search=None,
+        )
         self._reasoning = reasoning
         self._seed = seed
         self._web_search = web_search
