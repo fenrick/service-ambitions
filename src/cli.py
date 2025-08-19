@@ -34,6 +34,10 @@ from plateau_generator import PlateauGenerator
 from service_loader import load_services
 from settings import load_settings
 
+SERVICES_PROCESSED = logfire.metric_counter("services_processed")
+EVOLUTIONS_GENERATED = logfire.metric_counter("evolutions_generated")
+LINES_WRITTEN = logfire.metric_counter("lines_written")
+
 
 def _configure_logging(args: argparse.Namespace, settings) -> None:
     """Configure the logging subsystem."""
@@ -138,125 +142,184 @@ async def _generate_evolution_for_service(
 ) -> None:
     """Generate evolution for ``service`` and record results."""
 
-    try:
-        desc_model = factory.get("descriptions", args.descriptions_model or args.model)
-        feat_model = factory.get("features", args.features_model or args.model)
-        map_model = factory.get("mapping", args.mapping_model or args.model)
+    desc_name = factory.model_name(
+        "descriptions", args.descriptions_model or args.model
+    )
+    feat_name = factory.model_name("features", args.features_model or args.model)
+    map_name = factory.model_name("mapping", args.mapping_model or args.model)
+    attrs = {
+        "service_id": service.service_id,
+        "service_name": service.name,
+        "descriptions_model": desc_name,
+        "features_model": feat_name,
+        "mapping_model": map_name,
+        "output_path": getattr(output, "name", ""),
+    }
+    with logfire.span("generate_evolution_for_service", attributes=attrs):
+        try:
+            SERVICES_PROCESSED.add(1)
+            desc_model = factory.get(
+                "descriptions", args.descriptions_model or args.model
+            )
+            feat_model = factory.get("features", args.features_model or args.model)
+            map_model = factory.get("mapping", args.mapping_model or args.model)
 
-        desc_agent = Agent(desc_model, instructions=system_prompt)
-        feat_agent = Agent(feat_model, instructions=system_prompt)
-        map_agent = Agent(map_model, instructions=system_prompt)
+            desc_agent = Agent(desc_model, instructions=system_prompt)
+            feat_agent = Agent(feat_model, instructions=system_prompt)
+            map_agent = Agent(map_model, instructions=system_prompt)
 
-        desc_session = ConversationSession(desc_agent, stage="descriptions")
-        feat_session = ConversationSession(feat_agent, stage="features")
-        map_session = ConversationSession(map_agent, stage="mapping")
-        generator = PlateauGenerator(
-            feat_session,
-            required_count=settings.features_per_role,
-            roles=role_ids,
-            description_session=desc_session,
-            mapping_session=map_session,
-            mapping_batch_size=mapping_batch_size,
-            mapping_parallel_types=mapping_parallel_types,
-        )
-        evolution = await generator.generate_service_evolution_async(
-            service, transcripts_dir=transcripts_dir
-        )
-        line = f"{evolution.model_dump_json()}\n"
-        async with lock:
-            output.write(line)
-            new_ids.add(service.service_id)
-        logfire.info(f"Generated evolution for {service.name}")
-    except Exception as exc:  # noqa: BLE001
-        quarantine_dir = Path("quarantine")
-        quarantine_dir.mkdir(parents=True, exist_ok=True)
-        quarantine_file = quarantine_dir / f"{service.service_id}.json"
-        quarantine_file.write_text(service.model_dump_json(indent=2))
-        logfire.error(f"Failed to generate evolution for {service.name}: {exc}")
+            desc_session = ConversationSession(desc_agent, stage="descriptions")
+            feat_session = ConversationSession(feat_agent, stage="features")
+            map_session = ConversationSession(map_agent, stage="mapping")
+            generator = PlateauGenerator(
+                feat_session,
+                required_count=settings.features_per_role,
+                roles=role_ids,
+                description_session=desc_session,
+                mapping_session=map_session,
+                mapping_batch_size=mapping_batch_size,
+                mapping_parallel_types=mapping_parallel_types,
+            )
+            evolution = await generator.generate_service_evolution_async(
+                service, transcripts_dir=transcripts_dir
+            )
+            line = f"{evolution.model_dump_json()}\n"
+            async with lock:
+                output.write(line)
+                new_ids.add(service.service_id)
+                EVOLUTIONS_GENERATED.add(1)
+                LINES_WRITTEN.add(1)
+            logfire.info(
+                "Generated evolution",
+                service_id=service.service_id,
+                output_path=getattr(output, "name", ""),
+            )
+        except Exception as exc:  # noqa: BLE001
+            quarantine_dir = Path("quarantine")
+            quarantine_dir.mkdir(parents=True, exist_ok=True)
+            quarantine_file = quarantine_dir / f"{service.service_id}.json"
+            quarantine_file.write_text(service.model_dump_json(indent=2))
+            logfire.exception(
+                "Failed to generate evolution",
+                service_id=service.service_id,
+                error=str(exc),
+                quarantine_file=str(quarantine_file),
+            )
 
 
 async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
     """Generate service ambitions and write them to disk."""
-
     output_path = Path(args.output_file)
-    if args.validate_only:
-        count = validate_jsonl(output_path, AmbitionModel)
-        logfire.info(f"Validated {count} lines in {output_path}")
-        return
+    attrs = {"output_path": str(output_path), "resume": args.resume}
+    with logfire.span("cmd_generate_ambitions", attributes=attrs) as span:
+        try:
+            if args.validate_only:
+                count = validate_jsonl(output_path, AmbitionModel)
+                logfire.info(
+                    "Validated output",
+                    lines=count,
+                    output_path=str(output_path),
+                )
+                return
 
-    # Load prompt components from the configured directory
-    configure_prompt_dir(settings.prompt_dir)
-    system_prompt = load_ambition_prompt(settings.context_id, settings.inspiration)
+            # Load prompt components from the configured directory
+            configure_prompt_dir(settings.prompt_dir)
+            system_prompt = load_ambition_prompt(
+                settings.context_id, settings.inspiration
+            )
 
-    use_web_search = (
-        args.web_search if args.web_search is not None else settings.web_search
-    )
-    factory = ModelFactory(
-        settings.model,
-        settings.openai_api_key,
-        stage_models=getattr(settings, "models", None),
-        reasoning=settings.reasoning,
-        seed=args.seed,
-        web_search=use_web_search,
-    )
+            use_web_search = (
+                args.web_search if args.web_search is not None else settings.web_search
+            )
+            factory = ModelFactory(
+                settings.model,
+                settings.openai_api_key,
+                stage_models=getattr(settings, "models", None),
+                reasoning=settings.reasoning,
+                seed=args.seed,
+                web_search=use_web_search,
+            )
 
-    feat_name = factory.model_name("features", args.features_model or args.model)
-    logfire.info(f"Generating evolution using features model {feat_name}")
-    model_name = factory.model_name("features", args.features_model or args.model)
-    logfire.info(f"Generating ambitions using model {model_name}")
-    model = factory.get("features", args.features_model or args.model)
-    concurrency = args.concurrency or settings.concurrency
-    token_weighting = (
-        args.token_weighting
-        if args.token_weighting is not None
-        else settings.token_weighting
-    )
-    generator = ServiceAmbitionGenerator(
-        model,
-        concurrency=concurrency,
-        batch_size=settings.batch_size,
-        request_timeout=settings.request_timeout,
-        retries=settings.retries,
-        retry_base_delay=settings.retry_base_delay,
-        expected_output_tokens=args.expected_output_tokens,
-        token_weighting=token_weighting,
-    )
+            model_name = factory.model_name(
+                "features", args.features_model or args.model
+            )
+            span.set_attribute("model_name", model_name)
+            logfire.info("Generating ambitions", model=model_name)
+            model = factory.get("features", args.features_model or args.model)
+            concurrency = args.concurrency or settings.concurrency
+            token_weighting = (
+                args.token_weighting
+                if args.token_weighting is not None
+                else settings.token_weighting
+            )
+            generator = ServiceAmbitionGenerator(
+                model,
+                concurrency=concurrency,
+                batch_size=settings.batch_size,
+                request_timeout=settings.request_timeout,
+                retries=settings.retries,
+                retry_base_delay=settings.retry_base_delay,
+                expected_output_tokens=args.expected_output_tokens,
+                token_weighting=token_weighting,
+            )
 
-    part_path, processed_path = _prepare_paths(output_path, args.resume)
-    processed_ids, existing_lines = _load_resume_state(
-        processed_path, output_path, args.resume
-    )
-    transcripts_dir = _ensure_transcripts_dir(args.transcripts_dir, output_path)
-    services = _load_services_list(
-        args.input_file, args.max_services, processed_ids if args.resume else set()
-    )
+            part_path, processed_path = _prepare_paths(output_path, args.resume)
+            processed_ids, existing_lines = _load_resume_state(
+                processed_path, output_path, args.resume
+            )
+            transcripts_dir = _ensure_transcripts_dir(args.transcripts_dir, output_path)
+            services = _load_services_list(
+                args.input_file,
+                args.max_services,
+                processed_ids if args.resume else set(),
+            )
 
-    if args.dry_run:
-        logfire.info(f"Validated {len(services)} services")
-        return
+            if args.dry_run:
+                logfire.info(
+                    "Validated services",
+                    count=len(services),
+                    resume=args.resume,
+                )
+                return
 
-    show_progress = args.progress and sys.stdout.isatty()
-    progress = tqdm(total=len(services)) if show_progress else None
-    new_ids = await generator.generate_async(
-        services,
-        system_prompt,
-        str(part_path),
-        progress=progress,
-        transcripts_dir=transcripts_dir,
-    )
-    if progress:
-        progress.close()
+            show_progress = args.progress and sys.stdout.isatty()
+            progress = tqdm(total=len(services)) if show_progress else None
+            new_ids = await generator.generate_async(
+                services,
+                system_prompt,
+                str(part_path),
+                progress=progress,
+                transcripts_dir=transcripts_dir,
+            )
+            if progress:
+                progress.close()
 
-    processed_ids = _save_results(
-        resume=args.resume,
-        part_path=part_path,
-        output_path=output_path,
-        existing_lines=existing_lines,
-        processed_ids=processed_ids,
-        new_ids=new_ids,
-        processed_path=processed_path,
-    )
-    logfire.info(f"Results written to {output_path}")
+            SERVICES_PROCESSED.add(len(new_ids))
+            LINES_WRITTEN.add(len(new_ids))
+
+            processed_ids = _save_results(
+                resume=args.resume,
+                part_path=part_path,
+                output_path=output_path,
+                existing_lines=existing_lines,
+                processed_ids=processed_ids,
+                new_ids=new_ids,
+                processed_path=processed_path,
+            )
+            logfire.info(
+                "Results written",
+                output_path=str(output_path),
+                lines_written=len(new_ids),
+                resume=args.resume,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logfire.exception(
+                "Ambition generation failed",
+                output_path=str(output_path),
+                resume=args.resume,
+                error=str(exc),
+            )
+            raise
 
 
 async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
