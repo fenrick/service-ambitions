@@ -25,9 +25,9 @@ from loader import (
     load_evolution_prompt,
     load_role_ids,
 )
-from mapping import init_embeddings
+from mapping import init_embeddings, map_features_async
 from model_factory import ModelFactory
-from models import ServiceInput
+from models import ServiceEvolution, ServiceInput
 from monitoring import LOG_FILE_NAME, init_logfire, logfire
 from persistence import atomic_write, read_lines
 from plateau_generator import PlateauGenerator
@@ -441,6 +441,62 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
         _log_stage_totals()
 
 
+async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
+    """Augment evolution features with mapping results."""
+
+    use_web_search = (
+        args.web_search if args.web_search is not None else settings.web_search
+    )
+    factory = ModelFactory(
+        settings.model,
+        settings.openai_api_key,
+        stage_models=getattr(settings, "models", None),
+        reasoning=settings.reasoning,
+        seed=args.seed,
+        web_search=use_web_search,
+    )
+
+    map_model = factory.get("mapping", args.mapping_model or args.model)
+    map_agent = Agent(map_model, instructions="")
+    session = ConversationSession(map_agent, stage="mapping")
+
+    mapping_batch_size = args.mapping_batch_size or settings.mapping_batch_size
+    mapping_parallel_types = (
+        args.mapping_parallel_types
+        if args.mapping_parallel_types is not None
+        else settings.mapping_parallel_types
+    )
+
+    input_path = Path(args.input_file)
+    evolutions = [
+        ServiceEvolution.model_validate_json(line)
+        for line in input_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+    features = [
+        feat
+        for evo in evolutions
+        for plateau in evo.plateaus
+        for feat in plateau.features
+    ]
+    mapped = await map_features_async(
+        session,
+        features,
+        batch_size=mapping_batch_size,
+        parallel_types=mapping_parallel_types,
+    )
+    mapped_by_id = {f.feature_id: f for f in mapped}
+    for evo in evolutions:
+        for plateau in evo.plateaus:
+            plateau.features = [mapped_by_id[f.feature_id] for f in plateau.features]
+
+    output_path = Path(args.output_file)
+    with output_path.open("w", encoding="utf-8") as out:
+        for evo in evolutions:
+            out.write(f"{evo.model_dump_json()}\n")
+
+
 def main() -> None:
     """Parse arguments and dispatch to the requested subcommand."""
 
@@ -610,6 +666,23 @@ def main() -> None:
         help="Path to the roles definition JSON file",
     )
     evo.set_defaults(func=_cmd_generate_evolution)
+
+    map_p = subparsers.add_parser(
+        "generate-mapping",
+        parents=[common],
+        help="Generate feature mappings",
+    )
+    map_p.add_argument(
+        "--input-file",
+        default="evolution.jsonl",
+        help="Path to the evolution JSONL file",
+    )
+    map_p.add_argument(
+        "--output-file",
+        default="mapped.jsonl",
+        help="File to write the results",
+    )
+    map_p.set_defaults(func=_cmd_generate_mapping)
 
     args = parser.parse_args()
 
