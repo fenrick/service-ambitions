@@ -8,6 +8,7 @@ from typing import cast
 
 from pydantic_ai import Agent, messages
 
+import conversation
 from conversation import ConversationSession
 from models import ServiceFeature, ServiceInput
 from stage_metrics import iter_stage_totals, reset_stage_totals
@@ -117,3 +118,32 @@ def test_stage_metrics_accumulate() -> None:
     assert stage == "test"
     assert totals.prompts == 1
     assert totals.total_tokens == 5
+
+
+def test_ask_omits_prompt_logging_when_disabled(monkeypatch) -> None:
+    """Prompts should not be logged when ``log_prompts`` is ``False``."""
+
+    agent = DummyAgent()
+    session = ConversationSession(cast(Agent[None, str], agent), log_prompts=False)
+    calls: list[str] = []
+    monkeypatch.setattr(conversation.logfire, "debug", lambda msg: calls.append(msg))
+
+    session.ask("hello")
+
+    assert calls == []
+
+
+def test_ask_redacts_prompt_when_enabled(monkeypatch) -> None:
+    """Prompt text should pass through ``redact_pii`` before logging."""
+
+    agent = DummyAgent()
+    session = ConversationSession(
+        cast(Agent[None, str], agent), log_prompts=True, redact_prompts=True
+    )
+    monkeypatch.setattr(conversation, "redact_pii", lambda s: "<redacted>")
+    calls: list[str] = []
+    monkeypatch.setattr(conversation.logfire, "debug", lambda msg: calls.append(msg))
+
+    session.ask("secret")
+
+    assert calls == ["Sending prompt: <redacted>"]
