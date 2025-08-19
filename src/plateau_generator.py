@@ -93,6 +93,20 @@ class PlateauGenerator:
         self.mapping_batch_size = mapping_batch_size
         self.mapping_parallel_types = mapping_parallel_types
         self._service: ServiceInput | None = None
+        # Track quarantine file paths for invalid plateau descriptions.
+        self.quarantined_descriptions: list[Path] = []
+
+    def _quarantine_description(self, plateau_name: str, raw: str) -> Path:
+        """Persist ``raw`` text for ``plateau_name`` and record its path."""
+
+        # Create the quarantine directory if it does not yet exist.
+        qdir = Path("quarantine/descriptions")
+        qdir.mkdir(parents=True, exist_ok=True)
+        file_path = qdir / f"{plateau_name}.txt"
+        file_path.write_text(raw)
+        logfire.warning(f"Quarantined plateau description at {file_path}")
+        self.quarantined_descriptions.append(file_path)
+        return file_path
 
     def _request_description(
         self, level: int, session: ConversationSession | None = None
@@ -112,19 +126,28 @@ class PlateauGenerator:
             schema=str(schema),
         )
 
-        # Query the model using the provided conversation session so the
-        # description becomes part of the chat history for that plateau only.
+        # Query the model to obtain the raw response text.
+        raw = session.ask(prompt)
+
+        # Map the numeric level back to the plateau name for quarantine purposes.
+        plateau_name = next(
+            (n for n, lvl in DEFAULT_PLATEAU_MAP.items() if lvl == level),
+            f"plateau_{level}",
+        )
+
         try:
-            response = session.ask(prompt, output_type=DescriptionResponse)
+            response = DescriptionResponse.model_validate_json(raw)
+            if not response.description:
+                raise ValueError(A_NON_EMPTY_STRING)
+            cleaned = self._sanitize_description(response.description)
+            if not cleaned:
+                raise ValueError(A_NON_EMPTY_STRING)
+            return cleaned
         except Exception as exc:
-            logfire.error(f"Invalid plateau description: {exc}")
-            raise ValueError("Agent returned invalid plateau description") from exc
-        if not response.description:
-            raise ValueError(A_NON_EMPTY_STRING)
-        cleaned = self._sanitize_description(response.description)
-        if not cleaned:
-            raise ValueError(A_NON_EMPTY_STRING)
-        return cleaned
+            # Persist the invalid response and continue with a safe placeholder.
+            self._quarantine_description(plateau_name, raw)
+            logfire.error(f"Invalid plateau description for {plateau_name}: {exc}")
+            return ""
 
     @staticmethod
     def _sanitize_description(text: str) -> str:
@@ -159,20 +182,37 @@ class PlateauGenerator:
         schema = json.dumps(PlateauDescriptionsResponse.model_json_schema(), indent=2)
         template = load_prompt_text("plateau_descriptions_prompt")
         prompt = template.format(plateaus=plateaus_str, schema=str(schema))
+        raw = session.ask(prompt)
+
         try:
-            payload = session.ask(prompt, output_type=PlateauDescriptionsResponse)
+            data = json.loads(raw)
+            items = data.get("descriptions", [])
         except Exception as exc:
+            # If the overall payload is invalid JSON, quarantine each plateau.
             logfire.error(f"Invalid plateau descriptions: {exc}")
-            raise ValueError("Agent returned invalid plateau descriptions") from exc
+            items = []
 
         results: dict[str, str] = {}
-        for item in payload.descriptions:
-            if not item.description:
-                raise ValueError(A_NON_EMPTY_STRING)
-            cleaned = self._sanitize_description(item.description)
-            if not cleaned:
-                raise ValueError(A_NON_EMPTY_STRING)
-            results[item.plateau_name] = cleaned
+        item_map = {i.get("plateau_name"): i for i in items if isinstance(i, dict)}
+        for name in plateau_names:
+            item = item_map.get(name)
+            if item is None:
+                # Missing entry for the plateau name.
+                self._quarantine_description(name, raw)
+                results[name] = ""
+                continue
+            try:
+                resp = DescriptionResponse.model_validate_json(json.dumps(item))
+                if not resp.description:
+                    raise ValueError(A_NON_EMPTY_STRING)
+                cleaned = self._sanitize_description(resp.description)
+                if not cleaned:
+                    raise ValueError(A_NON_EMPTY_STRING)
+                results[name] = cleaned
+            except Exception as exc:
+                self._quarantine_description(name, raw)
+                logfire.error(f"Invalid plateau description for {name}: {exc}")
+                results[name] = ""
         return results
 
     async def _request_descriptions_async(
@@ -194,22 +234,36 @@ class PlateauGenerator:
         schema = json.dumps(PlateauDescriptionsResponse.model_json_schema(), indent=2)
         template = load_prompt_text("plateau_descriptions_prompt")
         prompt = template.format(plateaus=plateaus_str, schema=str(schema))
+        raw = await session.ask_async(prompt)
+
         try:
-            payload = await session.ask_async(
-                prompt, output_type=PlateauDescriptionsResponse
-            )
+            data = json.loads(raw)
+            items = data.get("descriptions", [])
         except Exception as exc:
+            # If the overall payload is invalid JSON, quarantine each plateau.
             logfire.error(f"Invalid plateau descriptions: {exc}")
-            raise ValueError("Agent returned invalid plateau descriptions") from exc
+            items = []
 
         results: dict[str, str] = {}
-        for item in payload.descriptions:
-            if not item.description:
-                raise ValueError(A_NON_EMPTY_STRING)
-            cleaned = self._sanitize_description(item.description)
-            if not cleaned:
-                raise ValueError(A_NON_EMPTY_STRING)
-            results[item.plateau_name] = cleaned
+        item_map = {i.get("plateau_name"): i for i in items if isinstance(i, dict)}
+        for name in plateau_names:
+            item = item_map.get(name)
+            if item is None:
+                self._quarantine_description(name, raw)
+                results[name] = ""
+                continue
+            try:
+                resp = DescriptionResponse.model_validate_json(json.dumps(item))
+                if not resp.description:
+                    raise ValueError(A_NON_EMPTY_STRING)
+                cleaned = self._sanitize_description(resp.description)
+                if not cleaned:
+                    raise ValueError(A_NON_EMPTY_STRING)
+                results[name] = cleaned
+            except Exception as exc:
+                self._quarantine_description(name, raw)
+                logfire.error(f"Invalid plateau description for {name}: {exc}")
+                results[name] = ""
         return results
 
     def _to_feature(self, item: FeatureItem, role: str) -> PlateauFeature:
