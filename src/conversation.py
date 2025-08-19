@@ -16,6 +16,7 @@ import logfire
 from pydantic_ai import Agent, messages
 
 from models import ServiceInput
+from redaction import redact_pii
 from stage_metrics import record_stage_metrics
 from token_utils import estimate_cost
 
@@ -31,16 +32,27 @@ class ConversationSession:
     may be seeded using :meth:`add_parent_materials`.
     """
 
-    def __init__(self, client: Agent, *, stage: str | None = None) -> None:
+    def __init__(
+        self,
+        client: Agent,
+        *,
+        stage: str | None = None,
+        log_prompts: bool = True,
+        redact_prompts: bool = False,
+    ) -> None:
         """Initialise the session with a configured LLM client.
 
         Args:
             client: Pydantic-AI ``Agent`` used for exchanges with the model.
             stage: Optional name of the generation stage for observability.
+            log_prompts: When ``True`` debug log prompt text.
+            redact_prompts: Redact prompt text before logging when ``log_prompts``.
         """
 
         self.client = client
         self.stage = stage
+        self.log_prompts = log_prompts
+        self.redact_prompts = redact_prompts
         self._history: list[messages.ModelMessage] = []
 
     def add_parent_materials(self, service_input: ServiceInput) -> None:
@@ -102,7 +114,11 @@ class ConversationSession:
             span.set_attribute("stage", stage)
             span.set_attribute("model_name", model_name)
             try:
-                logfire.debug(f"Sending prompt: {prompt}")
+                if self.log_prompts:
+                    logged_prompt = (
+                        redact_pii(prompt) if self.redact_prompts else prompt
+                    )
+                    logfire.debug(f"Sending prompt: {logged_prompt}")
                 result = self.client.run_sync(
                     prompt, message_history=self._history, output_type=output_type
                 )
@@ -158,7 +174,11 @@ class ConversationSession:
             span.set_attribute("stage", stage)
             span.set_attribute("model_name", model_name)
             try:
-                logfire.debug(f"Sending prompt: {prompt}")
+                if self.log_prompts:
+                    logged_prompt = (
+                        redact_pii(prompt) if self.redact_prompts else prompt
+                    )
+                    logfire.debug(f"Sending prompt: {logged_prompt}")
                 result = await self.client.run(
                     prompt, message_history=self._history, output_type=output_type
                 )
