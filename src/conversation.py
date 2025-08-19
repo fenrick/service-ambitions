@@ -9,6 +9,7 @@ agent without relying on asynchronous execution.
 
 from __future__ import annotations
 
+import re
 from typing import TypeVar, overload
 
 import logfire
@@ -19,6 +20,27 @@ from token_utils import estimate_cost
 
 PROMPTS_SENT = logfire.metric_counter("prompts_sent")
 TOKENS_CONSUMED = logfire.metric_counter("tokens_consumed")
+
+
+PII_PATTERNS = [
+    re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"),  # email addresses
+    re.compile(r"\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b"),  # phone numbers
+    re.compile(r"\b\d{8,}\b"),  # generic long numeric identifiers
+]
+
+
+def redact_pii(text: str) -> str:
+    """Return ``text`` with common identifiers replaced by ``[REDACTED]``.
+
+    Emails, phone numbers and long numeric identifiers are masked to prevent
+    logging or storing sensitive data. This function performs simple pattern
+    based replacement and is not intended as a comprehensive PII solution.
+    """
+
+    redacted = text
+    for pattern in PII_PATTERNS:
+        redacted = pattern.sub("[REDACTED]", redacted)
+    return redacted
 
 
 class ConversationSession:
@@ -52,9 +74,10 @@ class ConversationSession:
             history.
         """
         ctx = "SERVICE_CONTEXT:\n" + service_input.model_dump_json()
-        logfire.debug(f"Adding service material to history: {ctx}")
+        redacted = redact_pii(ctx)
+        logfire.debug(f"Adding service material to history: {redacted}")
         self._history.append(
-            messages.ModelRequest(parts=[messages.UserPromptPart(ctx)])
+            messages.ModelRequest(parts=[messages.UserPromptPart(redacted)])
         )
 
     def derive(self) -> "ConversationSession":
