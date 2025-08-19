@@ -180,6 +180,24 @@ Basic invocation:
 Processing happens concurrently; control parallel workers with `--concurrency`
 which defaults to the `concurrency` value in your settings.
 
+Mapping requests are batched. Adjust `--mapping-batch-size` to control how many
+features are sent per mapping request; the default is 30. Smaller batches create
+shorter prompts and quicker responses but increase API calls. Larger batches
+reduce round trips at the cost of bigger prompts, higher latency and a greater
+risk of hitting model context limits.
+
+For each batch the CLI maps Data, Applications and Technologies in parallel.
+This behaviour is enabled by default via `--mapping-parallel-types`. Disable it
+with `--no-mapping-parallel-types` to process mapping types sequentially when
+rate limits are tight.
+
+Example invocation tuning mapping behaviour:
+
+```bash
+./run.sh generate-evolution --input-file sample-services.jsonl \
+  --output-file evolution.jsonl --mapping-batch-size 20 --no-mapping-parallel-types
+```
+
 ### Conversation seed
 
 The model conversation is seeded with service metadata so each request retains
