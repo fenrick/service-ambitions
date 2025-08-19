@@ -20,7 +20,7 @@ from models import (
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
-def test_service_evolution_contains_plateaus() -> None:
+def test_service_evolution_contains_plateaus(meta_factory) -> None:
     """Constructing a ServiceEvolution should retain nested models."""
 
     service = ServiceInput(
@@ -44,7 +44,9 @@ def test_service_evolution_contains_plateaus() -> None:
         features=[feature],
     )
 
-    evolution = ServiceEvolution(service=service, plateaus=[plateau])
+    evolution = ServiceEvolution(
+        meta=meta_factory(), service=service, plateaus=[plateau]
+    )
 
     assert evolution.plateaus[0].features[0].name == "Feat"
 

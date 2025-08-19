@@ -9,7 +9,13 @@ from typing import cast
 from pydantic_ai import Agent
 
 from conversation import ConversationSession
-from models import Contribution, PlateauFeature, ServiceEvolution, ServiceInput
+from models import (
+    SCHEMA_VERSION,
+    Contribution,
+    PlateauFeature,
+    ServiceEvolution,
+    ServiceInput,
+)
 from plateau_generator import PlateauGenerator
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -114,6 +120,7 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
         ["learners", "academics", "professional_staff"],
     )
     assert isinstance(evolution, ServiceEvolution)
+    assert evolution.meta.schema_version == SCHEMA_VERSION
     assert len(evolution.plateaus) == 4
     assert sum(len(p.features) for p in evolution.plateaus) == 60
     assert all(len(p.features) >= 15 for p in evolution.plateaus)
