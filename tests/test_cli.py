@@ -160,6 +160,24 @@ def test_cli_requires_api_key(monkeypatch):
     assert "openai_api_key" in str(excinfo.value)
 
 
+def test_configure_logging_emits_json(tmp_path, monkeypatch):
+    """Structured logging writes JSON records to the default file."""
+
+    monkeypatch.chdir(tmp_path)
+    args = SimpleNamespace(verbose=0)
+    settings = SimpleNamespace(log_level="INFO", logfire_token=None)
+
+    cli._configure_logging(args, settings)
+    logging.getLogger().info("hello")
+    logging.getLogger().handlers[0].flush()
+
+    log_path = Path(LOG_FILE_NAME)
+    payload = json.loads(log_path.read_text(encoding="utf-8"))
+    assert payload["message"] == "hello"
+
+    logging.getLogger().handlers.clear()
+
+
 def test_cli_switches_context(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     base = tmp_path / "prompts"

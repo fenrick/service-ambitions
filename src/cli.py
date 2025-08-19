@@ -28,7 +28,7 @@ from loader import (
 from mapping import init_embeddings
 from model_factory import ModelFactory
 from models import ServiceInput
-from monitoring import LOG_FILE_NAME, init_logfire, logfire
+from monitoring import LOG_FILE_NAME, JsonFormatter, init_logfire, logfire
 from persistence import atomic_write, read_lines
 from plateau_generator import PlateauGenerator
 from service_loader import load_services
@@ -52,11 +52,15 @@ def _configure_logging(args: argparse.Namespace, settings) -> None:
         # Two or more -v flags enable DEBUG for deep troubleshooting
         level_name = "DEBUG"
 
-    logging.basicConfig(
-        filename=LOG_FILE_NAME,
-        level=getattr(logging, level_name.upper(), logging.INFO),
-        force=True,
-    )
+    level = getattr(logging, level_name.upper(), logging.INFO)
+    root_logger = logging.getLogger()
+    root_logger.handlers.clear()
+    root_logger.setLevel(level)
+
+    # Emit structured JSON logs to a file for downstream processing
+    file_handler = logging.FileHandler(LOG_FILE_NAME, encoding="utf-8")
+    file_handler.setFormatter(JsonFormatter())
+    root_logger.addHandler(file_handler)
     if settings.logfire_token:
         # Initialize logfire only when a token is configured
         init_logfire(settings.logfire_token)

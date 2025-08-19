@@ -168,8 +168,9 @@ file.
 Use the `generate-evolution` subcommand to score each service against all
 configured plateau features and customer segments. It reads services from an
 input JSON Lines file and writes a `ServiceEvolution` record for each line in
-the output file. Logs are written to `service.log` in the current working
-directory. Enable verbose logs with `-v` or `-vv`.
+the output file. A `service.log` file in the current working directory captures
+structured JSON log records, one object per line, making downstream parsing
+trivial. Enable verbose logs with `-v` or `-vv`.
 
 Basic invocation:
 
