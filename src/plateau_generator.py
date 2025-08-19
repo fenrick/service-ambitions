@@ -10,6 +10,7 @@ history into another while still reusing the same underlying agent.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import re
 from typing import Sequence
@@ -538,16 +539,36 @@ class PlateauGenerator:
             results = await scheduler.run()
 
             plateaus: list[PlateauResult] = []
+            seen: set[str] = set()
             for result in results:
-                filtered = [
-                    feat for feat in result.features if feat.customer_type in role_ids
-                ]
+                if result.plateau_name not in plateau_names:
+                    raise ValueError(f"Unknown plateau name: {result.plateau_name}")
+                valid: list[PlateauFeature] = []
+                for feat in result.features:
+                    if feat.customer_type not in role_ids:
+                        raise ValueError(f"Unknown customer_type: {feat.customer_type}")
+                    raw = (
+                        f"{feat.name}|{feat.customer_type}|{result.plateau_name}"
+                        .encode()
+                    )
+                    feature_hash = hashlib.sha1(raw, usedforsecurity=False).hexdigest()
+                    if feature_hash in seen:
+                        logfire.warning(
+                            "Duplicate feature removed",
+                            feature=feat.name,
+                            role=feat.customer_type,
+                            plateau=result.plateau_name,
+                        )
+                        continue
+                    seen.add(feature_hash)
+                    feat.feature_id = feature_hash
+                    valid.append(feat)
                 plateaus.append(
                     PlateauResult(
                         plateau=result.plateau,
                         plateau_name=result.plateau_name,
                         service_description=result.service_description,
-                        features=filtered,
+                        features=valid,
                     )
                 )
 
