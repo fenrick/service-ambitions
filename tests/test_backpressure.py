@@ -125,8 +125,8 @@ def test_rolling_metrics_reports(monkeypatch):
 
     calls: list[SimpleNamespace] = []
 
-    def fake_metric(name: str, value: float) -> None:
-        calls.append(SimpleNamespace(kind="metric", name=name, value=value))
+    def fake_info(msg: str, **kwargs: float) -> None:
+        calls.append(SimpleNamespace(kind="info", msg=msg, data=kwargs))
 
     class FakeCounter:
         def __init__(self, name: str) -> None:
@@ -142,24 +142,37 @@ def test_rolling_metrics_reports(monkeypatch):
         def set(self, value: float) -> None:  # pragma: no cover - simple proxy
             calls.append(SimpleNamespace(kind="gauge", name=self.name, value=value))
 
-    monkeypatch.setattr(backpressure.logfire, "metric", fake_metric)
     monkeypatch.setattr(backpressure, "REQUESTS_TOTAL", FakeCounter("requests_total"))
     monkeypatch.setattr(backpressure, "ERRORS_TOTAL", FakeCounter("errors_total"))
     monkeypatch.setattr(backpressure, "TOKENS_IN_FLIGHT", FakeGauge("tokens_in_flight"))
+    monkeypatch.setattr(
+        backpressure, "REQUESTS_PER_SECOND", FakeGauge("requests_per_second")
+    )
+    monkeypatch.setattr(backpressure, "ERROR_RATE", FakeGauge("error_rate"))
+    monkeypatch.setattr(
+        backpressure, "TOKENS_PER_SECOND", FakeGauge("tokens_per_second")
+    )
+    monkeypatch.setattr(backpressure.logfire, "info", fake_info)
 
     metrics = RollingMetrics(window=1)
     metrics.record_request()
     metrics.record_error()
     metrics.record_start_tokens(5)
     metrics.record_end_tokens(5)
+    metrics.record_latency(0.5)
+    metrics.record_rate_limit()
     metrics.record_request()
 
-    names = {(c.kind, c.name) for c in calls}
+    names = {(c.kind, c.name) for c in calls if hasattr(c, "name")}
     assert {
-        ("metric", "requests_per_second"),
-        ("metric", "error_rate"),
-        ("metric", "tokens_per_second"),
+        ("gauge", "requests_per_second"),
+        ("gauge", "error_rate"),
+        ("gauge", "tokens_per_second"),
         ("counter", "requests_total"),
         ("counter", "errors_total"),
         ("gauge", "tokens_in_flight"),
     } <= names
+    info_payloads = [c.data for c in calls if c.kind == "info"]
+    assert any("tokens_per_sec" in p for p in info_payloads)
+    assert any("avg_latency" in p for p in info_payloads)
+    assert any("rate_limit_rate" in p for p in info_payloads)

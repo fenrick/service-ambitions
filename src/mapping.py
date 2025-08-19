@@ -19,7 +19,7 @@ import numpy as np
 from openai import AsyncOpenAI
 from scipy.sparse import csr_matrix
 from sklearn.feature_extraction.text import (
-    TfidfVectorizer,
+    TfidfVectorizer,  # type: ignore[import]
 )
 
 from loader import load_mapping_items, load_mapping_type_config, load_prompt_text

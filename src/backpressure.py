@@ -232,6 +232,8 @@ class RollingMetrics:
         self._requests: Deque[float] = deque()
         self._errors: Deque[float] = deque()
         self._tokens: Deque[tuple[float, int]] = deque()
+        self._latencies: Deque[tuple[float, float]] = deque()
+        self._rate_limits: Deque[float] = deque()
         self._in_flight = 0
 
     def _trim(self, buf: Deque[float], now: float) -> None:
@@ -242,6 +244,10 @@ class RollingMetrics:
         while self._tokens and now - self._tokens[0][0] > self._window:
             self._tokens.popleft()
 
+    def _trim_latencies(self, now: float) -> None:
+        while self._latencies and now - self._latencies[0][0] > self._window:
+            self._latencies.popleft()
+
     def record_request(self) -> None:
         """Record a request and emit updated metrics."""
 
@@ -249,15 +255,30 @@ class RollingMetrics:
         self._requests.append(now)
         self._trim(self._requests, now)
         self._trim(self._errors, now)
+        self._trim_tokens(now)
+        self._trim_latencies(now)
+        self._trim(self._rate_limits, now)
         REQUESTS_TOTAL.add(1)
         rps = len(self._requests) / self._window
         error_rate = len(self._errors) / len(self._requests) if self._requests else 0.0
+        total_tokens = sum(t for _, t in self._tokens)
+        tps = total_tokens / self._window
+        avg_latency = (
+            sum(d for _, d in self._latencies) / len(self._latencies)
+            if self._latencies
+            else 0.0
+        )
+        rate_limit_rate = len(self._rate_limits) / self._window
         REQUESTS_PER_SECOND.set(rps)
         ERROR_RATE.set(error_rate)
+        TOKENS_PER_SECOND.set(tps)
         logfire.info(
             "Request metrics updated",
             rps=rps,
             error_rate=error_rate,
+            tokens_per_sec=tps,
+            avg_latency=avg_latency,
+            rate_limit_rate=rate_limit_rate,
         )
 
     def record_error(self) -> None:
@@ -282,19 +303,43 @@ class RollingMetrics:
         TOKENS_IN_FLIGHT.set(self._in_flight)
         self._tokens.append((now, count))
         self._trim_tokens(now)
+        self._trim_latencies(now)
+        self._trim(self._rate_limits, now)
         total_tokens = sum(t for _, t in self._tokens)
         tps = total_tokens / self._window
+        avg_latency = (
+            sum(d for _, d in self._latencies) / len(self._latencies)
+            if self._latencies
+            else 0.0
+        )
+        rate_limit_rate = len(self._rate_limits) / self._window
         TOKENS_PER_SECOND.set(tps)
         logfire.info(
             "Token metrics updated",
             tokens_per_sec=tps,
             in_flight=self._in_flight,
+            avg_latency=avg_latency,
+            rate_limit_rate=rate_limit_rate,
         )
 
     def record_tokens(self, count: int) -> None:
         """Alias for :meth:`record_end_tokens` for backwards compatibility."""
 
         self.record_end_tokens(count)
+
+    def record_latency(self, duration: float) -> None:
+        """Record request latency in seconds."""
+
+        now = time.monotonic()
+        self._latencies.append((now, duration))
+        self._trim_latencies(now)
+
+    def record_rate_limit(self) -> None:
+        """Record occurrence of a rate-limit event."""
+
+        now = time.monotonic()
+        self._rate_limits.append(now)
+        self._trim(self._rate_limits, now)
 
 
 __all__ = ["AdaptiveSemaphore", "RollingMetrics"]
