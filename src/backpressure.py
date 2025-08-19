@@ -40,6 +40,15 @@ from typing import AsyncContextManager, AsyncIterator, Deque, Optional
 
 import logfire
 
+REQUESTS_TOTAL = logfire.metric_counter("requests_total")
+"""Counter for total requests processed."""
+
+ERRORS_TOTAL = logfire.metric_counter("errors_total")
+"""Counter for total errors encountered."""
+
+TOKENS_IN_FLIGHT = logfire.metric_gauge("tokens_in_flight")
+"""Gauge tracking tokens currently being processed."""
+
 
 class AdaptiveSemaphore:
     """Semaphore that reacts to rate limit signals with weighted permits.
@@ -234,8 +243,16 @@ class RollingMetrics:
         self._requests.append(now)
         self._trim(self._requests, now)
         self._trim(self._errors, now)
+        REQUESTS_TOTAL.add(1)
         rps = len(self._requests) / self._window
         error_rate = len(self._errors) / len(self._requests) if self._requests else 0.0
+        logfire.metric("requests_per_second", rps)
+        logfire.metric("error_rate", error_rate)
+        logfire.info(
+            "Request metrics updated",
+            rps=rps,
+            error_rate=error_rate,
+        )
 
     def record_error(self) -> None:
         """Record an error occurrence."""
@@ -243,20 +260,30 @@ class RollingMetrics:
         now = time.monotonic()
         self._errors.append(now)
         self._trim(self._errors, now)
+        ERRORS_TOTAL.add(1)
 
     def record_start_tokens(self, count: int) -> None:
         """Increment in-flight tokens and emit the current count."""
 
         self._in_flight += count
+        TOKENS_IN_FLIGHT.set(self._in_flight)
 
     def record_end_tokens(self, count: int) -> None:
         """Decrement in-flight tokens and update aggregate throughput."""
 
         now = time.monotonic()
         self._in_flight = max(self._in_flight - count, 0)
+        TOKENS_IN_FLIGHT.set(self._in_flight)
         self._tokens.append((now, count))
         self._trim_tokens(now)
         total_tokens = sum(t for _, t in self._tokens)
+        tps = total_tokens / self._window
+        logfire.metric("tokens_per_second", tps)
+        logfire.info(
+            "Token metrics updated",
+            tokens_per_sec=tps,
+            in_flight=self._in_flight,
+        )
 
     def record_tokens(self, count: int) -> None:
         """Alias for :meth:`record_end_tokens` for backwards compatibility."""

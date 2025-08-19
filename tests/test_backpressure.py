@@ -126,9 +126,27 @@ def test_rolling_metrics_reports(monkeypatch):
     calls: list[SimpleNamespace] = []
 
     def fake_metric(name: str, value: float) -> None:
-        calls.append(SimpleNamespace(name=name, value=value))
+        calls.append(SimpleNamespace(kind="metric", name=name, value=value))
+
+    class FakeCounter:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def add(self, value: float) -> None:  # pragma: no cover - simple proxy
+            calls.append(SimpleNamespace(kind="counter", name=self.name, value=value))
+
+    class FakeGauge:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def set(self, value: float) -> None:  # pragma: no cover - simple proxy
+            calls.append(SimpleNamespace(kind="gauge", name=self.name, value=value))
 
     monkeypatch.setattr(backpressure.logfire, "metric", fake_metric)
+    monkeypatch.setattr(backpressure, "REQUESTS_TOTAL", FakeCounter("requests_total"))
+    monkeypatch.setattr(backpressure, "ERRORS_TOTAL", FakeCounter("errors_total"))
+    monkeypatch.setattr(backpressure, "TOKENS_IN_FLIGHT", FakeGauge("tokens_in_flight"))
+
     metrics = RollingMetrics(window=1)
     metrics.record_request()
     metrics.record_error()
@@ -136,10 +154,12 @@ def test_rolling_metrics_reports(monkeypatch):
     metrics.record_end_tokens(5)
     metrics.record_request()
 
-    names = {c.name for c in calls}
+    names = {(c.kind, c.name) for c in calls}
     assert {
-        "requests_per_second",
-        "error_rate",
-        "tokens_per_second",
-        "tokens_in_flight",
+        ("metric", "requests_per_second"),
+        ("metric", "error_rate"),
+        ("metric", "tokens_per_second"),
+        ("counter", "requests_total"),
+        ("counter", "errors_total"),
+        ("gauge", "tokens_in_flight"),
     } <= names
