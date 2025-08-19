@@ -88,13 +88,17 @@ subcommands to select the desired operation:
 ```bash
 poetry run service-ambitions generate-ambitions --input-file sample-services.jsonl --output-file ambitions.jsonl
 poetry run service-ambitions generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl
+poetry run service-ambitions generate-mapping --input evolution.jsonl --output evolution-remapped.jsonl
 ```
+
+See [docs/generate-mapping.md](docs/generate-mapping.md) for more details.
 
 Alternatively, use the provided shell script which forwards all arguments to the CLI:
 
 ```bash
 ./run.sh generate-ambitions --input-file sample-services.jsonl --output-file ambitions.jsonl
 ./run.sh generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl
+./run.sh generate-mapping --input evolution.jsonl --output evolution-remapped.jsonl
 ```
 
 ## Usage

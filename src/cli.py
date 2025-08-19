@@ -25,9 +25,9 @@ from loader import (
     load_evolution_prompt,
     load_role_ids,
 )
-from mapping import init_embeddings
+from mapping import init_embeddings, map_features_async
 from model_factory import ModelFactory
-from models import ServiceInput
+from models import ServiceEvolution, ServiceInput
 from monitoring import LOG_FILE_NAME, init_logfire, logfire
 from persistence import atomic_write, read_lines
 from plateau_generator import PlateauGenerator
@@ -410,6 +410,60 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
     )
 
 
+async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
+    """Regenerate feature mappings for existing evolutions."""
+
+    use_web_search = (
+        args.web_search if args.web_search is not None else settings.web_search
+    )
+    factory = ModelFactory(
+        settings.model,
+        settings.openai_api_key,
+        stage_models=getattr(settings, "models", None),
+        reasoning=settings.reasoning,
+        seed=args.seed,
+        web_search=use_web_search,
+    )
+
+    await init_embeddings()
+    configure_prompt_dir(settings.prompt_dir)
+    system_prompt = load_evolution_prompt(settings.context_id, settings.inspiration)
+    model = factory.get("mapping", args.mapping_model or args.model)
+    agent = Agent(model, instructions=system_prompt)
+    session = ConversationSession(agent, stage="mapping")
+
+    batch_size = args.mapping_batch_size or settings.mapping_batch_size
+    parallel_types = (
+        args.mapping_parallel_types
+        if args.mapping_parallel_types is not None
+        else settings.mapping_parallel_types
+    )
+
+    output_lines: list[str] = []
+    for line in read_lines(Path(args.input)):
+        if not line.strip():
+            continue
+        evo = ServiceEvolution.model_validate_json(line)
+        for plateau in evo.plateaus:
+            for feat in plateau.features:
+                feat.mappings.clear()
+            plateau.features = await map_features_async(
+                session,
+                plateau.features,
+                batch_size=batch_size,
+                parallel_types=parallel_types,
+            )
+        output_lines.append(evo.model_dump_json())
+
+    atomic_write(Path(args.output), output_lines)
+    LINES_WRITTEN.add(len(output_lines))
+    logfire.info(
+        "Remapped evolution features",
+        output_path=str(args.output),
+        lines=len(output_lines),
+    )
+
+
 def main() -> None:
     """Parse arguments and dispatch to the requested subcommand."""
 
@@ -579,6 +633,23 @@ def main() -> None:
         help="Path to the roles definition JSON file",
     )
     evo.set_defaults(func=_cmd_generate_evolution)
+
+    remap = subparsers.add_parser(
+        "generate-mapping",
+        parents=[common],
+        help="Remap features for existing evolution output",
+    )
+    remap.add_argument(
+        "--input",
+        required=True,
+        help="Path to the evolution JSONL file",
+    )
+    remap.add_argument(
+        "--output",
+        required=True,
+        help="File to write the remapped results",
+    )
+    remap.set_defaults(func=_cmd_generate_mapping)
 
     args = parser.parse_args()
 
