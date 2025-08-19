@@ -88,6 +88,7 @@ subcommands to select the desired operation:
 ```bash
 poetry run service-ambitions generate-ambitions --input-file sample-services.jsonl --output-file ambitions.jsonl
 poetry run service-ambitions generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl
+poetry run service-ambitions migrate-jsonl --input-file services_v1.jsonl --output-file services_v1x.jsonl
 ```
 
 Alternatively, use the provided shell script which forwards all arguments to the CLI:
@@ -95,6 +96,7 @@ Alternatively, use the provided shell script which forwards all arguments to the
 ```bash
 ./run.sh generate-ambitions --input-file sample-services.jsonl --output-file ambitions.jsonl
 ./run.sh generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl
+./run.sh migrate-jsonl --input-file services_v1.jsonl --output-file services_v1x.jsonl
 ```
 
 ## Usage
@@ -109,6 +111,21 @@ to display a progress bar during long runs; it is suppressed automatically in
 CI environments or when stdout is not a TTY. Provide `--seed` to make
 stochastic behaviour such as backoff jitter deterministic during tests and
 demos.
+
+## Migrating legacy JSONL files
+
+Use `migrate-jsonl` to upgrade service definitions created with the 1.0 schema
+to the current 1.x format. The command reads a legacy JSON Lines file, renames
+fields like `id` to `service_id`, converts `jobs` to a `jobs_to_be_done` list of
+objects and updates feature identifiers. Write the migrated records to a new
+file:
+
+```bash
+poetry run service-ambitions migrate-jsonl --input-file services_v1.jsonl --output-file services_v1x.jsonl
+```
+
+Review the output before discarding the original file; the migration performs
+minimal validation and may omit unknown fields.
 
 ## Adaptive backpressure
 

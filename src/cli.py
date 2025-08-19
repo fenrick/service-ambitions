@@ -26,6 +26,7 @@ from loader import (
     load_role_ids,
 )
 from mapping import init_embeddings
+from migrate_jsonl import migrate_jsonl
 from model_factory import ModelFactory
 from models import ServiceInput
 from monitoring import LOG_FILE_NAME, init_logfire, logfire
@@ -205,6 +206,20 @@ async def _generate_evolution_for_service(
                 error=str(exc),
                 quarantine_file=str(quarantine_file),
             )
+
+
+def _cmd_migrate_jsonl(args: argparse.Namespace, _settings) -> None:
+    """Convert legacy service definitions to the current schema."""
+
+    input_path = Path(args.input_file)
+    output_path = Path(args.output_file)
+    count = migrate_jsonl(input_path, output_path)
+    logfire.info(
+        "Migrated services",
+        input_path=str(input_path),
+        output_path=str(output_path),
+        lines=count,
+    )
 
 
 async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
@@ -514,6 +529,20 @@ def main() -> None:
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    mig = subparsers.add_parser(
+        "migrate-jsonl",
+        parents=[common],
+        help="Migrate legacy services to the current schema",
+        description="Convert 1.0 service JSONL files to the latest 1.x format",
+    )
+    mig.add_argument(
+        "--input-file", required=True, help="Path to legacy services JSONL"
+    )
+    mig.add_argument(
+        "--output-file", required=True, help="File to write migrated services"
+    )
+    mig.set_defaults(func=_cmd_migrate_jsonl)
 
     amb = subparsers.add_parser(
         "generate-ambitions",
