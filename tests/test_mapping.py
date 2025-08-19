@@ -534,6 +534,86 @@ async def test_map_features_retries_on_empty(monkeypatch) -> None:
     assert result[0].mappings["data"][0].item == "INF-1"
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("parallel", [True, False])
+async def test_map_features_reprompts_per_feature(monkeypatch, parallel) -> None:
+    template = "{mapping_labels} {mapping_sections} {mapping_fields} {features}"
+
+    def fake_loader(name, *_, **__):
+        return template
+
+    items = {
+        "information": [
+            MappingItem(id="INF-1", name="User Data", description="user info"),
+            MappingItem(id="INF-2", name="Traffic", description="traffic stats"),
+        ]
+    }
+
+    monkeypatch.setattr("mapping.load_prompt_text", fake_loader)
+    monkeypatch.setattr("mapping.load_mapping_items", lambda types, *a, **k: items)
+    monkeypatch.setattr(
+        "mapping._top_k_items", lambda features, dataset: items[dataset]
+    )
+
+    initial = json.dumps(
+        {
+            "features": [
+                {
+                    "feature_id": "f1",
+                    "data": [
+                        {"item": "INF-1", "contribution": 0.8},
+                        {"item": "INF-2", "contribution": 0.2},
+                    ],
+                },
+                {"feature_id": "f2", "data": []},
+            ]
+        }
+    )
+    repaired = json.dumps(
+        {
+            "features": [
+                {
+                    "feature_id": "f2",
+                    "data": [
+                        {"item": "INF-1", "contribution": 0.9},
+                        {"item": "INF-2", "contribution": 0.1},
+                    ],
+                }
+            ]
+        }
+    )
+
+    session = DummySession([initial, repaired])
+    features = [
+        PlateauFeature(
+            feature_id="f1",
+            name="Integration",
+            description="Allows external access",
+            score=MaturityScore(level=3, label="Defined", justification="j"),
+            customer_type="learners",
+        ),
+        PlateauFeature(
+            feature_id="f2",
+            name="Export",
+            description="Lets users export data",
+            score=MaturityScore(level=3, label="Defined", justification="j"),
+            customer_type="learners",
+        ),
+    ]
+
+    result = await map_features_async(
+        session,
+        features,
+        {"data": MappingTypeConfig(dataset="information", label="Info")},
+        batch_size=2,
+        parallel_types=parallel,
+    )
+
+    assert len(session.prompts) == 2
+    assert len(result[0].mappings["data"]) >= 2
+    assert len(result[1].mappings["data"]) >= 2
+
+
 def test_top_k_items_breaks_ties_lexicographically(monkeypatch) -> None:
     """Ensure TF-IDF ranking resolves equal scores by item identifier."""
 
