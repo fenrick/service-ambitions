@@ -11,8 +11,11 @@ from __future__ import annotations
 import json
 import logging
 import os
+from typing import Any, cast
 
-import logfire  # type: ignore[import-not-found]
+import logfire as _logfire
+
+logfire = cast(Any, _logfire)
 
 # Default log file used across the application
 LOG_FILE_NAME = "service.log"

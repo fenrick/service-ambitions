@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Iterable, List
+from typing import Any, Iterable, List, cast
 
-import logfire  # type: ignore[import-not-found]
+import logfire as _logfire
+
+logfire = cast(Any, _logfire)
 
 
 @logfire.instrument()

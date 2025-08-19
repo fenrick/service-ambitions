@@ -37,15 +37,16 @@ from asyncio import Lock, Semaphore
 from collections import deque
 from contextlib import asynccontextmanager
 from types import ModuleType
-from typing import AsyncContextManager, AsyncIterator, Deque, Optional
+from typing import Any, AsyncContextManager, AsyncIterator, Deque, Optional, cast
 
+_logfire_module: ModuleType | None
 try:
-    import logfire as _logfire  # type: ignore[import-not-found]
+    import logfire as _logfire_module
 except ModuleNotFoundError:  # pragma: no cover - optional dependency
-    _logfire = None
+    _logfire_module = None
 
-if _logfire and hasattr(_logfire, "metric"):
-    logfire = _logfire
+if _logfire_module and hasattr(_logfire_module, "metric"):
+    logfire = cast(Any, _logfire_module)
 else:  # pragma: no cover - default stub for metrics
     logfire = ModuleType("logfire")
     logfire.metric = lambda name, value: None  # type: ignore[attr-defined]

@@ -14,9 +14,9 @@ import random
 from asyncio import TaskGroup
 from itertools import islice
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, TypeVar
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, TypeVar, cast
 
-import logfire  # type: ignore[import-not-found]
+import logfire as _logfire
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.models import Model
@@ -26,6 +26,8 @@ from tqdm import tqdm
 from backpressure import AdaptiveSemaphore, RollingMetrics
 from models import ReasoningConfig, ServiceInput
 from token_utils import estimate_tokens
+
+logfire = cast(Any, _logfire)
 
 T = TypeVar("T")
 
@@ -279,7 +281,7 @@ class ServiceAmbitionGenerator:
             self._limiter = AdaptiveSemaphore(self.concurrency)
         if self._metrics is None:
             self._metrics = RollingMetrics()
-        queue: asyncio.Queue[tuple[str, str]] = asyncio.Queue()
+        queue: asyncio.Queue[tuple[str, str] | None] = asyncio.Queue()
         processed: set[str] = set()
 
         async def writer() -> None:

@@ -9,13 +9,15 @@ agent without relying on asynchronous execution.
 
 from __future__ import annotations
 
-from typing import TypeVar, overload
+from typing import Any, TypeVar, cast, overload
 
-import logfire  # type: ignore[import-not-found]
+import logfire as _logfire
 from pydantic_ai import Agent, messages
 
 from models import ServiceInput
 from token_utils import estimate_cost
+
+logfire = cast(Any, _logfire)
 
 
 class ConversationSession:

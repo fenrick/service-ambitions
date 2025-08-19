@@ -13,7 +13,7 @@ from itertools import islice
 from pathlib import Path
 from typing import Any, Coroutine, Iterable, cast
 
-import logfire  # type: ignore[import-not-found]
+import logfire as _logfire
 from pydantic_ai import Agent
 from tqdm import tqdm
 
@@ -35,6 +35,8 @@ from persistence import atomic_write, read_lines
 from plateau_generator import PlateauGenerator
 from service_loader import load_services
 from settings import load_settings
+
+logfire = cast(Any, _logfire)
 
 
 def _default_plateaus() -> list[str]:
