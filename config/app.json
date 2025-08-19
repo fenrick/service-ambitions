@@ -4,7 +4,7 @@
         "descriptions": "openai:o4-mini",
         "features": "openai:gpt-5",
         "mapping": "openai:o4-mini",
-        "search": "openai:gpt-4o-search-preview,
+        "search": "openai:gpt-4o-search-preview"
     },
     "reasoning": {"effort": "medium"},
     "web_search": false,
