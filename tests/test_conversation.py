@@ -6,15 +6,10 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
-import pytest
-from pydantic_ai import (
-    Agent,
-    messages,
-)
+from pydantic_ai import Agent, messages
 
-from conversation import (
-    ConversationSession,
-)
+import conversation
+from conversation import ConversationSession
 from models import (
     ServiceFeature,
     ServiceInput,
@@ -29,9 +24,23 @@ class DummyAgent:
     def __init__(self) -> None:
         self.called_with: list[str] = []
 
+    def run_sync(self, prompt: str, message_history: list[str], output_type=None):
+        """Synchronously return a canned response."""
+
+        self.called_with.append(prompt)
+        return SimpleNamespace(
+            output="pong",
+            new_messages=lambda: ["msg"],
+            usage=lambda: SimpleNamespace(total_tokens=0),
+        )
+
     async def run(self, prompt: str, message_history: list[str], output_type=None):
         self.called_with.append(prompt)
-        return SimpleNamespace(output="pong", new_messages=lambda: ["msg"])
+        return SimpleNamespace(
+            output="pong",
+            new_messages=lambda: ["msg"],
+            usage=lambda: SimpleNamespace(total_tokens=0),
+        )
 
 
 def test_add_parent_materials_records_history() -> None:
@@ -93,21 +102,43 @@ def test_add_parent_materials_includes_features() -> None:
     ]
 
 
-@pytest.mark.asyncio
-async def test_ask_adds_responses_to_history() -> None:
+def test_ask_adds_responses_to_history() -> None:
     """``ask`` should forward prompts and store new messages."""
 
     session = ConversationSession(cast(Agent[None, str], DummyAgent()))
-    reply = await session.ask("ping")
+    reply = session.ask("ping")
 
     assert reply == "pong"
     assert session._history[-1] == "msg"
 
 
-@pytest.mark.asyncio
-async def test_ask_forwards_prompt_to_agent() -> None:
+def test_ask_forwards_prompt_to_agent() -> None:
     """``ask`` should delegate to the underlying agent."""
     agent = DummyAgent()
     session = ConversationSession(cast(Agent[None, str], agent))
-    await session.ask("hello")
+    session.ask("hello")
     assert agent.called_with == ["hello"]
+
+
+def test_prompt_token_estimate_metric(monkeypatch) -> None:
+    """``ask`` should record a token estimate metric labelled by stage."""
+
+    agent = DummyAgent()
+    session = ConversationSession(cast(Agent[None, str], agent), stage="stage")
+
+    calls: list[tuple[int, dict[str, str]]] = []
+
+    class DummyMetric:
+        def add(
+            self, value: int, *, attributes: dict[str, str] | None = None
+        ) -> None:  # pragma: no cover - simple stub
+            calls.append((value, attributes or {}))
+
+    monkeypatch.setattr(conversation, "PROMPT_TOKEN_ESTIMATE", DummyMetric())
+    monkeypatch.setattr(
+        conversation, "estimate_tokens", lambda prompt, expected_output=0: 5
+    )
+
+    session.ask("ping")
+
+    assert calls == [(5, {"stage": "stage"})]

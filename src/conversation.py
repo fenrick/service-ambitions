@@ -15,10 +15,11 @@ import logfire
 from pydantic_ai import Agent, messages
 
 from models import ServiceInput
-from token_utils import estimate_cost
+from token_utils import estimate_cost, estimate_tokens
 
 PROMPTS_SENT = logfire.metric_counter("prompts_sent")
 TOKENS_CONSUMED = logfire.metric_counter("tokens_consumed")
+PROMPT_TOKEN_ESTIMATE = logfire.metric_counter("prompt_token_estimate")
 
 
 class ConversationSession:
@@ -94,11 +95,20 @@ class ConversationSession:
         PROMPTS_SENT.add(1)
         tokens = 0
         cost = 0.0
+        prompt_token_estimate = estimate_tokens(prompt, expected_output=0)
+        PROMPT_TOKEN_ESTIMATE.add(prompt_token_estimate, attributes={"stage": stage})
         with logfire.span("ConversationSession.ask") as span:
             span.set_attribute("stage", stage)
             span.set_attribute("model_name", model_name)
+            span.set_attribute("prompt_token_estimate", prompt_token_estimate)
             try:
-                logfire.debug(f"Sending prompt: {prompt}")
+                logfire.debug(
+                    "Sending prompt",
+                    prompt=prompt,
+                    stage=stage,
+                    model_name=model_name,
+                    prompt_token_estimate=prompt_token_estimate,
+                )
                 result = self.client.run_sync(
                     prompt, message_history=self._history, output_type=output_type
                 )
@@ -110,6 +120,7 @@ class ConversationSession:
                     "Prompt succeeded",
                     stage=stage,
                     model_name=model_name,
+                    prompt_token_estimate=prompt_token_estimate,
                     total_tokens=tokens,
                     estimated_cost=cost,
                 )
@@ -119,6 +130,7 @@ class ConversationSession:
                     "Prompt failed",
                     stage=stage,
                     model_name=model_name,
+                    prompt_token_estimate=prompt_token_estimate,
                     total_tokens=tokens,
                     estimated_cost=cost,
                     error=str(exc),
@@ -145,11 +157,20 @@ class ConversationSession:
         PROMPTS_SENT.add(1)
         tokens = 0
         cost = 0.0
+        prompt_token_estimate = estimate_tokens(prompt, expected_output=0)
+        PROMPT_TOKEN_ESTIMATE.add(prompt_token_estimate, attributes={"stage": stage})
         with logfire.span("ConversationSession.ask_async") as span:
             span.set_attribute("stage", stage)
             span.set_attribute("model_name", model_name)
+            span.set_attribute("prompt_token_estimate", prompt_token_estimate)
             try:
-                logfire.debug(f"Sending prompt: {prompt}")
+                logfire.debug(
+                    "Sending prompt",
+                    prompt=prompt,
+                    stage=stage,
+                    model_name=model_name,
+                    prompt_token_estimate=prompt_token_estimate,
+                )
                 result = await self.client.run(
                     prompt, message_history=self._history, output_type=output_type
                 )
@@ -161,6 +182,7 @@ class ConversationSession:
                     "Prompt succeeded",
                     stage=stage,
                     model_name=model_name,
+                    prompt_token_estimate=prompt_token_estimate,
                     total_tokens=tokens,
                     estimated_cost=cost,
                 )
@@ -170,6 +192,7 @@ class ConversationSession:
                     "Prompt failed",
                     stage=stage,
                     model_name=model_name,
+                    prompt_token_estimate=prompt_token_estimate,
                     total_tokens=tokens,
                     estimated_cost=cost,
                     error=str(exc),
