@@ -14,7 +14,7 @@ import os
 from functools import lru_cache
 from typing import TYPE_CHECKING, Iterable, Mapping, Sequence
 
-import logfire
+import logfire  # type: ignore[import-not-found]
 import numpy as np
 from openai import AsyncOpenAI
 from scipy.sparse import csr_matrix

@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 from typing import Generator, Iterator
 
-import logfire
+import logfire  # type: ignore[import-not-found]
 from pydantic import TypeAdapter
 
 from models import ServiceInput

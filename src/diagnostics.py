@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Type
 
-import logfire
+import logfire  # type: ignore[import-not-found]
 from pydantic import BaseModel
 
 

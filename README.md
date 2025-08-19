@@ -20,6 +20,22 @@ The chat model can be set with the `--model` flag or the `MODEL` environment
 variable. Model identifiers must include a provider prefix, in the form
 `<provider>:<model>`. The default is `openai:gpt-5` with medium reasoning effort.
 
+Stage-specific model overrides live under the `models` block in
+`config/app.json`. Defaults are:
+
+```json
+{
+  "descriptions": "openai:o4-mini",
+  "features": "openai:gpt-5",
+  "mapping": "openai:o4-mini",
+  "search": "openai:gpt-4o-search-preview"
+}
+```
+
+OpenAI's experimental web search tool can be enabled via the `web_search`
+setting or the `--web-search/--no-web-search` CLI flags. The sample
+configuration leaves this disabled.
+
 System prompts are assembled from modular markdown components located in the
 `prompts/` directory. Use `--prompt-dir` to point at an alternate component
 directory, `--context-id` to select a situational context, and

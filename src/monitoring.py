@@ -12,7 +12,7 @@ import json
 import logging
 import os
 
-import logfire
+import logfire  # type: ignore[import-not-found]
 
 # Default log file used across the application
 LOG_FILE_NAME = "service.log"

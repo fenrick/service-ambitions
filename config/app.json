@@ -9,6 +9,7 @@
   "reasoning": {
     "effort": "medium"
   },
+  "web_search": false,
   "log_level": "INFO",
   "mapping_types": {
     "data": {

@@ -14,7 +14,7 @@ import json
 import re
 from typing import Sequence
 
-import logfire
+import logfire  # type: ignore[import-not-found]
 
 from conversation import ConversationSession
 from loader import load_plateau_definitions, load_prompt_text, load_roles
@@ -433,7 +433,9 @@ class PlateauGenerator:
             payload = PlateauFeaturesResponse(features=block)
 
             features = self._collect_features(payload)
-            map_session = ConversationSession(self.mapping_session.client)
+            map_session = ConversationSession(
+                self.mapping_session.client, stage=self.mapping_session.stage
+            )
             if self._service is not None:
                 map_session.add_parent_materials(self._service)
             mapped = await map_features_async(map_session, features)
@@ -508,7 +510,9 @@ class PlateauGenerator:
                         level = DEFAULT_PLATEAU_MAP[n]
                     except KeyError as exc:
                         raise ValueError(f"Unknown plateau name: {n}") from exc
-                    plateau_session = ConversationSession(self.session.client)
+                    plateau_session = ConversationSession(
+                        self.session.client, stage=self.session.stage
+                    )
                     plateau_session.add_parent_materials(service_input)
                     return await self.generate_plateau_async(
                         level,

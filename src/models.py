@@ -272,6 +272,9 @@ class AppConfig(StrictModel):
     reasoning: ReasoningConfig | None = Field(
         None, description="Optional reasoning configuration for the model."
     )
+    web_search: bool = Field(
+        False, description="Enable OpenAI web search tooling for model browsing."
+    )
     log_level: Annotated[
         str, Field(min_length=1, description="Logging verbosity level.")
     ] = "INFO"
