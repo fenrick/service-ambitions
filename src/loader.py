@@ -245,6 +245,29 @@ def load_roles(
 
 @lru_cache(maxsize=None)
 @logfire.instrument()
+def load_role_ids(
+    base_dir: Path | str = Path("data"),
+    filename: Path | str = Path("roles.json"),
+) -> list[str]:
+    """Return role identifiers from ``base_dir`` or a direct file path.
+
+    Args:
+        base_dir: Directory containing data files or the roles file itself.
+        filename: Roles definitions file name when ``base_dir`` is a directory.
+
+    Returns:
+        List of role identifier strings.
+
+    Raises:
+        FileNotFoundError: If the roles file does not exist.
+        RuntimeError: If the file cannot be read or parsed.
+    """
+
+    return [role.role_id for role in load_roles(base_dir, filename)]
+
+
+@lru_cache(maxsize=None)
+@logfire.instrument()
 def load_definitions(
     base_dir: Path | str = Path("data"),
     filename: Path | str = Path("definitions.json"),
