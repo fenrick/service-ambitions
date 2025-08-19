@@ -6,19 +6,11 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
-import pytest
-from pydantic_ai import (
-    Agent,
-    messages,
-)
+from pydantic_ai import Agent, messages
 
-from conversation import (
-    ConversationSession,
-)
-from models import (
-    ServiceFeature,
-    ServiceInput,
-)
+from conversation import ConversationSession
+from models import ServiceFeature, ServiceInput
+from stage_metrics import iter_stage_totals, reset_stage_totals
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -29,9 +21,13 @@ class DummyAgent:
     def __init__(self) -> None:
         self.called_with: list[str] = []
 
-    async def run(self, prompt: str, message_history: list[str], output_type=None):
+    def run_sync(self, prompt: str, message_history: list[str], output_type=None):
         self.called_with.append(prompt)
-        return SimpleNamespace(output="pong", new_messages=lambda: ["msg"])
+        return SimpleNamespace(
+            output="pong",
+            new_messages=lambda: ["msg"],
+            usage=lambda: SimpleNamespace(total_tokens=5),
+        )
 
 
 def test_add_parent_materials_records_history() -> None:
@@ -93,21 +89,31 @@ def test_add_parent_materials_includes_features() -> None:
     ]
 
 
-@pytest.mark.asyncio
-async def test_ask_adds_responses_to_history() -> None:
+def test_ask_adds_responses_to_history() -> None:
     """``ask`` should forward prompts and store new messages."""
 
     session = ConversationSession(cast(Agent[None, str], DummyAgent()))
-    reply = await session.ask("ping")
+    reply = session.ask("ping")
 
     assert reply == "pong"
     assert session._history[-1] == "msg"
 
 
-@pytest.mark.asyncio
-async def test_ask_forwards_prompt_to_agent() -> None:
+def test_ask_forwards_prompt_to_agent() -> None:
     """``ask`` should delegate to the underlying agent."""
     agent = DummyAgent()
     session = ConversationSession(cast(Agent[None, str], agent))
-    await session.ask("hello")
+    session.ask("hello")
     assert agent.called_with == ["hello"]
+
+
+def test_stage_metrics_accumulate() -> None:
+    """Conversation calls should update stage metrics."""
+
+    reset_stage_totals()
+    session = ConversationSession(cast(Agent[None, str], DummyAgent()), stage="test")
+    session.ask("ping")
+    stage, totals = next(iter_stage_totals())
+    assert stage == "test"
+    assert totals.prompts == 1
+    assert totals.total_tokens == 5
