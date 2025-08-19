@@ -70,6 +70,7 @@ class PlateauGenerator:
         mapping_session: ConversationSession | None = None,
         mapping_batch_size: int = 30,
         mapping_parallel_types: bool = True,
+        mapping_token_cap: int = 8000,
     ) -> None:
         """Initialise the generator.
 
@@ -82,6 +83,8 @@ class PlateauGenerator:
             mapping_batch_size: Number of features per mapping request batch.
             mapping_parallel_types: Dispatch mapping type requests concurrently
                 across all batches when ``True``.
+            mapping_token_cap: Maximum tokens permitted for a mapping request
+                batch.
         """
         if required_count < 1:
             raise ValueError("required_count must be positive")
@@ -92,7 +95,41 @@ class PlateauGenerator:
         self.roles = list(roles or DEFAULT_ROLE_IDS)
         self.mapping_batch_size = mapping_batch_size
         self.mapping_parallel_types = mapping_parallel_types
+        self.mapping_token_cap = mapping_token_cap
         self._service: ServiceInput | None = None
+
+    def _compute_mapping_batch_size(
+        self, description: str, features: Sequence[PlateauFeature]
+    ) -> int:
+        """Return an adjusted batch size limited by ``mapping_token_cap``."""
+
+        batch_size = min(self.mapping_batch_size, len(features))
+        while batch_size > 1:
+            feature_lines = "\n".join(
+                f"- {f.feature_id}: {f.name} - {f.description}"
+                for f in features[:batch_size]
+            )
+            tokens = estimate_tokens(f"{description}\n{feature_lines}", 0)
+            if tokens <= self.mapping_token_cap:
+                break
+            batch_size -= 1
+        return max(1, batch_size)
+
+    async def _map_features(
+        self,
+        session: ConversationSession,
+        description: str,
+        features: Sequence[PlateauFeature],
+    ) -> list[PlateauFeature]:
+        """Map ``features`` using a batch size constrained by ``mapping_token_cap``."""
+
+        batch_size = self._compute_mapping_batch_size(description, features)
+        return await map_features_async(
+            session,
+            features,
+            batch_size=batch_size,
+            parallel_types=self.mapping_parallel_types,
+        )
 
     def _request_description(
         self, level: int, session: ConversationSession | None = None
@@ -557,12 +594,7 @@ class PlateauGenerator:
             )
             if self._service is not None:
                 map_session.add_parent_materials(self._service)
-            mapped = await map_features_async(
-                map_session,
-                features,
-                batch_size=self.mapping_batch_size,
-                parallel_types=self.mapping_parallel_types,
-            )
+            mapped = await self._map_features(map_session, description, features)
             return PlateauResult(
                 plateau=level,
                 plateau_name=plateau_name,
