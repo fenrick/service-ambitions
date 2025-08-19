@@ -28,3 +28,11 @@ This repository uses automated code quality tooling for all Python sources.
 
 - Keep README and other docs in sync with code changes.
 - Maintain accurate docstrings for all public APIs.
+
+## Issue Tracking and PR Hygiene
+
+- During code review, capture bugs, enhancements, and questions as GitHub issues using the repository's issue template.
+- Use `gh issue create --title <title> --body <body>` and follow the template's sections for summary, reproduction steps, expected vs. actual behaviour, environment details, and additional context.
+- Link issues to pull requests with keywords like `Fixes #123` or `Closes #123` in commit messages or the PR description.
+- Ensure each pull request references relevant issues and keeps its commits focused and descriptive.
+- Include clear acceptance criteria in every issue to define completion.
