@@ -62,29 +62,29 @@ def test_plateau_feature_validates_score() -> None:
         )
 
 
-def test_feature_item_accepts_plateau_numbers() -> None:
-    """Feature IDs should include plateau numbers."""
+def test_feature_item_allows_missing_id() -> None:
+    """feature_id should be optional."""
 
     item = FeatureItem(
-        feature_id="FEAT-2-learners-sample",
         name="n",
         description="d",
         score=MaturityScore(level=1, label="Initial", justification="j"),
     )
 
-    assert item.feature_id.startswith("FEAT-2")
+    assert item.feature_id is None
 
 
-def test_feature_item_rejects_invalid_ids() -> None:
-    """Nonconforming feature IDs should raise ``ValidationError``."""
+def test_feature_item_accepts_arbitrary_id() -> None:
+    """Any non-empty string should be accepted as feature_id."""
 
-    with pytest.raises(ValidationError):
-        FeatureItem(
-            feature_id="FEAT-X-learners-test",
-            name="n",
-            description="d",
-            score=MaturityScore(level=1, label="Initial", justification="j"),
-        )
+    item = FeatureItem(
+        feature_id="custom-id",
+        name="n",
+        description="d",
+        score=MaturityScore(level=1, label="Initial", justification="j"),
+    )
+
+    assert item.feature_id == "custom-id"
 
 
 def test_contribution_requires_fields() -> None:
