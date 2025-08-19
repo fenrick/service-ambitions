@@ -344,6 +344,7 @@ def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -
     with pytest.raises(ValueError, match="concurrency must be a positive integer"):
         asyncio.run(_cmd_generate_evolution(args, settings))
 
+
 def test_cli_parses_mapping_options(tmp_path, monkeypatch) -> None:
     """generate-evolution should parse mapping options via the common parser."""
 
@@ -377,7 +378,8 @@ def test_cli_parses_mapping_options(tmp_path, monkeypatch) -> None:
 
     assert called["args"].mapping_batch_size == 12
     assert called["args"].mapping_parallel_types is False
-    
+
+
 def test_generate_evolution_writes_transcripts(tmp_path, monkeypatch) -> None:
     """_cmd_generate_evolution writes per-service transcripts to disk."""
 
