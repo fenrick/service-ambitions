@@ -33,6 +33,7 @@ from models import (
     ServiceEvolution,
     ServiceInput,
 )
+from settings import load_settings
 from token_scheduler import TokenScheduler
 from token_utils import estimate_tokens
 
@@ -418,8 +419,11 @@ class PlateauGenerator:
         service_input: ServiceInput,
     ) -> list[PlateauResult]:
         """Return plateau results scheduled by token load."""
-
-        scheduler = TokenScheduler(max_workers=min(4, len(plateau_names)))
+        settings = load_settings()
+        scheduler = TokenScheduler(
+            max_workers=min(4, len(plateau_names)),
+            context_window=settings.context_window,
+        )
         for name in plateau_names:
             description = desc_map[name]
             tokens = self._predict_token_load(description)
