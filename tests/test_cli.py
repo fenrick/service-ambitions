@@ -472,6 +472,76 @@ def test_cli_enables_logfire(tmp_path, monkeypatch):
     assert called["installed"]
 
 
+def test_cli_no_logs_disables_logging(tmp_path, monkeypatch):
+    base = tmp_path / "prompts"
+    (base / "situational_context").mkdir(parents=True)
+    (base / "inspirations").mkdir(parents=True)
+    (base / "situational_context" / "ctx.md").write_text("c", encoding="utf-8")
+    (base / "inspirations" / "insp.md").write_text("i", encoding="utf-8")
+    (base / "task_definition.md").write_text("t", encoding="utf-8")
+    (base / "response_structure.md").write_text("r", encoding="utf-8")
+
+    input_file = tmp_path / "services.jsonl"
+    input_file.write_text('{"name": "alpha"}\n', encoding="utf-8")
+    output_file = tmp_path / "out.jsonl"
+
+    settings = SimpleNamespace(
+        model="cfg",
+        log_level="INFO",
+        prompt_dir=str(base),
+        context_id="ctx",
+        inspiration="insp",
+        concurrency=1,
+        batch_size=5,
+        mapping_batch_size=30,
+        mapping_parallel_types=True,
+        openai_api_key="dummy",
+        logfire_token="token",
+        reasoning=None,
+        models=None,
+        web_search=False,
+        token_weighting=True,
+        request_timeout=60,
+        retries=5,
+        retry_base_delay=0.5,
+    )
+
+    called = {"init": False}
+
+    def fake_init(token):
+        called["init"] = True
+
+    async def fake_generate_async(
+        self, services, prompt, output_path, progress=None, transcripts_dir=None
+    ):
+        assert transcripts_dir is None
+        Path(output_path).write_text("{}\n", encoding="utf-8")
+        return {"svc-1"}
+
+    monkeypatch.setattr(ServiceAmbitionGenerator, "generate_async", fake_generate_async)
+    monkeypatch.setattr(cli, "load_settings", lambda: settings)
+    monkeypatch.setattr(cli, "init_logfire", fake_init)
+
+    argv = [
+        "main",
+        "generate-ambitions",
+        "--input-file",
+        str(input_file),
+        "--output-file",
+        str(output_file),
+        "--no-logs",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+    monkeypatch.chdir(tmp_path)
+
+    cli.main()
+
+    assert output_file.exists()
+    assert not (tmp_path / LOG_FILE_NAME).exists()
+    assert not (tmp_path / "_transcripts").exists()
+    assert not called["init"]
+
+
 def test_cli_rejects_invalid_concurrency(monkeypatch):
     monkeypatch.setattr(cli, "load_prompt", lambda *a, **k: "prompt")
     monkeypatch.setattr(cli, "load_services", lambda *a, **k: [])

@@ -108,9 +108,10 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         mapping_parallel_types=None,
         transcripts_dir=None,
         web_search=None,
+        no_logs=False,
     )
 
-    asyncio.run(_cmd_generate_evolution(args, settings))
+    asyncio.run(_cmd_generate_evolution(args, settings, None))
 
     payload = json.loads(output_path.read_text(encoding="utf-8").strip())
     assert payload["service"]["name"] == "svc"
@@ -182,9 +183,10 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         mapping_parallel_types=None,
         transcripts_dir=None,
         web_search=None,
+        no_logs=False,
     )
 
-    asyncio.run(_cmd_generate_evolution(args, settings))
+    asyncio.run(_cmd_generate_evolution(args, settings, None))
 
     assert not output_path.exists()
     assert not called["ran"]
@@ -263,9 +265,10 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         mapping_parallel_types=None,
         transcripts_dir=None,
         web_search=None,
+        no_logs=False,
     )
 
-    asyncio.run(_cmd_generate_evolution(args, settings))
+    asyncio.run(_cmd_generate_evolution(args, settings, None))
 
     assert processed == ["s2"]
     lines = output_path.read_text(encoding="utf-8").strip().splitlines()
@@ -335,10 +338,11 @@ def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -
         mapping_parallel_types=None,
         transcripts_dir=None,
         web_search=None,
+        no_logs=False,
     )
 
     with pytest.raises(ValueError, match="concurrency must be a positive integer"):
-        asyncio.run(_cmd_generate_evolution(args, settings))
+        asyncio.run(_cmd_generate_evolution(args, settings, None))
 
 
 def test_cli_parses_mapping_options(tmp_path, monkeypatch) -> None:
@@ -346,8 +350,9 @@ def test_cli_parses_mapping_options(tmp_path, monkeypatch) -> None:
 
     called: dict[str, argparse.Namespace] = {}
 
-    def fake_cmd(args: argparse.Namespace, _settings) -> None:
+    def fake_cmd(args: argparse.Namespace, _settings, transcripts_dir) -> None:
         called["args"] = args
+        called["transcripts_dir"] = transcripts_dir
 
     monkeypatch.setattr(cli, "_cmd_generate_evolution", fake_cmd)
     monkeypatch.setattr(
@@ -453,9 +458,10 @@ def test_generate_evolution_writes_transcripts(tmp_path, monkeypatch) -> None:
         mapping_parallel_types=None,
         transcripts_dir=None,
         web_search=None,
+        no_logs=False,
     )
 
-    asyncio.run(_cmd_generate_evolution(args, settings))
+    asyncio.run(_cmd_generate_evolution(args, settings, None))
 
     transcript = output_path.parent / "_transcripts" / "svc-1.json"
     assert transcript.exists()
