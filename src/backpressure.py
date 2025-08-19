@@ -39,17 +39,7 @@ from contextlib import asynccontextmanager
 from types import ModuleType
 from typing import Any, AsyncContextManager, AsyncIterator, Deque, Optional, cast
 
-_logfire_module: ModuleType | None
-try:
-    import logfire as _logfire_module
-except ModuleNotFoundError:
-    _logfire_module = None
-
-if _logfire_module and hasattr(_logfire_module, "metric"):
-    logfire = cast(Any, _logfire_module)
-else:
-    logfire = ModuleType("logfire")
-    logfire.metric = lambda name, value: None
+import logfire
 
 
 class AdaptiveSemaphore:
