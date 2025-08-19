@@ -32,12 +32,22 @@ Stage-specific model overrides live under the `models` block in
 }
 ```
 
-| Stage        | Default model                  | Fast/cheap alternative |
-|--------------|--------------------------------|------------------------|
-| Descriptions | `openai:o4-mini`               | Already cost optimised |
-| Features     | `openai:gpt-5`                 | `openai:o4-mini`       |
-| Mapping      | `openai:o4-mini`               | Already cost optimised |
-| Search       | `openai:gpt-4o-search-preview` | n/a                    |
+The CLI ships with three presets that balance cost and quality across stages:
+
+| Preset       | Descriptions           | Features           | Mapping           | Search                         |
+|--------------|-----------------------|--------------------|-------------------|-------------------------------|
+| cheap & fast | `openai:o4-mini`       | `openai:o4-mini`   | `openai:o4-mini`  | `openai:gpt-4o-search-preview` |
+| balanced     | `openai:o4-mini`       | `openai:gpt-5`     | `openai:o4-mini`  | `openai:gpt-4o-search-preview` |
+| max quality  | `openai:gpt-5`         | `openai:gpt-5`     | `openai:gpt-5`    | `openai:gpt-4o-search-preview` |
+
+Use the **cheap & fast** preset for quick prototypes and tight budgets. The
+**balanced** preset (default) mixes high‑quality feature generation with
+lower‑cost stages for everyday workloads. Choose **max quality** when accuracy
+matters more than latency or price.
+
+Select a preset by setting `model_preset` in your configuration file or by
+passing `--preset` on the command line. `config/app.example.json` lists the
+exact model mappings and shows how to set `model_preset` explicitly.
 
 OpenAI recommends using cost‑optimised models like `o4-mini` when latency or
 price is a concern and higher‑capacity models such as `gpt-5` for best quality
