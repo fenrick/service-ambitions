@@ -8,8 +8,8 @@ available and otherwise falls back to a simple heuristic. It also provides
 from __future__ import annotations
 
 try:
-    import tiktoken  # type: ignore[import-not-found]
-except Exception:  # pragma: no cover - in case of unexpected import errors
+    import tiktoken
+except Exception:
     tiktoken = None
 
 

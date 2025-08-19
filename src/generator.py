@@ -330,7 +330,7 @@ class ServiceAmbitionGenerator:
                 )
 
             limiter = self._limiter
-            if limiter is None:  # pragma: no cover - defensive
+            if limiter is None:
                 raise RuntimeError("Limiter not initialized")
             weight = weight_estimate if self.token_weighting else 1
             async with limiter(weight):

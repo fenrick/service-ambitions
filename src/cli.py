@@ -281,7 +281,7 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
                     output.write(line)
                     new_ids.add(service.service_id)
                 logfire.info(f"Generated evolution for {service.name}")
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 quarantine_dir = Path("quarantine")
                 quarantine_dir.mkdir(parents=True, exist_ok=True)
                 quarantine_file = quarantine_dir / f"{service.service_id}.json"

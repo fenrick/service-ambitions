@@ -34,7 +34,7 @@ def validate_jsonl(path: Path, model: Type[BaseModel]) -> int:
                 continue
             try:
                 model.model_validate_json(line)
-            except Exception as exc:  # noqa: PERF203
+            except Exception as exc:
                 raise ValueError(f"Line {idx} invalid: {exc}") from exc
             count += 1
     return count

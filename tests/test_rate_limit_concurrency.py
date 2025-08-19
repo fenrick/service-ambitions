@@ -48,7 +48,7 @@ def test_with_retry_restores_permits(monkeypatch) -> None:
             generator.TRANSIENT_EXCEPTIONS + (DummyRateLimitError,),
         )
 
-        result = await generator._with_retry(  # type: ignore[attr-defined]
+        result = await generator._with_retry(
             flaky,
             request_timeout=0.1,
             attempts=2,
