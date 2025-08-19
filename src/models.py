@@ -293,6 +293,10 @@ class AppConfig(StrictModel):
         ge=1,
         description="Number of services to process concurrently.",
     )
+    token_weighting: bool = Field(
+        True,
+        description="Weight semaphore permits by estimated token usage.",
+    )
     batch_size: int | None = Field(
         None,
         ge=1,
