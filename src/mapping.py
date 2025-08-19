@@ -12,14 +12,14 @@ import asyncio
 import json
 import os
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Iterable, Mapping, Sequence, cast
+from typing import TYPE_CHECKING, Iterable, Mapping, Sequence
 
-import logfire as _logfire
+import logfire
 import numpy as np
 from openai import AsyncOpenAI
 from scipy.sparse import csr_matrix
 from sklearn.feature_extraction.text import (
-    TfidfVectorizer,  # type: ignore[import-untyped]
+    TfidfVectorizer,
 )
 
 from loader import load_mapping_items, load_mapping_type_config, load_prompt_text
@@ -30,8 +30,6 @@ from models import (
     MappingTypeConfig,
     PlateauFeature,
 )
-
-logfire = cast(Any, _logfire)
 
 if TYPE_CHECKING:
     from conversation import ConversationSession
@@ -104,7 +102,7 @@ async def init_embeddings() -> None:
 
     try:
         cfg = load_mapping_type_config()
-    except Exception as exc:  # pragma: no cover - best effort
+    except Exception as exc:
         # Loading configuration is a best-effort step; missing config merely
         # delays embedding generation until first use.
         logfire.warning(f"Failed to load mapping config: {exc}")
@@ -114,7 +112,7 @@ async def init_embeddings() -> None:
     for name in datasets:
         try:
             await _catalogue_embeddings(name)
-        except Exception as exc:  # pragma: no cover - best effort
+        except Exception as exc:
             # Log and continue so the cache can be populated lazily later.
             logfire.warning(f"Failed to warm embeddings for {name}: {exc}")
 
@@ -152,7 +150,7 @@ async def _preselect_items(
 
     try:
         slice_items = await _embedding_top_k_items(features, cfg.dataset, k)
-    except Exception as exc:  # pragma: no cover - best effort
+    except Exception as exc:
         logfire.warning(f"Embedding pre-filter failed: {exc}")
         return None
     return {cfg.dataset: slice_items}

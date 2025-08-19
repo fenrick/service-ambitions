@@ -90,7 +90,7 @@ def test_feature_item_rejects_invalid_ids() -> None:
 def test_contribution_requires_fields() -> None:
     """Missing fields should trigger a ``ValidationError``."""
     with pytest.raises(ValidationError):
-        Contribution()  # type: ignore[call-arg]
+        Contribution()
 
 
 def test_contribution_enforces_range() -> None:

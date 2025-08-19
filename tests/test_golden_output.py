@@ -17,7 +17,7 @@ class DummyAgent:
         self.model = model
         self.instructions = instructions
 
-    async def run(self, user_prompt: str, output_type):  # noqa: D401 - simple stub
+    async def run(self, user_prompt: str, output_type):
         return SimpleNamespace(
             output=SimpleNamespace(model_dump=lambda: {"service": user_prompt})
         )

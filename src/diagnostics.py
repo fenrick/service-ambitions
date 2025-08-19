@@ -3,15 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Type, cast
+from typing import Type
 
-import logfire as _logfire
+import logfire
 from pydantic import BaseModel
 
-logfire = cast(Any, _logfire)
 
-
-@logfire.instrument()
 def validate_jsonl(path: Path, model: Type[BaseModel]) -> int:
     """Validate JSON records in ``path`` against ``model``.
 
@@ -34,7 +31,7 @@ def validate_jsonl(path: Path, model: Type[BaseModel]) -> int:
                 continue
             try:
                 model.model_validate_json(line)
-            except Exception as exc:  # noqa: PERF203
+            except Exception as exc:
                 raise ValueError(f"Line {idx} invalid: {exc}") from exc
             count += 1
     return count

@@ -14,9 +14,9 @@ import random
 from asyncio import TaskGroup
 from itertools import islice
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, TypeVar
 
-import logfire as _logfire
+import logfire
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.models import Model
@@ -26,8 +26,6 @@ from tqdm import tqdm
 from backpressure import AdaptiveSemaphore, RollingMetrics
 from models import ReasoningConfig, ServiceInput
 from token_utils import estimate_tokens
-
-logfire = cast(Any, _logfire)
 
 T = TypeVar("T")
 
@@ -201,7 +199,6 @@ class ServiceAmbitionGenerator:
     request sizes.
     """
 
-    @logfire.instrument()
     def __init__(
         self,
         model: Model,
@@ -362,7 +359,6 @@ class ServiceAmbitionGenerator:
         )
         return result.output.model_dump()
 
-    @logfire.instrument()
     async def _process_all(
         self,
         services: Iterable[ServiceInput],
@@ -386,6 +382,7 @@ class ServiceAmbitionGenerator:
         writer_task = asyncio.create_task(
             _write_queue(out_path, queue, processed, progress, self.flush_interval)
         )
+
         services_iter = iter(services)
 
         while True:
@@ -400,7 +397,6 @@ class ServiceAmbitionGenerator:
         await writer_task
         return processed
 
-    @logfire.instrument()
     async def generate_async(
         self,
         services: Iterable[ServiceInput],
@@ -455,7 +451,6 @@ class ServiceAmbitionGenerator:
         return await self.generate_async(services, prompt, output_path)
 
 
-@logfire.instrument()
 def build_model(
     model_name: str,
     api_key: str,

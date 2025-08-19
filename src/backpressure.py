@@ -39,17 +39,7 @@ from contextlib import asynccontextmanager
 from types import ModuleType
 from typing import Any, AsyncContextManager, AsyncIterator, Deque, Optional, cast
 
-_logfire_module: ModuleType | None
-try:
-    import logfire as _logfire_module
-except ModuleNotFoundError:  # pragma: no cover - optional dependency
-    _logfire_module = None
-
-if _logfire_module and hasattr(_logfire_module, "metric"):
-    logfire = cast(Any, _logfire_module)
-else:  # pragma: no cover - default stub for metrics
-    logfire = ModuleType("logfire")
-    logfire.metric = lambda name, value: None  # type: ignore[attr-defined]
+import logfire
 
 
 class AdaptiveSemaphore:
@@ -127,7 +117,7 @@ class AdaptiveSemaphore:
         await self.acquire()
         return self
 
-    async def __aexit__(self, exc_type, exc, tb) -> None:  # noqa: D401 - standard
+    async def __aexit__(self, exc_type, exc, tb) -> None:
         self.release()
 
     def __call__(self, weight: int = 1) -> AsyncContextManager["AdaptiveSemaphore"]:
@@ -274,7 +264,7 @@ class RollingMetrics:
         logfire.metric("tokens_in_flight", self._in_flight)
         logfire.metric("tokens_per_second", total_tokens / self._window)
 
-    def record_tokens(self, count: int) -> None:  # pragma: no cover - backwards compat
+    def record_tokens(self, count: int) -> None:
         """Alias for :meth:`record_end_tokens` for backwards compatibility."""
 
         self.record_end_tokens(count)

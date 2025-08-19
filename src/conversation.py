@@ -11,10 +11,10 @@ from __future__ import annotations
 
 from typing import TypeVar, overload
 
+import logfire
 from pydantic_ai import Agent, messages
 
 from models import ServiceInput
-from monitoring import logfire
 from token_utils import estimate_cost
 
 
@@ -26,7 +26,6 @@ class ConversationSession:
     may be seeded using :meth:`add_parent_materials`.
     """
 
-    @logfire.instrument()
     def __init__(self, client: Agent, *, stage: str | None = None) -> None:
         """Initialise the session with a configured LLM client.
 
@@ -39,7 +38,6 @@ class ConversationSession:
         self.stage = stage
         self._history: list[messages.ModelMessage] = []
 
-    @logfire.instrument()
     def add_parent_materials(self, service_input: ServiceInput) -> None:
         """Seed the conversation with details about the target service.
 
@@ -56,7 +54,6 @@ class ConversationSession:
             messages.ModelRequest(parts=[messages.UserPromptPart(ctx)])
         )
 
-    @logfire.instrument()
     def derive(self) -> "ConversationSession":
         """Return a new session copying the current history."""
 
@@ -72,7 +69,6 @@ class ConversationSession:
     @overload
     def ask(self, prompt: str, output_type: type[T]) -> T: ...
 
-    @logfire.instrument()
     def ask(self, prompt: str, output_type: type[T] | None = None) -> T | str:
         """Return the agent's response to ``prompt``.
 
@@ -111,7 +107,6 @@ class ConversationSession:
     @overload
     async def ask_async(self, prompt: str, output_type: type[T]) -> T: ...
 
-    @logfire.instrument()
     async def ask_async(
         self, prompt: str, output_type: type[T] | None = None
     ) -> T | str:

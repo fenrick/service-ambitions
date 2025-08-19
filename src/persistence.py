@@ -8,14 +8,11 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Iterable, List, cast
+from typing import Iterable, List
 
-import logfire as _logfire
-
-logfire = cast(Any, _logfire)
+import logfire
 
 
-@logfire.instrument()
 def read_lines(path: Path) -> List[str]:
     """Return lines from ``path`` if it exists.
 
@@ -33,7 +30,6 @@ def read_lines(path: Path) -> List[str]:
         return []
 
 
-@logfire.instrument()
 def atomic_write(path: Path, lines: Iterable[str]) -> None:
     """Write ``lines`` to ``path`` atomically.
 

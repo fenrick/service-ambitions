@@ -218,7 +218,7 @@ async def test_weighted_acquisition(monkeypatch, tmp_path):
 
             return manager()
 
-        def throttle(self, _delay: float) -> None:  # pragma: no cover - no-op
+        def throttle(self, _delay: float) -> None:
             pass
 
     async def fake_process_service(self, service, prompt=None):
@@ -268,13 +268,13 @@ async def test_process_all_without_token_weighting(tmp_path, monkeypatch):
 
             return manager()
 
-        def throttle(self, _delay: float) -> None:  # pragma: no cover - no-op
+        def throttle(self, _delay: float) -> None:
             pass
 
     async def fake_process_service(self, service, prompt=None):
         return {"id": service.service_id}
 
-    def fail_estimate(prompt: str, expected: int) -> int:  # pragma: no cover
+    def fail_estimate(prompt: str, expected: int) -> int:
         raise AssertionError("estimate_tokens should be bypassed")
 
     monkeypatch.setattr(generator, "estimate_tokens", fail_estimate)
@@ -315,14 +315,14 @@ async def test_process_all_fsyncs(tmp_path, monkeypatch):
     monkeypatch.setattr(generator, "estimate_tokens", lambda _p, _e: 1)
 
     class DummyLimiter:
-        def __call__(self, weight: int = 1):  # pragma: no cover - trivial
+        def __call__(self, weight: int = 1):
             @asynccontextmanager
             async def manager():
                 yield
 
             return manager()
 
-        def throttle(self, _delay: float) -> None:  # pragma: no cover - no-op
+        def throttle(self, _delay: float) -> None:
             pass
 
     async def fake_process_service(self, service, prompt=None):
