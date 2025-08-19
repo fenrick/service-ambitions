@@ -122,6 +122,7 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
 
     processed_ids: set[str] = set(read_lines(processed_path)) if args.resume else set()
     existing_lines: list[str] = read_lines(output_path) if args.resume else []
+
     transcripts_dir = (
         Path(args.transcripts_dir)
         if args.transcripts_dir is not None
@@ -219,6 +220,13 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
     processed_ids: set[str] = set(read_lines(processed_path)) if args.resume else set()
     existing_lines: list[str] = read_lines(output_path) if args.resume else []
 
+    transcripts_dir = (
+        Path(args.transcripts_dir)
+        if args.transcripts_dir is not None
+        else output_path.parent / "_transcripts"
+    )
+    transcripts_dir.mkdir(parents=True, exist_ok=True)
+
     with load_services(Path(args.input_file)) as svc_iter:
         if args.max_services is not None:
             svc_iter = islice(svc_iter, args.max_services)
@@ -263,7 +271,9 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
                     mapping_batch_size=mapping_batch_size,
                     mapping_parallel_types=mapping_parallel_types,
                 )
-                evolution = await generator.generate_service_evolution_async(service)
+                evolution = await generator.generate_service_evolution_async(
+                    service, transcripts_dir=transcripts_dir
+                )
                 line = f"{evolution.model_dump_json()}\n"
                 async with lock:
                     output.write(line)
@@ -453,6 +463,13 @@ def main() -> None:
         "--output-file",
         default="evolution.jsonl",
         help="File to write the results",
+    )
+    evo.add_argument(
+        "--transcripts-dir",
+        help=(
+            "Directory to store per-service request/response transcripts. "
+            "Defaults to a '_transcripts' folder beside the output file."
+        ),
     )
     evo.add_argument(
         "--mapping-batch-size",

@@ -13,6 +13,7 @@ import asyncio
 import hashlib
 import json
 import re
+from pathlib import Path
 from typing import Sequence
 
 import logfire  # type: ignore[import-not-found]
@@ -491,8 +492,18 @@ class PlateauGenerator:
         service_input: ServiceInput,
         plateau_names: Sequence[str] | None = None,
         role_ids: Sequence[str] | None = None,
+        *,
+        transcripts_dir: Path | None = None,
     ) -> ServiceEvolution:
-        """Asynchronously return service evolution for selected plateaus."""
+        """Asynchronously return service evolution for selected plateaus.
+
+        Args:
+            service_input: Source service details to evolve.
+            plateau_names: Optional subset of plateau names to include.
+            role_ids: Optional subset of role identifiers to include.
+            transcripts_dir: Directory to persist per-service transcripts. ``None``
+                disables transcript persistence.
+        """
 
         self._service = service_input
 
@@ -572,18 +583,35 @@ class PlateauGenerator:
                     )
                 )
 
-            return ServiceEvolution(service=service_input, plateaus=plateaus)
+            evolution = ServiceEvolution(service=service_input, plateaus=plateaus)
+            if transcripts_dir is not None:
+                payload = {
+                    "request": service_input.model_dump(),
+                    "response": evolution.model_dump(),
+                }
+                path = transcripts_dir / f"{service_input.service_id}.json"
+                await asyncio.to_thread(
+                    path.write_text,
+                    json.dumps(payload, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+            return evolution
 
     def generate_service_evolution(
         self,
         service_input: ServiceInput,
         plateau_names: Sequence[str] | None = None,
         role_ids: Sequence[str] | None = None,
+        *,
+        transcripts_dir: Path | None = None,
     ) -> ServiceEvolution:
         """Return service evolution for selected plateaus and roles."""
 
         return asyncio.run(
             self.generate_service_evolution_async(
-                service_input, plateau_names, role_ids
+                service_input,
+                plateau_names,
+                role_ids,
+                transcripts_dir=transcripts_dir,
             )
         )
