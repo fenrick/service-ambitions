@@ -116,10 +116,12 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
 
     processed_ids: set[str] = set(read_lines(processed_path)) if args.resume else set()
     existing_lines: list[str] = read_lines(output_path) if args.resume else []
-    transcripts_dir: Path | None = None
-    if args.save_transcripts:
-        transcripts_dir = output_path.with_name(f"{output_path.stem}_transcripts")
-        transcripts_dir.mkdir(parents=True, exist_ok=True)
+    transcripts_dir = (
+        Path(args.transcripts_dir)
+        if args.transcripts_dir is not None
+        else output_path.parent / "_transcripts"
+    )
+    transcripts_dir.mkdir(parents=True, exist_ok=True)
 
     with load_services(Path(args.input_file)) as svc_iter:
         if args.max_services is not None:
@@ -336,17 +338,6 @@ def main() -> None:
         help="Process at most this many services",
     )
     common.add_argument(
-        "--mapping-batch-size",
-        type=int,
-        help="Number of features per mapping request batch",
-    )
-    common.add_argument(
-        "--mapping-parallel-types",
-        action=argparse.BooleanOptionalAction,
-        default=None,
-        help="Enable or disable parallel mapping type requests",
-    )
-    common.add_argument(
         "--seed",
         type=int,
         help="Seed random number generation for reproducible output",
@@ -393,9 +384,11 @@ def main() -> None:
         help="File to write the results",
     )
     amb.add_argument(
-        "--save-transcripts",
-        action="store_true",
-        help="Persist per-service request/response transcripts",
+        "--transcripts-dir",
+        help=(
+            "Directory to store per-service request/response transcripts. "
+            "Defaults to a '_transcripts' folder beside the output file."
+        ),
     )
     amb.add_argument(
         "--validate-only",
@@ -424,6 +417,17 @@ def main() -> None:
         "--output-file",
         default="evolution.jsonl",
         help="File to write the results",
+    )
+    evo.add_argument(
+        "--mapping-batch-size",
+        type=int,
+        help="Number of features per mapping request batch",
+    )
+    evo.add_argument(
+        "--mapping-parallel-types",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Enable or disable parallel mapping type requests",
     )
     evo.add_argument(
         "--roles-file",
