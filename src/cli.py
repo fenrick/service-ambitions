@@ -179,6 +179,7 @@ async def _generate_evolution_for_service(
                 mapping_session=map_session,
                 mapping_batch_size=mapping_batch_size,
                 mapping_parallel_types=mapping_parallel_types,
+                strict=args.strict,
             )
             evolution = await generator.generate_service_evolution_async(
                 service, transcripts_dir=transcripts_dir
@@ -577,6 +578,12 @@ def main() -> None:
         "--roles-file",
         default="data/roles.json",
         help="Path to the roles definition JSON file",
+    )
+    evo.add_argument(
+        "--strict",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Fail immediately on invalid or missing role outputs",
     )
     evo.set_defaults(func=_cmd_generate_evolution)
 

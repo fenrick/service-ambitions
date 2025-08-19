@@ -70,6 +70,7 @@ class PlateauGenerator:
         mapping_session: ConversationSession | None = None,
         mapping_batch_size: int = 30,
         mapping_parallel_types: bool = True,
+        strict: bool = False,
     ) -> None:
         """Initialise the generator.
 
@@ -82,6 +83,7 @@ class PlateauGenerator:
             mapping_batch_size: Number of features per mapping request batch.
             mapping_parallel_types: Dispatch mapping type requests concurrently
                 across all batches when ``True``.
+            strict: Fail on invalid or missing role outputs when ``True``.
         """
         if required_count < 1:
             raise ValueError("required_count must be positive")
@@ -92,6 +94,7 @@ class PlateauGenerator:
         self.roles = list(roles or DEFAULT_ROLE_IDS)
         self.mapping_batch_size = mapping_batch_size
         self.mapping_parallel_types = mapping_parallel_types
+        self.strict = strict
         self._service: ServiceInput | None = None
 
     def _request_description(
@@ -319,6 +322,16 @@ class PlateauGenerator:
             valid[role] = list(role_block.features)
             if len(role_block.features) < self.required_count:
                 missing[role] = self.required_count - len(role_block.features)
+        if self.strict and (invalid or missing):
+            # Strict mode aborts immediately when roles are malformed or absent
+            msg = f"invalid roles: {invalid}, missing counts: {missing}"
+            raise ValueError(msg)
+        if invalid:
+            # In permissive mode we log and attempt recovery
+            logfire.warning("Invalid role payloads", roles=invalid)
+        if missing:
+            # Warn so the caller can decide whether to continue
+            logfire.warning("Missing features for roles", missing=missing)
         return valid, invalid, missing
 
     async def _recover_invalid_roles(
@@ -347,7 +360,11 @@ class PlateauGenerator:
                     f"Expected at least {self.required_count} features for '{role}',"
                     f" got {len(items)} after retry"
                 )
-                raise ValueError(msg)
+                if self.strict:
+                    # Strict mode stops processing immediately
+                    raise ValueError(msg)
+                # Permissive mode logs the issue but continues execution
+                logfire.warning(msg)
 
     def _prepare_sessions(self, service_input: ServiceInput) -> None:
         """Attach ``service_input`` to all conversation sessions."""
@@ -524,23 +541,25 @@ class PlateauGenerator:
             role_data = data.get("features", {})
             valid, invalid_roles, missing = self._validate_roles(role_data)
 
-            fixes = await self._recover_invalid_roles(
-                invalid_roles, level, description, session
-            )
-            valid.update(fixes)
-
-            tasks = {
-                role: asyncio.create_task(
-                    self._request_missing_features_async(
-                        level, role, description, need, session
-                    )
+            if not self.strict:
+                # When permissive, attempt to repair invalid or missing roles
+                fixes = await self._recover_invalid_roles(
+                    invalid_roles, level, description, session
                 )
-                for role, need in missing.items()
-            }
-            if tasks:
-                results = await asyncio.gather(*tasks.values())
-                for role, extras in zip(tasks.keys(), results, strict=False):
-                    valid[role].extend(extras)
+                valid.update(fixes)
+
+                tasks = {
+                    role: asyncio.create_task(
+                        self._request_missing_features_async(
+                            level, role, description, need, session
+                        )
+                    )
+                    for role, need in missing.items()
+                }
+                if tasks:
+                    results = await asyncio.gather(*tasks.values())
+                    for role, extras in zip(tasks.keys(), results, strict=False):
+                        valid[role].extend(extras)
 
             self._enforce_min_features(valid)
 
