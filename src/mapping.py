@@ -27,6 +27,7 @@ from sklearn.feature_extraction.text import (  # type: ignore[import-untyped]
     TfidfVectorizer,
 )
 
+from generator import _with_retry
 from loader import load_mapping_items, load_mapping_type_config, load_prompt_text
 from models import (
     Contribution,
@@ -49,6 +50,12 @@ _FEATURE_EMBED_CACHE: dict[str, np.ndarray] = {}
 
 MIN_MAPPING_ITEMS = 2
 """Minimum number of mapping contributions required per feature."""
+
+SECOND_PASS_TIMEOUT = 20.0
+"""Timeout in seconds for second-pass mapping prompts."""
+
+SECOND_PASS_ATTEMPTS = 2
+"""Maximum retry attempts for second-pass mapping prompts."""
 
 
 def _chunked(
@@ -252,20 +259,58 @@ async def map_feature_async(
     session: ConversationSession,
     feature: PlateauFeature,
     mapping_types: Mapping[str, MappingTypeConfig] | None = None,
+    *,
+    second_pass_timeout: float = SECOND_PASS_TIMEOUT,
+    second_pass_attempts: int = SECOND_PASS_ATTEMPTS,
 ) -> PlateauFeature:
-    """Asynchronously return ``feature`` augmented with mapping data."""
+    """Asynchronously return ``feature`` augmented with mapping data.
 
-    return (await map_features_async(session, [feature], mapping_types))[0]
+    Args:
+        session: Active conversation session used for mapping requests.
+        feature: Plateau feature requiring mapping enrichment.
+        mapping_types: Optional mapping configuration override keyed by type.
+        second_pass_timeout: Timeout in seconds for second-pass mapping prompts.
+        second_pass_attempts: Maximum retry attempts for second-pass prompts.
+    """
+
+    return (
+        await map_features_async(
+            session,
+            [feature],
+            mapping_types,
+            second_pass_timeout=second_pass_timeout,
+            second_pass_attempts=second_pass_attempts,
+        )
+    )[0]
 
 
 def map_feature(
     session: ConversationSession,
     feature: PlateauFeature,
     mapping_types: Mapping[str, MappingTypeConfig] | None = None,
+    *,
+    second_pass_timeout: float = SECOND_PASS_TIMEOUT,
+    second_pass_attempts: int = SECOND_PASS_ATTEMPTS,
 ) -> PlateauFeature:
-    """Return ``feature`` augmented with mapping information."""
+    """Return ``feature`` augmented with mapping information.
 
-    return asyncio.run(map_feature_async(session, feature, mapping_types))
+    Args:
+        session: Active conversation session used for mapping requests.
+        feature: Plateau feature requiring mapping enrichment.
+        mapping_types: Optional mapping configuration override keyed by type.
+        second_pass_timeout: Timeout in seconds for second-pass mapping prompts.
+        second_pass_attempts: Maximum retry attempts for second-pass prompts.
+    """
+
+    return asyncio.run(
+        map_feature_async(
+            session,
+            feature,
+            mapping_types,
+            second_pass_timeout=second_pass_timeout,
+            second_pass_attempts=second_pass_attempts,
+        )
+    )
 
 
 def _build_mapping_prompt(
@@ -391,6 +436,9 @@ async def _map_parallel(
     session: "ConversationSession",
     batches: list[Sequence[PlateauFeature]],
     mapping_types: Mapping[str, MappingTypeConfig],
+    *,
+    second_pass_timeout: float = SECOND_PASS_TIMEOUT,
+    second_pass_attempts: int = SECOND_PASS_ATTEMPTS,
 ) -> dict[str, PlateauFeature]:
     """Return mapping results when mapping types run in parallel."""
 
@@ -417,7 +465,18 @@ async def _map_parallel(
                 item_overrides={cfg.dataset: slice_items},
                 extra_instructions=reminder,
             )
-            payload = await sub_session.ask_async(prompt, output_type=MappingResponse)
+
+            # Second pass uses reduced timeout/attempts to limit tail latency.
+            async def _second_pass(
+                s: "ConversationSession" = sub_session, p: str = prompt
+            ) -> MappingResponse:
+                return await s.ask_async(p, output_type=MappingResponse)
+
+            payload = await _with_retry(
+                _second_pass,
+                request_timeout=second_pass_timeout,
+                attempts=second_pass_attempts,
+            )
         merged = _merge_mapping_results(batch_map[idx], payload, {key: cfg})
         for j, feat in enumerate(merged):
             if len(feat.mappings.get(key, [])) < MIN_MAPPING_ITEMS:
@@ -435,6 +494,9 @@ async def _map_sequential(
     session: "ConversationSession",
     batches: list[Sequence[PlateauFeature]],
     mapping_types: Mapping[str, MappingTypeConfig],
+    *,
+    second_pass_timeout: float = SECOND_PASS_TIMEOUT,
+    second_pass_attempts: int = SECOND_PASS_ATTEMPTS,
 ) -> dict[str, PlateauFeature]:
     """Return mapping results when mapping types run sequentially."""
 
@@ -457,8 +519,17 @@ async def _map_sequential(
                     item_overrides={cfg.dataset: slice_items},
                     extra_instructions=reminder,
                 )
-                payload = await sub_session.ask_async(
-                    prompt, output_type=MappingResponse
+
+                # Second pass uses reduced timeout/attempts to limit tail latency.
+                async def _second_pass(
+                    s: "ConversationSession" = sub_session, p: str = prompt
+                ) -> MappingResponse:
+                    return await s.ask_async(p, output_type=MappingResponse)
+
+                payload = await _with_retry(
+                    _second_pass,
+                    request_timeout=second_pass_timeout,
+                    attempts=second_pass_attempts,
                 )
             batch_list = _merge_mapping_results(batch_list, payload, {key: cfg})
             for j, feat in enumerate(batch_list):
@@ -494,6 +565,8 @@ async def map_features_async(
     *,
     batch_size: int = 30,
     parallel_types: bool = True,
+    second_pass_timeout: float = SECOND_PASS_TIMEOUT,
+    second_pass_attempts: int = SECOND_PASS_ATTEMPTS,
 ) -> list[PlateauFeature]:
     """Asynchronously return ``features`` with mapping information.
 
@@ -504,14 +577,28 @@ async def map_features_async(
         batch_size: Number of features per mapping request batch.
         parallel_types: Dispatch mapping type requests concurrently across all
             batches when ``True``.
+        second_pass_timeout: Timeout in seconds for second-pass mapping prompts.
+        second_pass_attempts: Maximum retry attempts for second-pass prompts.
     """
 
     mapping_types = mapping_types or load_mapping_type_config()
     batches = list(_chunked(features, batch_size))
     if parallel_types:
-        results = await _map_parallel(session, batches, mapping_types)
+        results = await _map_parallel(
+            session,
+            batches,
+            mapping_types,
+            second_pass_timeout=second_pass_timeout,
+            second_pass_attempts=second_pass_attempts,
+        )
     else:
-        results = await _map_sequential(session, batches, mapping_types)
+        results = await _map_sequential(
+            session,
+            batches,
+            mapping_types,
+            second_pass_timeout=second_pass_timeout,
+            second_pass_attempts=second_pass_attempts,
+        )
     return [results[f.feature_id] for f in features]
 
 
@@ -522,6 +609,8 @@ def map_features(
     *,
     batch_size: int = 30,
     parallel_types: bool = True,
+    second_pass_timeout: float = SECOND_PASS_TIMEOUT,
+    second_pass_attempts: int = SECOND_PASS_ATTEMPTS,
 ) -> list[PlateauFeature]:
     """Return ``features`` augmented with mapping information.
 
@@ -532,6 +621,8 @@ def map_features(
         batch_size: Number of features per mapping request batch.
         parallel_types: Dispatch mapping type requests concurrently across all
             batches when ``True``.
+        second_pass_timeout: Timeout in seconds for second-pass mapping prompts.
+        second_pass_attempts: Maximum retry attempts for second-pass prompts.
     """
 
     return asyncio.run(
@@ -541,6 +632,8 @@ def map_features(
             mapping_types,
             batch_size=batch_size,
             parallel_types=parallel_types,
+            second_pass_timeout=second_pass_timeout,
+            second_pass_attempts=second_pass_attempts,
         )
     )
 
