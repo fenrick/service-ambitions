@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any, Iterable, Mapping, Sequence, cast
 import logfire as _logfire
 import numpy as np
 from openai import AsyncOpenAI
-from scipy.sparse import csr_matrix  # type: ignore[import-untyped]
+from scipy.sparse import csr_matrix
 from sklearn.feature_extraction.text import (
     TfidfVectorizer,  # type: ignore[import-untyped]
 )
