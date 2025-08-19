@@ -472,39 +472,31 @@ class RoleFeaturesResponse(BaseModel):
     features: list[FeatureItem]
 
 
+def _extract_mapping_list(value: object, key: str) -> list[Contribution]:
+    """Return mapping list from ``value`` or an empty list."""
+
+    if isinstance(value, list):
+        return value
+    if isinstance(value, dict):
+        direct = value.get(key)
+        if isinstance(direct, list):
+            return direct
+        nested = value.get("mappings")
+        if isinstance(nested, dict):
+            inner = nested.get(key)
+            if isinstance(inner, list):
+                return inner
+        elif isinstance(nested, list):
+            return nested
+    return []
+
+
 def _normalize_mapping_values(
     mapping: dict[str, object],
 ) -> dict[str, list[Contribution]]:
-    """Return mapping dictionary with nested structures flattened.
+    """Return mapping dictionary with nested structures flattened."""
 
-    Agents occasionally wrap mapping lists in redundant dictionaries, for example
-    ``{"applications": {"applications": [...]}}`` or nest them under an extra
-    ``"mappings"`` key. This helper extracts the underlying lists and replaces any
-    unrecognised structures with empty lists so model validation succeeds.
-    """
-
-    normalised: dict[str, list[Contribution]] = {}
-    for key, value in mapping.items():
-        if isinstance(value, list):
-            normalised[key] = value
-            continue
-        if isinstance(value, dict):
-            direct = value.get(key)
-            if isinstance(direct, list):
-                normalised[key] = direct
-                continue
-            nested = value.get("mappings")
-            if isinstance(nested, dict):
-                inner = nested.get(key)
-                if isinstance(inner, list):
-                    normalised[key] = inner
-                    continue
-            elif isinstance(nested, list):
-                normalised[key] = nested
-                continue
-        # Default to an empty list when the structure is unrecognised.
-        normalised[key] = []
-    return normalised
+    return {key: _extract_mapping_list(value, key) for key, value in mapping.items()}
 
 
 class MappingFeature(StrictModel):
