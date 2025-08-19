@@ -188,6 +188,12 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
 
     roles = load_roles(Path(args.roles_file))
     role_ids = [r.role_id for r in roles]
+    mapping_batch_size = args.mapping_batch_size or settings.mapping_batch_size
+    mapping_parallel_types = (
+        args.mapping_parallel_types
+        if args.mapping_parallel_types is not None
+        else settings.mapping_parallel_types
+    )
 
     output_path = Path(args.output_file)
     part_path = output_path.with_suffix(
@@ -234,13 +240,14 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
             desc_session = ConversationSession(desc_agent, stage="descriptions")
             feat_session = ConversationSession(feat_agent, stage="features")
             map_session = ConversationSession(map_agent, stage="mapping")
-
             generator = PlateauGenerator(
                 feat_session,
                 required_count=settings.features_per_role,
                 roles=role_ids,
                 description_session=desc_session,
                 mapping_session=map_session,
+                mapping_batch_size=mapping_batch_size,
+                mapping_parallel_types=mapping_parallel_types,
             )
             evolution = await generator.generate_service_evolution_async(service)
             line = f"{evolution.model_dump_json()}\n"
@@ -318,6 +325,17 @@ def main() -> None:
         "--max-services",
         type=int,
         help="Process at most this many services",
+    )
+    common.add_argument(
+        "--mapping-batch-size",
+        type=int,
+        help="Number of features per mapping request batch",
+    )
+    common.add_argument(
+        "--mapping-parallel-types",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Enable or disable parallel mapping type requests",
     )
     common.add_argument(
         "--seed",

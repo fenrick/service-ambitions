@@ -67,6 +67,8 @@ class PlateauGenerator:
         *,
         description_session: ConversationSession | None = None,
         mapping_session: ConversationSession | None = None,
+        mapping_batch_size: int = 30,
+        mapping_parallel_types: bool = True,
     ) -> None:
         """Initialise the generator.
 
@@ -76,6 +78,9 @@ class PlateauGenerator:
             roles: Role identifiers to include during generation.
             description_session: Session used for plateau descriptions.
             mapping_session: Session used for feature mapping.
+            mapping_batch_size: Number of features per mapping request batch.
+            mapping_parallel_types: Dispatch mapping type requests concurrently
+                across all batches when ``True``.
         """
         if required_count < 1:
             raise ValueError("required_count must be positive")
@@ -84,6 +89,8 @@ class PlateauGenerator:
         self.mapping_session = mapping_session or session
         self.required_count = required_count
         self.roles = list(roles or DEFAULT_ROLE_IDS)
+        self.mapping_batch_size = mapping_batch_size
+        self.mapping_parallel_types = mapping_parallel_types
         self._service: ServiceInput | None = None
 
     @logfire.instrument()
@@ -438,7 +445,12 @@ class PlateauGenerator:
             )
             if self._service is not None:
                 map_session.add_parent_materials(self._service)
-            mapped = await map_features_async(map_session, features)
+            mapped = await map_features_async(
+                map_session,
+                features,
+                batch_size=self.mapping_batch_size,
+                parallel_types=self.mapping_parallel_types,
+            )
             return PlateauResult(
                 plateau=level,
                 plateau_name=plateau_name,

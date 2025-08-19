@@ -314,6 +314,14 @@ class AppConfig(StrictModel):
         int,
         Field(ge=1, description="Required number of features per role."),
     ] = 5
+    mapping_batch_size: int = Field(
+        30,
+        ge=1,
+        description="Number of features included in each mapping request batch.",
+    )
+    mapping_parallel_types: bool = Field(
+        True, description="Process mapping types for all batches concurrently."
+    )
     mapping_types: dict[str, MappingTypeConfig] = Field(
         default_factory=dict,
         description="Mapping type definitions keyed by field name.",

@@ -45,6 +45,15 @@ class Settings(BaseSettings):
     features_per_role: int = Field(
         5, ge=1, description="Required number of features per role."
     )
+    mapping_batch_size: int = Field(
+        30,
+        ge=1,
+        description="Number of features included in each mapping request batch.",
+    )
+    mapping_parallel_types: bool = Field(
+        True,
+        description="Process mapping types for all batches concurrently.",
+    )
     openai_api_key: str = Field(..., description="OpenAI API access token.")
     logfire_token: str | None = Field(
         None, description="Logfire authentication token, if available."
@@ -91,6 +100,8 @@ def load_settings() -> Settings:
             retries=config.retries,
             retry_base_delay=config.retry_base_delay,
             features_per_role=config.features_per_role,
+            mapping_batch_size=config.mapping_batch_size,
+            mapping_parallel_types=config.mapping_parallel_types,
             web_search=config.web_search,
             _env_file=env_file,
         )

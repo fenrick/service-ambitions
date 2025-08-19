@@ -38,7 +38,6 @@ EMBED_MODEL = "text-embedding-3-small"
 
 _EMBED_CLIENT: AsyncOpenAI | None = None
 _EMBED_CACHE: dict[str, tuple[np.ndarray, list[MappingItem]]] = {}
-_CHUNK_SIZE = 20
 
 
 def _chunked(
@@ -308,9 +307,10 @@ def _merge_mapping_results(
 async def _request_mapping(
     session: ConversationSession,
     batch: Sequence[PlateauFeature],
+    batch_index: int,
     key: str,
     cfg: MappingTypeConfig,
-) -> tuple[str, MappingTypeConfig, ConversationSession, MappingResponse]:
+) -> tuple[int, str, MappingTypeConfig, ConversationSession, MappingResponse]:
     """Return mapping response for ``key`` type for ``batch`` features."""
 
     sub_session = session.derive()
@@ -318,32 +318,36 @@ async def _request_mapping(
     prompt = _build_mapping_prompt(batch, {key: cfg}, item_overrides=overrides)
     logfire.debug(f"Requesting {key} mappings for {len(batch)} features")
     payload = await sub_session.ask_async(prompt, output_type=MappingResponse)
-    return key, cfg, sub_session, payload
+    return batch_index, key, cfg, sub_session, payload
 
 
 async def map_features_async(
     session: ConversationSession,
     features: Sequence[PlateauFeature],
     mapping_types: Mapping[str, MappingTypeConfig] | None = None,
+    *,
+    batch_size: int = 30,
+    parallel_types: bool = True,
 ) -> list[PlateauFeature]:
     """Asynchronously return ``features`` with mapping information."""
 
     mapping_types = mapping_types or load_mapping_type_config()
     results: dict[str, PlateauFeature] = {f.feature_id: f for f in features}
+    batches = list(_chunked(features, batch_size))
 
-    for batch in _chunked(features, _CHUNK_SIZE):
+    if parallel_types:
+        batch_results: dict[int, list[PlateauFeature]] = {
+            i: list(batch) for i, batch in enumerate(batches)
+        }
         tasks = [
-            _request_mapping(session, batch, key, cfg)
+            _request_mapping(session, batch, i, key, cfg)
+            for i, batch in enumerate(batches)
             for key, cfg in mapping_types.items()
         ]
-        # Dispatch all mapping type requests concurrently for this batch.
         responses = await asyncio.gather(*tasks)
-
-        batch_results: list[PlateauFeature] = list(batch)
-        for key, cfg, sub_session, payload in responses:
+        for idx, key, cfg, sub_session, payload in responses:
+            batch = batches[idx]
             if all(not f.mappings.get(key) for f in payload.features):
-                # Reissue the request with a narrowed catalogue if the agent
-                # returned no mappings initially.
                 slice_items = _top_k_items(batch, cfg.dataset)
                 reminder = (
                     "Previous response contained no mappings. Select relevant items "
@@ -358,10 +362,39 @@ async def map_features_async(
                 payload = await sub_session.ask_async(
                     prompt, output_type=MappingResponse
                 )
-            batch_results = _merge_mapping_results(batch_results, payload, {key: cfg})
-
-        for updated in batch_results:
-            results[updated.feature_id] = updated
+            batch_results[idx] = _merge_mapping_results(
+                batch_results[idx], payload, {key: cfg}
+            )
+        for batch in batch_results.values():
+            for updated in batch:
+                results[updated.feature_id] = updated
+    else:
+        for i, batch in enumerate(batches):
+            batch_results = list(batch)
+            for key, cfg in mapping_types.items():
+                _, _, _, sub_session, payload = await _request_mapping(
+                    session, batch, i, key, cfg
+                )
+                if all(not f.mappings.get(key) for f in payload.features):
+                    slice_items = _top_k_items(batch, cfg.dataset)
+                    reminder = (
+                        "Previous response contained no mappings. Select relevant items"
+                        " from the reduced catalogue below."
+                    )
+                    prompt = _build_mapping_prompt(
+                        batch,
+                        {key: cfg},
+                        item_overrides={cfg.dataset: slice_items},
+                        extra_instructions=reminder,
+                    )
+                    payload = await sub_session.ask_async(
+                        prompt, output_type=MappingResponse
+                    )
+                batch_results = _merge_mapping_results(
+                    batch_results, payload, {key: cfg}
+                )
+            for updated in batch_results:
+                results[updated.feature_id] = updated
 
     return [results[f.feature_id] for f in features]
 
@@ -370,10 +403,21 @@ def map_features(
     session: ConversationSession,
     features: Sequence[PlateauFeature],
     mapping_types: Mapping[str, MappingTypeConfig] | None = None,
+    *,
+    batch_size: int = 30,
+    parallel_types: bool = True,
 ) -> list[PlateauFeature]:
     """Return ``features`` augmented with mapping information."""
 
-    return asyncio.run(map_features_async(session, features, mapping_types))
+    return asyncio.run(
+        map_features_async(
+            session,
+            features,
+            mapping_types,
+            batch_size=batch_size,
+            parallel_types=parallel_types,
+        )
+    )
 
 
 __all__ = [
