@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import json
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -86,6 +87,7 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         features_per_role=5,
         mapping_batch_size=30,
         mapping_parallel_types=True,
+        web_search=False,
         models=None,
         web_search=False,
     )
@@ -160,6 +162,7 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         features_per_role=5,
         mapping_batch_size=30,
         mapping_parallel_types=True,
+        web_search=False,
         models=None,
         web_search=False,
     )
@@ -241,6 +244,7 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         features_per_role=5,
         mapping_batch_size=30,
         mapping_parallel_types=True,
+        web_search=False,
         models=None,
         web_search=False,
     )
@@ -313,6 +317,7 @@ def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -
         features_per_role=5,
         mapping_batch_size=30,
         mapping_parallel_types=True,
+        web_search=False,
         models=None,
         web_search=False,
     )
@@ -339,7 +344,40 @@ def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -
     with pytest.raises(ValueError, match="concurrency must be a positive integer"):
         asyncio.run(_cmd_generate_evolution(args, settings))
 
+def test_cli_parses_mapping_options(tmp_path, monkeypatch) -> None:
+    """generate-evolution should parse mapping options via the common parser."""
 
+    called: dict[str, argparse.Namespace] = {}
+
+    def fake_cmd(args: argparse.Namespace, _settings) -> None:
+        called["args"] = args
+
+    monkeypatch.setattr(cli, "_cmd_generate_evolution", fake_cmd)
+    monkeypatch.setattr(
+        cli,
+        "load_settings",
+        lambda: SimpleNamespace(log_level="INFO", logfire_token=None),
+    )
+    monkeypatch.setattr("cli.logfire.force_flush", lambda: None)
+
+    argv = [
+        "prog",
+        "generate-evolution",
+        "--input-file",
+        str(tmp_path / "services.jsonl"),
+        "--output-file",
+        str(tmp_path / "out.jsonl"),
+        "--mapping-batch-size",
+        "12",
+        "--no-mapping-parallel-types",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+
+    cli.main()
+
+    assert called["args"].mapping_batch_size == 12
+    assert called["args"].mapping_parallel_types is False
+    
 def test_generate_evolution_writes_transcripts(tmp_path, monkeypatch) -> None:
     """_cmd_generate_evolution writes per-service transcripts to disk."""
 
