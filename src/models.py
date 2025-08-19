@@ -8,6 +8,7 @@ throughout the system.
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated, List, Literal
 
@@ -374,6 +375,33 @@ class PlateauResult(StrictModel):
     )
 
 
+class EvolutionMeta(StrictModel):
+    """Metadata describing a service evolution run."""
+
+    run_id: Annotated[str, Field(min_length=1, description="Unique run identifier.")]
+    seed: int | None = Field(
+        None, description="Seed used for deterministic generation, if any."
+    )
+    use_web_search: bool = Field(
+        ..., description="Whether web search was enabled during generation."
+    )
+    mapping_types: list[str] = Field(
+        default_factory=list, description="Mapping type keys included."
+    )
+    descriptions_model: str = Field(
+        ..., description="Resolved model name for plateau descriptions."
+    )
+    features_model: str = Field(
+        ..., description="Resolved model name for feature generation."
+    )
+    mapping_model: str = Field(
+        ..., description="Resolved model name for feature mapping."
+    )
+    generated_at: datetime = Field(
+        ..., description="UTC timestamp when evolution was generated."
+    )
+
+
 class ServiceEvolution(StrictModel):
     """Summary of a service's progress across plateaus.
 
@@ -388,6 +416,9 @@ class ServiceEvolution(StrictModel):
     service: ServiceInput = Field(..., description="Service being evaluated.")
     plateaus: list[PlateauResult] = Field(
         default_factory=list, description="Evaluated plateaus for the service."
+    )
+    meta: EvolutionMeta | None = Field(
+        default=None, description="Generation metadata for this evolution."
     )
 
 
@@ -578,6 +609,7 @@ __all__ = [
     "PlateauFeaturesResponse",
     "RoleFeaturesResponse",
     "PlateauResult",
+    "EvolutionMeta",
     "StageModels",
     "ReasoningConfig",
     "Role",

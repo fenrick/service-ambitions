@@ -23,6 +23,7 @@ from loader import load_plateau_definitions, load_prompt_text, load_role_ids
 from mapping import map_features_async
 from models import (
     DescriptionResponse,
+    EvolutionMeta,
     FeatureItem,
     FeaturesBlock,
     PlateauDescriptionsResponse,
@@ -392,6 +393,7 @@ class PlateauGenerator:
         plateau_names: Sequence[str],
         role_ids: Sequence[str],
         transcripts_dir: Path | None,
+        meta: EvolutionMeta | None,
     ) -> ServiceEvolution:
         """Return ``ServiceEvolution`` from plateau ``results``."""
 
@@ -426,7 +428,9 @@ class PlateauGenerator:
                 )
             )
 
-        evolution = ServiceEvolution(service=service_input, plateaus=plateaus)
+        evolution = ServiceEvolution(
+            service=service_input, plateaus=plateaus, meta=meta
+        )
         if transcripts_dir is not None:
             payload = {
                 "request": service_input.model_dump(),
@@ -603,6 +607,7 @@ class PlateauGenerator:
         role_ids: Sequence[str] | None = None,
         *,
         transcripts_dir: Path | None = None,
+        meta: EvolutionMeta | None = None,
     ) -> ServiceEvolution:
         """Asynchronously return service evolution for selected plateaus.
 
@@ -612,6 +617,7 @@ class PlateauGenerator:
             role_ids: Optional subset of role identifiers to include.
             transcripts_dir: Directory to persist per-service transcripts. ``None``
                 disables transcript persistence.
+            meta: Optional metadata describing the generation run.
         """
 
         self._prepare_sessions(service_input)
@@ -633,7 +639,12 @@ class PlateauGenerator:
             )
 
             return await self._assemble_evolution(
-                service_input, results, plateau_names, role_ids, transcripts_dir
+                service_input,
+                results,
+                plateau_names,
+                role_ids,
+                transcripts_dir,
+                meta,
             )
 
     def generate_service_evolution(
@@ -643,6 +654,7 @@ class PlateauGenerator:
         role_ids: Sequence[str] | None = None,
         *,
         transcripts_dir: Path | None = None,
+        meta: EvolutionMeta | None = None,
     ) -> ServiceEvolution:
         """Return service evolution for selected plateaus and roles."""
 
@@ -652,5 +664,6 @@ class PlateauGenerator:
                 plateau_names,
                 role_ids,
                 transcripts_dir=transcripts_dir,
+                meta=meta,
             )
         )

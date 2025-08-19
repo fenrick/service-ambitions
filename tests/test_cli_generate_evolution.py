@@ -24,7 +24,7 @@ class DummyFactory:
         return object()
 
 
-cli.ModelFactory = DummyFactory
+cli.ModelFactory = DummyFactory  # type: ignore[misc, assignment]
 
 
 async def _noop_init_embeddings() -> None:
@@ -62,7 +62,9 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         service: ServiceInput,
         plateau_names=None,
         role_ids=None,
+        *,
         transcripts_dir=None,
+        meta=None,
     ) -> ServiceEvolution:
         return ServiceEvolution(service=service, plateaus=[])
 
@@ -135,7 +137,9 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         service: ServiceInput,
         plateau_names=None,
         role_ids=None,
+        *,
         transcripts_dir=None,
+        meta=None,
     ) -> ServiceEvolution:
         called["ran"] = True
         return ServiceEvolution(service=service, plateaus=[])
@@ -216,7 +220,9 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         service: ServiceInput,
         plateau_names=None,
         role_ids=None,
+        *,
         transcripts_dir=None,
+        meta=None,
     ) -> ServiceEvolution:
         processed.append(service.service_id)
         return ServiceEvolution(service=service, plateaus=[])
@@ -289,7 +295,9 @@ def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -
         service: ServiceInput,
         plateau_names=None,
         role_ids=None,
+        *,
         transcripts_dir=None,
+        meta=None,
     ) -> ServiceEvolution:
         return ServiceEvolution(service=service, plateaus=[])
 
@@ -404,7 +412,9 @@ def test_generate_evolution_writes_transcripts(tmp_path, monkeypatch) -> None:
         service: ServiceInput,
         plateau_names=None,
         role_ids=None,
+        *,
         transcripts_dir=None,
+        meta=None,
     ) -> ServiceEvolution:
         assert transcripts_dir is not None
         path = transcripts_dir / f"{service.service_id}.json"

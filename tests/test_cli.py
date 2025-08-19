@@ -26,7 +26,7 @@ class DummyFactory:
         return object()
 
 
-cli.ModelFactory = DummyFactory
+cli.ModelFactory = DummyFactory  # type: ignore[misc, assignment]
 
 
 def test_cli_generates_output(tmp_path, monkeypatch):

@@ -9,6 +9,8 @@ import logging
 import os
 import random
 import sys
+import uuid
+from datetime import datetime, timezone
 from itertools import islice
 from pathlib import Path
 from typing import Any, Coroutine, Sequence, cast
@@ -27,7 +29,7 @@ from loader import (
 )
 from mapping import init_embeddings
 from model_factory import ModelFactory
-from models import ServiceInput
+from models import EvolutionMeta, ServiceInput
 from monitoring import LOG_FILE_NAME, init_logfire, logfire
 from persistence import atomic_write, read_lines
 from plateau_generator import PlateauGenerator
@@ -139,6 +141,10 @@ async def _generate_evolution_for_service(
     lock: asyncio.Lock,
     output,
     new_ids: set[str],
+    run_id: str,
+    seed: int | None,
+    use_web_search: bool,
+    mapping_types: Sequence[str],
 ) -> None:
     """Generate evolution for ``service`` and record results."""
 
@@ -171,6 +177,24 @@ async def _generate_evolution_for_service(
             desc_session = ConversationSession(desc_agent, stage="descriptions")
             feat_session = ConversationSession(feat_agent, stage="features")
             map_session = ConversationSession(map_agent, stage="mapping")
+
+            meta = EvolutionMeta(
+                run_id=run_id,
+                seed=seed,
+                use_web_search=use_web_search,
+                mapping_types=list(mapping_types),
+                descriptions_model=factory.model_name(
+                    "descriptions", args.descriptions_model or args.model
+                ),
+                features_model=factory.model_name(
+                    "features", args.features_model or args.model
+                ),
+                mapping_model=factory.model_name(
+                    "mapping", args.mapping_model or args.model
+                ),
+                generated_at=datetime.now(timezone.utc),
+            )
+
             generator = PlateauGenerator(
                 feat_session,
                 required_count=settings.features_per_role,
@@ -181,7 +205,7 @@ async def _generate_evolution_for_service(
                 mapping_parallel_types=mapping_parallel_types,
             )
             evolution = await generator.generate_service_evolution_async(
-                service, transcripts_dir=transcripts_dir
+                service, transcripts_dir=transcripts_dir, meta=meta
             )
             line = f"{evolution.model_dump_json()}\n"
             async with lock:
@@ -364,6 +388,8 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
         logfire.info(f"Validated {len(services)} services")
         return
 
+    run_id = uuid.uuid4().hex
+
     concurrency = args.concurrency or settings.concurrency
     if concurrency < 1:
         raise ValueError("concurrency must be a positive integer")
@@ -388,6 +414,10 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
                 lock=lock,
                 output=output,
                 new_ids=new_ids,
+                run_id=run_id,
+                seed=args.seed,
+                use_web_search=use_web_search,
+                mapping_types=list(settings.mapping_types.keys()),
             )
             if progress:
                 progress.update(1)
