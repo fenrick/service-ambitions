@@ -455,17 +455,6 @@ def main() -> None:
         help="File to write the results",
     )
     evo.add_argument(
-        "--mapping-batch-size",
-        type=int,
-        help="Number of features per mapping request batch",
-    )
-    evo.add_argument(
-        "--mapping-parallel-types",
-        action=argparse.BooleanOptionalAction,
-        default=None,
-        help="Enable or disable parallel mapping type requests",
-    )
-    evo.add_argument(
         "--roles-file",
         default="data/roles.json",
         help="Path to the roles definition JSON file",
