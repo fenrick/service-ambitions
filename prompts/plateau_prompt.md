@@ -21,9 +21,6 @@ using the previously supplied description.
 - "features" must include keys for each role: {roles}.
 - Each role key must map to an array containing at least {required_count} feature objects.
 - Every feature must provide:
-  - "feature_id": unique string identifier.
-    - Format: "FEAT-{plateau}-{{role}}-{{kebab-case-short-name}}" (e.g., FEAT-2-learners-smart-enrolment).
-    - Ensure IDs are unique across all roles in this response.
   - "name": short feature title.
   - "description": explanation of the feature.
   - "score": object describing CMMI maturity with:
@@ -44,7 +41,6 @@ using the previously supplied description.
   "features": {{
     "learners": [
       {{
-        "feature_id": "FEAT-{plateau}-learners-smart-enrolment",
         "name": "Smart enrolment",
         "description": "Students enrol through a streamlined digital process with real-time validation.",
         "score": {{

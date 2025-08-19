@@ -36,6 +36,7 @@ class DummySession:
         self._responses = responses
         self.prompts: list[str] = []
         self.client = None
+        self.stage = "test"
 
     def ask(self, prompt: str, output_type=None) -> object:
         self.prompts.append(prompt)
@@ -59,7 +60,6 @@ def _feature_payload(count: int, level: int = 1) -> str:
         for i in range(count):
             items.append(
                 {
-                    "feature_id": f"FEAT-{level}-{role}-f{i}",
                     "name": f"Feature {i}",
                     "description": f"Desc {i}",
                     "score": {
@@ -88,13 +88,9 @@ def test_predict_token_load_uses_estimate_tokens(monkeypatch) -> None:
     assert called["args"] == ("hello", 0)
 
 
-def test_build_plateau_prompt_preserves_role_placeholder(monkeypatch) -> None:
-    """_build_plateau_prompt should retain role placeholders."""
+def test_build_plateau_prompt_excludes_feature_id() -> None:
+    """Old FEAT-* identifiers should not appear in prompts."""
 
-    template = 'Format: "FEAT-{plateau}-{{role}}-{{kebab-case-short-name}}"'
-    monkeypatch.setattr(
-        "plateau_generator.load_prompt_text", lambda *args, **kwargs: template
-    )
     session = DummySession([])
     generator = PlateauGenerator(cast(ConversationSession, session))
     generator._service = ServiceInput(
@@ -107,7 +103,22 @@ def test_build_plateau_prompt_preserves_role_placeholder(monkeypatch) -> None:
 
     prompt = generator._build_plateau_prompt(2, "d")
 
-    assert "FEAT-2-{role}-{kebab-case-short-name}" in prompt
+    assert "FEAT-" not in prompt
+
+
+def test_to_feature_hashes_missing_id() -> None:
+    """_to_feature should hash name and role when feature_id is absent."""
+
+    session = DummySession([])
+    generator = PlateauGenerator(cast(ConversationSession, session))
+    item = FeatureItem(
+        name="Example",
+        description="d",
+        score=MaturityScore(level=3, label="Defined", justification="j"),
+    )
+    feature = generator._to_feature(item, "learners")
+    expected = hashlib.sha1("Example|learners".encode()).hexdigest()
+    assert feature.feature_id == expected
 
 
 def test_generate_plateau_returns_results(monkeypatch) -> None:
@@ -137,7 +148,7 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
 
     call = {"n": 0}
 
-    async def dummy_map_features(sess, feats):
+    async def dummy_map_features(sess, feats, *args, **kwargs):
         call["n"] += 1
         for feat in feats:
             feat.mappings["data"] = [Contribution(item="d", contribution=0.5)]
@@ -227,7 +238,7 @@ def test_generate_plateau_repairs_missing_features(monkeypatch) -> None:
     )
     session = DummySession([desc_payload, initial, repair])
 
-    async def dummy_map_features(sess, feats):
+    async def dummy_map_features(sess, feats, *args, **kwargs):
         return feats
 
     monkeypatch.setattr("plateau_generator.map_features_async", dummy_map_features)
@@ -315,7 +326,7 @@ def test_generate_plateau_requests_missing_features_concurrently(
     )
     session = DummySession([desc_payload, initial])
 
-    async def dummy_map_features(sess, feats):
+    async def dummy_map_features(sess, feats, *args, **kwargs):
         return feats
 
     monkeypatch.setattr("plateau_generator.map_features_async", dummy_map_features)
@@ -429,7 +440,7 @@ def test_generate_plateau_repairs_invalid_role(monkeypatch) -> None:
     )
     session = DummySession([desc_payload, initial, repair])
 
-    async def dummy_map_features(sess, feats):
+    async def dummy_map_features(sess, feats, *args, **kwargs):
         return feats
 
     monkeypatch.setattr("plateau_generator.map_features_async", dummy_map_features)
@@ -641,13 +652,6 @@ def test_generate_service_evolution_filters(monkeypatch) -> None:
                 score=MaturityScore(level=3, label="Defined", justification="j"),
                 customer_type="academics",
             ),
-            PlateauFeature(
-                feature_id=f"c{level}",
-                name="C",
-                description="d",
-                score=MaturityScore(level=3, label="Defined", justification="j"),
-                customer_type="professional_staff",
-            ),
         ]
         return PlateauResult(
             plateau=level,
@@ -673,14 +677,14 @@ def test_generate_service_evolution_filters(monkeypatch) -> None:
     evo = generator.generate_service_evolution(
         service,
         ["Foundational", "Enhanced"],
-        ["learners", "academic"],
+        ["learners", "academics"],
     )
 
     assert called == [1, 2]
-    assert len(sessions) == 2
+    assert len(sessions) == 1
     assert len(evo.plateaus) == 2
     for plat in evo.plateaus:
-        assert {f.customer_type for f in plat.features} <= {"learners", "academic"}
+        assert {f.customer_type for f in plat.features} <= {"learners", "academics"}
 
 
 def test_generate_service_evolution_invalid_role_raises(monkeypatch) -> None:

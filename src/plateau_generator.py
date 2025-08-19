@@ -278,8 +278,12 @@ class PlateauGenerator:
             Plateau feature populated with the provided metadata.
         """
 
+        feature_id = item.feature_id
+        if feature_id is None:
+            raw = f"{item.name}|{role}".encode()
+            feature_id = hashlib.sha1(raw, usedforsecurity=False).hexdigest()
         return PlateauFeature(
-            feature_id=item.feature_id,
+            feature_id=feature_id,
             name=item.name,
             description=item.description,
             score=item.score,
@@ -333,7 +337,6 @@ class PlateauGenerator:
         example = {
             "features": [
                 {
-                    "feature_id": f"FEAT-{level}-{role}-example",
                     "name": "Example feature",
                     "description": "Example description.",
                     "score": {
@@ -512,7 +515,6 @@ class PlateauGenerator:
         example = {
             "features": [
                 {
-                    "feature_id": f"FEAT-{level}-{role}-example",
                     "name": "Example feature",
                     "description": "Example description.",
                     "score": {

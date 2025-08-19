@@ -425,13 +425,12 @@ class PlateauDescriptionsResponse(StrictModel):
 class FeatureItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
     feature_id: Annotated[
-        str,
+        str | None,
         Field(
             min_length=1,
-            pattern=r"^FEAT-\d+-(learners|academics|professional_staff)-[a-z0-9]+(?:-[a-z0-9]+)*$",
-            description="Format: FEAT-{plateau}-{role}-{kebab-case-short-name}",
+            description="Unique feature identifier assigned post-processing.",
         ),
-    ]
+    ] = None
     name: Annotated[str, Field(min_length=1)]
     description: Annotated[str, Field(min_length=1)]
     score: MaturityScore
@@ -451,18 +450,6 @@ class PlateauFeaturesResponse(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     features: FeaturesBlock
-
-    @model_validator(mode="after")
-    def unique_feature_ids(self):
-        all_items = (
-            self.features.learners
-            + self.features.academics
-            + self.features.professional_staff
-        )
-        ids = [f.feature_id for f in all_items]
-        if len(ids) != len(set(ids)):
-            raise ValueError("feature_id values must be unique across all roles")
-        return self
 
 
 class RoleFeaturesResponse(BaseModel):
