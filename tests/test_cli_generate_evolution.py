@@ -86,6 +86,7 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         reasoning=None,
         features_per_role=5,
         mapping_batch_size=30,
+        mapping_max_tokens=8000,
         mapping_parallel_types=True,
         web_search=False,
         models=None,
@@ -105,6 +106,7 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         seed=None,
         roles_file="data/roles.json",
         mapping_batch_size=None,
+        mapping_max_tokens=None,
         mapping_parallel_types=None,
         transcripts_dir=None,
         web_search=None,
@@ -160,6 +162,7 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         reasoning=None,
         features_per_role=5,
         mapping_batch_size=30,
+        mapping_max_tokens=8000,
         mapping_parallel_types=True,
         web_search=False,
         models=None,
@@ -179,6 +182,7 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         seed=None,
         roles_file="data/roles.json",
         mapping_batch_size=None,
+        mapping_max_tokens=None,
         mapping_parallel_types=None,
         transcripts_dir=None,
         web_search=None,
@@ -241,6 +245,7 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         reasoning=None,
         features_per_role=5,
         mapping_batch_size=30,
+        mapping_max_tokens=8000,
         mapping_parallel_types=True,
         web_search=False,
         models=None,
@@ -260,6 +265,7 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         seed=None,
         roles_file="data/roles.json",
         mapping_batch_size=None,
+        mapping_max_tokens=None,
         mapping_parallel_types=None,
         transcripts_dir=None,
         web_search=None,
@@ -313,6 +319,7 @@ def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -
         reasoning=None,
         features_per_role=5,
         mapping_batch_size=30,
+        mapping_max_tokens=8000,
         mapping_parallel_types=True,
         web_search=False,
         models=None,
@@ -332,6 +339,7 @@ def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -
         seed=None,
         roles_file="data/roles.json",
         mapping_batch_size=None,
+        mapping_max_tokens=None,
         mapping_parallel_types=None,
         transcripts_dir=None,
         web_search=None,
@@ -366,6 +374,8 @@ def test_cli_parses_mapping_options(tmp_path, monkeypatch) -> None:
         str(tmp_path / "out.jsonl"),
         "--mapping-batch-size",
         "12",
+        "--mapping-max-tokens",
+        "9000",
         "--no-mapping-parallel-types",
     ]
     monkeypatch.setattr(sys, "argv", argv)
@@ -374,6 +384,7 @@ def test_cli_parses_mapping_options(tmp_path, monkeypatch) -> None:
 
     assert called["args"].mapping_batch_size == 12
     assert called["args"].mapping_parallel_types is False
+    assert called["args"].mapping_max_tokens == 9000
 
 
 def test_generate_evolution_writes_transcripts(tmp_path, monkeypatch) -> None:
@@ -431,6 +442,7 @@ def test_generate_evolution_writes_transcripts(tmp_path, monkeypatch) -> None:
         reasoning=None,
         features_per_role=5,
         mapping_batch_size=30,
+        mapping_max_tokens=8000,
         mapping_parallel_types=True,
         models=None,
         web_search=False,
@@ -450,6 +462,7 @@ def test_generate_evolution_writes_transcripts(tmp_path, monkeypatch) -> None:
         seed=None,
         roles_file="data/roles.json",
         mapping_batch_size=None,
+        mapping_max_tokens=None,
         mapping_parallel_types=None,
         transcripts_dir=None,
         web_search=None,

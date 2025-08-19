@@ -763,3 +763,35 @@ async def test_init_embeddings_handles_errors(monkeypatch) -> None:
 
     assert "good" in mapping._EMBED_CACHE
     assert "bad" not in mapping._EMBED_CACHE
+
+
+def test_token_limited_batches_downsizes(monkeypatch) -> None:
+    """Dynamic batching shrinks groups that exceed the token cap."""
+
+    features = [
+        PlateauFeature(
+            feature_id=f"f{i}",
+            name="n",
+            description="d",
+            score=MaturityScore(level=1, label="Initial", justification="j"),
+            customer_type="learners",
+        )
+        for i in range(3)
+    ]
+    mapping_types = {"apps": MappingTypeConfig(dataset="applications", label="Apps")}
+    logs: list[tuple[tuple[str], dict]] = []
+    monkeypatch.setattr(
+        mapping,
+        "logfire",
+        SimpleNamespace(info=lambda *a, **k: logs.append((a, k))),
+    )
+    monkeypatch.setattr(
+        mapping, "estimate_tokens", lambda _p, expected: expected, raising=False
+    )
+
+    batches = mapping._token_limited_batches(
+        features, mapping_types, batch_size=None, max_tokens=300
+    )
+
+    assert [len(b) for b in batches] == [1, 1, 1]
+    assert logs and "Downsized" in logs[0][0][0]

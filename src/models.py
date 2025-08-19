@@ -318,10 +318,15 @@ class AppConfig(StrictModel):
         int,
         Field(ge=1, description="Required number of features per role."),
     ] = 5
-    mapping_batch_size: int = Field(
+    mapping_batch_size: int | None = Field(
         30,
         ge=1,
         description="Number of features included in each mapping request batch.",
+    )
+    mapping_max_tokens: int = Field(
+        8000,
+        ge=1,
+        description="Maximum combined tokens for mapping prompts and responses.",
     )
     mapping_parallel_types: bool = Field(
         True, description="Process mapping types for all batches concurrently."

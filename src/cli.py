@@ -134,7 +134,8 @@ async def _generate_evolution_for_service(
     system_prompt: str,
     transcripts_dir: Path,
     role_ids: Sequence[str],
-    mapping_batch_size: int,
+    mapping_batch_size: int | None,
+    mapping_max_tokens: int,
     mapping_parallel_types: bool,
     lock: asyncio.Lock,
     output,
@@ -179,6 +180,7 @@ async def _generate_evolution_for_service(
                 mapping_session=map_session,
                 mapping_batch_size=mapping_batch_size,
                 mapping_parallel_types=mapping_parallel_types,
+                mapping_max_tokens=mapping_max_tokens,
             )
             evolution = await generator.generate_service_evolution_async(
                 service, transcripts_dir=transcripts_dir
@@ -346,6 +348,7 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
 
     role_ids = load_role_ids(Path(args.roles_file))
     mapping_batch_size = args.mapping_batch_size or settings.mapping_batch_size
+    mapping_max_tokens = args.mapping_max_tokens or settings.mapping_max_tokens
     mapping_parallel_types = (
         args.mapping_parallel_types
         if args.mapping_parallel_types is not None
@@ -384,6 +387,7 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
                 transcripts_dir=transcripts_dir,
                 role_ids=role_ids,
                 mapping_batch_size=mapping_batch_size,
+                mapping_max_tokens=mapping_max_tokens,
                 mapping_parallel_types=mapping_parallel_types,
                 lock=lock,
                 output=output,
@@ -469,6 +473,11 @@ def main() -> None:
         "--mapping-batch-size",
         type=int,
         help="Number of features per mapping request batch",
+    )
+    common.add_argument(
+        "--mapping-max-tokens",
+        type=int,
+        help="Maximum tokens allowed per mapping request",
     )
     common.add_argument(
         "--mapping-parallel-types",

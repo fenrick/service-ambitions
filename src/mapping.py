@@ -12,7 +12,7 @@ import asyncio
 import json
 import os
 from functools import lru_cache
-from typing import TYPE_CHECKING, Iterable, Mapping, Sequence
+from typing import TYPE_CHECKING, Mapping, Sequence
 
 import logfire
 import numpy as np
@@ -30,6 +30,7 @@ from models import (
     MappingTypeConfig,
     PlateauFeature,
 )
+from token_utils import estimate_tokens
 
 if TYPE_CHECKING:
     from conversation import ConversationSession
@@ -44,14 +45,66 @@ _EMBED_CACHE: dict[str, tuple[np.ndarray, list[MappingItem]]] = {}
 MIN_MAPPING_ITEMS = 2
 """Minimum number of mapping contributions required per feature."""
 
+_TOKENS_PER_FEATURE = 256
+"""Rough token budget reserved for each mapped feature."""
 
-def _chunked(
-    seq: Sequence[PlateauFeature], size: int
-) -> Iterable[Sequence[PlateauFeature]]:
-    """Yield successive ``size``-sized chunks from ``seq``."""
 
-    for i in range(0, len(seq), size):
-        yield seq[i : i + size]
+def _token_limited_batches(
+    features: Sequence[PlateauFeature],
+    mapping_types: Mapping[str, MappingTypeConfig],
+    *,
+    batch_size: int | None,
+    max_tokens: int,
+) -> list[Sequence[PlateauFeature]]:
+    """Return feature batches constrained by ``max_tokens``.
+
+    The splitter dynamically adjusts batch sizes by estimating the token usage
+    of the mapping prompt for a prospective batch. Batches are grown to utilise
+    the available token budget and shrunk when estimates exceed ``max_tokens``.
+    A log entry is emitted whenever downsizing occurs due to token pressure.
+    """
+
+    batches: list[Sequence[PlateauFeature]] = []
+    size = batch_size or len(features)
+    idx = 0
+    while idx < len(features):
+        size = min(size, len(features) - idx)
+        candidate = list(features[idx : idx + size])
+        prompt = _build_mapping_prompt(candidate, mapping_types)
+        tokens = estimate_tokens(prompt, _TOKENS_PER_FEATURE * len(candidate))
+
+        if tokens > max_tokens and size > 1:
+            original = size
+            while tokens > max_tokens and size > 1:
+                size -= 1
+                candidate = list(features[idx : idx + size])
+                prompt = _build_mapping_prompt(candidate, mapping_types)
+                tokens = estimate_tokens(prompt, _TOKENS_PER_FEATURE * len(candidate))
+            if size < original:
+                logfire.info(
+                    "Downsized mapping batch to respect token cap",
+                    old_size=original,
+                    new_size=size,
+                    token_cap=max_tokens,
+                )
+        else:
+            while idx + size < len(features):
+                next_size = size + 1
+                candidate_next = list(features[idx : idx + next_size])
+                prompt = _build_mapping_prompt(candidate_next, mapping_types)
+                tokens_next = estimate_tokens(
+                    prompt, _TOKENS_PER_FEATURE * len(candidate_next)
+                )
+                if tokens_next > max_tokens:
+                    break
+                size = next_size
+                candidate = candidate_next
+                tokens = tokens_next
+
+        batches.append(candidate)
+        idx += len(candidate)
+
+    return batches
 
 
 @lru_cache(maxsize=None)
@@ -463,7 +516,8 @@ async def map_features_async(
     features: Sequence[PlateauFeature],
     mapping_types: Mapping[str, MappingTypeConfig] | None = None,
     *,
-    batch_size: int = 30,
+    batch_size: int | None = 30,
+    max_tokens: int = 8000,
     parallel_types: bool = True,
 ) -> list[PlateauFeature]:
     """Asynchronously return ``features`` with mapping information.
@@ -472,13 +526,18 @@ async def map_features_async(
         session: Active conversation session used for mapping requests.
         features: Plateau features requiring mapping enrichment.
         mapping_types: Optional mapping configuration override keyed by type.
-        batch_size: Number of features per mapping request batch.
+        batch_size: Initial number of features per mapping request batch. ``None``
+            lets the splitter decide the starting size dynamically.
+        max_tokens: Maximum combined tokens for each mapping prompt and its
+            expected response.
         parallel_types: Dispatch mapping type requests concurrently across all
             batches when ``True``.
     """
 
     mapping_types = mapping_types or load_mapping_type_config()
-    batches = list(_chunked(features, batch_size))
+    batches = _token_limited_batches(
+        features, mapping_types, batch_size=batch_size, max_tokens=max_tokens
+    )
     if parallel_types:
         results = await _map_parallel(session, batches, mapping_types)
     else:
@@ -491,7 +550,8 @@ def map_features(
     features: Sequence[PlateauFeature],
     mapping_types: Mapping[str, MappingTypeConfig] | None = None,
     *,
-    batch_size: int = 30,
+    batch_size: int | None = 30,
+    max_tokens: int = 8000,
     parallel_types: bool = True,
 ) -> list[PlateauFeature]:
     """Return ``features`` augmented with mapping information.
@@ -500,7 +560,8 @@ def map_features(
         session: Active conversation session used for mapping requests.
         features: Plateau features requiring mapping enrichment.
         mapping_types: Optional mapping configuration override keyed by type.
-        batch_size: Number of features per mapping request batch.
+        batch_size: Initial number of features per mapping request batch.
+        max_tokens: Maximum combined tokens for mapping prompts and responses.
         parallel_types: Dispatch mapping type requests concurrently across all
             batches when ``True``.
     """
@@ -511,6 +572,7 @@ def map_features(
             features,
             mapping_types,
             batch_size=batch_size,
+            max_tokens=max_tokens,
             parallel_types=parallel_types,
         )
     )

@@ -68,8 +68,9 @@ class PlateauGenerator:
         *,
         description_session: ConversationSession | None = None,
         mapping_session: ConversationSession | None = None,
-        mapping_batch_size: int = 30,
+        mapping_batch_size: int | None = 30,
         mapping_parallel_types: bool = True,
+        mapping_max_tokens: int = 8000,
     ) -> None:
         """Initialise the generator.
 
@@ -79,9 +80,12 @@ class PlateauGenerator:
             roles: Role identifiers to include during generation.
             description_session: Session used for plateau descriptions.
             mapping_session: Session used for feature mapping.
-            mapping_batch_size: Number of features per mapping request batch.
+            mapping_batch_size: Initial features per mapping request batch. ``None``
+                lets the mapping splitter decide dynamically.
             mapping_parallel_types: Dispatch mapping type requests concurrently
                 across all batches when ``True``.
+            mapping_max_tokens: Maximum combined tokens for mapping prompts and
+                expected responses.
         """
         if required_count < 1:
             raise ValueError("required_count must be positive")
@@ -92,6 +96,7 @@ class PlateauGenerator:
         self.roles = list(roles or DEFAULT_ROLE_IDS)
         self.mapping_batch_size = mapping_batch_size
         self.mapping_parallel_types = mapping_parallel_types
+        self.mapping_max_tokens = mapping_max_tokens
         self._service: ServiceInput | None = None
 
     def _request_description(
@@ -561,6 +566,7 @@ class PlateauGenerator:
                 map_session,
                 features,
                 batch_size=self.mapping_batch_size,
+                max_tokens=self.mapping_max_tokens,
                 parallel_types=self.mapping_parallel_types,
             )
             return PlateauResult(

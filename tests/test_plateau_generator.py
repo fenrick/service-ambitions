@@ -137,7 +137,7 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
 
     call = {"n": 0}
 
-    async def dummy_map_features(sess, feats):
+    async def dummy_map_features(sess, feats, **_):
         call["n"] += 1
         for feat in feats:
             feat.mappings["data"] = [Contribution(item="d", contribution=0.5)]
@@ -227,7 +227,7 @@ def test_generate_plateau_repairs_missing_features(monkeypatch) -> None:
     )
     session = DummySession([desc_payload, initial, repair])
 
-    async def dummy_map_features(sess, feats):
+    async def dummy_map_features(sess, feats, **_):
         return feats
 
     monkeypatch.setattr("plateau_generator.map_features_async", dummy_map_features)
@@ -315,7 +315,7 @@ def test_generate_plateau_requests_missing_features_concurrently(
     )
     session = DummySession([desc_payload, initial])
 
-    async def dummy_map_features(sess, feats):
+    async def dummy_map_features(sess, feats, **_):
         return feats
 
     monkeypatch.setattr("plateau_generator.map_features_async", dummy_map_features)
@@ -429,7 +429,7 @@ def test_generate_plateau_repairs_invalid_role(monkeypatch) -> None:
     )
     session = DummySession([desc_payload, initial, repair])
 
-    async def dummy_map_features(sess, feats):
+    async def dummy_map_features(sess, feats, **_):
         return feats
 
     monkeypatch.setattr("plateau_generator.map_features_async", dummy_map_features)
@@ -857,3 +857,54 @@ def test_generate_service_evolution_deduplicates_features(monkeypatch) -> None:
     assert len(features) == 1
     expected = hashlib.sha1("A|learners|Foundational".encode()).hexdigest()
     assert features[0].feature_id == expected
+
+
+def test_generate_plateau_passes_mapping_limits(monkeypatch) -> None:
+    """Generator forwards batch size and token cap to mapping."""
+
+    desc_payload = json.dumps(
+        {
+            "descriptions": [
+                {
+                    "plateau": 1,
+                    "plateau_name": "Foundational",
+                    "description": "d",
+                }
+            ]
+        }
+    )
+    session = DummySession([desc_payload, _feature_payload(1)])
+    session.stage = "mapping"
+
+    captured: dict[str, object] = {}
+
+    async def dummy_map_features(sess, feats, **kwargs):
+        captured.update(kwargs)
+        return feats
+
+    monkeypatch.setattr("plateau_generator.map_features_async", dummy_map_features)
+
+    generator = PlateauGenerator(
+        cast(ConversationSession, session),
+        required_count=1,
+        mapping_batch_size=None,
+        mapping_max_tokens=123,
+    )
+    service = ServiceInput(
+        service_id="svc-1",
+        name="svc",
+        customer_type="retail",
+        description="desc",
+        jobs_to_be_done=[{"name": "job"}],
+    )
+    generator._service = service
+
+    desc_map = asyncio.run(generator._request_descriptions_async(["Foundational"]))
+    asyncio.run(
+        generator.generate_plateau_async(
+            1, "Foundational", description=desc_map["Foundational"]
+        )
+    )
+
+    assert captured["batch_size"] is None
+    assert captured["max_tokens"] == 123
