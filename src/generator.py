@@ -175,6 +175,7 @@ class ServiceAmbitionGenerator:
         retries: int = 5,
         retry_base_delay: float = 0.5,
         expected_output_tokens: int = 256,
+        flush_interval: int = 100,
     ) -> None:
         """Initialize the generator.
 
@@ -188,6 +189,8 @@ class ServiceAmbitionGenerator:
             retry_base_delay: Initial backoff delay in seconds.
             expected_output_tokens: Anticipated tokens in each response used to
                 weight concurrency limits.
+            flush_interval: Number of lines to write before forcing a flush and
+                ``os.fsync`` to ensure results are durably persisted.
 
         Raises:
             ValueError: If ``concurrency`` is less than one.
@@ -203,6 +206,7 @@ class ServiceAmbitionGenerator:
         self.retries = retries
         self.retry_base_delay = retry_base_delay
         self.expected_output_tokens = expected_output_tokens
+        self.flush_interval = flush_interval
         self._prompt: str | None = None
         self._limiter: AdaptiveSemaphore | None = None
         self._metrics: RollingMetrics | None = None
@@ -274,9 +278,16 @@ class ServiceAmbitionGenerator:
         processed: set[str] = set()
 
         async def writer() -> None:
-            """Consume lines from ``queue`` and write them to disk."""
+            """Consume lines from ``queue`` and write them to disk.
+
+            After every ``flush_interval`` lines the file handle is flushed and
+            synced to disk to reduce the risk of data loss if the process
+            crashes.  This provides stronger durability guarantees than relying
+            solely on the OS to flush buffers asynchronously.
+            """
 
             with open(out_path, "a", encoding="utf-8") as handle:
+                line_count = 0
                 while True:
                     item = await queue.get()
                     if item is None:
@@ -287,7 +298,16 @@ class ServiceAmbitionGenerator:
                     if progress:
                         # Updating the progress bar can block, so keep it in writer.
                         progress.update(1)
+                    line_count += 1
+                    if line_count % self.flush_interval == 0:
+                        # ``flush`` pushes Python's buffers to the OS and
+                        # ``fsync`` asks the OS to commit those bytes to disk.
+                        await asyncio.to_thread(handle.flush)
+                        await asyncio.to_thread(os.fsync, handle.fileno())
+                # Final sync in case the last batch didn't align with
+                # ``flush_interval``.
                 await asyncio.to_thread(handle.flush)
+                await asyncio.to_thread(os.fsync, handle.fileno())
 
         async def run_one(service: ServiceInput) -> None:
             """Process a single service and enqueue its JSON line."""
