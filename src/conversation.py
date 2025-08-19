@@ -96,8 +96,6 @@ class ConversationSession:
             stage = self.stage or "unknown"
             model_name = getattr(getattr(self.client, "model", None), "model_name", "")
             cost = estimate_cost(model_name, usage.total_tokens)
-            logfire.metric(f"{stage}.tokens", usage.total_tokens)
-            logfire.metric(f"{stage}.cost_usd", cost)
         logfire.debug(f"Received response: {result.output}")
         return result.output
 
@@ -122,8 +120,6 @@ class ConversationSession:
             stage = self.stage or "unknown"
             model_name = getattr(getattr(self.client, "model", None), "model_name", "")
             cost = estimate_cost(model_name, usage.total_tokens)
-            logfire.metric(f"{stage}.tokens", usage.total_tokens)
-            logfire.metric(f"{stage}.cost_usd", cost)
         logfire.debug(f"Received response: {result.output}")
         return result.output
 

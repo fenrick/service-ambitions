@@ -236,8 +236,6 @@ class RollingMetrics:
         self._trim(self._errors, now)
         rps = len(self._requests) / self._window
         error_rate = len(self._errors) / len(self._requests) if self._requests else 0.0
-        logfire.metric("requests_per_second", rps)
-        logfire.metric("error_rate", error_rate)
 
     def record_error(self) -> None:
         """Record an error occurrence."""
@@ -250,7 +248,6 @@ class RollingMetrics:
         """Increment in-flight tokens and emit the current count."""
 
         self._in_flight += count
-        logfire.metric("tokens_in_flight", self._in_flight)
 
     def record_end_tokens(self, count: int) -> None:
         """Decrement in-flight tokens and update aggregate throughput."""
@@ -260,8 +257,6 @@ class RollingMetrics:
         self._tokens.append((now, count))
         self._trim_tokens(now)
         total_tokens = sum(t for _, t in self._tokens)
-        logfire.metric("tokens_in_flight", self._in_flight)
-        logfire.metric("tokens_per_second", total_tokens / self._window)
 
     def record_tokens(self, count: int) -> None:
         """Alias for :meth:`record_end_tokens` for backwards compatibility."""
