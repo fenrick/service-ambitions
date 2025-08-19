@@ -7,10 +7,7 @@ available and otherwise falls back to a simple heuristic. It also provides
 
 from __future__ import annotations
 
-try:
-    import tiktoken
-except Exception:
-    tiktoken = None
+import tiktoken
 
 
 def estimate_tokens(prompt: str, expected_output: int) -> int:

@@ -12,9 +12,9 @@ import asyncio
 import json
 import os
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Iterable, Mapping, Sequence, cast
+from typing import TYPE_CHECKING, Iterable, Mapping, Sequence
 
-import logfire as _logfire
+import logfire
 import numpy as np
 from openai import AsyncOpenAI
 from scipy.sparse import csr_matrix
@@ -30,8 +30,6 @@ from models import (
     MappingTypeConfig,
     PlateauFeature,
 )
-
-logfire = cast(Any, _logfire)
 
 if TYPE_CHECKING:
     from conversation import ConversationSession

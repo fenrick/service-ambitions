@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Type, cast
+from typing import Type
 
-import logfire as _logfire
+import logfire
 from pydantic import BaseModel
-
-logfire = cast(Any, _logfire)
 
 
 @logfire.instrument()

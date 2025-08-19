@@ -10,9 +10,9 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Sequence, TypeVar, cast
+from typing import Sequence, TypeVar, cast
 
-import logfire as _logfire
+import logfire
 from pydantic import TypeAdapter
 
 from models import (
@@ -26,8 +26,6 @@ from models import (
 FEATURE_PLATEAUS_JSON = "service_feature_plateaus.json"
 
 DEFINITIONS_JSON = "definitions.json"
-
-logfire = cast(Any, _logfire)
 
 # Directory containing prompt templates.  Mutable so tests or callers may point
 # to alternative directories via ``configure_prompt_dir``.

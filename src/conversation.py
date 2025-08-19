@@ -11,10 +11,10 @@ from __future__ import annotations
 
 from typing import TypeVar, overload
 
+import logfire
 from pydantic_ai import Agent, messages
 
 from models import ServiceInput
-from monitoring import logfire
 from token_utils import estimate_cost
 
 

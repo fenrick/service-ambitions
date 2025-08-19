@@ -14,9 +14,9 @@ import random
 from asyncio import TaskGroup
 from itertools import islice
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, TypeVar
 
-import logfire as _logfire
+import logfire
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.models import Model
@@ -26,8 +26,6 @@ from tqdm import tqdm
 from backpressure import AdaptiveSemaphore, RollingMetrics
 from models import ReasoningConfig, ServiceInput
 from token_utils import estimate_tokens
-
-logfire = cast(Any, _logfire)
 
 T = TypeVar("T")
 

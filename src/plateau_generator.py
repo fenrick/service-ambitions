@@ -16,6 +16,8 @@ import re
 from pathlib import Path
 from typing import Sequence
 
+import logfire
+
 from conversation import ConversationSession
 from loader import load_plateau_definitions, load_prompt_text, load_role_ids
 from mapping import map_features_async
@@ -31,13 +33,10 @@ from models import (
     ServiceEvolution,
     ServiceInput,
 )
-from monitoring import logfire
 from token_scheduler import TokenScheduler
 from token_utils import estimate_tokens
 
 A_NON_EMPTY_STRING = "'description' must be a non-empty string"
-
-logfire = cast(Any, _logfire)
 
 # Snapshot of plateau definitions sourced from configuration.
 _PLATEAU_DEFS = load_plateau_definitions()
