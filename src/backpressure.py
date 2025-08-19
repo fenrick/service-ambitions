@@ -36,8 +36,7 @@ import time
 from asyncio import Lock, Semaphore
 from collections import deque
 from contextlib import asynccontextmanager
-from types import ModuleType
-from typing import Any, AsyncContextManager, AsyncIterator, Deque, Optional, cast
+from typing import AsyncContextManager, AsyncIterator, Deque, Optional
 
 import logfire
 

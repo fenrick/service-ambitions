@@ -10,8 +10,6 @@ import os
 from pathlib import Path
 from typing import Iterable, List
 
-import logfire
-
 
 def read_lines(path: Path) -> List[str]:
     """Return lines from ``path`` if it exists.

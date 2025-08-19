@@ -441,7 +441,6 @@ class PlateauGenerator:
         return evolution
 
     @logfire.instrument()
-    
     async def _request_missing_features_async(
         self,
         level: int,

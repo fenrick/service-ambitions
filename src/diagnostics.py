@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Type
 
-import logfire
 from pydantic import BaseModel
 
 
