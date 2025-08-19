@@ -1,5 +1,6 @@
 """Tests for feature mapping."""
 
+import asyncio
 import json
 import sys
 from pathlib import Path
@@ -21,13 +22,15 @@ class DummySession:
     def __init__(self, responses: list[str]) -> None:
         self._responses = iter(responses)
         self.prompts: list[str] = []
+        self._lock = asyncio.Lock()
 
     async def ask(self, prompt: str, output_type=None):
-        self.prompts.append(prompt)
-        response = next(self._responses)
-        if output_type is None:
-            return response
-        return output_type.model_validate_json(response)
+        async with self._lock:
+            self.prompts.append(prompt)
+            response = next(self._responses)
+            if output_type is None:
+                return response
+            return output_type.model_validate_json(response)
 
     def derive(self):
         return self
@@ -612,6 +615,124 @@ async def test_map_features_reprompts_per_feature(monkeypatch, parallel) -> None
     assert len(session.prompts) == 2
     assert len(result[0].mappings["data"]) >= 2
     assert len(result[1].mappings["data"]) >= 2
+
+
+@pytest.mark.asyncio
+async def test_map_features_retries_empty_mappings(monkeypatch) -> None:
+    template = "{features}"
+
+    monkeypatch.setattr("mapping.load_prompt_text", lambda name, *a, **k: template)
+
+    items = {
+        "applications": [
+            MappingItem(id="APP-1", name="App1", description="d"),
+            MappingItem(id="APP-2", name="App2", description="d"),
+            MappingItem(id="APP-3", name="App3", description="d"),
+        ],
+        "technologies": [
+            MappingItem(id="TEC-1", name="Tech1", description="d"),
+            MappingItem(id="TEC-2", name="Tech2", description="d"),
+            MappingItem(id="TEC-3", name="Tech3", description="d"),
+        ],
+    }
+
+    monkeypatch.setattr(
+        "mapping.load_mapping_items",
+        lambda datasets, *a, **k: {k: items[k] for k in datasets},
+    )
+    mapping_types = {
+        "applications": MappingTypeConfig(dataset="applications", label="Applications"),
+        "technology": MappingTypeConfig(dataset="technologies", label="Technology"),
+    }
+    monkeypatch.setattr("mapping.load_mapping_type_config", lambda: mapping_types)
+
+    async def fake_preselect(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr("mapping._preselect_items", fake_preselect)
+    monkeypatch.setattr(
+        "mapping._top_k_items", lambda features, dataset, k=5: items[dataset]
+    )
+
+    responses = [
+        json.dumps(
+            {
+                "features": [
+                    {
+                        "feature_id": "f1",
+                        "applications": [
+                            {"item": "APP-1", "contribution": 0.9},
+                            {"item": "APP-2", "contribution": 0.8},
+                        ],
+                    },
+                    {"feature_id": "f2", "applications": []},
+                ]
+            }
+        ),
+        json.dumps(
+            {
+                "features": [
+                    {"feature_id": "f1", "technology": []},
+                    {
+                        "feature_id": "f2",
+                        "technology": [
+                            {"item": "TEC-1", "contribution": 0.9},
+                            {"item": "TEC-2", "contribution": 0.8},
+                        ],
+                    },
+                ]
+            }
+        ),
+        json.dumps(
+            {
+                "features": [
+                    {
+                        "feature_id": "f2",
+                        "applications": [
+                            {"item": "APP-1", "contribution": 0.9},
+                            {"item": "APP-2", "contribution": 0.8},
+                        ],
+                    }
+                ]
+            }
+        ),
+        json.dumps(
+            {
+                "features": [
+                    {
+                        "feature_id": "f1",
+                        "technology": [
+                            {"item": "TEC-1", "contribution": 0.9},
+                            {"item": "TEC-2", "contribution": 0.8},
+                        ],
+                    }
+                ]
+            }
+        ),
+    ]
+
+    session = DummySession(responses)
+
+    feature1 = PlateauFeature(
+        feature_id="f1",
+        name="Feat1",
+        description="desc1",
+        score=MaturityScore(level=3, label="Defined", justification="j"),
+        customer_type="learners",
+    )
+    feature2 = PlateauFeature(
+        feature_id="f2",
+        name="Feat2",
+        description="desc2",
+        score=MaturityScore(level=3, label="Defined", justification="j"),
+        customer_type="learners",
+    )
+
+    results = await map_features_async(session, [feature1, feature2])
+
+    assert len(results[1].mappings["applications"]) >= 2
+    assert len(results[0].mappings["technology"]) >= 2
+    assert len(session.prompts) == 4
 
 
 def test_top_k_items_breaks_ties_lexicographically(monkeypatch) -> None:

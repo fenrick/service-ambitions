@@ -41,9 +41,6 @@ EMBED_MODEL = "text-embedding-3-small"
 _EMBED_CLIENT: AsyncOpenAI | None = None
 _EMBED_CACHE: dict[str, tuple[np.ndarray, list[MappingItem]]] = {}
 
-MIN_MAPPING_ITEMS = 2
-"""Minimum number of mapping contributions required per feature."""
-
 
 def _chunked(
     seq: Sequence[PlateauFeature], size: int
@@ -368,12 +365,19 @@ async def _map_parallel(
     batch_map: dict[int, list[PlateauFeature]] = {
         i: list(batch) for i, batch in enumerate(batches)
     }
-    tasks = [
-        _request_mapping(session, batch, i, key, cfg)
-        for i, batch in enumerate(batches)
-        for key, cfg in mapping_types.items()
-    ]
-    responses = await asyncio.gather(*tasks)
+    probe = session.derive()
+    if probe is session:
+        responses = []
+        for i, batch in enumerate(batches):
+            for key, cfg in mapping_types.items():
+                responses.append(await _request_mapping(session, batch, i, key, cfg))
+    else:
+        tasks = [
+            _request_mapping(session, batch, i, key, cfg)
+            for i, batch in enumerate(batches)
+            for key, cfg in mapping_types.items()
+        ]
+        responses = await asyncio.gather(*tasks)
     for idx, key, cfg, sub_session, payload in responses:
         batch = batches[idx]
         if all(not f.mappings.get(key) for f in payload.features):
@@ -389,11 +393,17 @@ async def _map_parallel(
                 extra_instructions=reminder,
             )
             payload = await sub_session.ask_async(prompt, output_type=MappingResponse)
+        retry_ids = [f.feature_id for f in payload.features if not f.mappings.get(key)]
+        retry_results: dict[str, PlateauFeature] = {}
+        for feat_id in retry_ids:
+            original = next(f for f in batch_map[idx] if f.feature_id == feat_id)
+            retry_results[feat_id] = await _reprompt_feature(
+                sub_session, original, key, cfg
+            )
         merged = _merge_mapping_results(batch_map[idx], payload, {key: cfg})
         for j, feat in enumerate(merged):
-            if len(feat.mappings.get(key, [])) < MIN_MAPPING_ITEMS:
-                # Retry only the under-filled feature to minimise extra cost.
-                merged[j] = await _reprompt_feature(sub_session, feat, key, cfg)
+            if feat.feature_id in retry_results:
+                merged[j] = retry_results[feat.feature_id]
         batch_map[idx] = merged
     results: dict[str, PlateauFeature] = {}
     for batch in batch_map.values():
@@ -431,11 +441,19 @@ async def _map_sequential(
                 payload = await sub_session.ask_async(
                     prompt, output_type=MappingResponse
                 )
+            retry_ids = [
+                f.feature_id for f in payload.features if not f.mappings.get(key)
+            ]
+            retry_results: dict[str, PlateauFeature] = {}
+            for feat_id in retry_ids:
+                original = next(f for f in batch_list if f.feature_id == feat_id)
+                retry_results[feat_id] = await _reprompt_feature(
+                    sub_session, original, key, cfg
+                )
             batch_list = _merge_mapping_results(batch_list, payload, {key: cfg})
             for j, feat in enumerate(batch_list):
-                if len(feat.mappings.get(key, [])) < MIN_MAPPING_ITEMS:
-                    # Request additional mappings for under-filled features.
-                    batch_list[j] = await _reprompt_feature(sub_session, feat, key, cfg)
+                if feat.feature_id in retry_results:
+                    batch_list[j] = retry_results[feat.feature_id]
         for updated in batch_list:
             results[updated.feature_id] = updated
     return results
