@@ -41,6 +41,9 @@ EMBED_MODEL = "text-embedding-3-small"
 _EMBED_CLIENT: AsyncOpenAI | None = None
 _EMBED_CACHE: dict[str, tuple[np.ndarray, list[MappingItem]]] = {}
 
+MIN_MAPPING_ITEMS = 2
+"""Minimum number of mapping contributions required per feature."""
+
 
 def _chunked(
     seq: Sequence[PlateauFeature], size: int
@@ -332,6 +335,29 @@ def _merge_mapping_results(
     return results
 
 
+async def _reprompt_feature(
+    session: "ConversationSession",
+    feature: PlateauFeature,
+    key: str,
+    cfg: MappingTypeConfig,
+) -> PlateauFeature:
+    """Return ``feature`` with mappings filled using a reduced catalogue."""
+
+    slice_items = _top_k_items([feature], cfg.dataset)
+    reminder = (
+        "Previous response contained insufficient mappings. Select relevant"
+        " items from the reduced catalogue below."
+    )
+    prompt = _build_mapping_prompt(
+        [feature],
+        {key: cfg},
+        item_overrides={cfg.dataset: slice_items},
+        extra_instructions=reminder,
+    )
+    payload = await session.ask_async(prompt, output_type=MappingResponse)
+    return _merge_mapping_results([feature], payload, {key: cfg})[0]
+
+
 async def _map_parallel(
     session: "ConversationSession",
     batches: list[Sequence[PlateauFeature]],
@@ -363,7 +389,12 @@ async def _map_parallel(
                 extra_instructions=reminder,
             )
             payload = await sub_session.ask_async(prompt, output_type=MappingResponse)
-        batch_map[idx] = _merge_mapping_results(batch_map[idx], payload, {key: cfg})
+        merged = _merge_mapping_results(batch_map[idx], payload, {key: cfg})
+        for j, feat in enumerate(merged):
+            if len(feat.mappings.get(key, [])) < MIN_MAPPING_ITEMS:
+                # Retry only the under-filled feature to minimise extra cost.
+                merged[j] = await _reprompt_feature(sub_session, feat, key, cfg)
+        batch_map[idx] = merged
     results: dict[str, PlateauFeature] = {}
     for batch in batch_map.values():
         for updated in batch:
@@ -401,6 +432,10 @@ async def _map_sequential(
                     prompt, output_type=MappingResponse
                 )
             batch_list = _merge_mapping_results(batch_list, payload, {key: cfg})
+            for j, feat in enumerate(batch_list):
+                if len(feat.mappings.get(key, [])) < MIN_MAPPING_ITEMS:
+                    # Request additional mappings for under-filled features.
+                    batch_list[j] = await _reprompt_feature(sub_session, feat, key, cfg)
         for updated in batch_list:
             results[updated.feature_id] = updated
     return results
