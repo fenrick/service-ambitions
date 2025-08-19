@@ -88,6 +88,7 @@ subcommands to select the desired operation:
 ```bash
 poetry run service-ambitions generate-ambitions --input-file sample-services.jsonl --output-file ambitions.jsonl
 poetry run service-ambitions generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl
+poetry run service-ambitions generate-mapping --input-file evolution.jsonl --output-file remapped.jsonl
 ```
 
 Alternatively, use the provided shell script which forwards all arguments to the CLI:
@@ -95,6 +96,7 @@ Alternatively, use the provided shell script which forwards all arguments to the
 ```bash
 ./run.sh generate-ambitions --input-file sample-services.jsonl --output-file ambitions.jsonl
 ./run.sh generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl
+./run.sh generate-mapping --input-file evolution.jsonl --output-file remapped.jsonl
 ```
 
 ## Usage
@@ -109,6 +111,28 @@ to display a progress bar during long runs; it is suppressed automatically in
 CI environments or when stdout is not a TTY. Provide `--seed` to make
 stochastic behaviour such as backoff jitter deterministic during tests and
 demos.
+
+### Remapping mode
+
+Use `generate-mapping` to refresh mapping contributions for existing evolution
+results. It reads an evolution JSON Lines file and writes an updated file with
+new mapping data. Adjust mapping behaviour with:
+
+- `--mapping-batch-size` – number of features per mapping request batch. Smaller
+  batches shorten prompts but increase API calls.
+- `--mapping-parallel-types` – dispatch mapping types concurrently. Disable with
+  `--no-mapping-parallel-types` to process them sequentially when rate limits are
+  tight.
+
+Example invocation:
+
+```bash
+./run.sh generate-mapping --input-file evolution.jsonl --output-file remapped.jsonl \
+  --mapping-batch-size 20 --no-mapping-parallel-types
+```
+
+See [generate-mapping](docs/generate-mapping.md) for detailed behaviour and
+troubleshooting.
 
 ## Adaptive backpressure
 
