@@ -1,14 +1,12 @@
 # Contributing
 
-Contributions are welcome! To keep the project consistent and secure, run the
-following checks before submitting a pull request:
+Contributions are welcome! To keep the project consistent and secure, install
+[pre-commit](https://pre-commit.com/) and run all checks locally before
+submitting a pull request:
 
 ```bash
-black .
-ruff .
-mypy .
-bandit -r src -ll
-pip-audit
+poetry run pre-commit run --all-files
+poetry run pip-audit
 ```
 
 Please ensure all checks pass and include appropriate tests and documentation

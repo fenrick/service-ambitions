@@ -23,7 +23,7 @@ import logfire
 import numpy as np
 from openai import AsyncOpenAI
 from scipy.sparse import csr_matrix
-from sklearn.feature_extraction.text import (
+from sklearn.feature_extraction.text import (  # type: ignore[import-untyped]
     TfidfVectorizer,
 )
 
