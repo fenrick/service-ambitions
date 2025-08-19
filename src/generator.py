@@ -162,7 +162,9 @@ class ServiceAmbitionGenerator:
 
     Instances manage a bounded pool of concurrent workers and reuse the input
     model across requests.  Prompts are provided per ``generate`` invocation to
-    keep the class stateless between runs.
+    keep the class stateless between runs.  Concurrency permits can optionally
+    be weighted by estimated token usage to smooth throughput across varying
+    request sizes.
     """
 
     @logfire.instrument()

@@ -329,7 +329,16 @@ async def map_features_async(
     batch_size: int = 30,
     parallel_types: bool = True,
 ) -> list[PlateauFeature]:
-    """Asynchronously return ``features`` with mapping information."""
+    """Asynchronously return ``features`` with mapping information.
+
+    Args:
+        session: Active conversation session used for mapping requests.
+        features: Plateau features requiring mapping enrichment.
+        mapping_types: Optional mapping configuration override keyed by type.
+        batch_size: Number of features per mapping request batch.
+        parallel_types: Dispatch mapping type requests concurrently across all
+            batches when ``True``.
+    """
 
     mapping_types = mapping_types or load_mapping_type_config()
     results: dict[str, PlateauFeature] = {f.feature_id: f for f in features}
@@ -407,7 +416,16 @@ def map_features(
     batch_size: int = 30,
     parallel_types: bool = True,
 ) -> list[PlateauFeature]:
-    """Return ``features`` augmented with mapping information."""
+    """Return ``features`` augmented with mapping information.
+
+    Args:
+        session: Active conversation session used for mapping requests.
+        features: Plateau features requiring mapping enrichment.
+        mapping_types: Optional mapping configuration override keyed by type.
+        batch_size: Number of features per mapping request batch.
+        parallel_types: Dispatch mapping type requests concurrently across all
+            batches when ``True``.
+    """
 
     return asyncio.run(
         map_features_async(
