@@ -17,6 +17,9 @@ from pydantic_ai import Agent, messages
 from models import ServiceInput
 from token_utils import estimate_cost
 
+PROMPTS_SENT = logfire.metric_counter("prompts_sent")
+TOKENS_CONSUMED = logfire.metric_counter("tokens_consumed")
+
 
 class ConversationSession:
     """Manage a conversational interaction with a Pydantic-AI agent.
@@ -86,18 +89,45 @@ class ConversationSession:
             agent's raw response text.
         """
 
-        logfire.debug(f"Sending prompt: {prompt}")
-        result = self.client.run_sync(
-            prompt, message_history=self._history, output_type=output_type
-        )
-        self._history.extend(result.new_messages())
-        usage = result.usage()
-        if usage.total_tokens:
-            stage = self.stage or "unknown"
-            model_name = getattr(getattr(self.client, "model", None), "model_name", "")
-            cost = estimate_cost(model_name, usage.total_tokens)
-        logfire.debug(f"Received response: {result.output}")
-        return result.output
+        stage = self.stage or "unknown"
+        model_name = getattr(getattr(self.client, "model", None), "model_name", "")
+        PROMPTS_SENT.add(1)
+        tokens = 0
+        cost = 0.0
+        with logfire.span("ConversationSession.ask") as span:
+            span.set_attribute("stage", stage)
+            span.set_attribute("model_name", model_name)
+            try:
+                logfire.debug(f"Sending prompt: {prompt}")
+                result = self.client.run_sync(
+                    prompt, message_history=self._history, output_type=output_type
+                )
+                self._history.extend(result.new_messages())
+                usage = result.usage()
+                tokens = usage.total_tokens or 0
+                cost = estimate_cost(model_name, tokens)
+                logfire.info(
+                    "Prompt succeeded",
+                    stage=stage,
+                    model_name=model_name,
+                    total_tokens=tokens,
+                    estimated_cost=cost,
+                )
+                return result.output
+            except Exception as exc:  # pragma: no cover - defensive logging
+                logfire.error(
+                    "Prompt failed",
+                    stage=stage,
+                    model_name=model_name,
+                    total_tokens=tokens,
+                    estimated_cost=cost,
+                    error=str(exc),
+                )
+                raise
+            finally:
+                span.set_attribute("total_tokens", tokens)
+                span.set_attribute("estimated_cost", cost)
+                TOKENS_CONSUMED.add(tokens)
 
     @overload
     async def ask_async(self, prompt: str) -> str: ...
@@ -110,18 +140,45 @@ class ConversationSession:
     ) -> T | str:
         """Asynchronously return the agent's response to ``prompt``."""
 
-        logfire.debug(f"Sending prompt: {prompt}")
-        result = await self.client.run(
-            prompt, message_history=self._history, output_type=output_type
-        )
-        self._history.extend(result.new_messages())
-        usage = result.usage()
-        if usage.total_tokens:
-            stage = self.stage or "unknown"
-            model_name = getattr(getattr(self.client, "model", None), "model_name", "")
-            cost = estimate_cost(model_name, usage.total_tokens)
-        logfire.debug(f"Received response: {result.output}")
-        return result.output
+        stage = self.stage or "unknown"
+        model_name = getattr(getattr(self.client, "model", None), "model_name", "")
+        PROMPTS_SENT.add(1)
+        tokens = 0
+        cost = 0.0
+        with logfire.span("ConversationSession.ask_async") as span:
+            span.set_attribute("stage", stage)
+            span.set_attribute("model_name", model_name)
+            try:
+                logfire.debug(f"Sending prompt: {prompt}")
+                result = await self.client.run(
+                    prompt, message_history=self._history, output_type=output_type
+                )
+                self._history.extend(result.new_messages())
+                usage = result.usage()
+                tokens = usage.total_tokens or 0
+                cost = estimate_cost(model_name, tokens)
+                logfire.info(
+                    "Prompt succeeded",
+                    stage=stage,
+                    model_name=model_name,
+                    total_tokens=tokens,
+                    estimated_cost=cost,
+                )
+                return result.output
+            except Exception as exc:  # pragma: no cover - defensive logging
+                logfire.error(
+                    "Prompt failed",
+                    stage=stage,
+                    model_name=model_name,
+                    total_tokens=tokens,
+                    estimated_cost=cost,
+                    error=str(exc),
+                )
+                raise
+            finally:
+                span.set_attribute("total_tokens", tokens)
+                span.set_attribute("estimated_cost", cost)
+                TOKENS_CONSUMED.add(tokens)
 
 
 __all__ = ["ConversationSession"]
