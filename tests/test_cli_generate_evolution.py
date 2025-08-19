@@ -87,6 +87,7 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         features_per_role=5,
         mapping_batch_size=30,
         mapping_parallel_types=True,
+        mapping_strict=False,
         web_search=False,
         models=None,
     )
@@ -106,6 +107,7 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         roles_file="data/roles.json",
         mapping_batch_size=None,
         mapping_parallel_types=None,
+        mapping_strict=None,
         transcripts_dir=None,
         web_search=None,
     )
@@ -161,6 +163,7 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         features_per_role=5,
         mapping_batch_size=30,
         mapping_parallel_types=True,
+        mapping_strict=False,
         web_search=False,
         models=None,
     )
@@ -180,6 +183,7 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         roles_file="data/roles.json",
         mapping_batch_size=None,
         mapping_parallel_types=None,
+        mapping_strict=None,
         transcripts_dir=None,
         web_search=None,
     )
@@ -242,6 +246,7 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         features_per_role=5,
         mapping_batch_size=30,
         mapping_parallel_types=True,
+        mapping_strict=False,
         web_search=False,
         models=None,
     )
@@ -261,6 +266,7 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         roles_file="data/roles.json",
         mapping_batch_size=None,
         mapping_parallel_types=None,
+        mapping_strict=None,
         transcripts_dir=None,
         web_search=None,
     )
@@ -314,6 +320,7 @@ def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -
         features_per_role=5,
         mapping_batch_size=30,
         mapping_parallel_types=True,
+        mapping_strict=False,
         web_search=False,
         models=None,
     )
@@ -333,6 +340,7 @@ def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -
         roles_file="data/roles.json",
         mapping_batch_size=None,
         mapping_parallel_types=None,
+        mapping_strict=None,
         transcripts_dir=None,
         web_search=None,
     )
@@ -374,6 +382,7 @@ def test_cli_parses_mapping_options(tmp_path, monkeypatch) -> None:
 
     assert called["args"].mapping_batch_size == 12
     assert called["args"].mapping_parallel_types is False
+    assert called["args"].mapping_strict is None
 
 
 def test_generate_evolution_writes_transcripts(tmp_path, monkeypatch) -> None:
@@ -432,6 +441,7 @@ def test_generate_evolution_writes_transcripts(tmp_path, monkeypatch) -> None:
         features_per_role=5,
         mapping_batch_size=30,
         mapping_parallel_types=True,
+        mapping_strict=False,
         models=None,
         web_search=False,
     )
@@ -451,6 +461,7 @@ def test_generate_evolution_writes_transcripts(tmp_path, monkeypatch) -> None:
         roles_file="data/roles.json",
         mapping_batch_size=None,
         mapping_parallel_types=None,
+        mapping_strict=None,
         transcripts_dir=None,
         web_search=None,
     )

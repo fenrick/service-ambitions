@@ -191,6 +191,10 @@ This behaviour is enabled by default via `--mapping-parallel-types`. Disable it
 with `--no-mapping-parallel-types` to process mapping types sequentially when
 rate limits are tight.
 
+Enable `--mapping-strict` to abort when any feature cannot be mapped after
+retries. Omit or use `--no-mapping-strict` to keep the default best-effort
+behaviour.
+
 Example invocation tuning mapping behaviour:
 
 ```bash

@@ -326,6 +326,9 @@ class AppConfig(StrictModel):
     mapping_parallel_types: bool = Field(
         True, description="Process mapping types for all batches concurrently."
     )
+    mapping_strict: bool = Field(
+        False, description="Raise error when mappings remain empty after retry."
+    )
     mapping_types: dict[str, MappingTypeConfig] = Field(
         default_factory=dict,
         description="Mapping type definitions keyed by field name.",

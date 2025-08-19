@@ -57,6 +57,10 @@ class Settings(BaseSettings):
         True,
         description="Process mapping types for all batches concurrently.",
     )
+    mapping_strict: bool = Field(
+        False,
+        description="Raise error when mappings remain empty after retry.",
+    )
     openai_api_key: str = Field(..., description="OpenAI API access token.")
     logfire_token: str | None = Field(
         None, description="Logfire authentication token, if available."
@@ -106,6 +110,7 @@ def load_settings() -> Settings:
             features_per_role=config.features_per_role,
             mapping_batch_size=config.mapping_batch_size,
             mapping_parallel_types=config.mapping_parallel_types,
+            mapping_strict=config.mapping_strict,
             web_search=config.web_search,
             _env_file=env_file,
         )

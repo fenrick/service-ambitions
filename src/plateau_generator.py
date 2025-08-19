@@ -70,6 +70,7 @@ class PlateauGenerator:
         mapping_session: ConversationSession | None = None,
         mapping_batch_size: int = 30,
         mapping_parallel_types: bool = True,
+        mapping_strict: bool = False,
     ) -> None:
         """Initialise the generator.
 
@@ -82,6 +83,8 @@ class PlateauGenerator:
             mapping_batch_size: Number of features per mapping request batch.
             mapping_parallel_types: Dispatch mapping type requests concurrently
                 across all batches when ``True``.
+            mapping_strict: Raise :class:`MappingError` when any feature remains
+                unmapped after retry attempts.
         """
         if required_count < 1:
             raise ValueError("required_count must be positive")
@@ -92,6 +95,7 @@ class PlateauGenerator:
         self.roles = list(roles or DEFAULT_ROLE_IDS)
         self.mapping_batch_size = mapping_batch_size
         self.mapping_parallel_types = mapping_parallel_types
+        self.mapping_strict = mapping_strict
         self._service: ServiceInput | None = None
 
     def _request_description(
@@ -562,6 +566,7 @@ class PlateauGenerator:
                 features,
                 batch_size=self.mapping_batch_size,
                 parallel_types=self.mapping_parallel_types,
+                strict=self.mapping_strict,
             )
             return PlateauResult(
                 plateau=level,

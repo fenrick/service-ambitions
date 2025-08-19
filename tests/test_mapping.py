@@ -614,6 +614,41 @@ async def test_map_features_reprompts_per_feature(monkeypatch, parallel) -> None
     assert len(result[1].mappings["data"]) >= 2
 
 
+@pytest.mark.asyncio
+async def test_map_features_strict_raises_on_empty(monkeypatch) -> None:
+    template = "{mapping_labels} {mapping_sections} {mapping_fields} {features}"
+
+    def fake_loader(name, *_, **__):
+        return template
+
+    items = {
+        "information": [
+            MappingItem(id="INF-1", name="User Data", description="user info"),
+        ]
+    }
+    monkeypatch.setattr("mapping.load_prompt_text", fake_loader)
+    monkeypatch.setattr("mapping.load_mapping_items", lambda types, *a, **k: items)
+
+    empty = json.dumps({"features": [{"feature_id": "f1", "data": []}]})
+    # Responses: initial batch, batch retry, per-feature retry
+    session = DummySession([empty, empty, empty])
+    feature = PlateauFeature(
+        feature_id="f1",
+        name="Integration",
+        description="Uses user data",
+        score=MaturityScore(level=3, label="Defined", justification="j"),
+        customer_type="learners",
+    )
+
+    with pytest.raises(mapping.MappingError):
+        await map_features_async(
+            session,
+            [feature],
+            {"data": MappingTypeConfig(dataset="information", label="Info")},
+            strict=True,
+        )
+
+
 def test_top_k_items_breaks_ties_lexicographically(monkeypatch) -> None:
     """Ensure TF-IDF ranking resolves equal scores by item identifier."""
 

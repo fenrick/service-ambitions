@@ -136,6 +136,7 @@ async def _generate_evolution_for_service(
     role_ids: Sequence[str],
     mapping_batch_size: int,
     mapping_parallel_types: bool,
+    mapping_strict: bool,
     lock: asyncio.Lock,
     output,
     new_ids: set[str],
@@ -179,6 +180,7 @@ async def _generate_evolution_for_service(
                 mapping_session=map_session,
                 mapping_batch_size=mapping_batch_size,
                 mapping_parallel_types=mapping_parallel_types,
+                mapping_strict=mapping_strict,
             )
             evolution = await generator.generate_service_evolution_async(
                 service, transcripts_dir=transcripts_dir
@@ -351,6 +353,11 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
         if args.mapping_parallel_types is not None
         else settings.mapping_parallel_types
     )
+    mapping_strict = (
+        args.mapping_strict
+        if args.mapping_strict is not None
+        else settings.mapping_strict
+    )
 
     output_path = Path(args.output_file)
     part_path, processed_path = _prepare_paths(output_path, args.resume)
@@ -385,6 +392,7 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
                 role_ids=role_ids,
                 mapping_batch_size=mapping_batch_size,
                 mapping_parallel_types=mapping_parallel_types,
+                mapping_strict=mapping_strict,
                 lock=lock,
                 output=output,
                 new_ids=new_ids,
@@ -475,6 +483,12 @@ def main() -> None:
         action=argparse.BooleanOptionalAction,
         default=None,
         help="Enable or disable parallel mapping type requests",
+    )
+    common.add_argument(
+        "--mapping-strict",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Raise an error when mappings remain empty after retries",
     )
     common.add_argument(
         "--token-weighting",

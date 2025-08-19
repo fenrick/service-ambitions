@@ -299,6 +299,8 @@ def _merge_mapping_results(
     features: Sequence[PlateauFeature],
     payload: MappingResponse,
     mapping_types: Mapping[str, MappingTypeConfig],
+    *,
+    strict: bool = False,
 ) -> list[PlateauFeature]:
     """Return ``features`` merged with mapping ``payload``.
 
@@ -324,12 +326,16 @@ def _merge_mapping_results(
         if mapped is None:
             # Each feature must appear in the response; fail fast when absent.
             raise MappingError(f"Missing mappings for feature {feature.feature_id}")
-        update_data = {
-            key: _clean_mapping_values(
+        update_data: dict[str, list[Contribution]] = {}
+        for key in mapping_types.keys():
+            cleaned = _clean_mapping_values(
                 key, mapped.get(key, []), valid_ids, feature.feature_id
             )
-            for key in mapping_types.keys()
-        }
+            if strict and not cleaned:
+                raise MappingError(
+                    f"Missing mappings for feature {feature.feature_id} key={key}"
+                )
+            update_data[key] = cleaned
         merged = feature.model_copy(update={"mappings": feature.mappings | update_data})
         results.append(merged)
     return results
@@ -340,6 +346,8 @@ async def _reprompt_feature(
     feature: PlateauFeature,
     key: str,
     cfg: MappingTypeConfig,
+    *,
+    strict: bool = False,
 ) -> PlateauFeature:
     """Return ``feature`` with mappings filled using a reduced catalogue."""
 
@@ -355,13 +363,15 @@ async def _reprompt_feature(
         extra_instructions=reminder,
     )
     payload = await session.ask_async(prompt, output_type=MappingResponse)
-    return _merge_mapping_results([feature], payload, {key: cfg})[0]
+    return _merge_mapping_results([feature], payload, {key: cfg}, strict=strict)[0]
 
 
 async def _map_parallel(
     session: "ConversationSession",
     batches: list[Sequence[PlateauFeature]],
     mapping_types: Mapping[str, MappingTypeConfig],
+    *,
+    strict: bool = False,
 ) -> dict[str, PlateauFeature]:
     """Return mapping results when mapping types run in parallel."""
 
@@ -389,11 +399,15 @@ async def _map_parallel(
                 extra_instructions=reminder,
             )
             payload = await sub_session.ask_async(prompt, output_type=MappingResponse)
-        merged = _merge_mapping_results(batch_map[idx], payload, {key: cfg})
+        merged = _merge_mapping_results(
+            batch_map[idx], payload, {key: cfg}, strict=False
+        )
         for j, feat in enumerate(merged):
             if len(feat.mappings.get(key, [])) < MIN_MAPPING_ITEMS:
                 # Retry only the under-filled feature to minimise extra cost.
-                merged[j] = await _reprompt_feature(sub_session, feat, key, cfg)
+                merged[j] = await _reprompt_feature(
+                    sub_session, feat, key, cfg, strict=strict
+                )
         batch_map[idx] = merged
     results: dict[str, PlateauFeature] = {}
     for batch in batch_map.values():
@@ -406,6 +420,8 @@ async def _map_sequential(
     session: "ConversationSession",
     batches: list[Sequence[PlateauFeature]],
     mapping_types: Mapping[str, MappingTypeConfig],
+    *,
+    strict: bool = False,
 ) -> dict[str, PlateauFeature]:
     """Return mapping results when mapping types run sequentially."""
 
@@ -431,11 +447,15 @@ async def _map_sequential(
                 payload = await sub_session.ask_async(
                     prompt, output_type=MappingResponse
                 )
-            batch_list = _merge_mapping_results(batch_list, payload, {key: cfg})
+            batch_list = _merge_mapping_results(
+                batch_list, payload, {key: cfg}, strict=False
+            )
             for j, feat in enumerate(batch_list):
                 if len(feat.mappings.get(key, [])) < MIN_MAPPING_ITEMS:
                     # Request additional mappings for under-filled features.
-                    batch_list[j] = await _reprompt_feature(sub_session, feat, key, cfg)
+                    batch_list[j] = await _reprompt_feature(
+                        sub_session, feat, key, cfg, strict=strict
+                    )
         for updated in batch_list:
             results[updated.feature_id] = updated
     return results
@@ -465,6 +485,7 @@ async def map_features_async(
     *,
     batch_size: int = 30,
     parallel_types: bool = True,
+    strict: bool = False,
 ) -> list[PlateauFeature]:
     """Asynchronously return ``features`` with mapping information.
 
@@ -475,14 +496,16 @@ async def map_features_async(
         batch_size: Number of features per mapping request batch.
         parallel_types: Dispatch mapping type requests concurrently across all
             batches when ``True``.
+        strict: Raise :class:`MappingError` when any feature remains unmapped
+            after retry attempts.
     """
 
     mapping_types = mapping_types or load_mapping_type_config()
     batches = list(_chunked(features, batch_size))
     if parallel_types:
-        results = await _map_parallel(session, batches, mapping_types)
+        results = await _map_parallel(session, batches, mapping_types, strict=strict)
     else:
-        results = await _map_sequential(session, batches, mapping_types)
+        results = await _map_sequential(session, batches, mapping_types, strict=strict)
     return [results[f.feature_id] for f in features]
 
 
@@ -493,6 +516,7 @@ def map_features(
     *,
     batch_size: int = 30,
     parallel_types: bool = True,
+    strict: bool = False,
 ) -> list[PlateauFeature]:
     """Return ``features`` augmented with mapping information.
 
@@ -503,6 +527,8 @@ def map_features(
         batch_size: Number of features per mapping request batch.
         parallel_types: Dispatch mapping type requests concurrently across all
             batches when ``True``.
+        strict: Raise :class:`MappingError` when any feature remains unmapped
+            after retry attempts.
     """
 
     return asyncio.run(
@@ -512,6 +538,7 @@ def map_features(
             mapping_types,
             batch_size=batch_size,
             parallel_types=parallel_types,
+            strict=strict,
         )
     )
 
