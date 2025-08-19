@@ -89,7 +89,6 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         mapping_parallel_types=True,
         web_search=False,
         models=None,
-        web_search=False,
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -164,7 +163,6 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         mapping_parallel_types=True,
         web_search=False,
         models=None,
-        web_search=False,
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -246,7 +244,6 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         mapping_parallel_types=True,
         web_search=False,
         models=None,
-        web_search=False,
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -319,7 +316,6 @@ def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -
         mapping_parallel_types=True,
         web_search=False,
         models=None,
-        web_search=False,
     )
     args = argparse.Namespace(
         input_file=str(input_path),

@@ -31,12 +31,12 @@ deterministic when supported by the provider.
 
 Defaults come from `config/app.json`:
 
-| Stage        | Default model               | Fast/cheap alternative |
-|--------------|-----------------------------|------------------------|
-| Descriptions | `openai:o4-mini`            | Already cost optimised |
-| Features     | `openai:gpt-5`              | `openai:o4-mini`       |
-| Mapping      | `openai:o4-mini`            | Already cost optimised |
-| Search       | `openai:gpt-4o-search-preview` | n/a |
+| Stage        | Default model                  | Fast/cheap alternative |
+|--------------|--------------------------------|------------------------|
+| Descriptions | `openai:o4-mini`               | Already cost optimised |
+| Features     | `openai:gpt-5`                 | `openai:o4-mini`       |
+| Mapping      | `openai:o4-mini`               | Already cost optimised |
+| Search       | `openai:gpt-4o-search-preview` | n/a                    |
 
 OpenAI advises using lower‑capacity models like `o4-mini` for budget‑sensitive
 workloads and reserving larger models such as `gpt-5` for highest quality
@@ -60,7 +60,7 @@ Each line in the output file is a JSON object with:
     "name": "string",
     "description": "string",
     "customer_type": "string",
-    "jobs_to_be_done": [{"name": "string"}]
+    "jobs_to_be_done": [{ "name": "string" }]
   },
   "plateaus": [
     {

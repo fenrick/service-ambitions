@@ -4,7 +4,7 @@
         "descriptions": "openai:o4-mini",
         "features": "openai:gpt-5",
         "mapping": "openai:o4-mini",
-        "search": "openai:gpt-4o-search-preview",
+        "search": "openai:gpt-4o-search-preview,
     },
     "reasoning": {"effort": "medium"},
     "web_search": false,
@@ -12,7 +12,7 @@
     "mapping_types": {
         "data": {"dataset": "information", "label": "Data"},
         "applications": {"dataset": "applications", "label": "Applications"},
-        "technology": {"dataset": "technologies", "label": "Technologies"},
+        "technology": {"dataset": "technologies", "label": "Technologies"}
     },
     "prompt_dir": "prompts",
     "context_id": "university",
@@ -23,5 +23,5 @@
     "request_timeout": 60,
     "retries": 5,
     "retry_base_delay": 0.5,
-    "features_per_role": 5,
+    "features_per_role": 5
 }

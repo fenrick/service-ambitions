@@ -32,12 +32,12 @@ Stage-specific model overrides live under the `models` block in
 }
 ```
 
-| Stage        | Default model               | Fast/cheap alternative |
-|--------------|-----------------------------|------------------------|
-| Descriptions | `openai:o4-mini`            | Already cost optimised |
-| Features     | `openai:gpt-5`              | `openai:o4-mini`       |
-| Mapping      | `openai:o4-mini`            | Already cost optimised |
-| Search       | `openai:gpt-4o-search-preview` | n/a |
+| Stage        | Default model                  | Fast/cheap alternative |
+|--------------|--------------------------------|------------------------|
+| Descriptions | `openai:o4-mini`               | Already cost optimised |
+| Features     | `openai:gpt-5`                 | `openai:o4-mini`       |
+| Mapping      | `openai:o4-mini`               | Already cost optimised |
+| Search       | `openai:gpt-4o-search-preview` | n/a                    |
 
 OpenAI recommends using cost‑optimised models like `o4-mini` when latency or
 price is a concern and higher‑capacity models such as `gpt-5` for best quality
@@ -75,7 +75,7 @@ tool and then install the project's dependencies with:
 poetry install
 ```
 
-For more accurate token estimation, include the optional ``tiktoken`` extra:
+For more accurate token estimation, include the optional `tiktoken` extra:
 
 ```bash
 poetry install -E tiktoken
@@ -226,7 +226,7 @@ Each JSON line in the output file follows the `ServiceEvolution` schema:
     "name": "string",
     "description": "string",
     "customer_type": "string",
-    "jobs_to_be_done": [{"name": "string"}]
+    "jobs_to_be_done": [{ "name": "string" }]
   },
   "plateaus": [
     {
@@ -260,15 +260,15 @@ Fields in the schema:
 - `service`: `ServiceInput` with `service_id`, `name`, `description`, optional
   `customer_type`, `jobs_to_be_done`, and existing `features`.
 - `plateaus`: list of `PlateauResult` entries, each containing:
-    - `plateau`: integer plateau level.
-    - `plateau_name`: descriptive plateau label.
-    - `service_description`: narrative for the service at that plateau.
-    - `features`: list of `PlateauFeature` entries with:
-        - `feature_id`, `name`, and `description`.
-        - `score`: object with CMMI maturity `level`, `label` and `justification`.
-        - `customer_type`: audience benefiting from the feature.
-        - `data`, `applications`, `technology`: lists of `Contribution` objects
-          describing why a mapped item supports the feature.
+  - `plateau`: integer plateau level.
+  - `plateau_name`: descriptive plateau label.
+  - `service_description`: narrative for the service at that plateau.
+  - `features`: list of `PlateauFeature` entries with:
+    - `feature_id`, `name`, and `description`.
+    - `score`: object with CMMI maturity `level`, `label` and `justification`.
+    - `customer_type`: audience benefiting from the feature.
+    - `data`, `applications`, `technology`: lists of `Contribution` objects
+      describing why a mapped item supports the feature.
 
 ## Reference Data
 
