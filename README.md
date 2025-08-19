@@ -252,7 +252,19 @@ Each JSON line in the output file follows the `ServiceEvolution` schema:
 
 ```json
 {
-  "schema_version": "1.0",
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "20240101-000000",
+    "seed": 1234,
+    "models": {
+      "descriptions": "openai:o4-mini",
+      "features": "openai:gpt-5",
+      "mapping": "openai:o4-mini"
+    },
+    "web_search": false,
+    "mapping_types": ["data", "applications", "technology"],
+    "created": "2024-01-01T00:00:00Z"
+  },
   "service": {
     "service_id": "string",
     "name": "string",
@@ -288,7 +300,14 @@ Each JSON line in the output file follows the `ServiceEvolution` schema:
 
 Fields in the schema:
 
-- `schema_version`: string identifying the output schema revision.
+- `meta`: run metadata for the invocation:
+  - `schema_version`: output schema revision.
+  - `run_id`: identifier constant across all records in a single run.
+  - `seed`: integer used for deterministic sampling when supported.
+  - `models`: mapping of generation stages to model identifiers.
+  - `web_search`: whether web search was enabled.
+  - `mapping_types`: categories included during feature mapping.
+  - `created`: ISO-8601 timestamp when the record was produced.
 - `service`: `ServiceInput` with `service_id`, `name`, `description`, optional
   `customer_type`, `jobs_to_be_done`, and existing `features`.
 - `plateaus`: list of `PlateauResult` entries, each containing:
