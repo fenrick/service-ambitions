@@ -220,7 +220,20 @@ Each JSON line in the output file follows the `ServiceEvolution` schema:
 
 ```json
 {
-  "schema_version": "1.0",
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "string",
+    "seed": 123,
+    "models": {
+      "descriptions": "provider:model",
+      "features": "provider:model",
+      "mapping": "provider:model",
+      "search": "provider:model"
+    },
+    "web_search": false,
+    "mapping_types": ["data", "applications", "technology"],
+    "created": "2024-01-01T12:00:00+00:00"
+  },
   "service": {
     "service_id": "string",
     "name": "string",
@@ -256,7 +269,8 @@ Each JSON line in the output file follows the `ServiceEvolution` schema:
 
 Fields in the schema:
 
-- `schema_version`: string identifying the output schema revision.
+- `meta`: `EvolutionMeta` with schema version, run identifier, model details,
+  seed, web search flag, mapping types and creation timestamp.
 - `service`: `ServiceInput` with `service_id`, `name`, `description`, optional
   `customer_type`, `jobs_to_be_done`, and existing `features`.
 - `plateaus`: list of `PlateauResult` entries, each containing:

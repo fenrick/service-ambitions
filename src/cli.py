@@ -11,7 +11,8 @@ import random
 import sys
 from itertools import islice
 from pathlib import Path
-from typing import Any, Coroutine, Sequence, cast
+from typing import Any, Callable, Coroutine, Sequence, cast
+from uuid import uuid4
 
 from pydantic_ai import Agent
 from tqdm import tqdm
@@ -23,11 +24,12 @@ from loader import (
     configure_prompt_dir,
     load_ambition_prompt,
     load_evolution_prompt,
+    load_mapping_type_config,
     load_role_ids,
 )
 from mapping import init_embeddings
 from model_factory import ModelFactory
-from models import ServiceInput
+from models import EvolutionMeta, ServiceInput, StageModels
 from monitoring import LOG_FILE_NAME, init_logfire, logfire
 from persistence import atomic_write, read_lines
 from plateau_generator import PlateauGenerator
@@ -139,6 +141,7 @@ async def _generate_evolution_for_service(
     lock: asyncio.Lock,
     output,
     new_ids: set[str],
+    meta_factory: Callable[[], EvolutionMeta],
 ) -> None:
     """Generate evolution for ``service`` and record results."""
 
@@ -181,7 +184,7 @@ async def _generate_evolution_for_service(
                 mapping_parallel_types=mapping_parallel_types,
             )
             evolution = await generator.generate_service_evolution_async(
-                service, transcripts_dir=transcripts_dir
+                service, transcripts_dir=transcripts_dir, meta=meta_factory()
             )
             line = f"{evolution.model_dump_json()}\n"
             async with lock:
@@ -337,6 +340,26 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
         web_search=use_web_search,
     )
 
+    stage_models = StageModels(
+        descriptions=factory.model_name(
+            "descriptions", args.descriptions_model or args.model
+        ),
+        features=factory.model_name("features", args.features_model or args.model),
+        mapping=factory.model_name("mapping", args.mapping_model or args.model),
+        search=factory.model_name("search", args.search_model or args.model),
+    )
+    mapping_types = list(load_mapping_type_config().keys())
+    run_id = uuid4().hex
+
+    def build_meta() -> EvolutionMeta:
+        return EvolutionMeta(
+            run_id=run_id,
+            seed=args.seed,
+            models=stage_models,
+            web_search=use_web_search,
+            mapping_types=mapping_types,
+        )
+
     # Warm mapping embeddings upfront so subsequent requests reuse cached vectors.
     # Failures are logged by ``init_embeddings`` and do not interrupt startup.
     await init_embeddings()
@@ -388,6 +411,7 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
                 lock=lock,
                 output=output,
                 new_ids=new_ids,
+                meta_factory=build_meta,
             )
             if progress:
                 progress.update(1)

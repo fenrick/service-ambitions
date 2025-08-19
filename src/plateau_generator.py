@@ -15,6 +15,7 @@ import json
 import re
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+from uuid import uuid4
 
 import logfire
 
@@ -23,6 +24,7 @@ from loader import load_plateau_definitions, load_prompt_text, load_role_ids
 from mapping import map_features_async
 from models import (
     DescriptionResponse,
+    EvolutionMeta,
     FeatureItem,
     FeaturesBlock,
     PlateauDescriptionsResponse,
@@ -32,6 +34,7 @@ from models import (
     RoleFeaturesResponse,
     ServiceEvolution,
     ServiceInput,
+    StageModels,
 )
 from token_scheduler import TokenScheduler
 from token_utils import estimate_tokens
@@ -392,6 +395,7 @@ class PlateauGenerator:
         plateau_names: Sequence[str],
         role_ids: Sequence[str],
         transcripts_dir: Path | None,
+        meta: EvolutionMeta | None,
     ) -> ServiceEvolution:
         """Return ``ServiceEvolution`` from plateau ``results``."""
 
@@ -426,7 +430,26 @@ class PlateauGenerator:
                 )
             )
 
-        evolution = ServiceEvolution(service=service_input, plateaus=plateaus)
+        def _model_name(sess: ConversationSession) -> str | None:
+            return getattr(getattr(sess.client, "model", None), "model_name", None)
+
+        if meta is None:
+            meta = EvolutionMeta(
+                run_id=str(uuid4()),
+                seed=None,
+                models=StageModels(
+                    descriptions=_model_name(self.description_session),
+                    features=_model_name(self.session),
+                    mapping=_model_name(self.mapping_session),
+                    search=None,
+                ),
+                web_search=False,
+                mapping_types=[],
+            )
+
+        evolution = ServiceEvolution(
+            meta=meta, service=service_input, plateaus=plateaus
+        )
         if transcripts_dir is not None:
             payload = {
                 "request": service_input.model_dump(),
@@ -603,6 +626,7 @@ class PlateauGenerator:
         role_ids: Sequence[str] | None = None,
         *,
         transcripts_dir: Path | None = None,
+        meta: EvolutionMeta | None = None,
     ) -> ServiceEvolution:
         """Asynchronously return service evolution for selected plateaus.
 
@@ -633,7 +657,12 @@ class PlateauGenerator:
             )
 
             return await self._assemble_evolution(
-                service_input, results, plateau_names, role_ids, transcripts_dir
+                service_input,
+                results,
+                plateau_names,
+                role_ids,
+                transcripts_dir,
+                meta,
             )
 
     def generate_service_evolution(

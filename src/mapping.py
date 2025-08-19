@@ -6,6 +6,8 @@ here prepare prompt content, validate responses and merge the returned
 contributions back into :class:`PlateauFeature` objects.
 """
 
+# mypy: disable-error-code=import-untyped
+
 from __future__ import annotations
 
 import asyncio
@@ -18,9 +20,11 @@ import logfire
 import numpy as np
 from openai import AsyncOpenAI
 from scipy.sparse import csr_matrix
-from sklearn.feature_extraction.text import (
-    TfidfVectorizer,
-)
+
+if TYPE_CHECKING:
+    from sklearn.feature_extraction.text import TfidfVectorizer
+else:  # pragma: no cover - optional dependency
+    from sklearn.feature_extraction.text import TfidfVectorizer  # type: ignore[import]
 
 from loader import load_mapping_items, load_mapping_type_config, load_prompt_text
 from models import (

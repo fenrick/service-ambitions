@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from models import (
     Contribution,
+    EvolutionMeta,
     FeatureItem,
     MappingResponse,
     MaturityScore,
@@ -15,6 +16,7 @@ from models import (
     PlateauResult,
     ServiceEvolution,
     ServiceInput,
+    StageModels,
 )
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -44,7 +46,13 @@ def test_service_evolution_contains_plateaus() -> None:
         features=[feature],
     )
 
-    evolution = ServiceEvolution(service=service, plateaus=[plateau])
+    meta = EvolutionMeta(
+        run_id="r1",
+        models=StageModels(),
+        web_search=False,
+        mapping_types=[],
+    )
+    evolution = ServiceEvolution(meta=meta, service=service, plateaus=[plateau])
 
     assert evolution.plateaus[0].features[0].name == "Feat"
 

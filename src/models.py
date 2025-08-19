@@ -8,6 +8,7 @@ throughout the system.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated, List, Literal
 
@@ -15,6 +16,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    field_serializer,
     field_validator,
     model_validator,
 )
@@ -261,6 +263,33 @@ class StageModels(StrictModel):
     ]
 
 
+class EvolutionMeta(StrictModel):
+    """Metadata describing the evolution run."""
+
+    schema_version: str = Field(
+        default=SCHEMA_VERSION, description="Version of the ServiceEvolution schema."
+    )
+    run_id: Annotated[str, Field(min_length=1, description="Unique run identifier.")]
+    seed: int | None = Field(None, description="Optional random seed for determinism.")
+    models: StageModels = Field(
+        ..., description="Resolved model names for each generation stage."
+    )
+    web_search: bool = Field(
+        ..., description="Indicates if web search tooling was enabled."
+    )
+    mapping_types: list[str] = Field(
+        default_factory=list, description="Mapping types applied to features."
+    )
+    created: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="UTC timestamp when the record was created.",
+    )
+
+    @field_serializer("created")
+    def _serialise_created(self, value: datetime) -> str:
+        return value.isoformat()
+
+
 class AppConfig(StrictModel):
     """Top-level application configuration controlling generation behaviour."""
 
@@ -381,10 +410,7 @@ class ServiceEvolution(StrictModel):
     represents the full evolution output for a given :class:`ServiceInput`.
     """
 
-    schema_version: str = Field(
-        default=SCHEMA_VERSION,
-        description="Version of the ServiceEvolution schema.",
-    )
+    meta: EvolutionMeta = Field(..., description="Run metadata for this evolution.")
     service: ServiceInput = Field(..., description="Service being evaluated.")
     plateaus: list[PlateauResult] = Field(
         default_factory=list, description="Evaluated plateaus for the service."
@@ -579,6 +605,7 @@ __all__ = [
     "RoleFeaturesResponse",
     "PlateauResult",
     "StageModels",
+    "EvolutionMeta",
     "ReasoningConfig",
     "Role",
     "SCHEMA_VERSION",
