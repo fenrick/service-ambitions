@@ -7,6 +7,9 @@ evaluates all plateaus in this file alongside all roles defined in
 `data/roles.json`. Plateau name to level mappings are derived from the order of
 the JSON entries.
 
+To re-run mapping on an existing evolution output, see
+[generate-mapping](generate-mapping.md).
+
 ## Running
 
 Example command:
