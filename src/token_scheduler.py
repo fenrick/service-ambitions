@@ -16,15 +16,19 @@ from typing import Any, List, Tuple
 class TokenScheduler:
     """Schedule coroutines according to predicted token consumption."""
 
-    def __init__(self, max_workers: int = 4) -> None:
+    def __init__(self, max_workers: int = 4, *, context_window: int) -> None:
         """Create a scheduler.
 
         Args:
             max_workers: Maximum number of concurrent tasks.
+            context_window: Maximum allowed tokens for any submitted task.
         """
         if max_workers < 1:
             raise ValueError("max_workers must be positive")
+        if context_window < 1:
+            raise ValueError("context_window must be positive")
         self._max_workers = max_workers
+        self._context_window = context_window
         self._queue: List[Tuple[int, Callable[[], Awaitable[Any]]]] = []
 
     def submit(self, func: Callable[[], Awaitable[Any]], tokens: int) -> None:
@@ -33,7 +37,12 @@ class TokenScheduler:
         Args:
             func: A parameterless callable returning an awaitable.
             tokens: Predicted token count for the task.
+
+        Raises:
+            ValueError: If ``tokens`` exceeds the scheduler's context window.
         """
+        if tokens > self._context_window:
+            raise ValueError("tokens exceed context window")
         self._queue.append((tokens, func))
 
     async def run(self) -> List[Any]:

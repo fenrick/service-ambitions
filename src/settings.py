@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     prompt_dir: Path = Field(..., description="Directory containing prompt components.")
     context_id: str = Field(..., description="Situational context identifier.")
     inspiration: str = Field(..., description="Inspirations identifier.")
+    context_window: int = Field(
+        128000,
+        ge=1,
+        description="Model's maximum prompt tokens (context window).",
+    )
     concurrency: int = Field(
         ..., ge=1, description="Number of services to process concurrently."
     )
