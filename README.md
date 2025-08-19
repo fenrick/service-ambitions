@@ -2,6 +2,14 @@
 
 ## Configuration
 
+Copy the sample configuration and customise it for your environment:
+
+```
+cp config/app.example.json config/app.json
+```
+
+Then edit `config/app.json` to set models, reasoning presets and other options.
+
 The CLI requires an OpenAI API key available in the `OPENAI_API_KEY` environment
 variable. Settings are loaded via Pydantic, which reads from a `.env` file if
 present. The application will exit if the key is missing. LLM interactions are
