@@ -14,12 +14,10 @@ import hashlib
 import json
 import re
 from pathlib import Path
-from typing import Any, Sequence, cast
-
-import logfire as _logfire
+from typing import Sequence
 
 from conversation import ConversationSession
-from loader import load_plateau_definitions, load_prompt_text, load_roles
+from loader import load_plateau_definitions, load_prompt_text, load_role_ids
 from mapping import map_features_async
 from models import (
     DescriptionResponse,
@@ -33,6 +31,7 @@ from models import (
     ServiceEvolution,
     ServiceInput,
 )
+from monitoring import logfire
 from token_scheduler import TokenScheduler
 from token_utils import estimate_tokens
 
@@ -54,12 +53,9 @@ DEFAULT_PLATEAU_MAP: dict[str, int] = {
 # Ordered list of plateau names used to iterate in ascending maturity.
 DEFAULT_PLATEAU_NAMES: list[str] = [plateau.name for plateau in _PLATEAU_DEFS]
 
-# Snapshot of role definitions sourced from configuration.
-_ROLE_DEFS = load_roles()
-
 # Core roles targeted during feature generation. These represent the default
 # audience slices and should be updated if new roles are introduced.
-DEFAULT_ROLE_IDS: list[str] = [role.role_id for role in _ROLE_DEFS]
+DEFAULT_ROLE_IDS: list[str] = load_role_ids()
 
 
 class PlateauGenerator:

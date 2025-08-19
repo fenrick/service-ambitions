@@ -13,7 +13,6 @@ from itertools import islice
 from pathlib import Path
 from typing import Any, Coroutine, Iterable, cast
 
-import logfire as _logfire
 from pydantic_ai import Agent
 from tqdm import tqdm
 
@@ -24,25 +23,16 @@ from loader import (
     configure_prompt_dir,
     load_ambition_prompt,
     load_evolution_prompt,
-    load_plateau_definitions,
-    load_roles,
+    load_role_ids,
 )
 from mapping import init_embeddings
 from model_factory import ModelFactory
 from models import ServiceInput
-from monitoring import LOG_FILE_NAME, init_logfire
+from monitoring import LOG_FILE_NAME, init_logfire, logfire
 from persistence import atomic_write, read_lines
 from plateau_generator import PlateauGenerator
 from service_loader import load_services
 from settings import load_settings
-
-logfire = cast(Any, _logfire)
-
-
-def _default_plateaus() -> list[str]:
-    """Return all plateau names from configuration."""
-
-    return [p.name for p in load_plateau_definitions()]
 
 
 def _configure_logging(args: argparse.Namespace, settings) -> None:
@@ -202,8 +192,7 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
     configure_prompt_dir(settings.prompt_dir)
     system_prompt = load_evolution_prompt(settings.context_id, settings.inspiration)
 
-    roles = load_roles(Path(args.roles_file))
-    role_ids = [r.role_id for r in roles]
+    role_ids = load_role_ids(Path(args.roles_file))
     mapping_batch_size = args.mapping_batch_size or settings.mapping_batch_size
     mapping_parallel_types = (
         args.mapping_parallel_types

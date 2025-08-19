@@ -11,6 +11,7 @@ from loader import (
     load_plateau_definitions,
     load_prompt,
     load_prompt_text,
+    load_role_ids,
     load_roles,
 )
 from models import JobToBeDone
@@ -176,12 +177,32 @@ def test_load_roles_accepts_file_path(tmp_path):
     data_dir = tmp_path / "data"
     data_dir.mkdir()
     roles_file = data_dir / "roles.json"
-    roles_file.write_text('[{"role_id": "r1", "label": "Role"}]', encoding="utf-8")
+    roles_file.write_text(
+        '[{"role_id": "r1", "name": "Role", "description": "Desc"}]',
+        encoding="utf-8",
+    )
 
     from_dir = load_roles(str(data_dir))
     from_file = load_roles(str(roles_file))
     assert from_dir == from_file
     assert from_file[0].role_id == "r1"
+
+
+def test_load_role_ids_extracts_identifiers(tmp_path):
+    """``load_role_ids`` returns role identifiers for any path type."""
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    roles_file = data_dir / "roles.json"
+    roles_file.write_text(
+        '[{"role_id": "r1", "name": "Role", "description": "Desc"}]',
+        encoding="utf-8",
+    )
+
+    ids_from_dir = load_role_ids(str(data_dir))
+    ids_from_file = load_role_ids(str(roles_file))
+    assert ids_from_dir == ["r1"]
+    assert ids_from_file == ["r1"]
 
 
 def test_load_services_reads_jsonl(tmp_path):
