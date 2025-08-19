@@ -1,6 +1,7 @@
 """Tests for plateau feature generation."""
 
 import asyncio
+import hashlib
 import json
 import sys
 import time
@@ -680,3 +681,179 @@ def test_generate_service_evolution_filters(monkeypatch) -> None:
     assert len(evo.plateaus) == 2
     for plat in evo.plateaus:
         assert {f.customer_type for f in plat.features} <= {"learners", "academic"}
+
+
+def test_generate_service_evolution_invalid_role_raises(monkeypatch) -> None:
+    service = ServiceInput(
+        service_id="svc-1",
+        name="svc",
+        customer_type="retail",
+        description="d",
+        jobs_to_be_done=[{"name": "job"}],
+    )
+
+    class DummyAgent:
+        def run_sync(self, prompt, message_history):
+            return type("R", (), {"output": "", "new_messages": lambda: []})()
+
+    session = ConversationSession(cast(Agent[None, str], DummyAgent()))
+    generator = PlateauGenerator(session)
+
+    async def fake_generate_plateau_async(
+        self, level, plateau_name, *, session=None, description
+    ):
+        feat = PlateauFeature(
+            feature_id="f1",
+            name="F",
+            description="d",
+            score=MaturityScore(level=3, label="Defined", justification="j"),
+            customer_type="unknown",
+        )
+        return PlateauResult(
+            plateau=level,
+            plateau_name=plateau_name,
+            service_description="d",
+            features=[feat],
+        )
+
+    async def fake_request_descriptions_async(self, names, session=None):
+        return {name: "desc" for name in names}
+
+    monkeypatch.setattr(
+        PlateauGenerator,
+        "generate_plateau_async",
+        fake_generate_plateau_async,
+    )
+    monkeypatch.setattr(
+        PlateauGenerator,
+        "_request_descriptions_async",
+        fake_request_descriptions_async,
+    )
+
+    with pytest.raises(ValueError):
+        generator.generate_service_evolution(
+            service,
+            ["Foundational"],
+            ["learners"],
+        )
+
+
+def test_generate_service_evolution_unknown_plateau_raises(monkeypatch) -> None:
+    service = ServiceInput(
+        service_id="svc-1",
+        name="svc",
+        customer_type="retail",
+        description="d",
+        jobs_to_be_done=[{"name": "job"}],
+    )
+
+    class DummyAgent:
+        def run_sync(self, prompt, message_history):
+            return type("R", (), {"output": "", "new_messages": lambda: []})()
+
+    session = ConversationSession(cast(Agent[None, str], DummyAgent()))
+    generator = PlateauGenerator(session)
+
+    async def fake_generate_plateau_async(
+        self, level, plateau_name, *, session=None, description
+    ):
+        feat = PlateauFeature(
+            feature_id="f1",
+            name="F",
+            description="d",
+            score=MaturityScore(level=3, label="Defined", justification="j"),
+            customer_type="learners",
+        )
+        return PlateauResult(
+            plateau=level,
+            plateau_name="Mystery",
+            service_description="d",
+            features=[feat],
+        )
+
+    async def fake_request_descriptions_async(self, names, session=None):
+        return {name: "desc" for name in names}
+
+    monkeypatch.setattr(
+        PlateauGenerator,
+        "generate_plateau_async",
+        fake_generate_plateau_async,
+    )
+    monkeypatch.setattr(
+        PlateauGenerator,
+        "_request_descriptions_async",
+        fake_request_descriptions_async,
+    )
+
+    with pytest.raises(ValueError):
+        generator.generate_service_evolution(
+            service,
+            ["Foundational"],
+            ["learners"],
+        )
+
+
+def test_generate_service_evolution_deduplicates_features(monkeypatch) -> None:
+    service = ServiceInput(
+        service_id="svc-1",
+        name="svc",
+        customer_type="retail",
+        description="d",
+        jobs_to_be_done=[{"name": "job"}],
+    )
+
+    class DummyAgent:
+        def run_sync(self, prompt, message_history):
+            return type("R", (), {"output": "", "new_messages": lambda: []})()
+
+    session = ConversationSession(cast(Agent[None, str], DummyAgent()))
+    generator = PlateauGenerator(session)
+
+    async def fake_generate_plateau_async(
+        self, level, plateau_name, *, session=None, description
+    ):
+        feat1 = PlateauFeature(
+            feature_id="a",
+            name="A",
+            description="d",
+            score=MaturityScore(level=3, label="Defined", justification="j"),
+            customer_type="learners",
+        )
+        feat2 = PlateauFeature(
+            feature_id="b",
+            name="A",
+            description="d",
+            score=MaturityScore(level=3, label="Defined", justification="j"),
+            customer_type="learners",
+        )
+        return PlateauResult(
+            plateau=level,
+            plateau_name=plateau_name,
+            service_description="d",
+            features=[feat1, feat2],
+        )
+
+    async def fake_request_descriptions_async(self, names, session=None):
+        return {name: "desc" for name in names}
+
+    monkeypatch.setattr(
+        PlateauGenerator,
+        "generate_plateau_async",
+        fake_generate_plateau_async,
+    )
+    monkeypatch.setattr(
+        PlateauGenerator,
+        "_request_descriptions_async",
+        fake_request_descriptions_async,
+    )
+
+    evo = generator.generate_service_evolution(
+        service,
+        ["Foundational"],
+        ["learners"],
+    )
+
+    features = evo.plateaus[0].features
+    assert len(features) == 1
+    expected = hashlib.sha1("A|learners|Foundational".encode()).hexdigest()
+    assert features[0].feature_id == expected
