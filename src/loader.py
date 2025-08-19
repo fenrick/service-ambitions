@@ -23,6 +23,10 @@ from models import (
     ServiceFeaturePlateau,
 )
 
+FEATURE_PLATEAUS_JSON = "service_feature_plateaus.json"
+
+DEFINITIONS_JSON = "definitions.json"
+
 logfire = cast(Any, _logfire)
 
 # Directory containing prompt templates.  Mutable so tests or callers may point
@@ -189,7 +193,7 @@ def load_mapping_type_config(
 @lru_cache(maxsize=None)
 def load_plateau_definitions(
     base_dir: Path | str = Path("data"),
-    filename: Path | str = Path("service_feature_plateaus.json"),
+    filename: Path | str = Path(FEATURE_PLATEAUS_JSON),
 ) -> list[ServiceFeaturePlateau]:
     """Return service feature plateau definitions from ``base_dir``.
 
@@ -270,7 +274,7 @@ def load_role_ids(
 @logfire.instrument()
 def load_definitions(
     base_dir: Path | str = Path("data"),
-    filename: Path | str = Path("definitions.json"),
+    filename: Path | str = Path(DEFINITIONS_JSON),
     keys: Sequence[str] | None = None,
 ) -> str:
     """Return formatted definition text as a numbered Markdown list.
@@ -303,7 +307,7 @@ def load_definitions(
 @logfire.instrument()
 def load_plateau_text(
     base_dir: Path | str = Path("data"),
-    filename: Path | str = Path("service_feature_plateaus.json"),
+    filename: Path | str = Path(FEATURE_PLATEAUS_JSON),
 ) -> str:
     """Return plateau descriptions as a numbered Markdown list.
 
@@ -332,10 +336,10 @@ def load_evolution_prompt(
     inspirations_id: str,
     base_dir: Path | None = None,
     definitions_dir: Path | str = Path("data"),
-    definitions_file: Path | str = Path("definitions.json"),
+    definitions_file: Path | str = Path(DEFINITIONS_JSON),
     definition_keys: Sequence[str] | None = None,
     plateaus_dir: Path | str = Path("data"),
-    plateaus_file: Path | str = Path("service_feature_plateaus.json"),
+    plateaus_file: Path | str = Path(FEATURE_PLATEAUS_JSON),
 ) -> str:
     """Assemble the system prompt from modular components.
 
@@ -377,12 +381,12 @@ def load_ambition_prompt(
     inspirations_id: str,
     base_dir: Path | None = None,
     definitions_dir: Path | str = Path("data"),
-    definitions_file: Path | str = Path("definitions.json"),
+    definitions_file: Path | str = Path(DEFINITIONS_JSON),
     definition_keys: Sequence[str] | None = None,
     task_file: Path | str = Path("task_definition.md"),
     response_file: Path | str = Path("response_structure.md"),
     plateaus_dir: Path | str = Path("data"),
-    plateaus_file: Path | str = Path("service_feature_plateaus.json"),
+    plateaus_file: Path | str = Path(FEATURE_PLATEAUS_JSON),
 ) -> str:
     """Assemble the system prompt from modular components.
 
