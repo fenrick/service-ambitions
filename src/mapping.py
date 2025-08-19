@@ -4,6 +4,11 @@ Mapping information such as related applications or technologies is gathered by
 querying the language model with a consolidated prompt. The helper functions
 here prepare prompt content, validate responses and merge the returned
 contributions back into :class:`PlateauFeature` objects.
+
+Embedding vectors for catalogue entries and individual features are cached at
+module scope for the lifetime of the process. These caches avoid redundant
+requests to the embedding service and are cleared only when the interpreter
+restarts.
 """
 
 from __future__ import annotations
@@ -40,6 +45,7 @@ EMBED_MODEL = "text-embedding-3-small"
 
 _EMBED_CLIENT: AsyncOpenAI | None = None
 _EMBED_CACHE: dict[str, tuple[np.ndarray, list[MappingItem]]] = {}
+_FEATURE_EMBED_CACHE: dict[str, np.ndarray] = {}
 
 MIN_MAPPING_ITEMS = 2
 """Minimum number of mapping contributions required per feature."""
@@ -96,6 +102,32 @@ async def _catalogue_embeddings(
     return cache
 
 
+async def _feature_embeddings(
+    features: Sequence[PlateauFeature],
+) -> list[np.ndarray]:
+    """Return embedding vectors for ``features`` using a module-level cache."""
+
+    uncached: list[tuple[str, str]] = []
+    vectors: dict[str, np.ndarray] = {}
+    for feat in features:
+        cached = _FEATURE_EMBED_CACHE.get(feat.feature_id)
+        if cached is not None:
+            vectors[feat.feature_id] = cached
+        else:
+            text = f"{feat.name} {feat.description}"
+            uncached.append((feat.feature_id, text))
+    if uncached:
+        client = await _get_embed_client()
+        resp = await client.embeddings.create(
+            model=EMBED_MODEL, input=[t for _, t in uncached]
+        )
+        for (fid, _), data in zip(uncached, resp.data, strict=False):
+            vec = np.array(data.embedding)
+            _FEATURE_EMBED_CACHE[fid] = vec
+            vectors[fid] = vec
+    return [vectors[feat.feature_id] for feat in features]
+
+
 async def init_embeddings() -> None:
     """Pre-populate embedding vectors for all mapping datasets.
 
@@ -130,10 +162,7 @@ async def _embedding_top_k_items(
     """
 
     item_vecs, items = await _catalogue_embeddings(dataset)
-    client = await _get_embed_client()
-    feature_texts = [f"{f.name} {f.description}" for f in features]
-    resp = await client.embeddings.create(model=EMBED_MODEL, input=feature_texts)
-    feat_vecs = np.array([d.embedding for d in resp.data])
+    feat_vecs = np.vstack(await _feature_embeddings(features))
     sims = feat_vecs @ item_vecs.T
     top_indices: set[int] = set()
     for row in sims:

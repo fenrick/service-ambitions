@@ -715,6 +715,48 @@ async def test_embedding_top_k_items_breaks_ties(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_feature_embedding_cache(monkeypatch) -> None:
+    """Repeated feature lookups should reuse cached embeddings."""
+
+    mapping._FEATURE_EMBED_CACHE.clear()
+
+    async def fake_catalogue_embeddings(dataset: str):
+        return np.array([[1.0, 0.0]]), [MappingItem(id="A", name="One", description="")]
+
+    monkeypatch.setattr("mapping._catalogue_embeddings", fake_catalogue_embeddings)
+
+    calls = {"create": 0}
+
+    class DummyEmbeddings:
+        async def create(self, model: str, input: list[str]):
+            calls["create"] += 1
+            return SimpleNamespace(
+                data=[SimpleNamespace(embedding=[1.0, 0.0]) for _ in input]
+            )
+
+    class DummyClient:
+        embeddings = DummyEmbeddings()
+
+    async def fake_client():
+        return DummyClient()
+
+    monkeypatch.setattr("mapping._get_embed_client", fake_client)
+
+    feature = PlateauFeature(
+        feature_id="f1",
+        name="One",
+        description="",
+        score=MaturityScore(level=3, label="Defined", justification="j"),
+        customer_type="learners",
+    )
+
+    await mapping._embedding_top_k_items([feature], "catalogue", k=1)
+    await mapping._embedding_top_k_items([feature], "catalogue", k=1)
+
+    assert calls["create"] == 1
+
+
+@pytest.mark.asyncio
 async def test_init_embeddings_populates_cache(monkeypatch) -> None:
     """Initializer should preload embeddings for all datasets."""
 
