@@ -49,6 +49,13 @@ ERRORS_TOTAL = logfire.metric_counter("errors_total")
 TOKENS_IN_FLIGHT = logfire.metric_gauge("tokens_in_flight")
 """Gauge tracking tokens currently being processed."""
 
+REQUESTS_PER_SECOND = logfire.metric_gauge("requests_per_second")
+
+ERROR_RATE = logfire.metric_gauge("error_rate")
+
+TOKENS_PER_SECOND = logfire.metric_gauge("tokens_per_second")
+
+
 class AdaptiveSemaphore:
     """Semaphore that reacts to rate limit signals with weighted permits.
 
@@ -245,8 +252,8 @@ class RollingMetrics:
         REQUESTS_TOTAL.add(1)
         rps = len(self._requests) / self._window
         error_rate = len(self._errors) / len(self._requests) if self._requests else 0.0
-        logfire.metric("requests_per_second", rps)
-        logfire.metric("error_rate", error_rate)
+        REQUESTS_PER_SECOND.set(rps)
+        ERROR_RATE.set(error_rate)
         logfire.info(
             "Request metrics updated",
             rps=rps,
@@ -277,13 +284,13 @@ class RollingMetrics:
         self._trim_tokens(now)
         total_tokens = sum(t for _, t in self._tokens)
         tps = total_tokens / self._window
-        logfire.metric("tokens_per_second", tps)
+        TOKENS_PER_SECOND.set(tps)
         logfire.info(
             "Token metrics updated",
             tokens_per_sec=tps,
             in_flight=self._in_flight,
         )
-        
+
     def record_tokens(self, count: int) -> None:
         """Alias for :meth:`record_end_tokens` for backwards compatibility."""
 
