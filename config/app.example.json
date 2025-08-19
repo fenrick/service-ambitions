@@ -1,0 +1,47 @@
+{
+  // Default LLM used for most prompts.
+  // Replace with the provider and model you prefer, e.g., "openai:gpt-4".
+  "model": "openai:YOUR_MODEL",
+
+  "models": {
+    // Model used for plateau descriptions.
+    "descriptions": "openai:YOUR_DESCRIPTIONS_MODEL",
+    // Model used for feature generation.
+    "features": "openai:YOUR_FEATURES_MODEL",
+    // Model used for mapping tasks.
+    "mapping": "openai:YOUR_MAPPING_MODEL",
+    // Model used for search operations.
+    "search": "openai:YOUR_SEARCH_MODEL"
+  },
+
+  // Reasoning effort controls depth of analysis ("low", "medium", or "high").
+  "reasoning": {"effort": "YOUR_REASONING_PRESET"},
+
+  // Toggle to enable OpenAI's experimental web search capability.
+  "web_search": false,
+
+  // Adjust log level as needed: DEBUG, INFO, WARNING, ERROR.
+  "log_level": "INFO",
+
+  "mapping_types": {
+    "data": {"dataset": "information", "label": "Data"},
+    "applications": {"dataset": "applications", "label": "Applications"},
+    "technology": {"dataset": "technologies", "label": "Technologies"}
+  },
+
+  // Directory containing prompt components.
+  "prompt_dir": "prompts",
+  // Identifier for context-specific prompts.
+  "context_id": "YOUR_CONTEXT_ID",
+  // Optional inspiration list to influence outputs.
+  "inspiration": "general",
+
+  // Concurrency and batching controls for API requests.
+  "concurrency": 5,
+  "token_weighting": true,
+  "batch_size": 25,
+  "request_timeout": 60,
+  "retries": 5,
+  "retry_base_delay": 0.5,
+  "features_per_role": 5
+}
