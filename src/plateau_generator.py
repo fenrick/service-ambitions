@@ -38,6 +38,13 @@ from token_utils import estimate_tokens
 
 A_NON_EMPTY_STRING = "'description' must be a non-empty string"
 
+# Paths of quarantined payloads captured during execution.
+QUARANTINED_DESCRIPTIONS: list[str] = []
+"""Files containing invalid plateau descriptions."""
+
+QUARANTINED_MAPPING_PAYLOADS: list[str] = []
+"""Files capturing mapping requests that failed validation."""
+
 # Snapshot of plateau definitions sourced from configuration.
 _PLATEAU_DEFS = load_plateau_definitions()
 
@@ -55,6 +62,16 @@ DEFAULT_PLATEAU_NAMES: list[str] = [plateau.name for plateau in _PLATEAU_DEFS]
 # Core roles targeted during feature generation. These represent the default
 # audience slices and should be updated if new roles are introduced.
 DEFAULT_ROLE_IDS: list[str] = load_role_ids()
+
+
+def _write_quarantine(data: Any, filename: str) -> str:
+    """Persist ``data`` to ``quarantine/filename`` and return the path."""
+
+    quarantine_dir = Path("quarantine")
+    quarantine_dir.mkdir(parents=True, exist_ok=True)
+    path = quarantine_dir / filename
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    return str(path)
 
 
 class PlateauGenerator:
@@ -117,7 +134,16 @@ class PlateauGenerator:
         try:
             response = session.ask(prompt, output_type=DescriptionResponse)
         except Exception as exc:
-            logfire.error(f"Invalid plateau description: {exc}")
+            filename = "description.json"
+            if self._service is not None:
+                filename = f"{self._service.service_id}_description.json"
+            path = _write_quarantine({"prompt": prompt, "error": str(exc)}, filename)
+            QUARANTINED_DESCRIPTIONS.append(path)
+            logfire.exception(
+                "Invalid plateau description",
+                service_id=getattr(self._service, "service_id", None),
+                quarantine_file=path,
+            )
             raise ValueError("Agent returned invalid plateau description") from exc
         if not response.description:
             raise ValueError(A_NON_EMPTY_STRING)
@@ -199,7 +225,16 @@ class PlateauGenerator:
                 prompt, output_type=PlateauDescriptionsResponse
             )
         except Exception as exc:
-            logfire.error(f"Invalid plateau descriptions: {exc}")
+            filename = "descriptions.json"
+            if self._service is not None:
+                filename = f"{self._service.service_id}_descriptions.json"
+            path = _write_quarantine({"prompt": prompt, "error": str(exc)}, filename)
+            QUARANTINED_DESCRIPTIONS.append(path)
+            logfire.exception(
+                "Invalid plateau descriptions",
+                service_id=getattr(self._service, "service_id", None),
+                quarantine_file=path,
+            )
             raise ValueError("Agent returned invalid plateau descriptions") from exc
 
         results: dict[str, str] = {}
@@ -262,6 +297,38 @@ class PlateauGenerator:
                     # Convert each raw item into a structured plateau feature.
                     features.append(self._to_feature(item, role))
         return features
+
+    async def _map_features_with_quarantine(
+        self, features: list[PlateauFeature], plateau_name: str
+    ) -> list[PlateauFeature]:
+        """Return mapped features and quarantine payloads on failure."""
+
+        map_session = ConversationSession(
+            self.mapping_session.client, stage=self.mapping_session.stage
+        )
+        if self._service is not None:
+            map_session.add_parent_materials(self._service)
+        try:
+            return await map_features_async(
+                map_session,
+                features,
+                batch_size=self.mapping_batch_size,
+                parallel_types=self.mapping_parallel_types,
+            )
+        except Exception as exc:  # noqa: BLE001
+            filename = f"mapping_{plateau_name}.json"
+            if self._service is not None:
+                filename = f"{self._service.service_id}_{plateau_name}_mapping.json"
+            data = [feat.model_dump() for feat in features]
+            path = _write_quarantine({"features": data, "error": str(exc)}, filename)
+            QUARANTINED_MAPPING_PAYLOADS.append(path)
+            logfire.exception(
+                "Failed to map features",
+                service_id=getattr(self._service, "service_id", None),
+                plateau=plateau_name,
+                quarantine_file=path,
+            )
+            raise
 
     async def _request_role_features_async(
         self,
@@ -552,17 +619,7 @@ class PlateauGenerator:
             payload = PlateauFeaturesResponse(features=block)
 
             features = self._collect_features(payload)
-            map_session = ConversationSession(
-                self.mapping_session.client, stage=self.mapping_session.stage
-            )
-            if self._service is not None:
-                map_session.add_parent_materials(self._service)
-            mapped = await map_features_async(
-                map_session,
-                features,
-                batch_size=self.mapping_batch_size,
-                parallel_types=self.mapping_parallel_types,
-            )
+            mapped = await self._map_features_with_quarantine(features, plateau_name)
             return PlateauResult(
                 plateau=level,
                 plateau_name=plateau_name,

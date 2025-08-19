@@ -30,7 +30,11 @@ from model_factory import ModelFactory
 from models import ServiceInput
 from monitoring import LOG_FILE_NAME, init_logfire, logfire
 from persistence import atomic_write, read_lines
-from plateau_generator import PlateauGenerator
+from plateau_generator import (
+    QUARANTINED_DESCRIPTIONS,
+    QUARANTINED_MAPPING_PAYLOADS,
+    PlateauGenerator,
+)
 from service_loader import load_services
 from settings import load_settings
 
@@ -591,7 +595,10 @@ def main() -> None:
     if inspect.isawaitable(result):
         # Cast ensures that asyncio.run receives a proper Coroutine
         asyncio.run(cast(Coroutine[Any, Any, Any], result))
-
+    logfire.info(
+        f"Quarantined: {len(QUARANTINED_DESCRIPTIONS)} descriptions,"
+        f" {len(QUARANTINED_MAPPING_PAYLOADS)} mapping payloads"
+    )
     logfire.force_flush()
 
 
