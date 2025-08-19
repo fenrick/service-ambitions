@@ -14,7 +14,7 @@ import hashlib
 import json
 import re
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Mapping, Sequence
 
 from conversation import ConversationSession
 from loader import load_plateau_definitions, load_prompt_text, load_role_ids
@@ -36,8 +36,6 @@ from token_scheduler import TokenScheduler
 from token_utils import estimate_tokens
 
 A_NON_EMPTY_STRING = "'description' must be a non-empty string"
-
-logfire = cast(Any, _logfire)
 
 # Snapshot of plateau definitions sourced from configuration.
 _PLATEAU_DEFS = load_plateau_definitions()
@@ -308,6 +306,147 @@ class PlateauGenerator:
         payload = await session.ask_async(prompt, output_type=RoleFeaturesResponse)
         return payload.features
 
+    def _validate_roles(
+        self,
+        role_data: dict[str, Any],
+    ) -> tuple[dict[str, list[FeatureItem]], list[str], dict[str, int]]:
+        """Return valid roles, invalid role names and missing counts."""
+
+        valid: dict[str, list[FeatureItem]] = {}
+        invalid: list[str] = []
+        missing: dict[str, int] = {}
+        for role in self.roles:
+            items = role_data.get(role, [])
+            try:
+                role_block = RoleFeaturesResponse(features=items)
+            except Exception:
+                invalid.append(role)
+                valid[role] = []
+                continue
+            valid[role] = list(role_block.features)
+            if len(role_block.features) < self.required_count:
+                missing[role] = self.required_count - len(role_block.features)
+        return valid, invalid, missing
+
+    async def _recover_invalid_roles(
+        self,
+        invalid: list[str],
+        level: int,
+        description: str,
+        session: ConversationSession,
+    ) -> dict[str, list[FeatureItem]]:
+        """Return features for roles that failed validation."""
+
+        fixes: dict[str, list[FeatureItem]] = {}
+        for role in invalid:
+            fixes[role] = await self._request_role_features_async(
+                level, role, description, self.required_count, session
+            )
+        return fixes
+
+    def _enforce_min_features(self, valid: dict[str, list[FeatureItem]]) -> None:
+        """Ensure each role has at least ``required_count`` features."""
+
+        for role in self.roles:
+            items = valid.get(role, [])
+            if len(items) < self.required_count:
+                msg = (
+                    f"Expected at least {self.required_count} features for '{role}',"
+                    f" got {len(items)} after retry"
+                )
+                raise ValueError(msg)
+
+    def _prepare_sessions(self, service_input: ServiceInput) -> None:
+        """Attach ``service_input`` to all conversation sessions."""
+
+        self._service = service_input
+        self.session.add_parent_materials(service_input)
+        self.description_session.add_parent_materials(service_input)
+        self.mapping_session.add_parent_materials(service_input)
+
+    async def _schedule_plateaus(
+        self,
+        plateau_names: Sequence[str],
+        desc_map: Mapping[str, str],
+        service_input: ServiceInput,
+    ) -> list[PlateauResult]:
+        """Return plateau results scheduled by token load."""
+
+        scheduler = TokenScheduler(max_workers=min(4, len(plateau_names)))
+        for name in plateau_names:
+            description = desc_map[name]
+            tokens = self._predict_token_load(description)
+
+            async def task(n: str = name, d: str = description) -> PlateauResult:
+                level = DEFAULT_PLATEAU_MAP.get(n)
+                if level is None:
+                    raise ValueError(f"Unknown plateau name: {n}")
+                plateau_session = ConversationSession(
+                    self.session.client, stage=self.session.stage
+                )
+                plateau_session.add_parent_materials(service_input)
+                return await self.generate_plateau_async(
+                    level, n, session=plateau_session, description=d
+                )
+
+            scheduler.submit(task, tokens)
+        return await scheduler.run()
+
+    async def _assemble_evolution(
+        self,
+        service_input: ServiceInput,
+        results: Sequence[PlateauResult],
+        plateau_names: Sequence[str],
+        role_ids: Sequence[str],
+        transcripts_dir: Path | None,
+    ) -> ServiceEvolution:
+        """Return ``ServiceEvolution`` from plateau ``results``."""
+
+        plateaus: list[PlateauResult] = []
+        seen: set[str] = set()
+        for result in results:
+            if result.plateau_name not in plateau_names:
+                raise ValueError(f"Unknown plateau name: {result.plateau_name}")
+            valid: list[PlateauFeature] = []
+            for feat in result.features:
+                if feat.customer_type not in role_ids:
+                    raise ValueError(f"Unknown customer_type: {feat.customer_type}")
+                raw = f"{feat.name}|{feat.customer_type}|{result.plateau_name}".encode()
+                feature_hash = hashlib.sha1(raw, usedforsecurity=False).hexdigest()
+                if feature_hash in seen:
+                    logfire.warning(
+                        "Duplicate feature removed",
+                        feature=feat.name,
+                        role=feat.customer_type,
+                        plateau=result.plateau_name,
+                    )
+                    continue
+                seen.add(feature_hash)
+                feat.feature_id = feature_hash
+                valid.append(feat)
+            plateaus.append(
+                PlateauResult(
+                    plateau=result.plateau,
+                    plateau_name=result.plateau_name,
+                    service_description=result.service_description,
+                    features=valid,
+                )
+            )
+
+        evolution = ServiceEvolution(service=service_input, plateaus=plateaus)
+        if transcripts_dir is not None:
+            payload = {
+                "request": service_input.model_dump(),
+                "response": evolution.model_dump(),
+            }
+            path = transcripts_dir / f"{service_input.service_id}.json"
+            await asyncio.to_thread(
+                path.write_text,
+                json.dumps(payload, ensure_ascii=False),
+                encoding="utf-8",
+            )
+        return evolution
+
     @logfire.instrument()
     async def _request_missing_features_async(
         self,
@@ -391,26 +530,12 @@ class PlateauGenerator:
                 raise ValueError("Agent returned invalid JSON")
 
             role_data = data.get("features", {})
-            valid: dict[str, list[FeatureItem]] = {}
-            invalid_roles: list[str] = []
-            missing: dict[str, int] = {}
+            valid, invalid_roles, missing = self._validate_roles(role_data)
 
-            for role in self.roles:
-                items = role_data.get(role, [])
-                try:
-                    role_block = RoleFeaturesResponse(features=items)
-                except Exception:
-                    invalid_roles.append(role)
-                    valid[role] = []
-                    continue
-                valid[role] = list(role_block.features)
-                if len(role_block.features) < self.required_count:
-                    missing[role] = self.required_count - len(role_block.features)
-
-            for role in invalid_roles:
-                valid[role] = await self._request_role_features_async(
-                    level, role, description, self.required_count, session
-                )
+            fixes = await self._recover_invalid_roles(
+                invalid_roles, level, description, session
+            )
+            valid.update(fixes)
 
             tasks = {
                 role: asyncio.create_task(
@@ -420,19 +545,12 @@ class PlateauGenerator:
                 )
                 for role, need in missing.items()
             }
-            if tasks:  # Only await when there are missing roles
+            if tasks:
                 results = await asyncio.gather(*tasks.values())
                 for role, extras in zip(tasks.keys(), results, strict=False):
                     valid[role].extend(extras)
 
-            for role in self.roles:
-                items = valid.get(role, [])
-                if len(items) < self.required_count:
-                    msg = (
-                        f"Expected at least {self.required_count} features for"
-                        f" '{role}', got {len(items)} after retry"
-                    )
-                    raise ValueError(msg)
+            self._enforce_min_features(valid)
 
             block = FeaturesBlock(
                 learners=valid.get("learners", []),
@@ -505,16 +623,12 @@ class PlateauGenerator:
                 disables transcript persistence.
         """
 
-        self._service = service_input
+        self._prepare_sessions(service_input)
 
         with logfire.span("generate_service_evolution") as span:
             span.set_attribute("service.id", service_input.service_id)
             if service_input.customer_type:
                 span.set_attribute("customer_type", service_input.customer_type)
-
-            self.session.add_parent_materials(service_input)
-            self.description_session.add_parent_materials(service_input)
-            self.mapping_session.add_parent_materials(service_input)
 
             plateau_names = list(plateau_names or DEFAULT_PLATEAU_NAMES)
             role_ids = list(role_ids or self.roles)
@@ -523,79 +637,13 @@ class PlateauGenerator:
                 plateau_names, session=self.description_session
             )
 
-            scheduler = TokenScheduler(max_workers=min(4, len(plateau_names)))
+            results = await self._schedule_plateaus(
+                plateau_names, desc_map, service_input
+            )
 
-            for name in plateau_names:
-                description = desc_map[name]
-                tokens = self._predict_token_load(description)
-
-                async def task(n: str = name, d: str = description) -> PlateauResult:
-                    try:
-                        level = DEFAULT_PLATEAU_MAP[n]
-                    except KeyError as exc:
-                        raise ValueError(f"Unknown plateau name: {n}") from exc
-                    plateau_session = ConversationSession(
-                        self.session.client, stage=self.session.stage
-                    )
-                    plateau_session.add_parent_materials(service_input)
-                    return await self.generate_plateau_async(
-                        level,
-                        n,
-                        session=plateau_session,
-                        description=d,
-                    )
-
-                scheduler.submit(task, tokens)
-
-            results = await scheduler.run()
-
-            plateaus: list[PlateauResult] = []
-            seen: set[str] = set()
-            for result in results:
-                if result.plateau_name not in plateau_names:
-                    raise ValueError(f"Unknown plateau name: {result.plateau_name}")
-                valid: list[PlateauFeature] = []
-                for feat in result.features:
-                    if feat.customer_type not in role_ids:
-                        raise ValueError(f"Unknown customer_type: {feat.customer_type}")
-                    raw = (
-                        f"{feat.name}|{feat.customer_type}|{result.plateau_name}"
-                        .encode()
-                    )
-                    feature_hash = hashlib.sha1(raw, usedforsecurity=False).hexdigest()
-                    if feature_hash in seen:
-                        logfire.warning(
-                            "Duplicate feature removed",
-                            feature=feat.name,
-                            role=feat.customer_type,
-                            plateau=result.plateau_name,
-                        )
-                        continue
-                    seen.add(feature_hash)
-                    feat.feature_id = feature_hash
-                    valid.append(feat)
-                plateaus.append(
-                    PlateauResult(
-                        plateau=result.plateau,
-                        plateau_name=result.plateau_name,
-                        service_description=result.service_description,
-                        features=valid,
-                    )
-                )
-
-            evolution = ServiceEvolution(service=service_input, plateaus=plateaus)
-            if transcripts_dir is not None:
-                payload = {
-                    "request": service_input.model_dump(),
-                    "response": evolution.model_dump(),
-                }
-                path = transcripts_dir / f"{service_input.service_id}.json"
-                await asyncio.to_thread(
-                    path.write_text,
-                    json.dumps(payload, ensure_ascii=False),
-                    encoding="utf-8",
-                )
-            return evolution
+            return await self._assemble_evolution(
+                service_input, results, plateau_names, role_ids, transcripts_dir
+            )
 
     def generate_service_evolution(
         self,
