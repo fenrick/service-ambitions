@@ -26,6 +26,13 @@ class DummyFactory:
 cli.ModelFactory = DummyFactory
 
 
+async def _noop_init_embeddings() -> None:
+    """Test stub for ``init_embeddings``."""
+
+
+cli.init_embeddings = _noop_init_embeddings
+
+
 def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
     """_cmd_generate_evolution should write evolution results to disk."""
     input_path = tmp_path / "services.jsonl"

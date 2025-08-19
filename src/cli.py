@@ -27,6 +27,7 @@ from loader import (
     load_plateau_definitions,
     load_roles,
 )
+from mapping import init_embeddings
 from model_factory import ModelFactory
 from models import ServiceInput
 from monitoring import LOG_FILE_NAME, init_logfire
@@ -190,6 +191,10 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
         seed=args.seed,
         web_search=use_web_search,
     )
+
+    # Warm mapping embeddings upfront so subsequent requests reuse cached vectors.
+    # Failures are logged by ``init_embeddings`` and do not interrupt startup.
+    await init_embeddings()
 
     configure_prompt_dir(settings.prompt_dir)
     system_prompt = load_evolution_prompt(settings.context_id, settings.inspiration)

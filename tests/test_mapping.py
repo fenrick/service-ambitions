@@ -632,3 +632,54 @@ async def test_embedding_top_k_items_breaks_ties(monkeypatch) -> None:
 
     result = await mapping._embedding_top_k_items([feature], "catalogue", k=2)
     assert [item.id for item in result] == ["A", "B"]
+
+
+@pytest.mark.asyncio
+async def test_init_embeddings_populates_cache(monkeypatch) -> None:
+    """Initializer should preload embeddings for all datasets."""
+
+    mapping._EMBED_CACHE.clear()
+    configs = {
+        "a": MappingTypeConfig(label="A", dataset="ds1"),
+        "b": MappingTypeConfig(label="B", dataset="ds2"),
+    }
+    monkeypatch.setattr("mapping.load_mapping_type_config", lambda: configs)
+
+    seen: list[str] = []
+
+    async def fake_catalogue_embeddings(name: str):
+        seen.append(name)
+        mapping._EMBED_CACHE[name] = (np.zeros((1, 1)), [])
+        return mapping._EMBED_CACHE[name]
+
+    monkeypatch.setattr("mapping._catalogue_embeddings", fake_catalogue_embeddings)
+
+    await mapping.init_embeddings()
+
+    assert set(seen) == {"ds1", "ds2"}
+    assert set(mapping._EMBED_CACHE) == {"ds1", "ds2"}
+
+
+@pytest.mark.asyncio
+async def test_init_embeddings_handles_errors(monkeypatch) -> None:
+    """Initializer should log and skip datasets that fail."""
+
+    mapping._EMBED_CACHE.clear()
+    configs = {
+        "a": MappingTypeConfig(label="A", dataset="good"),
+        "b": MappingTypeConfig(label="B", dataset="bad"),
+    }
+    monkeypatch.setattr("mapping.load_mapping_type_config", lambda: configs)
+
+    async def fake_catalogue_embeddings(name: str):
+        if name == "bad":
+            raise RuntimeError("boom")
+        mapping._EMBED_CACHE[name] = (np.zeros((1, 1)), [])
+        return mapping._EMBED_CACHE[name]
+
+    monkeypatch.setattr("mapping._catalogue_embeddings", fake_catalogue_embeddings)
+
+    await mapping.init_embeddings()
+
+    assert "good" in mapping._EMBED_CACHE
+    assert "bad" not in mapping._EMBED_CACHE
