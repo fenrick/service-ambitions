@@ -3,13 +3,19 @@
 import argparse
 import asyncio
 import json
+import sys
+import types
 from types import SimpleNamespace
 
 import pytest
 
-import cli
-from cli import _cmd_generate_evolution
-from models import SCHEMA_VERSION, ServiceEvolution, ServiceInput
+sys.modules.setdefault(
+    "logfire",
+    types.SimpleNamespace(force_flush=lambda: None, info=lambda *a, **k: None),
+)
+import cli  # noqa: E402
+from cli import _cmd_generate_evolution  # noqa: E402
+from models import SCHEMA_VERSION, ServiceEvolution, ServiceInput  # noqa: E402
 
 
 class DummyFactory:
@@ -106,6 +112,83 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
     assert payload["service"]["name"] == "svc"
     assert payload["service"]["service_id"] == "svc-1"
     assert payload["schema_version"] == SCHEMA_VERSION
+
+
+def test_generate_evolution_saves_transcripts(tmp_path, monkeypatch) -> None:
+    """Setting ``transcripts_dir`` persists per-service transcripts."""
+
+    input_path = tmp_path / "services.jsonl"
+    output_path = tmp_path / "out.jsonl"
+    transcripts_dir = tmp_path / "t"
+    input_path.write_text(
+        json.dumps(
+            {
+                "service_id": "svc-1",
+                "name": "svc",
+                "description": "desc",
+                "customer_type": "retail",
+                "jobs_to_be_done": [{"name": "job"}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    class DummyAgent:
+        def __init__(self, model, instructions):
+            self.model = model
+            self.instructions = instructions
+
+    async def fake_generate(self, service: ServiceInput) -> ServiceEvolution:
+        return ServiceEvolution(service=service, plateaus=[])
+
+    monkeypatch.setattr("cli.Agent", DummyAgent)
+    monkeypatch.setattr(
+        "cli.PlateauGenerator.generate_service_evolution_async", fake_generate
+    )
+    monkeypatch.setattr("cli.configure_prompt_dir", lambda _path: None)
+    monkeypatch.setattr("cli.load_evolution_prompt", lambda _ctx, _insp: "prompt")
+
+    settings = SimpleNamespace(
+        model="test-model",
+        log_level="INFO",
+        openai_api_key="key",
+        logfire_token=None,
+        concurrency=2,
+        prompt_dir="prompts",
+        context_id="university",
+        inspiration="general",
+        reasoning=None,
+        features_per_role=5,
+        mapping_batch_size=30,
+        mapping_parallel_types=True,
+        models=None,
+    )
+    args = argparse.Namespace(
+        input_file=str(input_path),
+        output_file=str(output_path),
+        transcripts_dir=str(transcripts_dir),
+        model=None,
+        logfire_service=None,
+        log_level=None,
+        verbose=0,
+        max_services=None,
+        dry_run=False,
+        progress=False,
+        concurrency=None,
+        resume=False,
+        seed=None,
+        roles_file="data/roles.json",
+        mapping_batch_size=None,
+        mapping_parallel_types=None,
+    )
+
+    asyncio.run(_cmd_generate_evolution(args, settings))
+
+    transcript = transcripts_dir / "svc-1.json"
+    assert transcript.exists()
+    payload = json.loads(transcript.read_text(encoding="utf-8"))
+    assert "request" in payload and "response" in payload
 
 
 def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
