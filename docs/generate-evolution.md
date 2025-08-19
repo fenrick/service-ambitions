@@ -55,6 +55,19 @@ Each line in the output file is a JSON object with:
 
 ```json
 {
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "20240101-000000",
+    "seed": 1234,
+    "models": {
+      "descriptions": "openai:o4-mini",
+      "features": "openai:gpt-5",
+      "mapping": "openai:o4-mini"
+    },
+    "web_search": false,
+    "mapping_types": ["data", "applications", "technology"],
+    "created": "2024-01-01T00:00:00Z"
+  },
   "service": {
     "service_id": "string",
     "name": "string",
@@ -87,6 +100,9 @@ Each line in the output file is a JSON object with:
   ]
 }
 ```
+
+`run_id` remains constant for every record produced in a single invocation. The
+`created` value uses the ISO-8601 timestamp format.
 
 The conversation seed for each service includes the `service_id` and
 `jobs_to_be_done` list so that all plateau calls share the same context.
