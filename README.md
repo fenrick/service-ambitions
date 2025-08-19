@@ -32,9 +32,27 @@ Stage-specific model overrides live under the `models` block in
 }
 ```
 
+| Stage        | Default model               | Fast/cheap alternative |
+|--------------|-----------------------------|------------------------|
+| Descriptions | `openai:o4-mini`            | Already cost optimised |
+| Features     | `openai:gpt-5`              | `openai:o4-mini`       |
+| Mapping      | `openai:o4-mini`            | Already cost optimised |
+| Search       | `openai:gpt-4o-search-preview` | n/a |
+
+OpenAI recommends using cost‑optimised models like `o4-mini` when latency or
+price is a concern and higher‑capacity models such as `gpt-5` for best quality
+results. See the [model selection guide](https://platform.openai.com/docs/guides/model-selection)
+for details.
+
 OpenAI's experimental web search tool can be enabled via the `web_search`
 setting or the `--web-search/--no-web-search` CLI flags. The sample
 configuration leaves this disabled.
+
+### When to enable web search
+
+Enable web search only when prompts require external lookups, such as verifying
+recent facts or gathering up‑to‑date statistics. The preview tool adds latency
+and cost, so keep it disabled for self‑contained tasks.
 
 System prompts are assembled from modular markdown components located in the
 `prompts/` directory. Use `--prompt-dir` to point at an alternate component
