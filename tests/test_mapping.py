@@ -10,7 +10,15 @@ import pytest
 
 import mapping
 from mapping import map_feature, map_feature_async, map_features_async
-from models import MappingItem, MappingTypeConfig, MaturityScore, PlateauFeature
+from models import (
+    Contribution,
+    MappingFeature,
+    MappingItem,
+    MappingResponse,
+    MappingTypeConfig,
+    MaturityScore,
+    PlateauFeature,
+)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -763,3 +771,172 @@ async def test_init_embeddings_handles_errors(monkeypatch) -> None:
 
     assert "good" in mapping._EMBED_CACHE
     assert "bad" not in mapping._EMBED_CACHE
+
+
+@pytest.mark.asyncio
+async def test_map_parallel_quarantines_missing_mappings(monkeypatch, tmp_path) -> None:
+    """Unmapped features after retry should be quarantined."""
+
+    monkeypatch.chdir(tmp_path)
+    mapping.QUARANTINED_MAPPING_FILES.clear()
+    monkeypatch.setattr(mapping, "MIN_MAPPING_ITEMS", 0)
+
+    feature1 = PlateauFeature(
+        feature_id="f1",
+        name="F1",
+        description="d1",
+        score=MaturityScore(level=1, justification=""),
+        customer_type="c",
+    )
+    feature2 = PlateauFeature(
+        feature_id="f2",
+        name="F2",
+        description="d2",
+        score=MaturityScore(level=1, justification=""),
+        customer_type="c",
+    )
+    cfg = MappingTypeConfig(dataset="ds", label="Data")
+    mapping_types = {"data": cfg}
+
+    items = {"ds": [MappingItem(id="INF-1", name="Item", description="D")]}
+    monkeypatch.setattr(mapping, "load_mapping_items", lambda types, *a, **k: items)
+
+    first = MappingResponse(
+        features=[
+            MappingFeature(feature_id="f1", data=[]),
+            MappingFeature(feature_id="f2", data=[]),
+        ]
+    )
+    second = MappingResponse(
+        features=[
+            MappingFeature(feature_id="f1", data=[]),
+            MappingFeature(
+                feature_id="f2",
+                data=[Contribution(item="INF-1", contribution=0.5)],
+            ),
+        ]
+    )
+
+    class FakeSub:
+        async def ask_async(self, prompt, output_type=None):
+            return second
+
+    async def fake_request_mapping(session, batch, idx, key, cfg):
+        return idx, key, cfg, FakeSub(), first
+
+    monkeypatch.setattr(mapping, "_request_mapping", fake_request_mapping)
+
+    batches = [[feature1, feature2]]
+    results = await mapping._map_parallel(SimpleNamespace(), batches, mapping_types)
+
+    assert results["f1"].mappings["data"] == []
+    assert results["f2"].mappings["data"][0].item == "INF-1"
+    expected = Path("quarantine/mappings/f1-data.json")
+    assert mapping.QUARANTINED_MAPPING_FILES == [str(expected)]
+    assert expected.exists()
+
+
+@pytest.mark.asyncio
+async def test_map_sequential_quarantines_missing_mappings(
+    monkeypatch, tmp_path
+) -> None:
+    """Sequential mapping also quarantines unmapped features."""
+
+    monkeypatch.chdir(tmp_path)
+    mapping.QUARANTINED_MAPPING_FILES.clear()
+    monkeypatch.setattr(mapping, "MIN_MAPPING_ITEMS", 0)
+
+    feature = PlateauFeature(
+        feature_id="f1",
+        name="F1",
+        description="d1",
+        score=MaturityScore(level=1, justification=""),
+        customer_type="c",
+    )
+    cfg = MappingTypeConfig(dataset="ds", label="Data")
+    mapping_types = {"data": cfg}
+
+    items = {"ds": [MappingItem(id="INF-1", name="Item", description="D")]}
+    monkeypatch.setattr(mapping, "load_mapping_items", lambda types, *a, **k: items)
+
+    first = MappingResponse(features=[MappingFeature(feature_id="f1", data=[])])
+    second = MappingResponse(features=[MappingFeature(feature_id="f1", data=[])])
+
+    class FakeSub:
+        async def ask_async(self, prompt, output_type=None):
+            return second
+
+    async def fake_request_mapping(session, batch, idx, key, cfg):
+        return idx, key, cfg, FakeSub(), first
+
+    monkeypatch.setattr(mapping, "_request_mapping", fake_request_mapping)
+
+    batches = [[feature]]
+    results = await mapping._map_sequential(SimpleNamespace(), batches, mapping_types)
+
+    assert results["f1"].mappings["data"] == []
+    expected = Path("quarantine/mappings/f1-data.json")
+    assert mapping.QUARANTINED_MAPPING_FILES == [str(expected)]
+    assert expected.exists()
+
+
+@pytest.mark.asyncio
+async def test_map_parallel_quarantines_on_mapping_error(monkeypatch, tmp_path) -> None:
+    """Missing features in payload should quarantine the response."""
+
+    monkeypatch.chdir(tmp_path)
+    mapping.QUARANTINED_MAPPING_FILES.clear()
+    monkeypatch.setattr(mapping, "MIN_MAPPING_ITEMS", 0)
+
+    feature1 = PlateauFeature(
+        feature_id="f1",
+        name="F1",
+        description="d1",
+        score=MaturityScore(level=1, justification=""),
+        customer_type="c",
+    )
+    feature2 = PlateauFeature(
+        feature_id="f2",
+        name="F2",
+        description="d2",
+        score=MaturityScore(level=1, justification=""),
+        customer_type="c",
+    )
+    cfg = MappingTypeConfig(dataset="ds", label="Data")
+    mapping_types = {"data": cfg}
+
+    items = {"ds": [MappingItem(id="INF-1", name="Item", description="D")]}
+    monkeypatch.setattr(mapping, "load_mapping_items", lambda types, *a, **k: items)
+
+    first = MappingResponse(
+        features=[
+            MappingFeature(feature_id="f1", data=[]),
+            MappingFeature(feature_id="f2", data=[]),
+        ]
+    )
+    second = MappingResponse(
+        features=[
+            MappingFeature(
+                feature_id="f2",
+                data=[Contribution(item="INF-1", contribution=0.5)],
+            )
+        ]
+    )
+
+    class FakeSub:
+        async def ask_async(self, prompt, output_type=None):
+            return second
+
+    async def fake_request_mapping(session, batch, idx, key, cfg):
+        return idx, key, cfg, FakeSub(), first
+
+    monkeypatch.setattr(mapping, "_request_mapping", fake_request_mapping)
+
+    batches = [[feature1, feature2]]
+    results = await mapping._map_parallel(SimpleNamespace(), batches, mapping_types)
+
+    assert results["f1"].mappings["data"] == []
+    assert results["f2"].mappings["data"][0].item == "INF-1"
+    expected = Path("quarantine/mappings/f1-data.json")
+    assert expected.exists()
+    assert str(expected) in mapping.QUARANTINED_MAPPING_FILES

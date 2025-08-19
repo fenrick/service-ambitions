@@ -12,6 +12,7 @@ import asyncio
 import json
 import os
 from functools import lru_cache
+from pathlib import Path
 from typing import TYPE_CHECKING, Iterable, Mapping, Sequence
 
 import logfire
@@ -43,6 +44,29 @@ _EMBED_CACHE: dict[str, tuple[np.ndarray, list[MappingItem]]] = {}
 
 MIN_MAPPING_ITEMS = 2
 """Minimum number of mapping contributions required per feature."""
+
+
+QUARANTINED_MAPPING_FILES: list[str] = []
+"""Paths to mapping payloads quarantined due to missing data."""
+
+
+def _quarantine_mapping_payload(
+    payload: MappingResponse, key: str, feature_id: str
+) -> Path:
+    """Persist ``payload`` for ``feature_id``/``key`` in the quarantine directory."""
+
+    quarantine_dir = Path("quarantine") / "mappings"
+    quarantine_dir.mkdir(parents=True, exist_ok=True)
+    path = quarantine_dir / f"{feature_id}-{key}.json"
+    path.write_text(payload.model_dump_json(indent=2))
+    QUARANTINED_MAPPING_FILES.append(str(path))
+    logfire.warning(
+        "Quarantined mapping payload",
+        feature_id=feature_id,
+        key=key,
+        quarantine_file=str(path),
+    )
+    return path
 
 
 def _chunked(
@@ -389,7 +413,30 @@ async def _map_parallel(
                 extra_instructions=reminder,
             )
             payload = await sub_session.ask_async(prompt, output_type=MappingResponse)
-        merged = _merge_mapping_results(batch_map[idx], payload, {key: cfg})
+        # Quarantine any features still lacking mappings after the retry.
+        for feat_payload in payload.features:
+            if not feat_payload.mappings.get(key):
+                _quarantine_mapping_payload(payload, key, feat_payload.feature_id)
+        try:
+            merged = _merge_mapping_results(batch_map[idx], payload, {key: cfg})
+        except MappingError:
+            payload_ids = {f.feature_id for f in payload.features}
+            present = [
+                feat for feat in batch_map[idx] if feat.feature_id in payload_ids
+            ]
+            missing = [
+                feat for feat in batch_map[idx] if feat.feature_id not in payload_ids
+            ]
+            for feat in missing:
+                _quarantine_mapping_payload(payload, key, feat.feature_id)
+            merged_present = (
+                _merge_mapping_results(present, payload, {key: cfg}) if present else []
+            )
+            merged_missing = [
+                feat.model_copy(update={"mappings": feat.mappings | {key: []}})
+                for feat in missing
+            ]
+            merged = merged_present + merged_missing
         for j, feat in enumerate(merged):
             if len(feat.mappings.get(key, [])) < MIN_MAPPING_ITEMS:
                 # Retry only the under-filled feature to minimise extra cost.
@@ -431,7 +478,31 @@ async def _map_sequential(
                 payload = await sub_session.ask_async(
                     prompt, output_type=MappingResponse
                 )
-            batch_list = _merge_mapping_results(batch_list, payload, {key: cfg})
+            for feat_payload in payload.features:
+                if not feat_payload.mappings.get(key):
+                    _quarantine_mapping_payload(payload, key, feat_payload.feature_id)
+            try:
+                batch_list = _merge_mapping_results(batch_list, payload, {key: cfg})
+            except MappingError:
+                payload_ids = {f.feature_id for f in payload.features}
+                present = [
+                    feat for feat in batch_list if feat.feature_id in payload_ids
+                ]
+                missing = [
+                    feat for feat in batch_list if feat.feature_id not in payload_ids
+                ]
+                for feat in missing:
+                    _quarantine_mapping_payload(payload, key, feat.feature_id)
+                merged_present = (
+                    _merge_mapping_results(present, payload, {key: cfg})
+                    if present
+                    else []
+                )
+                merged_missing = [
+                    feat.model_copy(update={"mappings": feat.mappings | {key: []}})
+                    for feat in missing
+                ]
+                batch_list = merged_present + merged_missing
             for j, feat in enumerate(batch_list):
                 if len(feat.mappings.get(key, [])) < MIN_MAPPING_ITEMS:
                     # Request additional mappings for under-filled features.
@@ -523,4 +594,5 @@ __all__ = [
     "map_features_async",
     "MappingError",
     "init_embeddings",
+    "QUARANTINED_MAPPING_FILES",
 ]
