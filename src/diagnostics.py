@@ -9,7 +9,6 @@ import logfire
 from pydantic import BaseModel
 
 
-@logfire.instrument()
 def validate_jsonl(path: Path, model: Type[BaseModel]) -> int:
     """Validate JSON records in ``path`` against ``model``.
 

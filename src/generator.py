@@ -167,7 +167,6 @@ class ServiceAmbitionGenerator:
     request sizes.
     """
 
-    @logfire.instrument()
     def __init__(
         self,
         model: Model,
@@ -216,7 +215,6 @@ class ServiceAmbitionGenerator:
         self._limiter: AdaptiveSemaphore | None = None
         self._metrics: RollingMetrics | None = None
 
-    @logfire.instrument()
     async def process_service(
         self,
         service: ServiceInput,
@@ -257,7 +255,6 @@ class ServiceAmbitionGenerator:
         )
         return result.output.model_dump()
 
-    @logfire.instrument()
     async def _process_all(
         self,
         services: Iterable[ServiceInput],
@@ -383,7 +380,6 @@ class ServiceAmbitionGenerator:
         await writer_task
         return processed
 
-    @logfire.instrument()
     async def generate_async(
         self,
         services: Iterable[ServiceInput],
@@ -438,7 +434,6 @@ class ServiceAmbitionGenerator:
         return await self.generate_async(services, prompt, output_path)
 
 
-@logfire.instrument()
 def build_model(
     model_name: str,
     api_key: str,

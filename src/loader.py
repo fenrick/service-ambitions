@@ -102,7 +102,6 @@ def _read_json_file(path: Path, schema: type[T]) -> T:
         ) from exc
 
 
-@logfire.instrument()
 def load_prompt_text(prompt_name: str, base_dir: Path | None = None) -> str:
     """Return the contents of a prompt template.
 
@@ -128,7 +127,6 @@ def load_prompt_text(prompt_name: str, base_dir: Path | None = None) -> str:
     return _read_file(directory / filename)
 
 
-@logfire.instrument()
 @lru_cache(maxsize=None)
 def load_mapping_items(
     mapping_types: Sequence[str] | None = None,
@@ -175,7 +173,6 @@ def load_app_config(
 
 
 @lru_cache(maxsize=None)
-@logfire.instrument()
 def load_mapping_type_config(
     base_dir: Path | str = Path("config"),
     filename: Path | str = Path("app.json"),
@@ -246,7 +243,6 @@ def load_roles(
 
 
 @lru_cache(maxsize=None)
-@logfire.instrument()
 def load_role_ids(
     base_dir: Path | str = Path("data"),
     filename: Path | str = Path("roles.json"),
@@ -269,7 +265,6 @@ def load_role_ids(
 
 
 @lru_cache(maxsize=None)
-@logfire.instrument()
 def load_definitions(
     base_dir: Path | str = Path("data"),
     filename: Path | str = Path(DEFINITIONS_JSON),
@@ -302,7 +297,6 @@ def load_definitions(
     return "\n".join(lines)
 
 
-@logfire.instrument()
 def load_plateau_text(
     base_dir: Path | str = Path("data"),
     filename: Path | str = Path(FEATURE_PLATEAUS_JSON),
@@ -328,7 +322,6 @@ def load_plateau_text(
     return "\n".join(lines)
 
 
-@logfire.instrument()
 def load_evolution_prompt(
     context_id: str,
     inspirations_id: str,
@@ -373,7 +366,6 @@ def load_evolution_prompt(
     return "\n\n".join(components)
 
 
-@logfire.instrument()
 def load_ambition_prompt(
     context_id: str,
     inspirations_id: str,

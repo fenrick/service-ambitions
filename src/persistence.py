@@ -13,7 +13,6 @@ from typing import Iterable, List
 import logfire
 
 
-@logfire.instrument()
 def read_lines(path: Path) -> List[str]:
     """Return lines from ``path`` if it exists.
 
@@ -31,7 +30,6 @@ def read_lines(path: Path) -> List[str]:
         return []
 
 
-@logfire.instrument()
 def atomic_write(path: Path, lines: Iterable[str]) -> None:
     """Write ``lines`` to ``path`` atomically.
 

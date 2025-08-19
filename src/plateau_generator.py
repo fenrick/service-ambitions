@@ -94,7 +94,6 @@ class PlateauGenerator:
         self.mapping_parallel_types = mapping_parallel_types
         self._service: ServiceInput | None = None
 
-    @logfire.instrument()
     def _request_description(
         self, level: int, session: ConversationSession | None = None
     ) -> str:
@@ -128,7 +127,6 @@ class PlateauGenerator:
         return cleaned
 
     @staticmethod
-    @logfire.instrument()
     def _sanitize_description(text: str) -> str:
         """Remove any model-added preamble from ``text``.
 
@@ -144,7 +142,6 @@ class PlateauGenerator:
 
         return max(1, estimate_tokens(text, 0))
 
-    @logfire.instrument()
     def _request_descriptions(
         self,
         plateau_names: Sequence[str],
@@ -178,7 +175,6 @@ class PlateauGenerator:
             results[item.plateau_name] = cleaned
         return results
 
-    @logfire.instrument()
     async def _request_descriptions_async(
         self,
         plateau_names: Sequence[str],
@@ -216,7 +212,6 @@ class PlateauGenerator:
             results[item.plateau_name] = cleaned
         return results
 
-    @logfire.instrument()
     def _to_feature(self, item: FeatureItem, role: str) -> PlateauFeature:
         """Return a :class:`PlateauFeature` built from ``item``.
 
@@ -236,7 +231,6 @@ class PlateauGenerator:
             customer_type=role,
         )
 
-    @logfire.instrument()
     def _build_plateau_prompt(self, level: int, description: str) -> str:
         """Return a prompt requesting features for ``level``."""
 
@@ -252,7 +246,6 @@ class PlateauGenerator:
             roles=str(roles_str),
         )
 
-    @logfire.instrument()
     def _collect_features(
         self, payload: PlateauFeaturesResponse
     ) -> list[PlateauFeature]:
@@ -270,7 +263,6 @@ class PlateauGenerator:
                     features.append(self._to_feature(item, role))
         return features
 
-    @logfire.instrument()
     async def _request_role_features_async(
         self,
         level: int,
@@ -307,7 +299,6 @@ class PlateauGenerator:
         payload = await session.ask_async(prompt, output_type=RoleFeaturesResponse)
         return payload.features
 
-    @logfire.instrument()
     async def _request_missing_features_async(
         self,
         level: int,
@@ -344,7 +335,6 @@ class PlateauGenerator:
         payload = await session.ask_async(prompt, output_type=RoleFeaturesResponse)
         return payload.features
 
-    @logfire.instrument()
     async def generate_plateau_async(
         self,
         level: int,
@@ -485,7 +475,6 @@ class PlateauGenerator:
             )
         )
 
-    @logfire.instrument()
     async def generate_service_evolution_async(
         self,
         service_input: ServiceInput,
