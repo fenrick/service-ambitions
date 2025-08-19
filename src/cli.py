@@ -228,36 +228,44 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
 
     async def run_one(service: ServiceInput) -> None:
         async with sem:
-            desc_model = factory.get(
-                "descriptions", args.descriptions_model or args.model
-            )
-            feat_model = factory.get("features", args.features_model or args.model)
-            map_model = factory.get("mapping", args.mapping_model or args.model)
+            try:
+                desc_model = factory.get(
+                    "descriptions", args.descriptions_model or args.model
+                )
+                feat_model = factory.get("features", args.features_model or args.model)
+                map_model = factory.get("mapping", args.mapping_model or args.model)
 
-            desc_agent = Agent(desc_model, instructions=system_prompt)
-            feat_agent = Agent(feat_model, instructions=system_prompt)
-            map_agent = Agent(map_model, instructions=system_prompt)
+                desc_agent = Agent(desc_model, instructions=system_prompt)
+                feat_agent = Agent(feat_model, instructions=system_prompt)
+                map_agent = Agent(map_model, instructions=system_prompt)
 
-            desc_session = ConversationSession(desc_agent, stage="descriptions")
-            feat_session = ConversationSession(feat_agent, stage="features")
-            map_session = ConversationSession(map_agent, stage="mapping")
-            generator = PlateauGenerator(
-                feat_session,
-                required_count=settings.features_per_role,
-                roles=role_ids,
-                description_session=desc_session,
-                mapping_session=map_session,
-                mapping_batch_size=mapping_batch_size,
-                mapping_parallel_types=mapping_parallel_types,
-            )
-            evolution = await generator.generate_service_evolution_async(service)
-            line = f"{evolution.model_dump_json()}\n"
-            async with lock:
-                output.write(line)
-                new_ids.add(service.service_id)
-            logfire.info(f"Generated evolution for {service.name}")
-            if progress:
-                progress.update(1)
+                desc_session = ConversationSession(desc_agent, stage="descriptions")
+                feat_session = ConversationSession(feat_agent, stage="features")
+                map_session = ConversationSession(map_agent, stage="mapping")
+                generator = PlateauGenerator(
+                    feat_session,
+                    required_count=settings.features_per_role,
+                    roles=role_ids,
+                    description_session=desc_session,
+                    mapping_session=map_session,
+                    mapping_batch_size=mapping_batch_size,
+                    mapping_parallel_types=mapping_parallel_types,
+                )
+                evolution = await generator.generate_service_evolution_async(service)
+                line = f"{evolution.model_dump_json()}\n"
+                async with lock:
+                    output.write(line)
+                    new_ids.add(service.service_id)
+                logfire.info(f"Generated evolution for {service.name}")
+            except Exception as exc:  # noqa: BLE001
+                quarantine_dir = Path("quarantine")
+                quarantine_dir.mkdir(parents=True, exist_ok=True)
+                quarantine_file = quarantine_dir / f"{service.service_id}.json"
+                quarantine_file.write_text(service.model_dump_json(indent=2))
+                logfire.error(f"Failed to generate evolution for {service.name}: {exc}")
+            finally:
+                if progress:
+                    progress.update(1)
 
     with open(part_path, "w", encoding="utf-8") as output:
         async with asyncio.TaskGroup() as tg:
