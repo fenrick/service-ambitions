@@ -11,7 +11,7 @@ import random
 import sys
 from itertools import islice
 from pathlib import Path
-from typing import Any, Coroutine, Iterable, cast
+from typing import Any, Coroutine, Sequence, cast
 
 from pydantic_ai import Agent
 from tqdm import tqdm
@@ -56,6 +56,123 @@ def _configure_logging(args: argparse.Namespace, settings) -> None:
     if settings.logfire_token:
         # Initialize logfire only when a token is configured
         init_logfire(settings.logfire_token)
+
+
+def _prepare_paths(output: Path, resume: bool) -> tuple[Path, Path]:
+    """Return paths used for output and resume tracking."""
+
+    part_path = output.with_suffix(
+        output.suffix + ".tmp" if not resume else output.suffix + ".tmp.part"
+    )
+    processed_path = output.with_name("processed_ids.txt")
+    return part_path, processed_path
+
+
+def _load_resume_state(
+    processed_path: Path, output_path: Path, resume: bool
+) -> tuple[set[str], list[str]]:
+    """Return previously processed IDs and existing output lines."""
+
+    processed_ids = set(read_lines(processed_path)) if resume else set()
+    existing_lines = read_lines(output_path) if resume else []
+    return processed_ids, existing_lines
+
+
+def _ensure_transcripts_dir(path: str | None, output: Path) -> Path:
+    """Create and return the directory used to store transcripts."""
+
+    transcripts_dir = Path(path) if path is not None else output.parent / "_transcripts"
+    transcripts_dir.mkdir(parents=True, exist_ok=True)
+    return transcripts_dir
+
+
+def _load_services_list(
+    input_file: str, max_services: int | None, processed_ids: set[str]
+) -> list[ServiceInput]:
+    """Return services filtered for ``processed_ids`` and ``max_services``."""
+
+    with load_services(Path(input_file)) as svc_iter:
+        if max_services is not None:
+            svc_iter = islice(svc_iter, max_services)
+        return [s for s in svc_iter if s.service_id not in processed_ids]
+
+
+def _save_results(
+    *,
+    resume: bool,
+    part_path: Path,
+    output_path: Path,
+    existing_lines: list[str],
+    processed_ids: set[str],
+    new_ids: set[str],
+    processed_path: Path,
+) -> set[str]:
+    """Persist generated lines and update processed IDs."""
+
+    if resume:
+        new_lines = read_lines(part_path)
+        atomic_write(output_path, [*existing_lines, *new_lines])
+        part_path.unlink(missing_ok=True)
+        processed_ids.update(new_ids)
+    else:
+        os.replace(part_path, output_path)
+        processed_ids = new_ids
+    atomic_write(processed_path, sorted(processed_ids))
+    return processed_ids
+
+
+async def _generate_evolution_for_service(
+    service: ServiceInput,
+    *,
+    factory: ModelFactory,
+    settings,
+    args: argparse.Namespace,
+    system_prompt: str,
+    transcripts_dir: Path,
+    role_ids: Sequence[str],
+    mapping_batch_size: int,
+    mapping_parallel_types: bool,
+    lock: asyncio.Lock,
+    output,
+    new_ids: set[str],
+) -> None:
+    """Generate evolution for ``service`` and record results."""
+
+    try:
+        desc_model = factory.get("descriptions", args.descriptions_model or args.model)
+        feat_model = factory.get("features", args.features_model or args.model)
+        map_model = factory.get("mapping", args.mapping_model or args.model)
+
+        desc_agent = Agent(desc_model, instructions=system_prompt)
+        feat_agent = Agent(feat_model, instructions=system_prompt)
+        map_agent = Agent(map_model, instructions=system_prompt)
+
+        desc_session = ConversationSession(desc_agent, stage="descriptions")
+        feat_session = ConversationSession(feat_agent, stage="features")
+        map_session = ConversationSession(map_agent, stage="mapping")
+        generator = PlateauGenerator(
+            feat_session,
+            required_count=settings.features_per_role,
+            roles=role_ids,
+            description_session=desc_session,
+            mapping_session=map_session,
+            mapping_batch_size=mapping_batch_size,
+            mapping_parallel_types=mapping_parallel_types,
+        )
+        evolution = await generator.generate_service_evolution_async(
+            service, transcripts_dir=transcripts_dir
+        )
+        line = f"{evolution.model_dump_json()}\n"
+        async with lock:
+            output.write(line)
+            new_ids.add(service.service_id)
+        logfire.info(f"Generated evolution for {service.name}")
+    except Exception as exc:  # noqa: BLE001
+        quarantine_dir = Path("quarantine")
+        quarantine_dir.mkdir(parents=True, exist_ok=True)
+        quarantine_file = quarantine_dir / f"{service.service_id}.json"
+        quarantine_file.write_text(service.model_dump_json(indent=2))
+        logfire.error(f"Failed to generate evolution for {service.name}: {exc}")
 
 
 async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
@@ -105,68 +222,40 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
         token_weighting=token_weighting,
     )
 
-    part_path = output_path.with_suffix(
-        output_path.suffix + ".tmp"
-        if not args.resume
-        else output_path.suffix + ".tmp.part"
+    part_path, processed_path = _prepare_paths(output_path, args.resume)
+    processed_ids, existing_lines = _load_resume_state(
+        processed_path, output_path, args.resume
     )
-    processed_path = output_path.with_name("processed_ids.txt")
-
-    processed_ids: set[str] = set(read_lines(processed_path)) if args.resume else set()
-    existing_lines: list[str] = read_lines(output_path) if args.resume else []
-
-    transcripts_dir = (
-        Path(args.transcripts_dir)
-        if args.transcripts_dir is not None
-        else output_path.parent / "_transcripts"
+    transcripts_dir = _ensure_transcripts_dir(args.transcripts_dir, output_path)
+    services = _load_services_list(
+        args.input_file, args.max_services, processed_ids if args.resume else set()
     )
-    transcripts_dir.mkdir(parents=True, exist_ok=True)
 
-    with load_services(Path(args.input_file)) as svc_iter:
-        if args.max_services is not None:
-            # Limit processing to the requested number of services.
-            svc_iter = islice(svc_iter, args.max_services)
+    if args.dry_run:
+        logfire.info(f"Validated {len(services)} services")
+        return
 
-        if args.resume:
-            svc_iter = (s for s in svc_iter if s.service_id not in processed_ids)
+    show_progress = args.progress and sys.stdout.isatty()
+    progress = tqdm(total=len(services)) if show_progress else None
+    new_ids = await generator.generate_async(
+        services,
+        system_prompt,
+        str(part_path),
+        progress=progress,
+        transcripts_dir=transcripts_dir,
+    )
+    if progress:
+        progress.close()
 
-        show_progress = args.progress and sys.stdout.isatty()
-        services_list: list[ServiceInput] | None = None
-        services: Iterable[ServiceInput]
-        if args.dry_run or show_progress:
-            services_list = list(svc_iter)
-            services = services_list
-        else:
-            services = svc_iter
-
-        if args.dry_run:
-            logfire.info(f"Validated {len(services_list or [])} services")
-            return
-
-        if show_progress:
-            progress = tqdm(total=len(services_list or []))
-        else:
-            progress = None
-        new_ids = await generator.generate_async(
-            services,
-            system_prompt,
-            str(part_path),
-            progress=progress,
-            transcripts_dir=transcripts_dir,
-        )
-        if progress:
-            progress.close()
-
-    if args.resume:
-        new_lines = read_lines(part_path)
-        atomic_write(output_path, [*existing_lines, *new_lines])
-        part_path.unlink(missing_ok=True)
-        processed_ids.update(new_ids)
-    else:
-        os.replace(part_path, output_path)
-        processed_ids = new_ids
-
-    atomic_write(processed_path, sorted(processed_ids))
+    processed_ids = _save_results(
+        resume=args.resume,
+        part_path=part_path,
+        output_path=output_path,
+        existing_lines=existing_lines,
+        processed_ids=processed_ids,
+        new_ids=new_ids,
+        processed_path=processed_path,
+    )
     logfire.info(f"Results written to {output_path}")
 
 
@@ -201,27 +290,12 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
     )
 
     output_path = Path(args.output_file)
-    part_path = output_path.with_suffix(
-        output_path.suffix + ".tmp"
-        if not args.resume
-        else output_path.suffix + ".tmp.part"
+    part_path, processed_path = _prepare_paths(output_path, args.resume)
+    processed_ids, existing_lines = _load_resume_state(
+        processed_path, output_path, args.resume
     )
-    processed_path = output_path.with_name("processed_ids.txt")
-
-    processed_ids: set[str] = set(read_lines(processed_path)) if args.resume else set()
-    existing_lines: list[str] = read_lines(output_path) if args.resume else []
-
-    transcripts_dir = (
-        Path(args.transcripts_dir)
-        if args.transcripts_dir is not None
-        else output_path.parent / "_transcripts"
-    )
-    transcripts_dir.mkdir(parents=True, exist_ok=True)
-
-    with load_services(Path(args.input_file)) as svc_iter:
-        if args.max_services is not None:
-            svc_iter = islice(svc_iter, args.max_services)
-        services = [s for s in svc_iter if s.service_id not in processed_ids]
+    transcripts_dir = _ensure_transcripts_dir(args.transcripts_dir, output_path)
+    services = _load_services_list(args.input_file, args.max_services, processed_ids)
 
     if args.dry_run:
         logfire.info(f"Validated {len(services)} services")
@@ -229,7 +303,6 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
 
     concurrency = args.concurrency or settings.concurrency
     if concurrency < 1:
-        # A zero semaphore would deadlock all tasks, so fail fast on invalid input.
         raise ValueError("concurrency must be a positive integer")
     sem = asyncio.Semaphore(concurrency)
     lock = asyncio.Lock()
@@ -239,46 +312,22 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
 
     async def run_one(service: ServiceInput) -> None:
         async with sem:
-            try:
-                desc_model = factory.get(
-                    "descriptions", args.descriptions_model or args.model
-                )
-                feat_model = factory.get("features", args.features_model or args.model)
-                map_model = factory.get("mapping", args.mapping_model or args.model)
-
-                desc_agent = Agent(desc_model, instructions=system_prompt)
-                feat_agent = Agent(feat_model, instructions=system_prompt)
-                map_agent = Agent(map_model, instructions=system_prompt)
-
-                desc_session = ConversationSession(desc_agent, stage="descriptions")
-                feat_session = ConversationSession(feat_agent, stage="features")
-                map_session = ConversationSession(map_agent, stage="mapping")
-                generator = PlateauGenerator(
-                    feat_session,
-                    required_count=settings.features_per_role,
-                    roles=role_ids,
-                    description_session=desc_session,
-                    mapping_session=map_session,
-                    mapping_batch_size=mapping_batch_size,
-                    mapping_parallel_types=mapping_parallel_types,
-                )
-                evolution = await generator.generate_service_evolution_async(
-                    service, transcripts_dir=transcripts_dir
-                )
-                line = f"{evolution.model_dump_json()}\n"
-                async with lock:
-                    output.write(line)
-                    new_ids.add(service.service_id)
-                logfire.info(f"Generated evolution for {service.name}")
-            except Exception as exc:  # noqa: BLE001
-                quarantine_dir = Path("quarantine")
-                quarantine_dir.mkdir(parents=True, exist_ok=True)
-                quarantine_file = quarantine_dir / f"{service.service_id}.json"
-                quarantine_file.write_text(service.model_dump_json(indent=2))
-                logfire.error(f"Failed to generate evolution for {service.name}: {exc}")
-            finally:
-                if progress:
-                    progress.update(1)
+            await _generate_evolution_for_service(
+                service,
+                factory=factory,
+                settings=settings,
+                args=args,
+                system_prompt=system_prompt,
+                transcripts_dir=transcripts_dir,
+                role_ids=role_ids,
+                mapping_batch_size=mapping_batch_size,
+                mapping_parallel_types=mapping_parallel_types,
+                lock=lock,
+                output=output,
+                new_ids=new_ids,
+            )
+            if progress:
+                progress.update(1)
 
     with open(part_path, "w", encoding="utf-8") as output:
         async with asyncio.TaskGroup() as tg:
@@ -287,16 +336,15 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
     if progress:
         progress.close()
 
-    if args.resume:
-        new_lines = read_lines(part_path)
-        atomic_write(output_path, [*existing_lines, *new_lines])
-        part_path.unlink(missing_ok=True)
-        processed_ids.update(new_ids)
-    else:
-        os.replace(part_path, output_path)
-        processed_ids = new_ids
-
-    atomic_write(processed_path, sorted(processed_ids))
+    processed_ids = _save_results(
+        resume=args.resume,
+        part_path=part_path,
+        output_path=output_path,
+        existing_lines=existing_lines,
+        processed_ids=processed_ids,
+        new_ids=new_ids,
+        processed_path=processed_path,
+    )
 
 
 def main() -> None:

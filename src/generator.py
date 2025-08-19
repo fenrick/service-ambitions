@@ -127,25 +127,57 @@ async def _with_retry(
             error is not transient.
     """
 
+    def _handle_retry(exc: BaseException, attempt: int) -> float:
+        if metrics:
+            metrics.record_error()
+        if attempt == attempts - 1:
+            raise
+        delay = min(cap, base * (2**attempt))
+        delay *= 1 + random.random() * 0.25
+        hint = _retry_after_seconds(exc)
+        if hint is not None:
+            delay = max(delay, hint)
+            if on_retry_after:
+                on_retry_after(hint)
+        return delay
+
     for attempt in range(attempts):
         if metrics:
             metrics.record_request()
         try:
             return await asyncio.wait_for(coro_factory(), timeout=request_timeout)
         except TRANSIENT_EXCEPTIONS as exc:
-            if metrics:
-                metrics.record_error()
-            if attempt == attempts - 1:
-                raise
-            delay = min(cap, base * (2**attempt))
-            delay *= 1 + random.random() * 0.25
-            hint = _retry_after_seconds(exc)
-            if hint is not None:
-                delay = max(delay, hint)
-                if on_retry_after:
-                    on_retry_after(hint)
+            delay = _handle_retry(exc, attempt)
             await asyncio.sleep(delay)
     raise RuntimeError("Unreachable retry state")
+
+
+async def _write_queue(
+    out_path: str,
+    queue: asyncio.Queue[tuple[str, str] | None],
+    processed: set[str],
+    progress: tqdm[Any] | None,
+    flush_interval: int,
+) -> None:
+    """Consume lines from ``queue`` and write them to ``out_path``."""
+
+    with open(out_path, "a", encoding="utf-8") as handle:
+        line_count = 0
+        while True:
+            item = await queue.get()
+            if item is None:
+                break
+            line, svc_id = item
+            await asyncio.to_thread(handle.write, f"{line}\n")
+            processed.add(svc_id)
+            if progress:
+                progress.update(1)
+            line_count += 1
+            if line_count % flush_interval == 0:
+                await asyncio.to_thread(handle.flush)
+                await asyncio.to_thread(os.fsync, handle.fileno())
+        await asyncio.to_thread(handle.flush)
+        await asyncio.to_thread(os.fsync, handle.fileno())
 
 
 class AmbitionModel(BaseModel):
@@ -218,6 +250,77 @@ class ServiceAmbitionGenerator:
         self._limiter: AdaptiveSemaphore | None = None
         self._metrics: RollingMetrics | None = None
 
+    def _setup_controls(self) -> None:
+        """Ensure rate limiter and metrics are initialised."""
+
+        if self._limiter is None:
+            self._limiter = AdaptiveSemaphore(self.concurrency)
+        if self._metrics is None:
+            self._metrics = RollingMetrics()
+
+    def _estimate_weight(self, service: ServiceInput) -> int:
+        """Return estimated token weight for ``service``."""
+
+        service_json = service.model_dump_json()
+        prompt_payload = (self._prompt or "") + service_json
+        return estimate_tokens(prompt_payload, self.expected_output_tokens)
+
+    async def _process_service_line(
+        self, service: ServiceInput, transcripts_dir: Path | None
+    ) -> tuple[str | None, str]:
+        """Return JSON line for ``service`` or ``None`` on failure."""
+
+        with logfire.span("process_service") as span:
+            span.set_attribute("service.id", service.service_id)
+            if service.customer_type:
+                span.set_attribute("customer_type", service.customer_type)
+            logfire.info(f"Processing service {service.name}")
+            try:
+                result = await self.process_service(service)
+            except Exception as exc:
+                msg = f"Failed to process service {service.name}: {exc}"
+                logfire.error(msg)
+                return None, service.service_id
+            line = AmbitionModel.model_validate(result).model_dump_json()
+            if transcripts_dir is not None:
+                payload = {
+                    "request": service.model_dump(),
+                    "response": json.loads(line),
+                }
+                path = transcripts_dir / f"{service.service_id}.json"
+                await asyncio.to_thread(
+                    path.write_text,
+                    json.dumps(payload, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+            return line, service.service_id
+
+    async def _run_one(
+        self,
+        service: ServiceInput,
+        queue: asyncio.Queue[tuple[str, str] | None],
+        transcripts_dir: Path | None,
+    ) -> None:
+        """Process a single service and enqueue its result."""
+
+        weight_estimate = self._estimate_weight(service) if self.token_weighting else 1
+        limiter = self._limiter
+        if limiter is None:  # pragma: no cover - defensive
+            raise RuntimeError("Limiter not initialized")
+        weight = weight_estimate if self.token_weighting else 1
+        async with limiter(weight):
+            if self._metrics and self.token_weighting:
+                self._metrics.record_start_tokens(weight_estimate)
+            try:
+                line, svc_id = await self._process_service_line(
+                    service, transcripts_dir
+                )
+                if line is not None:
+                    await queue.put((line, svc_id))
+            finally:
+                if self._metrics and self.token_weighting:
+                    self._metrics.record_end_tokens(weight_estimate)
+
     @logfire.instrument()
     async def process_service(
         self,
@@ -277,109 +380,21 @@ class ServiceAmbitionGenerator:
             transcripts_dir: Directory to store per-service transcripts. ``None``
                 disables transcript persistence.
         """
-        if self._limiter is None:
-            self._limiter = AdaptiveSemaphore(self.concurrency)
-        if self._metrics is None:
-            self._metrics = RollingMetrics()
+        self._setup_controls()
         queue: asyncio.Queue[tuple[str, str] | None] = asyncio.Queue()
         processed: set[str] = set()
-
-        async def writer() -> None:
-            """Consume lines from ``queue`` and write them to disk.
-
-            After every ``flush_interval`` lines the file handle is flushed and
-            synced to disk to reduce the risk of data loss if the process
-            crashes.  This provides stronger durability guarantees than relying
-            solely on the OS to flush buffers asynchronously.
-            """
-
-            with open(out_path, "a", encoding="utf-8") as handle:
-                line_count = 0
-                while True:
-                    item = await queue.get()
-                    if item is None:
-                        break
-                    line, svc_id = item
-                    await asyncio.to_thread(handle.write, f"{line}\n")
-                    processed.add(svc_id)
-                    if progress:
-                        # Updating the progress bar can block, so keep it in writer.
-                        progress.update(1)
-                    line_count += 1
-                    if line_count % self.flush_interval == 0:
-                        # ``flush`` pushes Python's buffers to the OS and
-                        # ``fsync`` asks the OS to commit those bytes to disk.
-                        await asyncio.to_thread(handle.flush)
-                        await asyncio.to_thread(os.fsync, handle.fileno())
-                # Final sync in case the last batch didn't align with
-                # ``flush_interval``.
-                await asyncio.to_thread(handle.flush)
-                await asyncio.to_thread(os.fsync, handle.fileno())
-
-        async def run_one(service: ServiceInput) -> None:
-            """Process a single service and enqueue its JSON line."""
-
-            weight_estimate = 1
-            if self.token_weighting:
-                # Estimate the total tokens for the request and anticipated
-                # response so larger requests reserve more semaphore capacity.
-                service_json = service.model_dump_json()
-                prompt_payload = (self._prompt or "") + service_json
-                weight_estimate = estimate_tokens(
-                    prompt_payload, self.expected_output_tokens
-                )
-
-            limiter = self._limiter
-            if limiter is None:  # pragma: no cover - defensive
-                raise RuntimeError("Limiter not initialized")
-            weight = weight_estimate if self.token_weighting else 1
-            async with limiter(weight):
-                if self._metrics and self.token_weighting:
-                    self._metrics.record_start_tokens(weight_estimate)
-                try:
-                    # Record service metadata on the span so that traces include the
-                    # originating service identifier and customer segment.
-                    with logfire.span("process_service") as span:
-                        span.set_attribute("service.id", service.service_id)
-                        if service.customer_type:
-                            span.set_attribute("customer_type", service.customer_type)
-                        logfire.info(f"Processing service {service.name}")
-                        try:
-                            result = await self.process_service(service)
-                        except Exception as exc:
-                            # Continue processing other services but record the failure.
-                            msg = f"Failed to process service {service.name}: {exc}"
-                            logfire.error(msg)
-                            return
-                        line = AmbitionModel.model_validate(result).model_dump_json()
-                        if transcripts_dir is not None:
-                            payload = {
-                                "request": service.model_dump(),
-                                "response": json.loads(line),
-                            }
-                            path = transcripts_dir / f"{service.service_id}.json"
-                            await asyncio.to_thread(
-                                path.write_text,
-                                json.dumps(payload, ensure_ascii=False),
-                                encoding="utf-8",
-                            )
-                        await queue.put((line, service.service_id))
-                finally:
-                    if self._metrics and self.token_weighting:
-                        self._metrics.record_end_tokens(weight_estimate)
-
-        writer_task = asyncio.create_task(writer())
+        writer_task = asyncio.create_task(
+            _write_queue(out_path, queue, processed, progress, self.flush_interval)
+        )
         services_iter = iter(services)
 
         while True:
-            # Process services in bounded batches to avoid creating excessive
-            # pending tasks when the input iterable is large.
             batch = list(islice(services_iter, self.batch_size))
             if not batch:
-                break  # Exhausted the input iterator
+                break
             async with TaskGroup() as tg:
                 for service in batch:
-                    tg.create_task(run_one(service))
+                    tg.create_task(self._run_one(service, queue, transcripts_dir))
 
         await queue.put(None)
         await writer_task
