@@ -205,14 +205,23 @@ def test_load_services_missing(tmp_path):
         list(load_services(str(missing)))
 
 
-def test_load_services_invalid_json(tmp_path):
+def test_load_services_quarantines_and_continues(tmp_path):
+    """Invalid entries are quarantined while valid ones are yielded."""
+
     bad = tmp_path / "bad.jsonl"
     bad.write_text(
-        '{"service_id": "a1", "name": "alpha", "jobs_to_be_done": []}\n{invalid}\n',
+        '{"service_id": "a1", "name": "alpha", "jobs_to_be_done":'
+        ' []}\n{invalid}\n{"service_id": "a2", "name": "beta", "description": "d",'
+        ' "jobs_to_be_done": []}\n',
         encoding="utf-8",
     )
-    with pytest.raises(RuntimeError):
-        list(load_services(str(bad)))
+
+    services = list(load_services(str(bad)))
+    assert [s.service_id for s in services] == ["a2"]
+
+    quarantine_dir = tmp_path / "quarantine"
+    assert (quarantine_dir / "a1.json").exists()
+    assert (quarantine_dir / "2.json").exists()
 
 
 def test_load_services_with_job_objects(tmp_path):
@@ -241,10 +250,19 @@ def test_valid_fixture_parses():
     assert services[0].features[0].feature_id == "F1"
 
 
-def test_invalid_fixture_raises():
-    path = Path(__file__).parent / "fixtures" / "services-invalid.jsonl"
-    with pytest.raises(RuntimeError):
-        list(load_services(str(path)))
+def test_invalid_fixture_quarantines(tmp_path):
+    """Invalid fixture entries are quarantined without raising errors."""
+
+    src = Path(__file__).parent / "fixtures" / "services-invalid.jsonl"
+    data = tmp_path / "services-invalid.jsonl"
+    data.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+
+    services = list(load_services(str(data)))
+    assert services == []
+
+    quarantine_dir = tmp_path / "quarantine"
+    assert quarantine_dir.exists()
+    assert any(quarantine_dir.iterdir())
 
 
 def test_load_mapping_type_config(tmp_path):
