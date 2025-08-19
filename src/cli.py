@@ -75,6 +75,14 @@ def _configure_logging(args: argparse.Namespace, settings) -> None:
         # Two or more -v flags enable DEBUG for deep troubleshooting
         level_name = "DEBUG"
 
+    if args.no_logs:
+        # Disable file logging and telemetry when requested
+        logging.basicConfig(
+            level=getattr(logging, level_name.upper(), logging.INFO),
+            force=True,
+        )
+        return
+
     logging.basicConfig(
         filename=LOG_FILE_NAME,
         level=getattr(logging, level_name.upper(), logging.INFO),
@@ -155,7 +163,7 @@ async def _generate_evolution_for_service(
     settings,
     args: argparse.Namespace,
     system_prompt: str,
-    transcripts_dir: Path,
+    transcripts_dir: Path | None,
     role_ids: Sequence[str],
     mapping_batch_size: int,
     mapping_parallel_types: bool,
@@ -230,7 +238,9 @@ async def _generate_evolution_for_service(
             )
 
 
-async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
+async def _cmd_generate_ambitions(
+    args: argparse.Namespace, settings, transcripts_dir: Path | None
+) -> None:
     """Generate service ambitions and write them to disk."""
     reset_stage_totals()
     output_path = Path(args.output_file)
@@ -291,7 +301,10 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
             processed_ids, existing_lines = _load_resume_state(
                 processed_path, output_path, args.resume
             )
-            transcripts_dir = _ensure_transcripts_dir(args.transcripts_dir, output_path)
+            if transcripts_dir is None and not args.no_logs:
+                transcripts_dir = _ensure_transcripts_dir(
+                    args.transcripts_dir, output_path
+                )
             services = _load_services_list(
                 args.input_file,
                 args.max_services,
@@ -348,7 +361,9 @@ async def _cmd_generate_ambitions(args: argparse.Namespace, settings) -> None:
             _log_stage_totals()
 
 
-async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
+async def _cmd_generate_evolution(
+    args: argparse.Namespace, settings, transcripts_dir: Path | None
+) -> None:
     """Generate service evolution summaries."""
 
     reset_stage_totals()
@@ -385,7 +400,8 @@ async def _cmd_generate_evolution(args: argparse.Namespace, settings) -> None:
     processed_ids, existing_lines = _load_resume_state(
         processed_path, output_path, args.resume
     )
-    transcripts_dir = _ensure_transcripts_dir(args.transcripts_dir, output_path)
+    if transcripts_dir is None and not args.no_logs:
+        transcripts_dir = _ensure_transcripts_dir(args.transcripts_dir, output_path)
     services = _load_services_list(args.input_file, args.max_services, processed_ids)
 
     if args.dry_run:
@@ -501,8 +517,6 @@ def main() -> None:
     """Parse arguments and dispatch to the requested subcommand."""
 
     settings = load_settings()
-    if settings.logfire_token:
-        init_logfire(settings.logfire_token)
 
     parser = argparse.ArgumentParser(
         description="Service ambitions utilities",
@@ -599,6 +613,11 @@ def main() -> None:
             "Adds latency and cost"
         ),
     )
+    common.add_argument(
+        "--no-logs",
+        action="store_true",
+        help="Disable file logging and Logfire telemetry",
+    )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -691,7 +710,7 @@ def main() -> None:
 
     _configure_logging(args, settings)
 
-    result = args.func(args, settings)
+    result = args.func(args, settings, None)
     if inspect.isawaitable(result):
         # Cast ensures that asyncio.run receives a proper Coroutine
         asyncio.run(cast(Coroutine[Any, Any, Any], result))
