@@ -614,6 +614,121 @@ async def test_map_features_reprompts_per_feature(monkeypatch, parallel) -> None
     assert len(result[1].mappings["data"]) >= 2
 
 
+@pytest.mark.asyncio
+async def test_map_features_reprompts_missing_app_and_tech(monkeypatch) -> None:
+    """Feature without apps/tech should be re-mapped with at least two items."""
+
+    template = "{mapping_labels} {mapping_sections} {mapping_fields} {features}"
+
+    def fake_loader(name, *_, **__):
+        return template
+
+    items = {
+        "applications": [
+            MappingItem(id="APP-1", name="App One", description=""),
+            MappingItem(id="APP-2", name="App Two", description=""),
+            MappingItem(id="APP-3", name="App Three", description=""),
+        ],
+        "technologies": [
+            MappingItem(id="TEC-1", name="Tech One", description=""),
+            MappingItem(id="TEC-2", name="Tech Two", description=""),
+            MappingItem(id="TEC-3", name="Tech Three", description=""),
+        ],
+    }
+
+    monkeypatch.setattr("mapping.load_prompt_text", fake_loader)
+    monkeypatch.setattr("mapping.load_mapping_items", lambda types, *a, **k: items)
+    monkeypatch.setattr(
+        "mapping._top_k_items", lambda features, dataset: items[dataset]
+    )
+
+    initial_apps = json.dumps(
+        {
+            "features": [
+                {"feature_id": "f1", "applications": []},
+                {
+                    "feature_id": "f2",
+                    "applications": [
+                        {"item": "APP-1", "contribution": 0.7},
+                        {"item": "APP-2", "contribution": 0.3},
+                    ],
+                },
+            ]
+        }
+    )
+    initial_tech = json.dumps(
+        {
+            "features": [
+                {"feature_id": "f1", "technology": []},
+                {
+                    "feature_id": "f2",
+                    "technology": [
+                        {"item": "TEC-1", "contribution": 0.6},
+                        {"item": "TEC-2", "contribution": 0.4},
+                    ],
+                },
+            ]
+        }
+    )
+    repaired_apps = json.dumps(
+        {
+            "features": [
+                {
+                    "feature_id": "f1",
+                    "applications": [
+                        {"item": "APP-1", "contribution": 0.6},
+                        {"item": "APP-2", "contribution": 0.4},
+                    ],
+                }
+            ]
+        }
+    )
+    repaired_tech = json.dumps(
+        {
+            "features": [
+                {
+                    "feature_id": "f1",
+                    "technology": [
+                        {"item": "TEC-1", "contribution": 0.6},
+                        {"item": "TEC-2", "contribution": 0.4},
+                    ],
+                }
+            ]
+        }
+    )
+
+    session = DummySession([initial_apps, initial_tech, repaired_apps, repaired_tech])
+
+    features = [
+        PlateauFeature(
+            feature_id="f1",
+            name="Integration",
+            description="Allows external access",
+            score=MaturityScore(level=3, label="Defined", justification="j"),
+            customer_type="learners",
+        ),
+        PlateauFeature(
+            feature_id="f2",
+            name="Export",
+            description="Lets users export data",
+            score=MaturityScore(level=3, label="Defined", justification="j"),
+            customer_type="learners",
+        ),
+    ]
+
+    result = await map_features_async(
+        session,
+        features,
+        {
+            "applications": MappingTypeConfig(dataset="applications", label="Apps"),
+            "technology": MappingTypeConfig(dataset="technologies", label="Tech"),
+        },
+    )
+
+    assert len(result[0].mappings["applications"]) >= 2
+    assert len(result[0].mappings["technology"]) >= 2
+
+
 def test_top_k_items_breaks_ties_lexicographically(monkeypatch) -> None:
     """Ensure TF-IDF ranking resolves equal scores by item identifier."""
 
