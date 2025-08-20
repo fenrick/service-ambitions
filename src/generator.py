@@ -281,8 +281,8 @@ class ServiceAmbitionGenerator:
 
     async def _process_service_line(
         self, service: ServiceInput, transcripts_dir: Path | None
-    ) -> tuple[str | None, str]:
-        """Return JSON line for ``service`` or ``None`` on failure."""
+    ) -> tuple[str | None, str, int]:
+        """Return JSON line and token count for ``service`` or ``None`` on failure."""
 
         with logfire.span("process_service") as span:
             span.set_attribute("service.id", service.service_id)
@@ -290,11 +290,11 @@ class ServiceAmbitionGenerator:
                 span.set_attribute("customer_type", service.customer_type)
             logfire.info(f"Processing service {service.name}")
             try:
-                result = await self.process_service(service)
+                result, tokens = await self.process_service(service)
             except Exception as exc:
                 msg = f"Failed to process service {service.name}: {exc}"
                 logfire.error(msg)
-                return None, service.service_id
+                return None, service.service_id, 0
             line = AmbitionModel.model_validate(result).model_dump_json()
             if transcripts_dir is not None:
                 payload = {
@@ -307,7 +307,7 @@ class ServiceAmbitionGenerator:
                     json.dumps(payload, ensure_ascii=False),
                     encoding="utf-8",
                 )
-            return line, service.service_id
+            return line, service.service_id, tokens
 
     async def _run_one(
         self,
@@ -332,8 +332,9 @@ class ServiceAmbitionGenerator:
                 if self._metrics and self.token_weighting:
                     self._metrics.record_start_tokens(weight_estimate)
                 TOKENS_IN_FLIGHT.add(weight_estimate)
+                actual_tokens = 0
                 try:
-                    line, svc_id = await self._process_service_line(
+                    line, svc_id, actual_tokens = await self._process_service_line(
                         service, transcripts_dir
                     )
                     if line is not None:
@@ -344,7 +345,7 @@ class ServiceAmbitionGenerator:
                         SERVICES_FAILED.add(1)
                 finally:
                     if self._metrics and self.token_weighting:
-                        self._metrics.record_end_tokens(weight_estimate)
+                        self._metrics.record_end_tokens(actual_tokens)
                     TOKENS_IN_FLIGHT.add(-weight_estimate)
 
     @logfire.instrument()
@@ -352,15 +353,15 @@ class ServiceAmbitionGenerator:
         self,
         service: ServiceInput,
         prompt: str | None = None,
-    ) -> dict[str, Any]:
-        """Return ambitions for ``service``.
+    ) -> tuple[dict[str, Any], int]:
+        """Return ambitions and token usage for ``service``.
 
         Args:
             service: Structured representation of the service under analysis.
             prompt: Optional instructions overriding the instance-wide prompt.
 
         Returns:
-            A dictionary containing the generated ambitions.
+            Tuple of the generated ambitions and the total tokens consumed.
 
         Raises:
             ValueError: If no prompt was supplied via ``prompt`` or ``generate``.
@@ -386,7 +387,9 @@ class ServiceAmbitionGenerator:
             on_retry_after=self._limiter.throttle if self._limiter else None,
             metrics=self._metrics,
         )
-        return result.output.model_dump()
+        usage = result.usage()
+        tokens = usage.total_tokens or 0
+        return result.output.model_dump(), tokens
 
     async def _process_all(
         self,

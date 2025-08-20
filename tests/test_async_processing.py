@@ -22,7 +22,8 @@ class DummyAgent:
 
     async def run(self, user_prompt: str, output_type):
         return SimpleNamespace(
-            output=SimpleNamespace(model_dump=lambda: {"service": user_prompt})
+            output=SimpleNamespace(model_dump=lambda: {"service": user_prompt}),
+            usage=lambda: SimpleNamespace(total_tokens=1),
         )
 
 
@@ -35,8 +36,9 @@ def test_process_service_async(monkeypatch):
         jobs_to_be_done=[{"name": "job"}],
     )
     gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
-    result = asyncio.run(gen.process_service(service, "prompt"))
+    result, tokens = asyncio.run(gen.process_service(service, "prompt"))
     assert json.loads(result["service"]) == service.model_dump()
+    assert tokens == 1
 
 
 def test_process_service_retries(monkeypatch):
@@ -67,10 +69,11 @@ def test_process_service_retries(monkeypatch):
         jobs_to_be_done=[{"name": "job"}],
     )
     gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
-    result = asyncio.run(gen.process_service(service, "prompt"))
+    result, tokens = asyncio.run(gen.process_service(service, "prompt"))
 
     assert attempts["count"] == 3
     assert json.loads(result["service"]) == service.model_dump()
+    assert tokens == 1
 
 
 def test_with_retry_logs_attempt(monkeypatch):
@@ -238,6 +241,8 @@ async def test_weighted_acquisition(monkeypatch, tmp_path):
 
     captured: list[int] = []
     metrics_calls: list[SimpleNamespace] = []
+    start_calls: list[int] = []
+    end_calls: list[int] = []
 
     class DummyLimiter:
         def __call__(self, weight: int = 1):
@@ -253,7 +258,8 @@ async def test_weighted_acquisition(monkeypatch, tmp_path):
             pass
 
     async def fake_process_service(self, service, prompt=None):
-        return {"id": service.service_id}
+        tokens = 2 if "svc1" in service.service_id else 1
+        return {"id": service.service_id}, tokens
 
     def fake_estimate(prompt: str, expected: int) -> int:
         return 3 if "svc1" in prompt else 1
@@ -271,7 +277,17 @@ async def test_weighted_acquisition(monkeypatch, tmp_path):
     gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
     gen._prompt = "p"
     gen._limiter = DummyLimiter()
-    gen._metrics = generator.RollingMetrics(window=1)
+
+    class DummyMetrics(generator.RollingMetrics):
+        def record_start_tokens(self, count: int) -> None:
+            start_calls.append(count)
+            super().record_start_tokens(count)
+
+        def record_end_tokens(self, count: int) -> None:
+            end_calls.append(count)
+            super().record_end_tokens(count)
+
+    gen._metrics = DummyMetrics(window=1)
     services = [
         ServiceInput(service_id="svc1", name="s1", description="d", jobs_to_be_done=[]),
         ServiceInput(service_id="svc2", name="s2", description="d", jobs_to_be_done=[]),
@@ -280,6 +296,8 @@ async def test_weighted_acquisition(monkeypatch, tmp_path):
     assert sorted(captured) == [1, 3]
     names = {c.name for c in metrics_calls}
     assert {"tokens_per_second", "tokens_in_flight"} <= names
+    assert sorted(start_calls) == [1, 3]
+    assert sorted(end_calls) == [1, 2]
 
 
 @pytest.mark.asyncio()
@@ -303,7 +321,7 @@ async def test_process_all_without_token_weighting(tmp_path, monkeypatch):
             pass
 
     async def fake_process_service(self, service, prompt=None):
-        return {"id": service.service_id}
+        return {"id": service.service_id}, 1
 
     def fail_estimate(prompt: str, expected: int) -> int:
         raise AssertionError("estimate_tokens should be bypassed")
@@ -357,7 +375,7 @@ async def test_process_all_fsyncs(tmp_path, monkeypatch):
             pass
 
     async def fake_process_service(self, service, prompt=None):
-        return {"id": service.service_id}
+        return {"id": service.service_id}, 1
 
     monkeypatch.setattr(
         generator.ServiceAmbitionGenerator, "process_service", fake_process_service
@@ -393,7 +411,7 @@ async def test_run_one_counters_success(monkeypatch):
             pass
 
     async def ok(self, service, transcripts_dir):
-        return ("line", service.service_id)
+        return ("line", service.service_id, 1)
 
     class DummyCounter:
         def __init__(self) -> None:
@@ -447,7 +465,7 @@ async def test_run_one_counters_failure(monkeypatch):
             pass
 
     async def bad(self, service, transcripts_dir):
-        return (None, service.service_id)
+        return (None, service.service_id, 0)
 
     class DummyCounter:
         def __init__(self) -> None:
@@ -511,7 +529,7 @@ def test_generate_async_consumes_in_batches(tmp_path, monkeypatch):
 
         async def fake_process_service(self, service, prompt=None):
             await event.wait()
-            return {"id": service.service_id}
+            return {"id": service.service_id}, 1
 
         monkeypatch.setattr(
             generator.ServiceAmbitionGenerator, "process_service", fake_process_service
