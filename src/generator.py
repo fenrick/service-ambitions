@@ -11,6 +11,7 @@ import asyncio
 import json
 import os
 import random
+import time
 from asyncio import TaskGroup
 from itertools import islice
 from pathlib import Path
@@ -131,7 +132,8 @@ async def _with_retry(
 
     def _handle_retry(exc: BaseException, attempt: int) -> float:
         if metrics:
-            metrics.record_error()
+            is_429 = RateLimitError is not None and isinstance(exc, RateLimitError)
+            metrics.record_error(is_429=is_429)
         if attempt == attempts - 1:
             raise
         delay = min(cap, base * (2**attempt))
@@ -146,9 +148,15 @@ async def _with_retry(
     for attempt in range(attempts):
         if metrics:
             metrics.record_request()
+        start = time.monotonic()
         try:
-            return await asyncio.wait_for(coro_factory(), timeout=request_timeout)
+            result = await asyncio.wait_for(coro_factory(), timeout=request_timeout)
+            if metrics:
+                metrics.record_latency(time.monotonic() - start)
+            return result
         except TRANSIENT_EXCEPTIONS as exc:
+            if metrics:
+                metrics.record_latency(time.monotonic() - start)
             delay = _handle_retry(exc, attempt)
             logfire.warning(
                 "Retrying request",

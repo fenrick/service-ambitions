@@ -18,7 +18,7 @@ from pydantic_ai import Agent, messages
 from models import ServiceInput
 from redaction import redact_pii
 from stage_metrics import record_stage_metrics
-from token_utils import estimate_cost
+from token_utils import estimate_cost, estimate_tokens
 
 PROMPTS_SENT = logfire.metric_counter("prompts_sent")
 TOKENS_CONSUMED = logfire.metric_counter("tokens_consumed")
@@ -109,10 +109,12 @@ class ConversationSession:
         tokens = 0
         cost = 0.0
         error_429 = False
+        prompt_token_estimate = estimate_tokens(prompt, 0)
         start = time.monotonic()
         with logfire.span("ConversationSession.ask") as span:
             span.set_attribute("stage", stage)
             span.set_attribute("model_name", model_name)
+            span.set_attribute("prompt_token_estimate", prompt_token_estimate)
             try:
                 if self.log_prompts:
                     logged_prompt = (
@@ -131,6 +133,7 @@ class ConversationSession:
                     stage=stage,
                     model_name=model_name,
                     total_tokens=tokens,
+                    prompt_token_estimate=prompt_token_estimate,
                     estimated_cost=cost,
                 )
                 return result.output
@@ -141,6 +144,7 @@ class ConversationSession:
                     stage=stage,
                     model_name=model_name,
                     total_tokens=tokens,
+                    prompt_token_estimate=prompt_token_estimate,
                     estimated_cost=cost,
                     error=str(exc),
                 )
@@ -150,7 +154,9 @@ class ConversationSession:
                 span.set_attribute("total_tokens", tokens)
                 span.set_attribute("estimated_cost", cost)
                 TOKENS_CONSUMED.add(tokens)
-                record_stage_metrics(stage, tokens, cost, duration, error_429)
+                record_stage_metrics(
+                    stage, tokens, cost, duration, error_429, prompt_token_estimate
+                )
 
     @overload
     async def ask_async(self, prompt: str) -> str: ...
@@ -169,10 +175,12 @@ class ConversationSession:
         tokens = 0
         cost = 0.0
         error_429 = False
+        prompt_token_estimate = estimate_tokens(prompt, 0)
         start = time.monotonic()
         with logfire.span("ConversationSession.ask_async") as span:
             span.set_attribute("stage", stage)
             span.set_attribute("model_name", model_name)
+            span.set_attribute("prompt_token_estimate", prompt_token_estimate)
             try:
                 if self.log_prompts:
                     logged_prompt = (
@@ -191,6 +199,7 @@ class ConversationSession:
                     stage=stage,
                     model_name=model_name,
                     total_tokens=tokens,
+                    prompt_token_estimate=prompt_token_estimate,
                     estimated_cost=cost,
                 )
                 return result.output
@@ -201,6 +210,7 @@ class ConversationSession:
                     stage=stage,
                     model_name=model_name,
                     total_tokens=tokens,
+                    prompt_token_estimate=prompt_token_estimate,
                     estimated_cost=cost,
                     error=str(exc),
                 )
@@ -210,7 +220,9 @@ class ConversationSession:
                 span.set_attribute("total_tokens", tokens)
                 span.set_attribute("estimated_cost", cost)
                 TOKENS_CONSUMED.add(tokens)
-                record_stage_metrics(stage, tokens, cost, duration, error_429)
+                record_stage_metrics(
+                    stage, tokens, cost, duration, error_429, prompt_token_estimate
+                )
 
 
 __all__ = ["ConversationSession"]
