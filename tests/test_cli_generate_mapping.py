@@ -6,9 +6,14 @@ import json
 from types import SimpleNamespace
 
 import cli
+import mapping
+from backpressure import RollingMetrics
 from cli import _cmd_generate_mapping
 from models import (
     Contribution,
+    MappingFeature,
+    MappingResponse,
+    MappingTypeConfig,
     MaturityScore,
     PlateauFeature,
     PlateauResult,
@@ -120,3 +125,95 @@ def test_generate_mapping_updates_features(tmp_path, monkeypatch) -> None:
     }
     assert called["batch_size"] == 5
     assert called["parallel_types"] is False
+
+
+def test_request_mapping_retries(monkeypatch) -> None:
+    """_request_mapping should retry transient errors and pass hooks."""
+
+    async def fake_preselect_items(*_a, **_k):
+        return None
+
+    monkeypatch.setattr(mapping, "_preselect_items", fake_preselect_items)
+
+    def fake_build_mapping_prompt(*_a, **_k) -> str:
+        return "prompt"
+
+    monkeypatch.setattr(mapping, "_build_mapping_prompt", fake_build_mapping_prompt)
+
+    recorded: dict[str, object] = {}
+
+    async def spy_with_retry(
+        coro_factory,
+        *,
+        request_timeout,
+        attempts,
+        base=0.5,
+        cap=8.0,
+        on_retry_after=None,
+        metrics=None,
+    ):
+        recorded["request_timeout"] = request_timeout
+        recorded["attempts"] = attempts
+        recorded["on_retry_after"] = on_retry_after
+        recorded["metrics"] = metrics
+        try:
+            return await coro_factory()
+        except Exception:
+            return await coro_factory()
+
+    monkeypatch.setattr(mapping, "_with_retry", spy_with_retry)
+
+    class DummyLimiter:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def throttle(self, delay: float) -> None:
+            self.calls.append(delay)
+
+    limiter = DummyLimiter()
+    metrics = RollingMetrics(window=1)
+
+    class DummySession:
+        def __init__(self) -> None:
+            self.calls = 0
+            self._limiter = limiter
+            self._metrics = metrics
+            self.request_timeout = 0.1
+            self.retries = 2
+            self.retry_base_delay = 0.01
+
+        def derive(self):
+            return self
+
+        async def ask_async(self, prompt: str, output_type):
+            self.calls += 1
+            if self.calls == 1:
+                raise asyncio.TimeoutError()
+            return MappingResponse(
+                features=[
+                    MappingFeature(
+                        feature_id="F",
+                        mappings={"cat": [Contribution(item="A", contribution=1.0)]},
+                    )
+                ]
+            )
+
+    feature = PlateauFeature(
+        feature_id="F",
+        name="n",
+        description="d",
+        score=MaturityScore(level=1, label="Initial", justification="j"),
+        customer_type="c",
+        mappings={"cat": []},
+    )
+    cfg = MappingTypeConfig(dataset="ds", label="Dataset")
+
+    session = DummySession()
+    result = asyncio.run(mapping._request_mapping(session, [feature], 0, "cat", cfg))
+
+    assert session.calls == 2
+    hook = recorded["on_retry_after"]
+    assert hook is not None and hook.__self__ is limiter
+    assert recorded["metrics"] is metrics
+    assert result[0] == 0
+    assert isinstance(result[4], MappingResponse)
