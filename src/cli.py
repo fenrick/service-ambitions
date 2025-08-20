@@ -484,6 +484,10 @@ async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
         else settings.mapping_parallel_types
     )
 
+    # Warm mapping embeddings upfront so subsequent requests reuse cached vectors.
+    # Failures are logged by ``init_embeddings`` and do not interrupt startup.
+    await init_embeddings()
+
     input_path = Path(args.input)
     evolutions = [
         ServiceEvolution.model_validate_json(line)
