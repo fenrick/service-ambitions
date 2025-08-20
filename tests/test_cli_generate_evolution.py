@@ -34,7 +34,7 @@ async def _noop_init_embeddings() -> None:
 cli.init_embeddings = _noop_init_embeddings
 
 
-def test_generate_evolution_writes_results(tmp_path, monkeypatch, meta_factory) -> None:
+def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
     """_cmd_generate_evolution should write evolution results to disk."""
     input_path = tmp_path / "services.jsonl"
     output_path = tmp_path / "out.jsonl"
@@ -64,7 +64,7 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch, meta_factory) 
         role_ids=None,
         transcripts_dir=None,
     ) -> ServiceEvolution:
-        return ServiceEvolution(meta=meta_factory(), service=service, plateaus=[])
+        return ServiceEvolution(service=service, plateaus=[])
 
     monkeypatch.setattr("cli.Agent", DummyAgent)
     monkeypatch.setattr(
@@ -116,11 +116,10 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch, meta_factory) 
     payload = json.loads(output_path.read_text(encoding="utf-8").strip())
     assert payload["service"]["name"] == "svc"
     assert payload["service"]["service_id"] == "svc-1"
-    assert payload["meta"]["schema_version"] == SCHEMA_VERSION
-    assert "generated_at" in payload["meta"]
+    assert payload["schema_version"] == SCHEMA_VERSION
 
 
-def test_generate_evolution_dry_run(tmp_path, monkeypatch, meta_factory) -> None:
+def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
     """Dry run should skip processing and not write output."""
     input_path = tmp_path / "services.jsonl"
     output_path = tmp_path / "out.jsonl"
@@ -140,7 +139,7 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch, meta_factory) -> None
         transcripts_dir=None,
     ) -> ServiceEvolution:
         called["ran"] = True
-        return ServiceEvolution(meta=meta_factory(), service=service, plateaus=[])
+        return ServiceEvolution(service=service, plateaus=[])
 
     monkeypatch.setattr("cli.Agent", DummyAgent)
     monkeypatch.setattr(
@@ -193,7 +192,7 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch, meta_factory) -> None
     assert not called["ran"]
 
 
-def test_generate_evolution_resume(tmp_path, monkeypatch, meta_factory) -> None:
+def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
     """Resume should append new results and track processed IDs."""
     input_path = tmp_path / "services.jsonl"
     output_path = tmp_path / "out.jsonl"
@@ -222,7 +221,7 @@ def test_generate_evolution_resume(tmp_path, monkeypatch, meta_factory) -> None:
         transcripts_dir=None,
     ) -> ServiceEvolution:
         processed.append(service.service_id)
-        return ServiceEvolution(meta=meta_factory(), service=service, plateaus=[])
+        return ServiceEvolution(service=service, plateaus=[])
 
     monkeypatch.setattr("cli.Agent", DummyAgent)
     monkeypatch.setattr(
@@ -277,9 +276,7 @@ def test_generate_evolution_resume(tmp_path, monkeypatch, meta_factory) -> None:
     assert processed_path.read_text(encoding="utf-8").splitlines() == ["s1", "s2"]
 
 
-def test_generate_evolution_rejects_invalid_concurrency(
-    tmp_path, monkeypatch, meta_factory
-) -> None:
+def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -> None:
     """Invalid concurrency should raise an error rather than deadlock."""
 
     input_path = tmp_path / "services.jsonl"
@@ -297,7 +294,7 @@ def test_generate_evolution_rejects_invalid_concurrency(
         role_ids=None,
         transcripts_dir=None,
     ) -> ServiceEvolution:
-        return ServiceEvolution(meta=meta_factory(), service=service, plateaus=[])
+        return ServiceEvolution(service=service, plateaus=[])
 
     monkeypatch.setattr("cli.Agent", DummyAgent)
     monkeypatch.setattr(
@@ -384,9 +381,7 @@ def test_cli_parses_mapping_options(tmp_path, monkeypatch) -> None:
     assert called["args"].mapping_parallel_types is False
 
 
-def test_generate_evolution_writes_transcripts(
-    tmp_path, monkeypatch, meta_factory
-) -> None:
+def test_generate_evolution_writes_transcripts(tmp_path, monkeypatch) -> None:
     """_cmd_generate_evolution writes per-service transcripts to disk."""
 
     input_path = tmp_path / "services.jsonl"
@@ -419,7 +414,7 @@ def test_generate_evolution_writes_transcripts(
         assert transcripts_dir is not None
         path = transcripts_dir / f"{service.service_id}.json"
         path.write_text("{}", encoding="utf-8")
-        return ServiceEvolution(meta=meta_factory(), service=service, plateaus=[])
+        return ServiceEvolution(service=service, plateaus=[])
 
     monkeypatch.setattr("cli.Agent", DummyAgent)
     monkeypatch.setattr(

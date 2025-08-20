@@ -424,13 +424,6 @@ class PlateauDescriptionsResponse(StrictModel):
 
 class FeatureItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    feature_id: Annotated[
-        str | None,
-        Field(
-            min_length=1,
-            description="Unique feature identifier assigned post-processing.",
-        ),
-    ] = None
     name: Annotated[str, Field(min_length=1)]
     description: Annotated[str, Field(min_length=1)]
     score: MaturityScore

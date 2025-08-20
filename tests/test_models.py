@@ -8,7 +8,6 @@ from pydantic import ValidationError
 
 from models import (
     Contribution,
-    FeatureItem,
     MappingResponse,
     MaturityScore,
     PlateauFeature,
@@ -20,7 +19,7 @@ from models import (
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
-def test_service_evolution_contains_plateaus(meta_factory) -> None:
+def test_service_evolution_contains_plateaus() -> None:
     """Constructing a ServiceEvolution should retain nested models."""
 
     service = ServiceInput(
@@ -44,9 +43,7 @@ def test_service_evolution_contains_plateaus(meta_factory) -> None:
         features=[feature],
     )
 
-    evolution = ServiceEvolution(
-        meta=meta_factory(), service=service, plateaus=[plateau]
-    )
+    evolution = ServiceEvolution(service=service, plateaus=[plateau])
 
     assert evolution.plateaus[0].features[0].name == "Feat"
 
@@ -62,31 +59,6 @@ def test_plateau_feature_validates_score() -> None:
             score=MaturityScore(level=6, label="Invalid", justification="bad"),
             customer_type="learners",
         )
-
-
-def test_feature_item_allows_missing_id() -> None:
-    """feature_id should be optional."""
-
-    item = FeatureItem(
-        name="n",
-        description="d",
-        score=MaturityScore(level=1, label="Initial", justification="j"),
-    )
-
-    assert item.feature_id is None
-
-
-def test_feature_item_accepts_arbitrary_id() -> None:
-    """Any non-empty string should be accepted as feature_id."""
-
-    item = FeatureItem(
-        feature_id="custom-id",
-        name="n",
-        description="d",
-        score=MaturityScore(level=1, label="Initial", justification="j"),
-    )
-
-    assert item.feature_id == "custom-id"
 
 
 def test_contribution_requires_fields() -> None:

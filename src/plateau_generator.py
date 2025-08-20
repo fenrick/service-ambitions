@@ -119,6 +119,7 @@ class PlateauGenerator:
         """Return an adjusted batch size limited by ``mapping_token_cap``."""
 
         batch_size = min(self.mapping_batch_size, len(features))
+        initial = batch_size
         while batch_size > 1:
             feature_lines = "\n".join(
                 f"- {f.feature_id}: {f.name} - {f.description}"
@@ -128,6 +129,16 @@ class PlateauGenerator:
             if tokens <= self.mapping_token_cap:
                 break
             batch_size -= 1
+        feature_lines = "\n".join(
+            f"- {f.feature_id}: {f.name} - {f.description}"
+            for f in features[:batch_size]
+        )
+        tokens = estimate_tokens(f"{description}\n{feature_lines}", 0)
+        if batch_size < initial:
+            logfire.info(
+                f"Reduced mapping batch size from {initial} to {batch_size} "
+                f"({tokens} tokens > cap {self.mapping_token_cap})"
+            )
         return max(1, batch_size)
 
     async def _map_features(
@@ -315,10 +326,8 @@ class PlateauGenerator:
             Plateau feature populated with the provided metadata.
         """
 
-        feature_id = item.feature_id
-        if feature_id is None:
-            raw = f"{item.name}|{role}".encode()
-            feature_id = hashlib.sha1(raw, usedforsecurity=False).hexdigest()
+        raw = f"{item.name}|{role}".encode()
+        feature_id = hashlib.sha1(raw, usedforsecurity=False).hexdigest()
         return PlateauFeature(
             feature_id=feature_id,
             name=item.name,
