@@ -55,6 +55,10 @@ ERROR_RATE = logfire.metric_gauge("error_rate")
 
 TOKENS_PER_SECOND = logfire.metric_gauge("tokens_per_second")
 
+RATE_429 = logfire.metric_gauge("rate_429")
+
+AVG_LATENCY = logfire.metric_gauge("avg_latency")
+
 
 class AdaptiveSemaphore:
     """Semaphore that reacts to rate limit signals with weighted permits.
@@ -309,11 +313,13 @@ class RollingMetrics:
         rate_429 = (
             len(self._errors_429) / len(self._requests) if self._requests else 0.0
         )
+        RATE_429.set(rate_429)
         avg_latency = (
             sum(d for _, d in self._latencies) / len(self._latencies)
             if self._latencies
             else 0.0
         )
+        AVG_LATENCY.set(avg_latency)
         logfire.info(
             "Rolling metrics updated",
             tokens_per_sec=tps,
