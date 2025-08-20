@@ -34,8 +34,8 @@ class DummyAgent:
         self.instructions = instructions
 
 
-cli.ModelFactory = DummyFactory
-cli.Agent = DummyAgent
+cli.ModelFactory = DummyFactory  # type: ignore[assignment, misc]
+cli.Agent = DummyAgent  # type: ignore[assignment, misc]
 
 
 def test_generate_mapping_updates_features(tmp_path, monkeypatch) -> None:
@@ -102,8 +102,8 @@ def test_generate_mapping_updates_features(tmp_path, monkeypatch) -> None:
         web_search=False,
     )
     args = argparse.Namespace(
-        input_file=str(input_path),
-        output_file=str(output_path),
+        input=str(input_path),
+        output=str(output_path),
         model=None,
         mapping_model=None,
         mapping_batch_size=5,

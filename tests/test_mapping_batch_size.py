@@ -42,7 +42,13 @@ async def test_long_description_reduces_batch_size(monkeypatch) -> None:
     monkeypatch.setattr("plateau_generator.logfire.info", fake_info)
 
     async def dummy_map_features(
-        session, features, mapping_types=None, *, batch_size, parallel_types=True
+        session,
+        features,
+        mapping_types=None,
+        *,
+        batch_size,
+        parallel_types=True,
+        token_cap=0,
     ):
         captured["batch_size"] = batch_size
         captured["order"] = [f.feature_id for f in features]

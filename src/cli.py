@@ -483,7 +483,7 @@ async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
         else settings.mapping_parallel_types
     )
 
-    input_path = Path(args.input_file)
+    input_path = Path(args.input)
     evolutions = [
         ServiceEvolution.model_validate_json(line)
         for line in input_path.read_text(encoding="utf-8").splitlines()
@@ -507,7 +507,7 @@ async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
         for plateau in evo.plateaus:
             plateau.features = [mapped_by_id[f.feature_id] for f in plateau.features]
 
-    output_path = Path(args.output_file)
+    output_path = Path(args.output)
     with output_path.open("w", encoding="utf-8") as out:
         for evo in evolutions:
             out.write(f"{evo.model_dump_json()}\n")
@@ -692,12 +692,12 @@ def main() -> None:
         help="Generate feature mappings",
     )
     map_p.add_argument(
-        "--input-file",
+        "--input",
         default="evolution.jsonl",
         help="Path to the evolution JSONL file",
     )
     map_p.add_argument(
-        "--output-file",
+        "--output",
         default="mapped.jsonl",
         help="File to write the results",
     )
