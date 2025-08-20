@@ -231,6 +231,8 @@ class RollingMetrics:
         self._window = window
         self._requests: Deque[float] = deque()
         self._errors: Deque[float] = deque()
+        self._errors_429: Deque[float] = deque()
+        self._latencies: Deque[tuple[float, float]] = deque()
         self._tokens: Deque[tuple[float, int]] = deque()
         self._in_flight = 0
 
@@ -242,31 +244,42 @@ class RollingMetrics:
         while self._tokens and now - self._tokens[0][0] > self._window:
             self._tokens.popleft()
 
+    def _trim_latencies(self, now: float) -> None:
+        while self._latencies and now - self._latencies[0][0] > self._window:
+            self._latencies.popleft()
+
     def record_request(self) -> None:
-        """Record a request and emit updated metrics."""
+        """Record a request start."""
 
         now = time.monotonic()
         self._requests.append(now)
         self._trim(self._requests, now)
         self._trim(self._errors, now)
+        self._trim(self._errors_429, now)
+        self._trim_latencies(now)
         REQUESTS_TOTAL.add(1)
-        rps = len(self._requests) / self._window
-        error_rate = len(self._errors) / len(self._requests) if self._requests else 0.0
-        REQUESTS_PER_SECOND.set(rps)
-        ERROR_RATE.set(error_rate)
-        logfire.info(
-            "Request metrics updated",
-            rps=rps,
-            error_rate=error_rate,
-        )
 
-    def record_error(self) -> None:
-        """Record an error occurrence."""
+    def record_error(self, is_429: bool = False) -> None:
+        """Record an error occurrence.
+
+        Args:
+            is_429: Mark the error as a rate limit (HTTP 429) event.
+        """
 
         now = time.monotonic()
         self._errors.append(now)
+        if is_429:
+            self._errors_429.append(now)
         self._trim(self._errors, now)
+        self._trim(self._errors_429, now)
         ERRORS_TOTAL.add(1)
+
+    def record_latency(self, duration: float) -> None:
+        """Record request latency in seconds."""
+
+        now = time.monotonic()
+        self._latencies.append((now, duration))
+        self._trim_latencies(now)
 
     def record_start_tokens(self, count: int) -> None:
         """Increment in-flight tokens and emit the current count."""
@@ -275,19 +288,39 @@ class RollingMetrics:
         TOKENS_IN_FLIGHT.set(self._in_flight)
 
     def record_end_tokens(self, count: int) -> None:
-        """Decrement in-flight tokens and update aggregate throughput."""
+        """Decrement in-flight tokens and emit updated metrics."""
 
         now = time.monotonic()
         self._in_flight = max(self._in_flight - count, 0)
         TOKENS_IN_FLIGHT.set(self._in_flight)
         self._tokens.append((now, count))
         self._trim_tokens(now)
+        self._trim(self._requests, now)
+        self._trim(self._errors, now)
+        self._trim(self._errors_429, now)
+        self._trim_latencies(now)
         total_tokens = sum(t for _, t in self._tokens)
         tps = total_tokens / self._window
         TOKENS_PER_SECOND.set(tps)
+        rps = len(self._requests) / self._window
+        REQUESTS_PER_SECOND.set(rps)
+        error_rate = len(self._errors) / len(self._requests) if self._requests else 0.0
+        ERROR_RATE.set(error_rate)
+        rate_429 = (
+            len(self._errors_429) / len(self._requests) if self._requests else 0.0
+        )
+        avg_latency = (
+            sum(d for _, d in self._latencies) / len(self._latencies)
+            if self._latencies
+            else 0.0
+        )
         logfire.info(
-            "Token metrics updated",
+            "Rolling metrics updated",
             tokens_per_sec=tps,
+            rps=rps,
+            error_rate=error_rate,
+            rate_429=rate_429,
+            avg_latency=avg_latency,
             in_flight=self._in_flight,
         )
 

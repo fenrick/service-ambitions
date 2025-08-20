@@ -55,6 +55,7 @@ def _log_stage_totals() -> None:
             "Stage totals",
             stage=stage,
             total_tokens=totals.total_tokens,
+            prompt_tokens_estimate=totals.prompt_tokens_estimate,
             estimated_cost=totals.estimated_cost,
             tokens_per_sec=tokens_sec,
             avg_latency=avg_latency,

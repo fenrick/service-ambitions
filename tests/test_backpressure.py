@@ -124,9 +124,13 @@ def test_rolling_metrics_reports(monkeypatch):
     """Metrics emit request, error and token rates."""
 
     calls: list[SimpleNamespace] = []
+    info_calls: list[dict[str, float]] = []
 
     def fake_metric(name: str, value: float) -> None:
         calls.append(SimpleNamespace(kind="metric", name=name, value=value))
+
+    def fake_info(msg: str, **kwargs: float) -> None:  # pragma: no cover - simple
+        info_calls.append(kwargs)
 
     class FakeCounter:
         def __init__(self, name: str) -> None:
@@ -143,13 +147,15 @@ def test_rolling_metrics_reports(monkeypatch):
             calls.append(SimpleNamespace(kind="gauge", name=self.name, value=value))
 
     monkeypatch.setattr(backpressure.logfire, "metric", fake_metric)
+    monkeypatch.setattr(backpressure.logfire, "info", fake_info)
     monkeypatch.setattr(backpressure, "REQUESTS_TOTAL", FakeCounter("requests_total"))
     monkeypatch.setattr(backpressure, "ERRORS_TOTAL", FakeCounter("errors_total"))
     monkeypatch.setattr(backpressure, "TOKENS_IN_FLIGHT", FakeGauge("tokens_in_flight"))
 
     metrics = RollingMetrics(window=1)
     metrics.record_request()
-    metrics.record_error()
+    metrics.record_error(is_429=True)
+    metrics.record_latency(0.1)
     metrics.record_start_tokens(5)
     metrics.record_end_tokens(5)
     metrics.record_request()
@@ -163,3 +169,8 @@ def test_rolling_metrics_reports(monkeypatch):
         ("counter", "errors_total"),
         ("gauge", "tokens_in_flight"),
     } <= names
+    assert any(
+        {"tokens_per_sec", "rps", "error_rate", "rate_429", "avg_latency"}
+        <= info.keys()
+        for info in info_calls
+    )
