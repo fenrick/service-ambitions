@@ -8,8 +8,8 @@ Example command:
 
 ```bash
 poetry run service-ambitions generate-mapping \
-  --input-file evolution.jsonl \
-  --output-file remapped.jsonl \
+  --input evolution.jsonl \
+  --output remapped.jsonl \
   --mapping-batch-size 20 --mapping-parallel-types
 ```
 

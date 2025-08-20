@@ -106,8 +106,8 @@ def test_build_plateau_prompt_excludes_feature_id() -> None:
     assert "FEAT-" not in prompt
 
 
-def test_to_feature_hashes_name_and_role() -> None:
-    """_to_feature should hash the feature name and role."""
+def test_to_feature_hashes_name_role_and_plateau() -> None:
+    """_to_feature should hash name, role and plateau."""
 
     session = DummySession([])
     generator = PlateauGenerator(cast(ConversationSession, session))
@@ -116,8 +116,8 @@ def test_to_feature_hashes_name_and_role() -> None:
         description="d",
         score=MaturityScore(level=3, label="Defined", justification="j"),
     )
-    feature = generator._to_feature(item, "learners")
-    expected = hashlib.sha1("Example|learners".encode()).hexdigest()
+    feature = generator._to_feature(item, "learners", "Foundational")
+    expected = hashlib.sha1("Example|learners|Foundational".encode()).hexdigest()
     assert feature.feature_id == expected
 
 

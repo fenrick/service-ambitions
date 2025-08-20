@@ -17,6 +17,7 @@ import asyncio
 import json
 import os
 from functools import lru_cache
+from pathlib import Path
 from typing import TYPE_CHECKING, Iterable, Mapping, Sequence
 
 import logfire
@@ -36,6 +37,7 @@ from models import (
     MappingTypeConfig,
     PlateauFeature,
 )
+from token_utils import estimate_tokens
 
 if TYPE_CHECKING:
     from conversation import ConversationSession
@@ -51,11 +53,35 @@ _FEATURE_EMBED_CACHE: dict[str, np.ndarray] = {}
 MIN_MAPPING_ITEMS = 2
 """Minimum number of mapping contributions required per feature."""
 
+MAPPING_TOKEN_CAP = 8000
+"""Maximum tokens allowed per mapping request."""
+
 SECOND_PASS_TIMEOUT = 20.0
 """Timeout in seconds for second-pass mapping prompts."""
 
 SECOND_PASS_ATTEMPTS = 2
 """Maximum retry attempts for second-pass mapping prompts."""
+
+_QUARANTINED_MAPPINGS: list[Path] = []
+"""Paths of mapping responses that failed to produce required items."""
+
+
+def _quarantine_mapping(
+    feature: PlateauFeature, key: str, payload: MappingResponse
+) -> Path:
+    """Persist raw mapping ``payload`` for ``feature`` and record its path."""
+
+    qdir = Path("quarantine/mappings")
+    qdir.mkdir(parents=True, exist_ok=True)
+    file_path = qdir / f"{feature.feature_id}_{key}.json"
+    file_path.write_text(payload.model_dump_json(indent=2), encoding="utf-8")
+    logfire.warning(
+        f"Quarantined mapping payload for {feature.feature_id}",
+        key=key,
+        path=str(file_path),
+    )
+    _QUARANTINED_MAPPINGS.append(file_path)
+    return file_path
 
 
 def _chunked(
@@ -65,6 +91,35 @@ def _chunked(
 
     for i in range(0, len(seq), size):
         yield seq[i : i + size]
+
+
+def _split_batches(
+    features: Sequence[PlateauFeature],
+    mapping_types: Mapping[str, MappingTypeConfig],
+    batch_size: int,
+    token_cap: int,
+) -> list[Sequence[PlateauFeature]]:
+    """Return batches sized so their prompt tokens do not exceed ``token_cap``."""
+
+    batches: list[Sequence[PlateauFeature]] = []
+    idx = 0
+    n = len(features)
+    while idx < n:
+        end = min(idx + batch_size, n)
+        while end > idx:
+            prompt = _build_mapping_prompt(features[idx:end], mapping_types)
+            tokens = estimate_tokens(prompt, 0)
+            if tokens <= token_cap or end - idx == 1:
+                break
+            end -= 1
+        if end - idx < batch_size:
+            logfire.info(
+                f"Reduced mapping batch size from {batch_size} to {end - idx} "
+                f"({tokens} tokens > cap {token_cap})"
+            )
+        batches.append(features[idx:end])
+        idx = end
+    return batches
 
 
 @lru_cache(maxsize=None)
@@ -429,7 +484,10 @@ async def _reprompt_feature(
         extra_instructions=reminder,
     )
     payload = await session.ask_async(prompt, output_type=MappingResponse)
-    return _merge_mapping_results([feature], payload, {key: cfg})[0]
+    merged = _merge_mapping_results([feature], payload, {key: cfg})[0]
+    if len(merged.mappings.get(key, [])) < MIN_MAPPING_ITEMS:
+        _quarantine_mapping(feature, key, payload)
+    return merged
 
 
 async def _map_parallel(
@@ -567,6 +625,7 @@ async def map_features_async(
     parallel_types: bool = True,
     second_pass_timeout: float = SECOND_PASS_TIMEOUT,
     second_pass_attempts: int = SECOND_PASS_ATTEMPTS,
+    token_cap: int = MAPPING_TOKEN_CAP,
 ) -> list[PlateauFeature]:
     """Asynchronously return ``features`` with mapping information.
 
@@ -579,10 +638,12 @@ async def map_features_async(
             batches when ``True``.
         second_pass_timeout: Timeout in seconds for second-pass mapping prompts.
         second_pass_attempts: Maximum retry attempts for second-pass prompts.
+        token_cap: Maximum tokens permitted for a mapping prompt.
     """
 
+    _QUARANTINED_MAPPINGS.clear()
     mapping_types = mapping_types or load_mapping_type_config()
-    batches = list(_chunked(features, batch_size))
+    batches = _split_batches(features, mapping_types, batch_size, token_cap)
     if parallel_types:
         results = await _map_parallel(
             session,
@@ -599,6 +660,11 @@ async def map_features_async(
             second_pass_timeout=second_pass_timeout,
             second_pass_attempts=second_pass_attempts,
         )
+    if _QUARANTINED_MAPPINGS:
+        logfire.warning(
+            f"Quarantined {len(_QUARANTINED_MAPPINGS)} mapping payload(s)",
+            paths=[str(p) for p in _QUARANTINED_MAPPINGS],
+        )
     return [results[f.feature_id] for f in features]
 
 
@@ -611,6 +677,7 @@ def map_features(
     parallel_types: bool = True,
     second_pass_timeout: float = SECOND_PASS_TIMEOUT,
     second_pass_attempts: int = SECOND_PASS_ATTEMPTS,
+    token_cap: int = MAPPING_TOKEN_CAP,
 ) -> list[PlateauFeature]:
     """Return ``features`` augmented with mapping information.
 
@@ -623,6 +690,7 @@ def map_features(
             batches when ``True``.
         second_pass_timeout: Timeout in seconds for second-pass mapping prompts.
         second_pass_attempts: Maximum retry attempts for second-pass prompts.
+        token_cap: Maximum tokens permitted for a mapping prompt.
     """
 
     return asyncio.run(
@@ -634,6 +702,7 @@ def map_features(
             parallel_types=parallel_types,
             second_pass_timeout=second_pass_timeout,
             second_pass_attempts=second_pass_attempts,
+            token_cap=token_cap,
         )
     )
 

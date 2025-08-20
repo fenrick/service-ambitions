@@ -96,7 +96,7 @@ subcommands to select the desired operation:
 ```bash
 poetry run service-ambitions generate-ambitions --input-file sample-services.jsonl --output-file ambitions.jsonl
 poetry run service-ambitions generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl
-poetry run service-ambitions generate-mapping --input-file evolution.jsonl --output-file remapped.jsonl
+poetry run service-ambitions generate-mapping --input evolution.jsonl --output remapped.jsonl
 ```
 
 Alternatively, use the provided shell script which forwards all arguments to the CLI:
@@ -104,7 +104,7 @@ Alternatively, use the provided shell script which forwards all arguments to the
 ```bash
 ./run.sh generate-ambitions --input-file sample-services.jsonl --output-file ambitions.jsonl
 ./run.sh generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl
-./run.sh generate-mapping --input-file evolution.jsonl --output-file remapped.jsonl
+./run.sh generate-mapping --input evolution.jsonl --output remapped.jsonl
 ```
 
 ## Usage
@@ -135,7 +135,7 @@ new mapping data. Adjust mapping behaviour with:
 Example invocation:
 
 ```bash
-./run.sh generate-mapping --input-file evolution.jsonl --output-file remapped.jsonl \
+./run.sh generate-mapping --input evolution.jsonl --output remapped.jsonl \
   --mapping-batch-size 20 --no-mapping-parallel-types
 ```
 

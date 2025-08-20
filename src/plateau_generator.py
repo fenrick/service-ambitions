@@ -108,7 +108,7 @@ class PlateauGenerator:
         qdir = Path("quarantine/descriptions")
         qdir.mkdir(parents=True, exist_ok=True)
         file_path = qdir / f"{plateau_name}.txt"
-        file_path.write_text(raw)
+        file_path.write_text(raw, encoding="utf-8")
         logfire.warning(f"Quarantined plateau description at {file_path}")
         self.quarantined_descriptions.append(file_path)
         return file_path
@@ -155,6 +155,7 @@ class PlateauGenerator:
             features,
             batch_size=batch_size,
             parallel_types=self.mapping_parallel_types,
+            token_cap=self.mapping_token_cap,
         )
 
     def _request_description(
@@ -315,18 +316,21 @@ class PlateauGenerator:
                 results[name] = ""
         return results
 
-    def _to_feature(self, item: FeatureItem, role: str) -> PlateauFeature:
+    def _to_feature(
+        self, item: FeatureItem, role: str, plateau_name: str
+    ) -> PlateauFeature:
         """Return a :class:`PlateauFeature` built from ``item``.
 
         Args:
             item: Raw feature details returned by the agent.
             role: Role the feature applies to.
+            plateau_name: Plateau the feature belongs to.
 
         Returns:
             Plateau feature populated with the provided metadata.
         """
 
-        raw = f"{item.name}|{role}".encode()
+        raw = f"{item.name}|{role}|{plateau_name}".encode()
         feature_id = hashlib.sha1(raw, usedforsecurity=False).hexdigest()
         return PlateauFeature(
             feature_id=feature_id,
@@ -352,7 +356,7 @@ class PlateauGenerator:
         )
 
     def _collect_features(
-        self, payload: PlateauFeaturesResponse
+        self, payload: PlateauFeaturesResponse, plateau_name: str
     ) -> list[PlateauFeature]:
         """Return PlateauFeature records extracted from ``payload``."""
 
@@ -365,7 +369,7 @@ class PlateauGenerator:
                 raw_features = getattr(payload.features, role, [])
                 for item in raw_features:
                     # Convert each raw item into a structured plateau feature.
-                    features.append(self._to_feature(item, role))
+                    features.append(self._to_feature(item, role, plateau_name))
         return features
 
     async def _request_role_features_async(
@@ -511,9 +515,7 @@ class PlateauGenerator:
             for feat in result.features:
                 if feat.customer_type not in role_ids:
                     raise ValueError(f"Unknown customer_type: {feat.customer_type}")
-                raw = f"{feat.name}|{feat.customer_type}|{result.plateau_name}".encode()
-                feature_hash = hashlib.sha1(raw, usedforsecurity=False).hexdigest()
-                if feature_hash in seen:
+                if feat.feature_id in seen:
                     logfire.warning(
                         "Duplicate feature removed",
                         feature=feat.name,
@@ -521,8 +523,7 @@ class PlateauGenerator:
                         plateau=result.plateau_name,
                     )
                     continue
-                seen.add(feature_hash)
-                feat.feature_id = feature_hash
+                seen.add(feat.feature_id)
                 valid.append(feat)
             plateaus.append(
                 PlateauResult(
@@ -657,7 +658,7 @@ class PlateauGenerator:
             )
             payload = PlateauFeaturesResponse(features=block)
 
-            features = self._collect_features(payload)
+            features = self._collect_features(payload, plateau_name)
             map_session = ConversationSession(
                 self.mapping_session.client, stage=self.mapping_session.stage
             )
@@ -715,6 +716,7 @@ class PlateauGenerator:
                 disables transcript persistence.
         """
 
+        self.quarantined_descriptions.clear()
         self._prepare_sessions(service_input)
 
         with logfire.span("generate_service_evolution") as span:
@@ -733,9 +735,18 @@ class PlateauGenerator:
                 plateau_names, desc_map, service_input
             )
 
-            return await self._assemble_evolution(
+            evolution = await self._assemble_evolution(
                 service_input, results, plateau_names, role_ids, transcripts_dir
             )
+
+            if self.quarantined_descriptions:
+                logfire.warning(
+                    f"Quarantined {len(self.quarantined_descriptions)} plateau"
+                    " description(s)",
+                    paths=[str(p) for p in self.quarantined_descriptions],
+                )
+
+            return evolution
 
     def generate_service_evolution(
         self,
