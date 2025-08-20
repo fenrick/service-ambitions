@@ -34,6 +34,12 @@ async def test_long_description_reduces_batch_size(monkeypatch) -> None:
     )
 
     captured: dict[str, object] = {}
+    logged: dict[str, str] = {}
+
+    def fake_info(msg: str, *args) -> None:
+        logged["msg"] = msg % args if args else msg
+
+    monkeypatch.setattr("plateau_generator.logfire.info", fake_info)
 
     async def dummy_map_features(
         session, features, mapping_types=None, *, batch_size, parallel_types=True
@@ -60,6 +66,7 @@ async def test_long_description_reduces_batch_size(monkeypatch) -> None:
 
     assert captured["batch_size"] == 2
     assert captured["order"] == [f"F{i}" for i in range(5)]
+    assert "Reduced mapping batch size" in logged["msg"]
 
 
 @pytest.mark.asyncio

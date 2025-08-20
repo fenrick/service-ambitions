@@ -106,8 +106,8 @@ def test_build_plateau_prompt_excludes_feature_id() -> None:
     assert "FEAT-" not in prompt
 
 
-def test_to_feature_hashes_missing_id() -> None:
-    """_to_feature should hash name and role when feature_id is absent."""
+def test_to_feature_hashes_name_and_role() -> None:
+    """_to_feature should hash the feature name and role."""
 
     session = DummySession([])
     generator = PlateauGenerator(cast(ConversationSession, session))
@@ -196,7 +196,6 @@ def test_generate_plateau_repairs_missing_features(monkeypatch) -> None:
                 "learners": [],
                 "academics": [
                     {
-                        "feature_id": "FEAT-1-academics-a",
                         "name": "A",
                         "description": "da",
                         "score": {"level": 3, "label": "Defined", "justification": "j"},
@@ -204,7 +203,6 @@ def test_generate_plateau_repairs_missing_features(monkeypatch) -> None:
                 ],
                 "professional_staff": [
                     {
-                        "feature_id": "FEAT-1-professional_staff-p",
                         "name": "P",
                         "description": "dp",
                         "score": {"level": 3, "label": "Defined", "justification": "j"},
@@ -217,7 +215,6 @@ def test_generate_plateau_repairs_missing_features(monkeypatch) -> None:
         {
             "features": [
                 {
-                    "feature_id": "FEAT-1-learners-l",
                     "name": "L",
                     "description": "dl",
                     "score": {"level": 3, "label": "Defined", "justification": "j"},
@@ -282,13 +279,11 @@ def test_generate_plateau_requests_missing_features_concurrently(
             "features": {
                 "learners": [
                     {
-                        "feature_id": "FEAT-1-learners-a",
                         "name": "A",
                         "description": "da",
                         "score": {"level": 3, "label": "Defined", "justification": "j"},
                     },
                     {
-                        "feature_id": "FEAT-1-learners-b",
                         "name": "B",
                         "description": "db",
                         "score": {"level": 3, "label": "Defined", "justification": "j"},
@@ -296,7 +291,6 @@ def test_generate_plateau_requests_missing_features_concurrently(
                 ],
                 "academics": [
                     {
-                        "feature_id": "FEAT-1-academics-a",
                         "name": "A",
                         "description": "da",
                         "score": {"level": 3, "label": "Defined", "justification": "j"},
@@ -304,7 +298,6 @@ def test_generate_plateau_requests_missing_features_concurrently(
                 ],
                 "professional_staff": [
                     {
-                        "feature_id": "FEAT-1-professional_staff-a",
                         "name": "A",
                         "description": "da",
                         "score": {"level": 3, "label": "Defined", "justification": "j"},
@@ -345,7 +338,6 @@ def test_generate_plateau_requests_missing_features_concurrently(
         await asyncio.sleep(0.1)  # Simulate network delay per role request.
         return [
             FeatureItem(
-                feature_id=f"FEAT-1-{role}-extra",
                 name=f"Extra {role}",
                 description="d",
                 score=MaturityScore(level=3, label="Defined", justification="j"),
@@ -395,10 +387,9 @@ def test_generate_plateau_repairs_invalid_role(monkeypatch) -> None:
     initial = json.dumps(
         {
             "features": {
-                "learners": [{"feature_id": "FEAT-1-learners-bad"}],
+                "learners": [{}],
                 "academics": [
                     {
-                        "feature_id": "FEAT-1-academics-a",
                         "name": "A",
                         "description": "da",
                         "score": {"level": 3, "label": "Defined", "justification": "j"},
@@ -406,7 +397,6 @@ def test_generate_plateau_repairs_invalid_role(monkeypatch) -> None:
                 ],
                 "professional_staff": [
                     {
-                        "feature_id": "FEAT-1-professional_staff-p",
                         "name": "P",
                         "description": "dp",
                         "score": {"level": 3, "label": "Defined", "justification": "j"},
@@ -419,7 +409,6 @@ def test_generate_plateau_repairs_invalid_role(monkeypatch) -> None:
         {
             "features": [
                 {
-                    "feature_id": "FEAT-1-learners-l",
                     "name": "L",
                     "description": "dl",
                     "score": {"level": 3, "label": "Defined", "justification": "j"},
