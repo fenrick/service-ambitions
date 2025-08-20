@@ -5,6 +5,8 @@ import asyncio
 import json
 from types import SimpleNamespace
 
+import pytest
+
 import cli
 import mapping
 from backpressure import RollingMetrics
@@ -20,6 +22,7 @@ from models import (
     ServiceEvolution,
     ServiceInput,
 )
+from stage_metrics import record_stage_metrics
 
 
 class DummyFactory:
@@ -133,6 +136,102 @@ def test_generate_mapping_updates_features(tmp_path, monkeypatch) -> None:
     assert called["batch_size"] == 5
     assert called["parallel_types"] is False
     assert init_called["ran"] is True
+
+
+def test_generate_mapping_logs_stage_totals(tmp_path, monkeypatch) -> None:
+    """_cmd_generate_mapping should log stage totals after processing."""
+
+    input_path = tmp_path / "evo.jsonl"
+    output_path = tmp_path / "out.jsonl"
+
+    evo = ServiceEvolution(
+        service=ServiceInput(
+            service_id="svc-1",
+            name="svc",
+            description="d",
+            customer_type="retail",
+            jobs_to_be_done=[{"name": "job"}],
+        ),
+        plateaus=[
+            PlateauResult(
+                plateau=1,
+                plateau_name="p1",
+                service_description="desc",
+                features=[
+                    PlateauFeature(
+                        feature_id="FEAT-1-learners-test",
+                        name="feat",
+                        description="fd",
+                        score=MaturityScore(
+                            level=1, label="Initial", justification="j"
+                        ),
+                        customer_type="learners",
+                        mappings={"cat": []},
+                    )
+                ],
+            )
+        ],
+    )
+    input_path.write_text(evo.model_dump_json() + "\n", encoding="utf-8")
+
+    async def fake_map_features_async(
+        session,
+        features,
+        mapping_types=None,
+        *,
+        batch_size,
+        parallel_types,
+    ):
+        record_stage_metrics(
+            "mapping",
+            tokens=20,
+            cost=0.0,
+            duration=4.0,
+            is_429=True,
+            prompt_tokens=10,
+        )
+        return list(features)
+
+    monkeypatch.setattr(cli, "map_features_async", fake_map_features_async)
+
+    async def fake_init_embeddings() -> None:
+        return None
+
+    monkeypatch.setattr(cli, "init_embeddings", fake_init_embeddings)
+
+    logged: list[dict[str, float]] = []
+
+    def fake_logfire_info(msg: str, **kwargs) -> None:
+        if msg == "Stage totals":
+            logged.append(kwargs)
+
+    monkeypatch.setattr(cli.logfire, "info", fake_logfire_info)
+
+    settings = SimpleNamespace(
+        model="cfg",
+        openai_api_key="key",
+        mapping_batch_size=30,
+        mapping_parallel_types=True,
+        reasoning=None,
+        models=None,
+        web_search=False,
+    )
+    args = argparse.Namespace(
+        input=str(input_path),
+        output=str(output_path),
+        model=None,
+        mapping_model=None,
+        mapping_batch_size=5,
+        mapping_parallel_types=False,
+        seed=None,
+        web_search=None,
+    )
+
+    asyncio.run(_cmd_generate_mapping(args, settings))
+
+    assert logged and logged[0]["tokens_per_sec"] == pytest.approx(5.0)
+    assert logged[0]["avg_latency"] == pytest.approx(4.0)
+    assert logged[0]["rate_429"] == pytest.approx(1.0)
 
 
 def test_request_mapping_retries(monkeypatch) -> None:
