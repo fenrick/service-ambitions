@@ -460,6 +460,7 @@ async def _cmd_generate_evolution(
 
 async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
     """Augment evolution features with mapping results."""
+    reset_stage_totals()
 
     use_web_search = (
         args.web_search if args.web_search is not None else settings.web_search
@@ -513,9 +514,12 @@ async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
             plateau.features = [mapped_by_id[f.feature_id] for f in plateau.features]
 
     output_path = Path(args.output)
-    with output_path.open("w", encoding="utf-8") as out:
-        for evo in evolutions:
-            out.write(f"{evo.model_dump_json()}\n")
+    try:
+        with output_path.open("w", encoding="utf-8") as out:
+            for evo in evolutions:
+                out.write(f"{evo.model_dump_json()}\n")
+    finally:
+        _log_stage_totals()
 
 
 def main() -> None:
