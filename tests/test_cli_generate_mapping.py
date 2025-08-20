@@ -97,6 +97,13 @@ def test_generate_mapping_updates_features(tmp_path, monkeypatch) -> None:
 
     monkeypatch.setattr(cli, "map_features_async", fake_map_features_async)
 
+    init_called = {"ran": False}
+
+    async def fake_init_embeddings() -> None:
+        init_called["ran"] = True
+
+    monkeypatch.setattr(cli, "init_embeddings", fake_init_embeddings)
+
     settings = SimpleNamespace(
         model="cfg",
         openai_api_key="key",
@@ -125,6 +132,7 @@ def test_generate_mapping_updates_features(tmp_path, monkeypatch) -> None:
     }
     assert called["batch_size"] == 5
     assert called["parallel_types"] is False
+    assert init_called["ran"] is True
 
 
 def test_request_mapping_retries(monkeypatch) -> None:
