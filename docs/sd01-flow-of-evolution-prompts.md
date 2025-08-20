@@ -121,7 +121,6 @@ Generate service features for the Learning & Teaching service at plateau 1.
 - Return a single JSON object with three keys: "learners", "staff" and "community".
 - Each key must map to an array containing at least 5 feature objects.
 - Every feature must provide:
-    - "feature_id": unique string identifier.
     - "name": short feature title.
     - "description": explanation of the feature.
     - "score": object describing CMMI maturity with "level", "label" and "justification".
@@ -135,15 +134,15 @@ Generate service features for the Learning & Teaching service at plateau 1.
   "properties": {
     "learners": {
       "type": "array",
-      "items": {"type": "object","properties": {"feature_id": {"type": "string"},"name": {"type": "string"},"description": {"type": "string"},"score": {"type": "object","properties": {"level": {"type": "integer"},"label": {"type": "string"},"justification": {"type": "string"}},"required": ["level","label","justification"]}},"required": ["feature_id","name","description","score"]}
+      "items": {"type": "object","properties": {"name": {"type": "string"},"description": {"type": "string"},"score": {"type": "object","properties": {"level": {"type": "integer"},"label": {"type": "string"},"justification": {"type": "string"}},"required": ["level","label","justification"]}},"required": ["name","description","score"]}
     },
     "staff": {
       "type": "array",
-      "items": {"type": "object","properties": {"feature_id": {"type": "string"},"name": {"type": "string"},"description": {"type": "string"},"score": {"type": "object","properties": {"level": {"type": "integer"},"label": {"type": "string"},"justification": {"type": "string"}},"required": ["level","label","justification"]}},"required": ["feature_id","name","description","score"]}
+      "items": {"type": "object","properties": {"name": {"type": "string"},"description": {"type": "string"},"score": {"type": "object","properties": {"level": {"type": "integer"},"label": {"type": "string"},"justification": {"type": "string"}},"required": ["level","label","justification"]}},"required": ["name","description","score"]}
     },
     "community": {
       "type": "array",
-      "items": {"type": "object","properties": {"feature_id": {"type": "string"},"name": {"type": "string"},"description": {"type": "string"},"score": {"type": "object","properties": {"level": {"type": "integer"},"label": {"type": "string"},"justification": {"type": "string"}},"required": ["level","label","justification"]}},"required": ["feature_id","name","description","score"]}
+      "items": {"type": "object","properties": {"name": {"type": "string"},"description": {"type": "string"},"score": {"type": "object","properties": {"level": {"type": "integer"},"label": {"type": "string"},"justification": {"type": "string"}},"required": ["level","label","justification"]}},"required": ["name","description","score"]}
     }
   },
   "required": ["learners","staff","community"]
@@ -170,7 +169,7 @@ Map each feature to relevant Data, Applications, Technologies from the lists bel
 
 #### Instructions
 - Return a JSON object with a top-level "features" array.
-- Each element must include "feature_id" and the following arrays: data, applications, technology.
+- Each element must include "feature_id" and a "mappings" object containing "data", "applications" and "technology" arrays.
 - For each mapping list, return at most 5 items.
 - Items in these arrays must provide "item" and "contribution" fields. The
   "contribution" value is a number in [0.1, 1.0] where 1.0 = critical, 0.5 =
@@ -191,11 +190,13 @@ Map each feature to relevant Data, Applications, Technologies from the lists bel
         "type": "object",
         "properties": {
           "feature_id": {"type": "string"},
-          "data": {"type": "array", "maxItems": 5, "items": {"type": "object", "properties": {"item": {"type": "string"}, "contribution": {"type": "number", "minimum": 0.1, "maximum": 1.0}}, "required": ["item", "contribution"]}},
-          "applications": {"type": "array", "maxItems": 5, "items": {"type": "object", "properties": {"item": {"type": "string"}, "contribution": {"type": "number", "minimum": 0.1, "maximum": 1.0}}, "required": ["item", "contribution"]}},
-          "technology": {"type": "array", "maxItems": 5, "items": {"type": "object", "properties": {"item": {"type": "string"}, "contribution": {"type": "number", "minimum": 0.1, "maximum": 1.0}}, "required": ["item", "contribution"]}}
+          "mappings": {"type": "object", "properties": {
+            "data": {"type": "array", "maxItems": 5, "items": {"type": "object", "properties": {"item": {"type": "string"}, "contribution": {"type": "number", "minimum": 0.1, "maximum": 1.0}}, "required": ["item", "contribution"]}},
+            "applications": {"type": "array", "maxItems": 5, "items": {"type": "object", "properties": {"item": {"type": "string"}, "contribution": {"type": "number", "minimum": 0.1, "maximum": 1.0}}, "required": ["item", "contribution"]}},
+            "technology": {"type": "array", "maxItems": 5, "items": {"type": "object", "properties": {"item": {"type": "string"}, "contribution": {"type": "number", "minimum": 0.1, "maximum": 1.0}}, "required": ["item", "contribution"]}}
+          }, "required": ["data", "applications", "technology"]}
         },
-        "required": ["feature_id", "data", "applications", "technology"]
+        "required": ["feature_id", "mappings"]
       }
     }
   },

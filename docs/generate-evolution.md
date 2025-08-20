@@ -94,9 +94,11 @@ Each line in the output file is a JSON object with:
             "justification": "string"
           },
           "customer_type": "string",
-          "data": [{ "item": "string", "contribution": 0.5 }],
-          "applications": [{ "item": "string", "contribution": 0.5 }],
-          "technology": [{ "item": "string", "contribution": 0.5 }]
+          "mappings": {
+            "data": [{ "item": "string", "contribution": 0.5 }],
+            "applications": [{ "item": "string", "contribution": 0.5 }],
+            "technology": [{ "item": "string", "contribution": 0.5 }]
+          }
         }
       ]
     }
