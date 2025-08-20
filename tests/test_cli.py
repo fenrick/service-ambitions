@@ -65,7 +65,7 @@ def test_cli_generates_output(tmp_path, monkeypatch):
 
     async def fake_process_service(self, service, prompt=None):
         assert prompt is not None
-        return {"service": service["name"], "prompt": prompt[:3]}
+        return {"service": service["name"], "prompt": prompt[:3]}, 0
 
     monkeypatch.setattr(
         ServiceAmbitionGenerator, "process_service", fake_process_service
@@ -203,7 +203,7 @@ def test_cli_switches_context(tmp_path, monkeypatch):
 
     async def fake_process_service(self, service, prompt=None):
         assert prompt is not None
-        return {"prompt": prompt}
+        return {"prompt": prompt}, 0
 
     monkeypatch.setattr(
         ServiceAmbitionGenerator, "process_service", fake_process_service
@@ -286,7 +286,7 @@ def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "build_model", fake_build_model)
 
     async def fake_process_service(self, service, prompt=None):
-        return {"ok": True}
+        return {"ok": True}, 0
 
     monkeypatch.setattr(
         ServiceAmbitionGenerator, "process_service", fake_process_service
@@ -356,7 +356,7 @@ def test_cli_seed_sets_random(tmp_path, monkeypatch):
         return "test"
 
     async def fake_process_service(self, service, prompt=None):
-        return {"ok": True}
+        return {"ok": True}, 0
 
     monkeypatch.setattr(generator, "build_model", fake_build_model)
     monkeypatch.setattr(cli, "build_model", fake_build_model)
@@ -425,7 +425,7 @@ def test_cli_enables_logfire(tmp_path, monkeypatch):
     )
 
     async def fake_process_service(self, service, prompt=None):
-        return {"ok": True}
+        return {"ok": True}, 0
 
     monkeypatch.setattr(
         ServiceAmbitionGenerator, "process_service", fake_process_service
@@ -680,7 +680,7 @@ def test_cli_verbose_logging(tmp_path, monkeypatch):
     )
 
     async def fake_process_service(self, service, prompt=None):
-        return {"ok": True}
+        return {"ok": True}, 0
 
     monkeypatch.setattr(
         ServiceAmbitionGenerator, "process_service", fake_process_service
@@ -750,7 +750,7 @@ def test_cli_resume_skips_processed(tmp_path, monkeypatch):
 
     async def fake_process_service(self, service, prompt=None):
         processed.append(service.service_id)
-        return {"service_id": service.service_id}
+        return {"service_id": service.service_id}, 0
 
     monkeypatch.setattr(
         ServiceAmbitionGenerator, "process_service", fake_process_service
