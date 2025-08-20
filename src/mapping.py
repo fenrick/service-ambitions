@@ -612,7 +612,27 @@ async def _request_mapping(
     overrides = await _preselect_items(batch, cfg)
     prompt = _build_mapping_prompt(batch, {key: cfg}, item_overrides=overrides)
     logfire.debug(f"Requesting {key} mappings for {len(batch)} features")
-    payload = await sub_session.ask_async(prompt, output_type=MappingResponse)
+
+    # Configure retry parameters using session attributes when available to
+    # align mapping requests with the generator's behaviour.
+    request_timeout = getattr(session, "request_timeout", 60.0)
+    attempts = getattr(session, "retries", 5)
+    base_delay = getattr(session, "retry_base_delay", 0.5)
+    limiter = getattr(session, "_limiter", None)
+    on_retry_after = limiter.throttle if limiter else None
+    metrics = getattr(session, "_metrics", None)
+
+    async def _send_prompt() -> MappingResponse:
+        return await sub_session.ask_async(prompt, output_type=MappingResponse)
+
+    payload = await _with_retry(
+        _send_prompt,
+        request_timeout=request_timeout,
+        attempts=attempts,
+        base=base_delay,
+        on_retry_after=on_retry_after,
+        metrics=metrics,
+    )
     return batch_index, key, cfg, sub_session, payload
 
 
