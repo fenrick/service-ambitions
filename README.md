@@ -288,9 +288,11 @@ Each JSON line in the output file follows the `ServiceEvolution` schema:
             "justification": "string"
           },
           "customer_type": "string",
-          "data": [{ "item": "string", "contribution": 0.5 }],
-          "applications": [{ "item": "string", "contribution": 0.5 }],
-          "technology": [{ "item": "string", "contribution": 0.5 }]
+          "mappings": {
+            "data": [{ "item": "string", "contribution": 0.5 }],
+            "applications": [{ "item": "string", "contribution": 0.5 }],
+            "technology": [{ "item": "string", "contribution": 0.5 }]
+          }
         }
       ]
     }
@@ -310,16 +312,17 @@ Fields in the schema:
   - `created`: ISO-8601 timestamp when the record was produced.
 - `service`: `ServiceInput` with `service_id`, `name`, `description`, optional
   `customer_type`, `jobs_to_be_done`, and existing `features`.
-- `plateaus`: list of `PlateauResult` entries, each containing:
-  - `plateau`: integer plateau level.
-  - `plateau_name`: descriptive plateau label.
-  - `service_description`: narrative for the service at that plateau.
-  - `features`: list of `PlateauFeature` entries with:
-    - `feature_id`, `name`, and `description`.
-    - `score`: object with CMMI maturity `level`, `label` and `justification`.
-    - `customer_type`: audience benefiting from the feature.
-    - `data`, `applications`, `technology`: lists of `Contribution` objects
-      describing why a mapped item supports the feature.
+  - `plateaus`: list of `PlateauResult` entries, each containing:
+    - `plateau`: integer plateau level.
+    - `plateau_name`: descriptive plateau label.
+    - `service_description`: narrative for the service at that plateau.
+    - `features`: list of `PlateauFeature` entries with:
+      - `feature_id`, `name`, and `description`.
+      - `score`: object with CMMI maturity `level`, `label` and `justification`.
+      - `customer_type`: audience benefiting from the feature.
+      - `mappings`: object with `data`, `applications` and `technology` lists of
+        `Contribution` objects describing why a mapped item supports the
+        feature.
 
 ## Reference Data
 
@@ -353,7 +356,6 @@ Generate service features for the {service_name} service at plateau {plateau}.
 - Each key must map to an array containing at least {required_count} feature
   objects.
 - Every feature must provide:
-  - "feature_id": unique string identifier.
   - "name": short feature title.
   - "description": explanation of the feature.
   - "score": object describing CMMI maturity with:
@@ -374,8 +376,8 @@ below.
 ## Instructions
 
 - Return a JSON object with a top-level "features" array.
-- Each element must include "feature_id", "data", "applications" and
-  "technology" arrays.
+- Each element must include "feature_id" and a "mappings" object containing
+  "data", "applications" and "technology" arrays.
 - For each mapping list, return at most 5 items.
 - Items in these arrays must provide "item" and "contribution" fields. The
   "contribution" value is a number in [0.1, 1.0] where 1.0 = critical, 0.5 =
