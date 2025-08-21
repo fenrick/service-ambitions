@@ -31,6 +31,11 @@ DEFINITIONS_JSON = "definitions.json"
 # to alternative directories via ``configure_prompt_dir``.
 PROMPT_DIR = Path("prompts")
 
+# Directory containing mapping reference data. Updated via
+# :func:`configure_mapping_data_dir` so callers may override the default ``data``
+# location.
+MAPPING_DATA_DIR = Path("data")
+
 # Core role statement for all system prompts. This line anchors the model's
 # objective before any contextual material is provided.
 NORTH_STAR = (
@@ -51,6 +56,19 @@ def configure_prompt_dir(path: Path | str) -> None:
 
     global PROMPT_DIR
     PROMPT_DIR = Path(path)
+
+
+def configure_mapping_data_dir(path: Path | str) -> None:
+    """Set the base directory for mapping reference data.
+
+    Side Effects:
+        Updates :data:`MAPPING_DATA_DIR` used by catalogue loaders and clears
+        cached data so subsequent calls honour the new location.
+    """
+
+    global MAPPING_DATA_DIR
+    MAPPING_DATA_DIR = Path(path)
+    load_mapping_items.cache_clear()
 
 
 def _read_file(path: Path) -> str:
@@ -130,18 +148,19 @@ def load_prompt_text(prompt_name: str, base_dir: Path | None = None) -> str:
 @lru_cache(maxsize=None)
 def load_mapping_items(
     mapping_types: Sequence[str] | None = None,
-    base_dir: Path | str = Path("data"),
+    base_dir: Path | str | None = None,
 ) -> dict[str, list[MappingItem]]:
-    """Return mapping reference data for ``mapping_types`` from ``base_dir``.
+    """Return mapping reference data for ``mapping_types``.
 
     Args:
         mapping_types: Mapping dataset names to load. Defaults to the standard
             information, applications and technologies datasets.
-        base_dir: Directory containing mapping data files.
+        base_dir: Optional directory containing mapping data files. When
+            omitted, the globally configured :data:`MAPPING_DATA_DIR` is used.
 
     Returns:
-        A dictionary mapping each ``mapping_type`` to a list of
-        :class:`MappingItem`.
+        A dictionary mapping each ``mapping_type`` to a sorted list of
+        :class:`MappingItem` records.
 
     Raises:
         FileNotFoundError: If a required file is missing.
@@ -149,12 +168,13 @@ def load_mapping_items(
     """
 
     datasets = mapping_types or ("information", "applications", "technologies")
-    base_path = Path(base_dir)
+    base_path = Path(base_dir) if base_dir is not None else MAPPING_DATA_DIR
     files = {name: f"{name}.json" for name in datasets}
     data: dict[str, list[MappingItem]] = {}
     for key, filename in files.items():
         path = base_path / filename
-        data[key] = _read_json_file(path, list[MappingItem])
+        items = _read_json_file(path, list[MappingItem])
+        data[key] = sorted(items, key=lambda item: item.id)
     return data
 
 
