@@ -10,7 +10,7 @@ requires-python = ">=3.11,<4.0"
 dependencies = [
     "openai",
     "pydantic-ai",
-    "logfire[system-metrics]",
+    "logfire[system-metrics] (>=4.3.3,<5.0.0)",
     "pydantic",
     "pydantic-settings",
     "tqdm",
@@ -18,17 +18,12 @@ dependencies = [
     "scikit-learn",
     "scipy-stubs (>=1.16.1.0,<2.0.0.0)",
     "tiktoken (>=0.11.0,<0.12.0)",
-]
-
-[project.optional-dependencies]
-tiktoken = ["tiktoken"]
-observability = [
-    "opentelemetry-instrumentation-sqlite3",
-    "opentelemetry-instrumentation-starlette",
-    "opentelemetry-instrumentation-urllib",
-    "opentelemetry-instrumentation-botocore",
-    "opentelemetry-instrumentation-httpx",
-    "opentelemetry-instrumentation-requests",
+    "opentelemetry-instrumentation-botocore (>=0.57b0,<0.58)",
+    "opentelemetry-instrumentation-httpx (>=0.57b0,<0.58)",
+    "opentelemetry-instrumentation-requests (>=0.57b0,<0.58)",
+    "opentelemetry-instrumentation-sqlite3 (>=0.57b0,<0.58)",
+    "opentelemetry-instrumentation-starlette (>=0.57b0,<0.58)",
+    "opentelemetry-instrumentation-urllib (>=0.57b0,<0.58)",
 ]
 
 [project.scripts]
