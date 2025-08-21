@@ -134,7 +134,7 @@ def _catalogue_vectors(
     return vectorizer, item_vecs, items
 
 
-async def _get_embed_client() -> AsyncOpenAI:
+def _get_embed_client() -> AsyncOpenAI:
     """Return a cached OpenAI client for embedding requests."""
 
     global _EMBED_CLIENT
@@ -153,7 +153,7 @@ async def _catalogue_embeddings(
     cache = _EMBED_CACHE.get(dataset)
     if cache is not None:
         return cache
-    client = await _get_embed_client()
+    client = _get_embed_client()
     items = load_mapping_items((dataset,))[dataset]
     texts = [f"{it.name} {it.description}" for it in items]
     resp = await client.embeddings.create(model=EMBED_MODEL, input=texts)
@@ -178,7 +178,7 @@ async def _feature_embeddings(
             text = f"{feat.name} {feat.description}"
             uncached.append((feat.feature_id, text))
     if uncached:
-        client = await _get_embed_client()
+        client = _get_embed_client()
         resp = await client.embeddings.create(
             model=EMBED_MODEL, input=[t for _, t in uncached]
         )

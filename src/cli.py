@@ -40,6 +40,13 @@ SERVICES_PROCESSED = logfire.metric_counter("services_processed")
 EVOLUTIONS_GENERATED = logfire.metric_counter("evolutions_generated")
 LINES_WRITTEN = logfire.metric_counter("lines_written")
 
+SERVICES_FILE_HELP = "Path to the services JSONL file"
+OUTPUT_FILE_HELP = "File to write the results"
+TRANSCRIPTS_HELP = (
+    "Directory to store per-service request/response transcripts. "
+    "Defaults to a '_transcripts' folder beside the output file."
+)
+
 
 def _configure_logging(args: argparse.Namespace, settings) -> None:
     """Configure the logging subsystem."""
@@ -202,7 +209,7 @@ async def _generate_evolution_for_service(
             )
             line = f"{evolution.model_dump_json()}\n"
             async with lock:
-                output.write(line)
+                await asyncio.to_thread(output.write, line)
                 new_ids.add(service.service_id)
                 EVOLUTIONS_GENERATED.add(1)
                 LINES_WRITTEN.add(1)
@@ -213,9 +220,13 @@ async def _generate_evolution_for_service(
             )
         except Exception as exc:  # noqa: BLE001
             quarantine_dir = Path("quarantine")
-            quarantine_dir.mkdir(parents=True, exist_ok=True)
+            await asyncio.to_thread(quarantine_dir.mkdir, parents=True, exist_ok=True)
             quarantine_file = quarantine_dir / f"{service.service_id}.json"
-            quarantine_file.write_text(service.model_dump_json(indent=2))
+            await asyncio.to_thread(
+                quarantine_file.write_text,
+                service.model_dump_json(indent=2),
+                encoding="utf-8",
+            )
             logfire.exception(
                 "Failed to generate evolution",
                 service_id=service.service_id,
@@ -422,10 +433,13 @@ async def _cmd_generate_evolution(
             if progress:
                 progress.update(1)
 
-    with open(part_path, "w", encoding="utf-8") as output:
+    output = await asyncio.to_thread(part_path.open, "w", encoding="utf-8")
+    try:
         async with asyncio.TaskGroup() as tg:
             for service in services:
                 tg.create_task(run_one(service))
+    finally:
+        await asyncio.to_thread(output.close)
     if progress:
         progress.close()
 
@@ -476,9 +490,10 @@ async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
     await init_embeddings()
 
     input_path = Path(args.input)
+    lines = await asyncio.to_thread(input_path.read_text, encoding="utf-8")
     evolutions = [
         ServiceEvolution.model_validate_json(line)
-        for line in input_path.read_text(encoding="utf-8").splitlines()
+        for line in lines.splitlines()
         if line.strip()
     ]
 
@@ -501,9 +516,12 @@ async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
 
     output_path = Path(args.output)
     try:
-        with output_path.open("w", encoding="utf-8") as out:
+        out = await asyncio.to_thread(output_path.open, "w", encoding="utf-8")
+        try:
             for evo in evolutions:
-                out.write(f"{evo.model_dump_json()}\n")
+                await asyncio.to_thread(out.write, f"{evo.model_dump_json()}\n")
+        finally:
+            await asyncio.to_thread(out.close)
     finally:
         log_stage_totals()
 
@@ -625,20 +643,14 @@ def main() -> None:
     amb.add_argument(
         "--input-file",
         default="sample-services.jsonl",
-        help="Path to the services JSONL file",
+        help=SERVICES_FILE_HELP,
     )
     amb.add_argument(
         "--output-file",
         default="ambitions.jsonl",
-        help="File to write the results",
+        help=OUTPUT_FILE_HELP,
     )
-    amb.add_argument(
-        "--transcripts-dir",
-        help=(
-            "Directory to store per-service request/response transcripts. "
-            "Defaults to a '_transcripts' folder beside the output file."
-        ),
-    )
+    amb.add_argument("--transcripts-dir", help=TRANSCRIPTS_HELP)
     amb.add_argument(
         "--validate-only",
         action="store_true",
@@ -660,20 +672,14 @@ def main() -> None:
     evo.add_argument(
         "--input-file",
         default="sample-services.jsonl",
-        help="Path to the services JSONL file",
+        help=SERVICES_FILE_HELP,
     )
     evo.add_argument(
         "--output-file",
         default="evolution.jsonl",
-        help="File to write the results",
+        help=OUTPUT_FILE_HELP,
     )
-    evo.add_argument(
-        "--transcripts-dir",
-        help=(
-            "Directory to store per-service request/response transcripts. "
-            "Defaults to a '_transcripts' folder beside the output file."
-        ),
-    )
+    evo.add_argument("--transcripts-dir", help=TRANSCRIPTS_HELP)
     evo.add_argument(
         "--roles-file",
         default="data/roles.json",
@@ -694,7 +700,7 @@ def main() -> None:
     map_p.add_argument(
         "--output",
         default="mapped.jsonl",
-        help="File to write the results",
+        help=OUTPUT_FILE_HELP,
     )
     map_p.set_defaults(func=_cmd_generate_mapping)
 

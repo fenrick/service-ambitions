@@ -98,6 +98,7 @@ class AdaptiveSemaphore:
         self._consecutive = 0
         self._last_throttle = 0.0
         self._reset_task: Optional[asyncio.Task[None]] = None
+        self._tasks: set[asyncio.Task[None]] = set()
 
     async def acquire(self, weight: int = 1) -> None:
         """Acquire one or more permits.
@@ -177,7 +178,9 @@ class AdaptiveSemaphore:
                 beginning to restore capacity.
         """
 
-        asyncio.create_task(self._throttle(delay))
+        task = asyncio.create_task(self._throttle(delay))
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
 
     def _schedule_reset(self) -> None:
         """Reset slow-start state after the grace period."""

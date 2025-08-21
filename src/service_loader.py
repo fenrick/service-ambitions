@@ -20,6 +20,8 @@ TOTAL_LINES = logfire.metric_counter("services_total_lines")
 VALID_SERVICES = logfire.metric_counter("services_valid")
 QUARANTINED_LINES = logfire.metric_counter("services_quarantined")
 
+SERVICES_FILE_NOT_FOUND = "Services file not found"
+
 
 def _load_service_entries(path: Path | str) -> Generator[ServiceInput, None, None]:
     """Yield services from ``path`` while validating each JSON line."""
@@ -77,10 +79,10 @@ def _load_service_entries(path: Path | str) -> Generator[ServiceInput, None, Non
                             )
                             continue  # Keep processing subsequent services
         except FileNotFoundError:
-            logfire.error("Services file not found", file_path=str(path_obj))
+            logfire.error(SERVICES_FILE_NOT_FOUND, file_path=str(path_obj))
             raise FileNotFoundError(
-                "Services file not found. Please create a %s file in the current"
-                " directory." % path_obj
+                f"{SERVICES_FILE_NOT_FOUND}. Please create a {path_obj} file in the"
+                " current directory."
             ) from None
         except Exception as exc:
             logfire.error(

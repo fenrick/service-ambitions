@@ -145,18 +145,21 @@ async def _with_retry(
                 on_retry_after(hint)
         return delay
 
-    for attempt in range(attempts):
+    def _record_request() -> None:
         if metrics:
             metrics.record_request()
+
+    def _record_latency(start_time: float) -> None:
+        if metrics:
+            metrics.record_latency(time.monotonic() - start_time)
+
+    for attempt in range(attempts):
+        _record_request()
         start = time.monotonic()
         try:
             result = await asyncio.wait_for(coro_factory(), timeout=request_timeout)
-            if metrics:
-                metrics.record_latency(time.monotonic() - start)
-            return result
         except TRANSIENT_EXCEPTIONS as exc:
-            if metrics:
-                metrics.record_latency(time.monotonic() - start)
+            _record_latency(start)
             delay = _handle_retry(exc, attempt)
             logfire.warning(
                 "Retrying request",
@@ -164,6 +167,9 @@ async def _with_retry(
                 backoff_delay=delay,
             )
             await asyncio.sleep(delay)
+            continue
+        _record_latency(start)
+        return result
     raise RuntimeError("Unreachable retry state")
 
 
@@ -176,7 +182,8 @@ async def _write_queue(
 ) -> None:
     """Consume lines from ``queue`` and write them to ``out_path``."""
 
-    with open(out_path, "a", encoding="utf-8") as handle:
+    handle = await asyncio.to_thread(open, out_path, "a", encoding="utf-8")
+    try:
         line_count = 0
         while True:
             item = await queue.get()
@@ -193,6 +200,8 @@ async def _write_queue(
                 await asyncio.to_thread(os.fsync, handle.fileno())
         await asyncio.to_thread(handle.flush)
         await asyncio.to_thread(os.fsync, handle.fileno())
+    finally:
+        await asyncio.to_thread(handle.close)
 
 
 class AmbitionModel(BaseModel):

@@ -503,7 +503,7 @@ class MappingFeature(StrictModel):
         submit flexible mapping types without defining explicit model fields.
         """
         mapping: dict[str, object] = {}
-        for key in list(data.keys()):
+        for key in tuple(data):
             if key == "feature_id":
                 # Preserve the identifying field untouched.
                 continue
