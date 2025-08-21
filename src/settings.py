@@ -68,7 +68,6 @@ class Settings(BaseSettings):
     strict_mapping: bool = Field(
         False, description="Fail when feature mappings are missing."
     )
-    mapping_mode: str = Field("per_set", description="Mapping execution mode.")
 
     model_config = SettingsConfigDict(extra="ignore")
 
@@ -114,7 +113,6 @@ def load_settings() -> Settings:
             mapping_data_dir=getattr(config, "mapping_data_dir", Path("data")),
             diagnostics=getattr(config, "diagnostics", False),
             strict_mapping=getattr(config, "strict_mapping", False),
-            mapping_mode=getattr(config, "mapping_mode", "per_set"),
             _env_file=env_file,
         )
     except ValidationError as exc:
