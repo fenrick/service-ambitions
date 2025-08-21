@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from typing import Sequence, cast
 
 import pytest
@@ -66,6 +67,8 @@ async def test_map_set_quarantines_on_double_failure(monkeypatch, tmp_path) -> N
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
     session = DummySession(["bad", "still bad"])
+    paths: list[Path] = []
+    mapping.set_quarantine_logger(lambda p: paths.append(p))
     mapped = await map_set(
         cast(ConversationSession, session),
         "applications",
@@ -73,9 +76,11 @@ async def test_map_set_quarantines_on_double_failure(monkeypatch, tmp_path) -> N
         [_feature()],
         service="svc",
     )
+    mapping.set_quarantine_logger(None)
     assert mapped[0].mappings["applications"] == []
     qfile = tmp_path / "quarantine" / "mappings" / "svc" / "applications.txt"
     assert qfile.read_text() == "still bad"
+    assert paths == [qfile]
 
 
 @pytest.mark.asyncio()
@@ -83,6 +88,8 @@ async def test_map_set_strict_raises(monkeypatch, tmp_path) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
     session = DummySession(["bad", "still bad"])
+    paths: list[Path] = []
+    mapping.set_quarantine_logger(lambda p: paths.append(p))
     with pytest.raises(MappingError):
         await map_set(
             cast(ConversationSession, session),
@@ -92,8 +99,10 @@ async def test_map_set_strict_raises(monkeypatch, tmp_path) -> None:
             service="svc",
             strict=True,
         )
+    mapping.set_quarantine_logger(None)
     qfile = tmp_path / "quarantine" / "mappings" / "svc" / "applications.txt"
     assert qfile.exists()
+    assert paths == [qfile]
 
 
 def test_merge_mapping_results_aggregates_unknown_ids(monkeypatch, tmp_path) -> None:
@@ -135,10 +144,13 @@ def test_merge_mapping_results_aggregates_unknown_ids(monkeypatch, tmp_path) -> 
     monkeypatch.setattr(
         mapping.logfire, "warning", lambda msg, **kw: warnings.append((msg, kw))
     )
+    paths: list[Path] = []
+    mapping.set_quarantine_logger(lambda p: paths.append(p))
 
     merged = mapping._merge_mapping_results(
         features, payload, mapping_types, catalogue_items=catalogue
     )
+    mapping.set_quarantine_logger(None)
 
     assert [c.item for c in merged[0].mappings["applications"]] == ["a"]
     assert merged[1].mappings["applications"] == []
@@ -149,6 +161,7 @@ def test_merge_mapping_results_aggregates_unknown_ids(monkeypatch, tmp_path) -> 
     data = json.loads(qfile.read_text())
     assert set(data["applications"]) == {"x", "x2"}
     assert set(data["technologies"]) == {"y1", "y2"}
+    assert paths == [qfile]
 
     aggregated = [w for w in warnings if "count" in w[1]]
     counts = {kw["key"]: kw["count"] for _, kw in aggregated}
