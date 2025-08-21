@@ -116,18 +116,12 @@ def test_merge_mapping_results_aggregates_unknown_ids(monkeypatch, tmp_path) -> 
                     Contribution(item="a"),
                     Contribution(item="x"),
                 ],
-                technologies=[
-                    Contribution(item="t1"),
-                    Contribution(item="y1"),
-                ],
+                technologies=[Contribution(item="y1")],
             ),
             MappingFeature(
                 feature_id="f2",
                 applications=[Contribution(item="x2")],
-                technologies=[
-                    Contribution(item="t1"),
-                    Contribution(item="y2"),
-                ],
+                technologies=[Contribution(item="y2")],
             ),
         ]
     )
@@ -154,8 +148,8 @@ def test_merge_mapping_results_aggregates_unknown_ids(monkeypatch, tmp_path) -> 
 
     assert [c.item for c in merged[0].mappings["applications"]] == ["a"]
     assert merged[1].mappings["applications"] == []
-    assert [c.item for c in merged[0].mappings["technologies"]] == ["t1"]
-    assert [c.item for c in merged[1].mappings["technologies"]] == ["t1"]
+    assert merged[0].mappings["technologies"] == []
+    assert merged[1].mappings["technologies"] == []
 
     qfile = tmp_path / "quarantine" / "mappings" / "unknown_ids.json"
     data = json.loads(qfile.read_text())
@@ -166,3 +160,10 @@ def test_merge_mapping_results_aggregates_unknown_ids(monkeypatch, tmp_path) -> 
     aggregated = [w for w in warnings if "count" in w[1]]
     counts = {kw["key"]: kw["count"] for _, kw in aggregated}
     assert counts == {"applications": 2, "technologies": 2}
+
+    missing_counts = {
+        msg.split(".missing=")[0]: int(msg.split("=")[1])
+        for msg, _ in warnings
+        if ".missing=" in msg
+    }
+    assert missing_counts == {"applications": 1, "technologies": 2}
