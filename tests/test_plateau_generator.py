@@ -21,6 +21,7 @@ from models import (
     MaturityScore,
     PlateauFeature,
     PlateauResult,
+    ServiceEvolution,
     ServiceInput,
     ServiceMeta,
 )
@@ -40,17 +41,6 @@ class DummySession:
         self.client = None
         self.stage = "test"
 
-
-def _meta() -> ServiceMeta:
-    return ServiceMeta(
-        run_id="run",
-        seed=None,
-        models={},
-        web_search=False,
-        mapping_types=[],
-        created=datetime.now(timezone.utc),
-    )
-
     def ask(self, prompt: str, output_type=None) -> object:
         self.prompts.append(prompt)
         response = self._responses.pop(0)
@@ -63,6 +53,17 @@ def _meta() -> ServiceMeta:
 
     def add_parent_materials(self, service_input: ServiceInput) -> None:
         pass
+
+
+def _meta() -> ServiceMeta:
+    return ServiceMeta(
+        run_id="run",
+        seed=None,
+        models={},
+        web_search=False,
+        mapping_types=[],
+        created=datetime.now(timezone.utc),
+    )
 
 
 def _feature_payload(count: int, level: int = 1) -> str:
@@ -873,19 +874,11 @@ def test_generate_service_evolution_deduplicates_features(monkeypatch) -> None:
     assert features[0].feature_id == expected
 
 
-@pytest.mark.asyncio
-async def test_assemble_evolution_strict_checks() -> None:
+def test_validate_plateau_results_strict_checks() -> None:
     """Strict mode should validate roles and mappings."""
 
     session = DummySession([])
     generator = PlateauGenerator(cast(ConversationSession, session), strict=True)
-    service = ServiceInput(
-        service_id="s1",
-        name="svc",
-        customer_type="retail",
-        description="d",
-        jobs_to_be_done=[{"name": "job"}],
-    )
     feature = PlateauFeature(
         feature_id="f1",
         name="Feat",
@@ -900,37 +893,51 @@ async def test_assemble_evolution_strict_checks() -> None:
         service_description="d",
         features=[feature],
     )
-    with pytest.raises(ValueError):
-        await generator._assemble_evolution(
-            service,
-            [result],
-            ["Foundational"],
-            ["learners", "academics"],
-            _meta(),
-            None,
-            strict=True,
-        )
+    plateaus, roles_seen = generator._validate_plateau_results(
+        [result],
+        ["Foundational"],
+        ["learners", "academics"],
+        strict=True,
+    )
+    assert roles_seen == {"learners": True, "academics": False}
+    assert plateaus[0].features == [feature]
 
-    # Missing mappings should also raise
+    # Missing mappings should raise when strict
     feature.mappings = {}
     with pytest.raises(ValueError):
-        await generator._assemble_evolution(
-            service,
+        generator._validate_plateau_results(
             [result],
             ["Foundational"],
             ["learners"],
-            _meta(),
-            None,
             strict=True,
         )
 
     # Best-effort mode allows incomplete data
-    await generator._assemble_evolution(
-        service,
+    generator._validate_plateau_results(
         [result],
         ["Foundational"],
         ["learners"],
-        _meta(),
-        None,
         strict=False,
     )
+
+
+def test_write_transcript_writes_payload(tmp_path, monkeypatch) -> None:
+    """Transcript writing should persist redacted payloads."""
+
+    session = DummySession([])
+    generator = PlateauGenerator(cast(ConversationSession, session))
+    service = ServiceInput(
+        service_id="s1",
+        name="svc",
+        customer_type="retail",
+        description="d",
+        jobs_to_be_done=[{"name": "job"}],
+    )
+    evolution = ServiceEvolution(meta=_meta(), service=service, plateaus=[])
+    monkeypatch.setattr("plateau_generator.redact_pii", lambda x: x)
+
+    asyncio.run(generator._write_transcript(tmp_path, service, evolution))
+
+    path = tmp_path / f"{service.service_id}.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["request"]["service_id"] == "s1"
