@@ -52,6 +52,17 @@ price is a concern and higher‑capacity models such as `gpt-5` for best quality
 results. See the [model selection guide](https://platform.openai.com/docs/guides/model-selection)
 for details.
 
+### Model matrix
+
+| Preset       | Model              | Reasoning effort |
+|--------------|--------------------|------------------|
+| cheap & fast | `openai:o4-mini`   | low              |
+| balanced     | `openai:gpt-5`     | medium           |
+| max quality  | `openai:gpt-5`     | high             |
+
+Select a preset by setting `reasoning.effort` in `config/app.json` to
+`low`, `medium` or `high`.
+
 OpenAI's experimental web search tool can be enabled via the `web_search`
 setting or the `--web-search/--no-web-search` CLI flags. The sample
 configuration leaves this disabled.
@@ -87,6 +98,12 @@ For more accurate token estimation, include the optional `tiktoken` extra:
 
 ```bash
 poetry install -E tiktoken
+```
+
+Enable OpenTelemetry instrumentation with the `observability` extra:
+
+```bash
+poetry install -E observability
 ```
 
 After installation the `service-ambitions` console script is available.

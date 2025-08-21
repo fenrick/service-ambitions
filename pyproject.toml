@@ -13,12 +13,6 @@ dependencies = [
     "logfire[system-metrics]",
     "pydantic",
     "pydantic-settings",
-    "opentelemetry-instrumentation-sqlite3",
-    "opentelemetry-instrumentation-starlette",
-    "opentelemetry-instrumentation-urllib",
-    "opentelemetry-instrumentation-botocore",
-    "opentelemetry-instrumentation-httpx",
-    "opentelemetry-instrumentation-requests",
     "tqdm",
     "types-tqdm (>=4.67.0.20250809,<5.0.0.0)",
     "scikit-learn",
@@ -28,6 +22,14 @@ dependencies = [
 
 [project.optional-dependencies]
 tiktoken = ["tiktoken"]
+observability = [
+    "opentelemetry-instrumentation-sqlite3",
+    "opentelemetry-instrumentation-starlette",
+    "opentelemetry-instrumentation-urllib",
+    "opentelemetry-instrumentation-botocore",
+    "opentelemetry-instrumentation-httpx",
+    "opentelemetry-instrumentation-requests",
+]
 
 [project.scripts]
 service-ambitions = "cli:main"

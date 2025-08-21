@@ -1,13 +1,15 @@
 # Contributing
 
 Contributions are welcome! To keep the project consistent and secure, install
-[pre-commit](https://pre-commit.com/) and run all checks locally before
-submitting a pull request:
+[pre-commit](https://pre-commit.com/#install) and run the configured hooks
+locally before submitting a pull request:
 
 ```bash
+poetry run pre-commit install
 poetry run pre-commit run --all-files
 poetry run pip-audit
 ```
 
-Please ensure all checks pass and include appropriate tests and documentation
-for any new functionality.
+See `.pre-commit-config.yaml` for the exact tools (Black, Ruff, mypy and
+Bandit). Please ensure all checks pass and include appropriate tests and
+documentation for any new functionality.

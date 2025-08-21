@@ -193,13 +193,25 @@ async def _generate_evolution_for_service(
 
             metrics = RollingMetrics()
             desc_session = ConversationSession(
-                desc_agent, stage="descriptions", metrics=metrics
+                desc_agent,
+                stage="descriptions",
+                metrics=metrics,
+                log_prompts=not args.no_logs,
+                redact_prompts=True,
             )
             feat_session = ConversationSession(
-                feat_agent, stage="features", metrics=metrics
+                feat_agent,
+                stage="features",
+                metrics=metrics,
+                log_prompts=not args.no_logs,
+                redact_prompts=True,
             )
             map_session = ConversationSession(
-                map_agent, stage="mapping", metrics=metrics
+                map_agent,
+                stage="mapping",
+                metrics=metrics,
+                log_prompts=not args.no_logs,
+                redact_prompts=True,
             )
             generator = PlateauGenerator(
                 feat_session,
@@ -501,7 +513,13 @@ async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
     map_model = factory.get("mapping", args.mapping_model or args.model)
     map_agent = Agent(map_model, instructions="")
     metrics = RollingMetrics()
-    session = ConversationSession(map_agent, stage="mapping", metrics=metrics)
+    session = ConversationSession(
+        map_agent,
+        stage="mapping",
+        metrics=metrics,
+        log_prompts=not args.no_logs,
+        redact_prompts=True,
+    )
 
     mapping_batch_size = args.mapping_batch_size or settings.mapping_batch_size
     mapping_parallel_types = (

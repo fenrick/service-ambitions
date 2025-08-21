@@ -15,7 +15,8 @@
   },
 
   // Reasoning effort controls depth of analysis ("low", "medium", or "high").
-  "reasoning": {"effort": "YOUR_REASONING_PRESET"},
+  // Typical presets: "low" (cheap & fast), "medium" (balanced), "high" (max quality).
+  "reasoning": {"effort": "medium"},
 
   // Toggle to enable OpenAI's experimental web search capability.
   "web_search": false,
