@@ -11,6 +11,7 @@ import pytest
 
 import cli
 import mapping
+import mapping_prompt
 from backpressure import RollingMetrics
 from cli import _cmd_generate_mapping
 from conversation import ConversationSession
@@ -271,10 +272,10 @@ def test_generate_mapping_logs_stage_totals(tmp_path, monkeypatch) -> None:
 def test_request_mapping_retries(monkeypatch) -> None:
     """_request_mapping should retry transient errors and pass hooks."""
 
-    def fake_build_mapping_prompt(*_a, **_k) -> str:
+    def fake_render_set_prompt(*_a, **_k) -> str:
         return "prompt"
 
-    monkeypatch.setattr(mapping, "_build_mapping_prompt", fake_build_mapping_prompt)
+    monkeypatch.setattr(mapping_prompt, "render_set_prompt", fake_render_set_prompt)
 
     recorded: dict[str, object] = {}
 

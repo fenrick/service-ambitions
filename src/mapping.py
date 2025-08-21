@@ -14,7 +14,6 @@ restarts.
 from __future__ import annotations
 
 import asyncio
-import json
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterable, Mapping, Sequence
@@ -26,7 +25,8 @@ from sklearn.feature_extraction.text import (  # type: ignore[import-untyped]
 )
 
 from generator import _with_retry
-from loader import load_mapping_items, load_mapping_type_config, load_prompt_text
+from loader import load_mapping_items, load_mapping_type_config
+from mapping_prompt import render_set_prompt
 from models import (
     Contribution,
     MappingItem,
@@ -101,35 +101,6 @@ class MappingError(RuntimeError):
 
     def __init__(self, message: str) -> None:
         super().__init__(message)
-
-
-def _render_items(items: list[MappingItem]) -> str:
-    """Return a bullet list representation of mapping reference items.
-
-    Each entry is formatted as ``<id>: <name> - <description>`` so the string
-    can be embedded directly within agent prompts.
-    """
-
-    # Present each mapping reference item on a separate line so it can be
-    # directly inserted into the agent prompt as a bullet list.
-    return "\n".join(
-        f"- {entry.id}: {entry.name} - {entry.description}" for entry in items
-    )
-
-
-def _render_features(features: Sequence[PlateauFeature]) -> str:
-    """Return a bullet list of feature details for prompt construction.
-
-    Features are presented using their ID, name and description to provide the
-    agent with enough context for mapping decisions while keeping prompts
-    compact.
-    """
-
-    # The agent prompt expects a concise summary of each feature, therefore we
-    # format the feature ID, name and description on a single line.
-    return "\n".join(
-        f"- {feat.feature_id}: {feat.name} - {feat.description}" for feat in features
-    )
 
 
 def _top_k_items(
@@ -226,40 +197,6 @@ def map_feature(
     )
 
 
-def _build_mapping_prompt(
-    features: Sequence[PlateauFeature],
-    mapping_types: Mapping[str, MappingTypeConfig],
-    *,
-    item_overrides: Mapping[str, list[MappingItem]] | None = None,
-    extra_instructions: str | None = None,
-) -> str:
-    """Return a prompt requesting mappings for ``features``."""
-
-    template = load_prompt_text("mapping_prompt")
-    schema = json.dumps(MappingResponse.model_json_schema(), indent=2)
-    items = load_mapping_items(tuple(cfg.dataset for cfg in mapping_types.values()))
-    sections = []
-    for cfg in mapping_types.values():
-        if item_overrides and cfg.dataset in item_overrides:
-            dataset_items = item_overrides[cfg.dataset]
-        else:
-            dataset_items = items[cfg.dataset]
-        sections.append(f"## Available {cfg.label}\n\n{_render_items(dataset_items)}\n")
-    mapping_sections = "\n".join(sections)
-    mapping_labels = ", ".join(cfg.label for cfg in mapping_types.values())
-    mapping_fields = ", ".join(mapping_types.keys())
-    prompt = template.format(
-        mapping_labels=mapping_labels,
-        mapping_sections=mapping_sections,
-        mapping_fields=mapping_fields,
-        features=_render_features(features),
-        schema=str(schema),
-    )
-    if extra_instructions:
-        prompt = f"{prompt}\n\n{extra_instructions}"
-    return prompt
-
-
 def _clean_mapping_values(
     key: str,
     values: list[Contribution],
@@ -336,11 +273,7 @@ async def map_set(
     """Return ``features`` with ``set_name`` mappings populated."""
 
     cfg = MappingTypeConfig(dataset=set_name, label=set_name)
-    prompt = _build_mapping_prompt(
-        features,
-        {set_name: cfg},
-        item_overrides={set_name: list(items)},
-    )
+    prompt = render_set_prompt(set_name, list(items), features)
     payload = await session.ask_async(prompt, output_type=MappingResponse)
     return _merge_mapping_results(
         features,
@@ -365,12 +298,8 @@ async def _reprompt_feature(
         "Previous response contained insufficient mappings. Select relevant"
         " items from the reduced catalogue below."
     )
-    prompt = _build_mapping_prompt(
-        [feature],
-        {key: cfg},
-        item_overrides={cfg.dataset: slice_items},
-        extra_instructions=reminder,
-    )
+    prompt = render_set_prompt(key, slice_items, [feature])
+    prompt = f"{prompt}\n\n{reminder}"
     payload = await session.ask_async(prompt, output_type=MappingResponse)
     merged = _merge_mapping_results(
         [feature], payload, {key: cfg}, max_items_per_mapping=max_items_per_mapping
@@ -409,12 +338,8 @@ async def _map_parallel(
                 "Previous response contained no mappings. Select relevant items "
                 "from the reduced catalogue below."
             )
-            prompt = _build_mapping_prompt(
-                batch,
-                {key: cfg},
-                item_overrides={cfg.dataset: slice_items},
-                extra_instructions=reminder,
-            )
+            prompt = render_set_prompt(key, slice_items, batch)
+            prompt = f"{prompt}\n\n{reminder}"
 
             # Second pass uses reduced timeout/attempts to limit tail latency.
             async def _second_pass(
@@ -476,12 +401,8 @@ async def _map_sequential(
                     "Previous response contained no mappings. Select relevant items"
                     " from the reduced catalogue below."
                 )
-                prompt = _build_mapping_prompt(
-                    batch,
-                    {key: cfg},
-                    item_overrides={cfg.dataset: slice_items},
-                    extra_instructions=reminder,
-                )
+                prompt = render_set_prompt(key, slice_items, batch)
+                prompt = f"{prompt}\n\n{reminder}"
 
                 # Second pass uses reduced timeout/attempts to limit tail latency.
                 async def _second_pass(
@@ -525,7 +446,8 @@ async def _request_mapping(
     """Return mapping response for ``key`` type for ``batch`` features."""
 
     sub_session = session.derive()
-    prompt = _build_mapping_prompt(batch, {key: cfg})
+    items = load_mapping_items((cfg.dataset,))[cfg.dataset]
+    prompt = render_set_prompt(key, items, batch)
     logfire.debug(f"Requesting {key} mappings for {len(batch)} features")
 
     # Configure retry parameters using session attributes when available to
