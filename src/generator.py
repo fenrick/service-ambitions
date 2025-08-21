@@ -63,40 +63,35 @@ TRANSIENT_EXCEPTIONS: tuple[type[BaseException], ...] = (
 RateLimitError = OpenAIRateLimitError
 
 
-def _retry_after_seconds(exc: BaseException) -> float | None:
-    """Return ``Retry-After`` hint in seconds if available.
+def _parse_retry_datetime(retry_after: str) -> float | None:
+    """Return seconds until ``retry_after`` datetime or ``None``."""
 
-    Providers may include a ``Retry-After`` header on rate limit errors to
-    indicate how long clients should pause before retrying.  When present, this
-    delay is returned in seconds; otherwise ``None`` is returned.
+    try:
+        from datetime import datetime, timezone
+        from email.utils import parsedate_to_datetime
 
-    Args:
-        exc: Exception raised by the provider.
-
-    Returns:
-        Suggested delay in seconds or ``None`` if unavailable.
-    """
-
-    if RateLimitError is not None and isinstance(exc, RateLimitError):
-        headers = getattr(getattr(exc, "response", None), "headers", {})
-        # Header keys may vary in capitalisation
-        retry_after = headers.get("Retry-After") or headers.get("retry-after")
-        if retry_after is None:
+        dt = parsedate_to_datetime(retry_after)
+        if dt is None:
             return None
-        try:
-            return float(retry_after)
-        except (TypeError, ValueError):
-            try:
-                from datetime import datetime, timezone
-                from email.utils import parsedate_to_datetime
+        return max(0.0, (dt - datetime.now(timezone.utc)).total_seconds())
+    except Exception:
+        return None
 
-                dt = parsedate_to_datetime(retry_after)
-                if dt is None:
-                    return None
-                return max(0.0, (dt - datetime.now(timezone.utc)).total_seconds())
-            except Exception:
-                return None
-    return None
+
+def _retry_after_seconds(exc: BaseException) -> float | None:
+    """Return ``Retry-After`` hint in seconds if available."""
+
+    if RateLimitError is None or not isinstance(exc, RateLimitError):
+        return None
+
+    headers = getattr(getattr(exc, "response", None), "headers", {})
+    retry_after = headers.get("Retry-After") or headers.get("retry-after")
+    if retry_after is None:
+        return None
+    try:
+        return float(retry_after)
+    except (TypeError, ValueError):
+        return _parse_retry_datetime(retry_after)
 
 
 async def _with_retry(
@@ -325,37 +320,57 @@ class ServiceAmbitionGenerator:
         transcripts_dir: Path | None,
     ) -> None:
         """Process a single service and enqueue its result."""
+        limiter = self._limiter
+        if limiter is None:  # pragma: no cover - defensive
+            raise RuntimeError("Limiter not initialized")
+        weight_estimate = self._estimate_weight(service) if self.token_weighting else 1
+        weight = weight_estimate if self.token_weighting else 1
         with logfire.span("run_one") as span:
             span.set_attribute("service.id", service.service_id)
             span.set_attribute("concurrency", self.concurrency)
             span.set_attribute("batch_size", self.batch_size)
             span.set_attribute("queue_length_before", queue.qsize())
-            weight_estimate = (
-                self._estimate_weight(service) if self.token_weighting else 1
+            await self._execute_service(
+                limiter,
+                weight,
+                weight_estimate,
+                service,
+                transcripts_dir,
+                queue,
+                span,
             )
-            limiter = self._limiter
-            if limiter is None:  # pragma: no cover - defensive
-                raise RuntimeError("Limiter not initialized")
-            weight = weight_estimate if self.token_weighting else 1
-            async with limiter(weight):
+
+    async def _execute_service(
+        self,
+        limiter: AdaptiveSemaphore,
+        weight: int,
+        estimate: int,
+        service: ServiceInput,
+        transcripts_dir: Path | None,
+        queue: asyncio.Queue[tuple[str, str] | None],
+        span: Any,
+    ) -> None:
+        """Run ``service`` within ``limiter`` and enqueue results."""
+
+        async with limiter(weight):
+            if self._metrics and self.token_weighting:
+                self._metrics.record_start_tokens(estimate)
+            TOKENS_IN_FLIGHT.add(estimate)
+            actual_tokens = 0
+            try:
+                line, svc_id, actual_tokens = await self._process_service_line(
+                    service, transcripts_dir
+                )
+                if line is not None:
+                    await queue.put((line, svc_id))
+                    SERVICES_PROCESSED.add(1)
+                    span.set_attribute("queue_length_after", queue.qsize())
+                else:
+                    SERVICES_FAILED.add(1)
+            finally:
                 if self._metrics and self.token_weighting:
-                    self._metrics.record_start_tokens(weight_estimate)
-                TOKENS_IN_FLIGHT.add(weight_estimate)
-                actual_tokens = 0
-                try:
-                    line, svc_id, actual_tokens = await self._process_service_line(
-                        service, transcripts_dir
-                    )
-                    if line is not None:
-                        await queue.put((line, svc_id))
-                        SERVICES_PROCESSED.add(1)
-                        span.set_attribute("queue_length_after", queue.qsize())
-                    else:
-                        SERVICES_FAILED.add(1)
-                finally:
-                    if self._metrics and self.token_weighting:
-                        self._metrics.record_end_tokens(actual_tokens)
-                    TOKENS_IN_FLIGHT.add(-weight_estimate)
+                    self._metrics.record_end_tokens(actual_tokens)
+                TOKENS_IN_FLIGHT.add(-estimate)
 
     @logfire.instrument()
     async def process_service(

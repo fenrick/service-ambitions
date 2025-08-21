@@ -21,6 +21,60 @@ VALID_SERVICES = logfire.metric_counter("services_valid")
 QUARANTINED_LINES = logfire.metric_counter("services_quarantined")
 
 SERVICES_FILE_NOT_FOUND = "Services file not found"
+SERVICE_ID_ATTR = "service.id"
+
+
+def _extract_service_id(line: str) -> str | None:
+    """Return service identifier from ``line`` when available."""
+
+    try:
+        return json.loads(line).get("service_id")
+    except Exception:
+        return None
+
+
+def _process_line(
+    line: str,
+    line_number: int,
+    path_obj: Path,
+    adapter: TypeAdapter[ServiceInput],
+) -> ServiceInput | None:
+    """Return validated service or ``None`` for invalid entries."""
+
+    with logfire.span("service_loader.read_line") as span:
+        span.set_attribute("file.path", str(path_obj))
+        span.set_attribute("line.number", line_number)
+        if not line:
+            span.set_attribute(SERVICE_ID_ATTR, None)
+            logfire.debug(
+                "Skipping blank line",
+                file_path=str(path_obj),
+                line_number=line_number,
+            )
+            return None
+        try:
+            service = adapter.validate_json(line)
+            span.set_attribute(SERVICE_ID_ATTR, service.service_id)
+            VALID_SERVICES.add(1)
+            return service
+        except Exception as exc:
+            QUARANTINED_LINES.add(1)
+            quarantine_dir = path_obj.parent / "quarantine"
+            quarantine_dir.mkdir(exist_ok=True)
+            service_id = _extract_service_id(line)
+            span.set_attribute(SERVICE_ID_ATTR, service_id)
+            filename = f"{service_id or line_number}.json"
+            quarantine_path = quarantine_dir / filename
+            quarantine_path.write_text(line, encoding="utf-8")
+            logfire.error(
+                "Invalid service entry",
+                file_path=str(path_obj),
+                line_number=line_number,
+                service_id=service_id,
+                quarantine_path=str(quarantine_path),
+                error=str(exc),
+            )
+            return None
 
 
 def _load_service_entries(path: Path | str) -> Generator[ServiceInput, None, None]:
@@ -33,51 +87,11 @@ def _load_service_entries(path: Path | str) -> Generator[ServiceInput, None, Non
             with path_obj.open("r", encoding="utf-8") as file:
                 for line_number, raw_line in enumerate(file, start=1):
                     TOTAL_LINES.add(1)
-                    with logfire.span("service_loader.read_line") as span:
-                        span.set_attribute("file.path", str(path_obj))
-                        span.set_attribute("line.number", line_number)
-
-                        line = raw_line.strip()
-                        if not line:
-                            span.set_attribute("service.id", None)
-                            logfire.debug(
-                                "Skipping blank line",
-                                file_path=str(path_obj),
-                                line_number=line_number,
-                            )
-                            continue
-
-                        try:
-                            service = adapter.validate_json(line)
-                            span.set_attribute("service.id", service.service_id)
-                            VALID_SERVICES.add(1)
-                            yield service
-                        except Exception as exc:
-                            QUARANTINED_LINES.add(1)
-                            quarantine_dir = path_obj.parent / "quarantine"
-                            quarantine_dir.mkdir(exist_ok=True)
-
-                            service_id: str | None = None
-                            try:
-                                # Attempt to extract a service identifier from the JSON
-                                service_id = json.loads(line).get("service_id")
-                            except Exception:
-                                pass  # Parsing failed; fall back to line number
-
-                            span.set_attribute("service.id", service_id)
-                            filename = f"{service_id or line_number}.json"
-                            quarantine_path = quarantine_dir / filename
-                            quarantine_path.write_text(line, encoding="utf-8")
-
-                            logfire.error(
-                                "Invalid service entry",
-                                file_path=str(path_obj),
-                                line_number=line_number,
-                                service_id=service_id,
-                                quarantine_path=str(quarantine_path),
-                                error=str(exc),
-                            )
-                            continue  # Keep processing subsequent services
+                    service = _process_line(
+                        raw_line.strip(), line_number, path_obj, adapter
+                    )
+                    if service is not None:
+                        yield service
         except FileNotFoundError:
             logfire.error(SERVICES_FILE_NOT_FOUND, file_path=str(path_obj))
             raise FileNotFoundError(
