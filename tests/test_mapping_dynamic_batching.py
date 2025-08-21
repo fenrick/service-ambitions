@@ -30,7 +30,8 @@ async def test_map_features_downsizes_batches(monkeypatch) -> None:
     monkeypatch.setattr("mapping._map_parallel", fake_map_parallel)
     logs: list[str] = []
     monkeypatch.setattr(
-        "mapping.logfire.info", lambda msg, *a, **k: logs.append(msg % a if a else msg)
+        "mapping_utils.logfire.info",
+        lambda msg, *a, **k: logs.append(msg % a if a else msg),
     )
 
     features = [

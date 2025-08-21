@@ -30,6 +30,7 @@ from sklearn.feature_extraction.text import (  # type: ignore[import-untyped]
 
 from generator import _with_retry
 from loader import load_mapping_items, load_mapping_type_config, load_prompt_text
+from mapping_utils import fit_batch_to_token_cap
 from models import (
     Contribution,
     MappingItem,
@@ -105,20 +106,18 @@ def _split_batches(
     idx = 0
     n = len(features)
     while idx < n:
-        end = min(idx + batch_size, n)
-        while end > idx:
-            prompt = _build_mapping_prompt(features[idx:end], mapping_types)
-            tokens = estimate_tokens(prompt, 0)
-            if tokens <= token_cap or end - idx == 1:
-                break
-            end -= 1
-        if end - idx < batch_size:
-            logfire.info(
-                f"Reduced mapping batch size from {batch_size} to {end - idx} "
-                f"({tokens} tokens > cap {token_cap})"
-            )
-        batches.append(features[idx:end])
-        idx = end
+        remaining = features[idx:]
+        size = fit_batch_to_token_cap(
+            remaining,
+            min(batch_size, len(remaining)),
+            token_cap,
+            lambda feats: estimate_tokens(
+                _build_mapping_prompt(feats, mapping_types), 0
+            ),
+            label="mapping",
+        )
+        batches.append(remaining[:size])
+        idx += size
     return batches
 
 

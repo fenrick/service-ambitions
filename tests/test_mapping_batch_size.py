@@ -39,7 +39,7 @@ async def test_long_description_reduces_batch_size(monkeypatch) -> None:
     def fake_info(msg: str, *args) -> None:
         logged["msg"] = msg % args if args else msg
 
-    monkeypatch.setattr("plateau_generator.logfire.info", fake_info)
+    monkeypatch.setattr("mapping_utils.logfire.info", fake_info)
 
     async def dummy_map_features(
         session,
