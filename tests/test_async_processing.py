@@ -289,6 +289,13 @@ async def test_run_one_counters_success(monkeypatch):
         def value(self) -> int:
             return sum(self.calls)
 
+    class DummyMetrics:
+        def __init__(self) -> None:
+            self.tokens: list[int] = []
+
+        def record_tokens(self, count: int) -> None:
+            self.tokens.append(count)
+
     processed = DummyCounter()
     failed = DummyCounter()
     monkeypatch.setattr(generator, "SERVICES_PROCESSED", processed)
@@ -297,6 +304,7 @@ async def test_run_one_counters_success(monkeypatch):
 
     gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
     gen._limiter = asyncio.Semaphore(1)
+    gen._metrics = DummyMetrics()
     queue: asyncio.Queue[tuple[str, str] | None] = asyncio.Queue()
     service = ServiceInput(
         service_id="s1", name="n", description="d", jobs_to_be_done=[]
@@ -307,6 +315,7 @@ async def test_run_one_counters_success(monkeypatch):
     assert processed.value == 1
     assert failed.value == 0
     assert queue.qsize() == 1
+    assert gen._metrics.tokens == [1]
 
 
 @pytest.mark.asyncio()
@@ -327,6 +336,13 @@ async def test_run_one_counters_failure(monkeypatch):
         def value(self) -> int:
             return sum(self.calls)
 
+    class DummyMetrics:
+        def __init__(self) -> None:
+            self.tokens: list[int] = []
+
+        def record_tokens(self, count: int) -> None:
+            self.tokens.append(count)
+
     processed = DummyCounter()
     failed = DummyCounter()
     monkeypatch.setattr(generator, "SERVICES_PROCESSED", processed)
@@ -337,6 +353,7 @@ async def test_run_one_counters_failure(monkeypatch):
 
     gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
     gen._limiter = asyncio.Semaphore(1)
+    gen._metrics = DummyMetrics()
     queue: asyncio.Queue[tuple[str, str] | None] = asyncio.Queue()
     service = ServiceInput(
         service_id="s2", name="n", description="d", jobs_to_be_done=[]
@@ -347,6 +364,7 @@ async def test_run_one_counters_failure(monkeypatch):
     assert processed.value == 0
     assert failed.value == 1
     assert queue.qsize() == 0
+    assert gen._metrics.tokens == [0]
 
 
 def test_generate_async_consumes_in_batches(tmp_path, monkeypatch):

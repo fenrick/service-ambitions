@@ -331,10 +331,18 @@ class ServiceAmbitionGenerator:
         transcripts_dir: Path | None,
         queue: asyncio.Queue[tuple[str, str] | None],
     ) -> None:
-        """Run ``service`` within ``limiter`` and enqueue results."""
+        """Run ``service`` within ``limiter`` and enqueue results.
+
+        The token count from :meth:`_process_service_line` is forwarded to the
+        instance's :class:`RollingMetrics` tracker when available."""
 
         async with limiter:
-            line, svc_id, _ = await self._process_service_line(service, transcripts_dir)
+            line, svc_id, tokens = await self._process_service_line(
+                service, transcripts_dir
+            )
+            if self._metrics:
+                # Track how many tokens this service consumed for throughput metrics
+                self._metrics.record_tokens(tokens)
             if line is not None:
                 await queue.put((line, svc_id))
                 SERVICES_PROCESSED.add(1)
