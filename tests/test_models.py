@@ -83,10 +83,10 @@ def test_contribution_defaults_weight() -> None:
     assert result.contribution is None
 
 
-def test_contribution_enforces_range() -> None:
-    """Contribution weights must lie within [0.1, 1.0]."""
-    with pytest.raises(ValidationError):
-        Contribution(item="INF-1", contribution=1.5)
+def test_contribution_allows_any_weight() -> None:
+    """Contribution weights outside the previous range are accepted."""
+    result = Contribution(item="INF-1", contribution=1.5)
+    assert result.contribution == 1.5
 
 
 def test_mapping_response_handles_nested_mappings() -> None:

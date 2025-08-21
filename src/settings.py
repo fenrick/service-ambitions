@@ -29,11 +29,6 @@ class Settings(BaseSettings):
     prompt_dir: Path = Field(..., description="Directory containing prompt components.")
     context_id: str = Field(..., description="Situational context identifier.")
     inspiration: str = Field(..., description="Inspirations identifier.")
-    context_window: int = Field(
-        128000,
-        ge=1,
-        description="Model's maximum prompt tokens (context window).",
-    )
     concurrency: int = Field(
         ..., ge=1, description="Number of services to process concurrently."
     )
@@ -53,27 +48,8 @@ class Settings(BaseSettings):
     features_per_role: int = Field(
         5, ge=1, description="Required number of features per role."
     )
-    mapping_batch_size: int = Field(
-        30,
-        ge=1,
-        description="Number of features included in each mapping request batch.",
-    )
-    mapping_parallel_types: bool = Field(
-        True,
-        description="Process mapping types for all batches concurrently.",
-    )
     exhaustive_mapping: bool = Field(
         True, description="Retry mapping prompts until minimum items are found."
-    )
-    max_items_per_mapping: int | None = Field(
-        None,
-        ge=1,
-        description="Maximum mapping items per feature and type.",
-    )
-    mapping_feature_batch_cap_tokens: int = Field(
-        95000,
-        ge=1,
-        description="Token cap for feature mapping batches.",
     )
     openai_api_key: str = Field(..., description="OpenAI API access token.")
     logfire_token: str | None = Field(
@@ -133,11 +109,7 @@ def load_settings() -> Settings:
             retries=config.retries,
             retry_base_delay=config.retry_base_delay,
             features_per_role=config.features_per_role,
-            mapping_batch_size=config.mapping_batch_size,
-            mapping_parallel_types=config.mapping_parallel_types,
             exhaustive_mapping=config.exhaustive_mapping,
-            max_items_per_mapping=config.max_items_per_mapping,
-            mapping_feature_batch_cap_tokens=config.mapping_feature_batch_cap_tokens,
             web_search=config.web_search,
             mapping_data_dir=getattr(config, "mapping_data_dir", Path("data")),
             diagnostics=getattr(config, "diagnostics", False),

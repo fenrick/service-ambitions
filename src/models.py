@@ -96,11 +96,9 @@ class Contribution(StrictModel):
     ]
     contribution: float | None = Field(
         default=None,
-        ge=0.1,
-        le=1.0,
         description=(
-            "Importance weight from 0.1 to 1.0. ``None`` implies a default weight"
-            " of 1.0 or indicates the mapping should be ignored."
+            "Importance weight. ``None`` implies a default weight of 1.0 or"
+            " indicates the mapping should be ignored."
         ),
     )
 
@@ -356,27 +354,9 @@ class AppConfig(StrictModel):
         int,
         Field(ge=1, description="Required number of features per role."),
     ] = 5
-    mapping_batch_size: int = Field(
-        30,
-        ge=1,
-        description="Number of features included in each mapping request batch.",
-    )
-    mapping_parallel_types: bool = Field(
-        True, description="Process mapping types for all batches concurrently."
-    )
     exhaustive_mapping: bool = Field(
         True,
         description="Retry mapping prompts until minimum items are found.",
-    )
-    max_items_per_mapping: int | None = Field(
-        default=None,
-        ge=1,
-        description="Maximum mapping items per feature and type.",
-    )
-    mapping_feature_batch_cap_tokens: int = Field(
-        95000,
-        ge=1,
-        description="Token cap for feature mapping batches.",
     )
     mapping_types: dict[str, MappingTypeConfig] = Field(
         default_factory=dict,

@@ -544,7 +544,6 @@ async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
         features,
         strict=strict_mapping,
         exhaustive=args.exhaustive_mapping,
-        max_items_per_mapping=settings.max_items_per_mapping,
     )
     mapped_by_id = {f.feature_id: f for f in mapped}
     for evo in evolutions:
