@@ -24,11 +24,7 @@ def test_load_settings_reads_env(monkeypatch) -> None:
     assert settings.retries == 5
     assert settings.retry_base_delay == 0.5
     assert settings.features_per_role == 5
-    assert settings.mapping_batch_size == 30
-    assert settings.mapping_parallel_types is True
     assert settings.exhaustive_mapping is True
-    assert settings.max_items_per_mapping is None
-    assert settings.mapping_feature_batch_cap_tokens == 95000
     assert settings.token_weighting is True
     assert settings.mapping_data_dir == Path("data")
     assert settings.diagnostics is False

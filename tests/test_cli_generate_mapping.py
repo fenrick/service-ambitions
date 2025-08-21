@@ -104,7 +104,7 @@ def test_generate_mapping_updates_features(tmp_path, monkeypatch) -> None:
         *,
         strict,
         exhaustive,
-        max_items_per_mapping,
+        max_items_per_mapping=None,
     ):
         called["strict"] = strict
         for feat in features:
@@ -124,8 +124,6 @@ def test_generate_mapping_updates_features(tmp_path, monkeypatch) -> None:
         model="cfg",
         openai_api_key="key",
         exhaustive_mapping=True,
-        max_items_per_mapping=None,
-        mapping_feature_batch_cap_tokens=95000,
         reasoning=None,
         models=None,
         web_search=False,
@@ -210,7 +208,7 @@ def test_generate_mapping_logs_stage_totals(tmp_path, monkeypatch) -> None:
         *,
         strict,
         exhaustive,
-        max_items_per_mapping,
+        max_items_per_mapping=None,
     ):
         record_stage_metrics(
             "mapping",
@@ -241,8 +239,6 @@ def test_generate_mapping_logs_stage_totals(tmp_path, monkeypatch) -> None:
         model="cfg",
         openai_api_key="key",
         exhaustive_mapping=True,
-        max_items_per_mapping=None,
-        mapping_feature_batch_cap_tokens=95000,
         reasoning=None,
         models=None,
         web_search=False,

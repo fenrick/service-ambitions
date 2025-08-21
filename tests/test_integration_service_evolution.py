@@ -90,9 +90,9 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
         for feature in features:
             payload = feature.model_dump()
             payload["mappings"] = {
-                "data": [Contribution(item="d", contribution="c")],
-                "applications": [Contribution(item="a", contribution="c")],
-                "technology": [Contribution(item="t", contribution="c")],
+                "data": [Contribution(item="d", contribution=1.0)],
+                "applications": [Contribution(item="a", contribution=1.0)],
+                "technology": [Contribution(item="t", contribution=1.0)],
             }
             results.append(PlateauFeature(**payload))
         return results
