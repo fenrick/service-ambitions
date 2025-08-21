@@ -477,7 +477,9 @@ class PlateauGenerator:
                 if level is None:
                     raise ValueError(f"Unknown plateau name: {n}")
                 plateau_session = ConversationSession(
-                    self.session.client, stage=self.session.stage
+                    self.session.client,
+                    stage=self.session.stage,
+                    metrics=self.session.metrics,
                 )
                 plateau_session.add_parent_materials(service_input)
                 return await self.generate_plateau_async(
@@ -651,7 +653,9 @@ class PlateauGenerator:
 
             features = self._collect_features(payload, plateau_name)
             map_session = ConversationSession(
-                self.mapping_session.client, stage=self.mapping_session.stage
+                self.mapping_session.client,
+                stage=self.mapping_session.stage,
+                metrics=self.mapping_session.metrics,
             )
             if self._service is not None:
                 map_session.add_parent_materials(self._service)
