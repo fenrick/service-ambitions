@@ -3,9 +3,18 @@ from typing import Sequence, cast
 
 import pytest
 
+import mapping
 from conversation import ConversationSession
 from mapping import MappingError, map_set
-from models import MappingItem, MaturityScore, PlateauFeature
+from models import (
+    Contribution,
+    MappingFeature,
+    MappingItem,
+    MappingResponse,
+    MappingTypeConfig,
+    MaturityScore,
+    PlateauFeature,
+)
 
 
 class DummySession:
@@ -20,9 +29,9 @@ class DummySession:
         return self._responses.pop(0)
 
 
-def _feature() -> PlateauFeature:
+def _feature(feature_id: str = "f1") -> PlateauFeature:
     return PlateauFeature(
-        feature_id="f1",
+        feature_id=feature_id,
         name="Feat",
         description="d",
         score=MaturityScore(level=1, label="Initial", justification="j"),
@@ -85,3 +94,62 @@ async def test_map_set_strict_raises(monkeypatch, tmp_path) -> None:
         )
     qfile = tmp_path / "quarantine" / "mappings" / "svc" / "applications.txt"
     assert qfile.exists()
+
+
+def test_merge_mapping_results_aggregates_unknown_ids(monkeypatch, tmp_path) -> None:
+    monkeypatch.chdir(tmp_path)
+    features = [_feature("f1"), _feature("f2")]
+    payload = MappingResponse(
+        features=[
+            MappingFeature(
+                feature_id="f1",
+                applications=[
+                    Contribution(item="a"),
+                    Contribution(item="x"),
+                ],
+                technologies=[
+                    Contribution(item="t1"),
+                    Contribution(item="y1"),
+                ],
+            ),
+            MappingFeature(
+                feature_id="f2",
+                applications=[Contribution(item="x2")],
+                technologies=[
+                    Contribution(item="t1"),
+                    Contribution(item="y2"),
+                ],
+            ),
+        ]
+    )
+    mapping_types = {
+        "applications": MappingTypeConfig(dataset="applications", label="Applications"),
+        "technologies": MappingTypeConfig(dataset="technologies", label="Technologies"),
+    }
+    catalogue = {
+        "applications": [MappingItem(id="a", name="A", description="d")],
+        "technologies": [MappingItem(id="t1", name="T1", description="d")],
+    }
+
+    warnings: list[tuple[str, dict[str, object]]] = []
+    monkeypatch.setattr(
+        mapping.logfire, "warning", lambda msg, **kw: warnings.append((msg, kw))
+    )
+
+    merged = mapping._merge_mapping_results(
+        features, payload, mapping_types, catalogue_items=catalogue
+    )
+
+    assert [c.item for c in merged[0].mappings["applications"]] == ["a"]
+    assert merged[1].mappings["applications"] == []
+    assert [c.item for c in merged[0].mappings["technologies"]] == ["t1"]
+    assert [c.item for c in merged[1].mappings["technologies"]] == ["t1"]
+
+    qfile = tmp_path / "quarantine" / "mappings" / "unknown_ids.json"
+    data = json.loads(qfile.read_text())
+    assert set(data["applications"]) == {"x", "x2"}
+    assert set(data["technologies"]) == {"y1", "y2"}
+
+    aggregated = [w for w in warnings if "count" in w[1]]
+    counts = {kw["key"]: kw["count"] for _, kw in aggregated}
+    assert counts == {"applications": 2, "technologies": 2}
