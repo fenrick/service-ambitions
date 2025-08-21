@@ -31,7 +31,7 @@ from loader import (
     load_evolution_prompt,
     load_role_ids,
 )
-from mapping import init_embeddings, map_features_async
+from mapping import init_embeddings
 from model_factory import ModelFactory
 from models import ServiceEvolution, ServiceInput, ServiceMeta
 from monitoring import LOG_FILE_NAME, init_logfire, logfire
@@ -539,12 +539,8 @@ async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
         if getattr(args, "strict_mapping", None) is not None
         else settings.strict_mapping
     )
-    mapped = await map_features_async(
-        session,
-        features,
-        strict=strict_mapping,
-        exhaustive=args.exhaustive_mapping,
-    )
+    generator = PlateauGenerator(session, strict=strict_mapping)
+    mapped = await generator._map_features(session, features)
     mapped_by_id = {f.feature_id: f for f in mapped}
     for evo in evolutions:
         for plateau in evo.plateaus:

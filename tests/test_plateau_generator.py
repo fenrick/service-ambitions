@@ -182,7 +182,7 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
 
     call = {"n": 0}
 
-    async def dummy_map_features(sess, feats, *args, **kwargs):
+    async def dummy_map_features(self, session, feats):
         call["n"] += 1
         for feat in feats:
             feat.mappings["data"] = [Contribution(item="d", contribution=0.5)]
@@ -190,7 +190,7 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
             feat.mappings["technology"] = [Contribution(item="t", contribution=0.5)]
         return feats
 
-    monkeypatch.setattr("plateau_generator.map_features_async", dummy_map_features)
+    monkeypatch.setattr(PlateauGenerator, "_map_features", dummy_map_features)
 
     generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
     service = ServiceInput(
@@ -269,10 +269,10 @@ def test_generate_plateau_repairs_missing_features(monkeypatch) -> None:
     )
     session = DummySession([desc_payload, initial, repair])
 
-    async def dummy_map_features(sess, feats, *args, **kwargs):
+    async def dummy_map_features(self, session, feats):
         return feats
 
-    monkeypatch.setattr("plateau_generator.map_features_async", dummy_map_features)
+    monkeypatch.setattr(PlateauGenerator, "_map_features", dummy_map_features)
 
     generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
     service = ServiceInput(
@@ -353,10 +353,10 @@ def test_generate_plateau_requests_missing_features_concurrently(
     )
     session = DummySession([desc_payload, initial])
 
-    async def dummy_map_features(sess, feats, *args, **kwargs):
+    async def dummy_map_features(self, session, feats):
         return feats
 
-    monkeypatch.setattr("plateau_generator.map_features_async", dummy_map_features)
+    monkeypatch.setattr(PlateauGenerator, "_map_features", dummy_map_features)
 
     generator = PlateauGenerator(cast(ConversationSession, session), required_count=2)
     service = ServiceInput(
@@ -463,10 +463,10 @@ def test_generate_plateau_repairs_invalid_role(monkeypatch) -> None:
     )
     session = DummySession([desc_payload, initial, repair])
 
-    async def dummy_map_features(sess, feats, *args, **kwargs):
+    async def dummy_map_features(self, session, feats):
         return feats
 
-    monkeypatch.setattr("plateau_generator.map_features_async", dummy_map_features)
+    monkeypatch.setattr(PlateauGenerator, "_map_features", dummy_map_features)
 
     generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
     service = ServiceInput(

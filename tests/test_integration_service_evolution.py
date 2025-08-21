@@ -84,7 +84,7 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
 
     map_calls = {"n": 0}
 
-    def _fake_map_features(session, features, *, strict=False):
+    async def _fake_map_features(self, session, features):
         map_calls["n"] += 1
         results = []
         for feature in features:
@@ -97,7 +97,7 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
             results.append(PlateauFeature(**payload))
         return results
 
-    monkeypatch.setattr("plateau_generator.map_features", _fake_map_features)
+    monkeypatch.setattr(PlateauGenerator, "_map_features", _fake_map_features)
     template = "{required_count} {service_name} {service_description} {plateau} {roles}"
 
     def fake_loader(name, *_, **__):
