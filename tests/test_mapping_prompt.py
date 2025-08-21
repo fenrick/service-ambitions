@@ -44,10 +44,10 @@ def test_render_set_prompt_orders_content(shuffle: bool, monkeypatch) -> None:
 
     prompt = render_set_prompt("test", items, features)
     lines = prompt.splitlines()
-    idx_a = lines.index("- A: Item A - desc")
-    idx_b = lines.index("- B: Item B - desc")
-    idx_1 = lines.index("- 1: First - d")
-    idx_2 = lines.index("- 2: Second - d")
+    idx_a = lines.index("A\tItem A\tdesc")
+    idx_b = lines.index("B\tItem B\tdesc")
+    idx_1 = lines.index("1\tFirst\td")
+    idx_2 = lines.index("2\tSecond\td")
     assert idx_a < idx_b
     assert idx_1 < idx_2
 
