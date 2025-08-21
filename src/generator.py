@@ -15,7 +15,7 @@ import time
 from asyncio import TaskGroup
 from itertools import islice
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Iterable, TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, TypeVar
 
 import logfire
 from pydantic import BaseModel
