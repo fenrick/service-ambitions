@@ -258,7 +258,7 @@ async def test_process_all_fsyncs(tmp_path, monkeypatch):
         generator.ServiceAmbitionGenerator, "process_service", fake_process_service
     )
 
-    gen = generator.ServiceAmbitionGenerator(SimpleNamespace(), flush_interval=1)
+    gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
     gen._prompt = "p"
 
     services = [
@@ -272,7 +272,7 @@ async def test_process_all_fsyncs(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio()
-async def test_run_one_counters_success(monkeypatch):
+async def test_run_one_counters_success(tmp_path, monkeypatch):
     """Successful runs update processed and token counters."""
 
     async def ok(self, service, transcripts_dir):
@@ -305,21 +305,26 @@ async def test_run_one_counters_success(monkeypatch):
     gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
     gen._limiter = asyncio.Semaphore(1)
     gen._metrics = DummyMetrics()
-    queue: asyncio.Queue[tuple[str, str] | None] = asyncio.Queue()
+    outfile = tmp_path / "out.jsonl"
+    handle = outfile.open("a", encoding="utf-8")
+    lock = asyncio.Lock()
+    processed_set: set[str] = set()
     service = ServiceInput(
         service_id="s1", name="n", description="d", jobs_to_be_done=[]
     )
 
-    await gen._run_one(service, queue, None)
+    await gen._run_one(service, handle, lock, processed_set, None, None)
+    await asyncio.to_thread(handle.close)
 
     assert processed.value == 1
     assert failed.value == 0
-    assert queue.qsize() == 1
+    assert processed_set == {"s1"}
+    assert outfile.read_text() == "line\n"
     assert gen._metrics.tokens == [1]
 
 
 @pytest.mark.asyncio()
-async def test_run_one_counters_failure(monkeypatch):
+async def test_run_one_counters_failure(tmp_path, monkeypatch):
     """Failures increment the failed counter and release tokens."""
 
     async def bad(self, service, transcripts_dir):
@@ -354,16 +359,21 @@ async def test_run_one_counters_failure(monkeypatch):
     gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
     gen._limiter = asyncio.Semaphore(1)
     gen._metrics = DummyMetrics()
-    queue: asyncio.Queue[tuple[str, str] | None] = asyncio.Queue()
+    outfile = tmp_path / "out.jsonl"
+    handle = outfile.open("a", encoding="utf-8")
+    lock = asyncio.Lock()
+    processed_set: set[str] = set()
     service = ServiceInput(
         service_id="s2", name="n", description="d", jobs_to_be_done=[]
     )
 
-    await gen._run_one(service, queue, None)
+    await gen._run_one(service, handle, lock, processed_set, None, None)
+    await asyncio.to_thread(handle.close)
 
     assert processed.value == 0
     assert failed.value == 1
-    assert queue.qsize() == 0
+    assert processed_set == set()
+    assert outfile.read_text() == ""
     assert gen._metrics.tokens == [0]
 
 

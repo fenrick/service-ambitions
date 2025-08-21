@@ -15,7 +15,7 @@ import time
 from asyncio import Semaphore, TaskGroup
 from itertools import islice
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, TypeVar
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, TextIO, TypeVar
 
 import logfire
 from pydantic import BaseModel
@@ -168,37 +168,6 @@ async def _with_retry(
     raise RuntimeError("Unreachable retry state")
 
 
-async def _write_queue(
-    out_path: str,
-    queue: asyncio.Queue[tuple[str, str] | None],
-    processed: set[str],
-    progress: tqdm[Any] | None,
-    flush_interval: int,
-) -> None:
-    """Consume lines from ``queue`` and write them to ``out_path``."""
-
-    handle = await asyncio.to_thread(open, out_path, "a", encoding="utf-8")
-    try:
-        line_count = 0
-        while True:
-            item = await queue.get()
-            if item is None:
-                break
-            line, svc_id = item
-            await asyncio.to_thread(handle.write, f"{line}\n")
-            processed.add(svc_id)
-            if progress:
-                progress.update(1)
-            line_count += 1
-            if line_count % flush_interval == 0:
-                await asyncio.to_thread(handle.flush)
-                await asyncio.to_thread(os.fsync, handle.fileno())
-        await asyncio.to_thread(handle.flush)
-        await asyncio.to_thread(os.fsync, handle.fileno())
-    finally:
-        await asyncio.to_thread(handle.close)
-
-
 class AmbitionModel(BaseModel):
     """Structured ambitions response allowing arbitrary keys.
 
@@ -227,7 +196,6 @@ class ServiceAmbitionGenerator:
         retries: int = 5,
         retry_base_delay: float = 0.5,
         expected_output_tokens: int = 256,
-        flush_interval: int = 100,
     ) -> None:
         """Initialize the generator.
 
@@ -241,8 +209,6 @@ class ServiceAmbitionGenerator:
             retry_base_delay: Initial backoff delay in seconds.
             expected_output_tokens: Anticipated tokens in each response. Retained
                 for backwards compatibility.
-            flush_interval: Number of lines to write before forcing a flush and
-                ``os.fsync`` to ensure results are durably persisted.
 
         Raises:
             ValueError: If ``concurrency`` is less than one.
@@ -258,7 +224,6 @@ class ServiceAmbitionGenerator:
         self.retries = retries
         self.retry_base_delay = retry_base_delay
         self.expected_output_tokens = expected_output_tokens
-        self.flush_interval = flush_interval
         self._prompt: str | None = None
         self._limiter: Semaphore | None = None
         self._metrics: RollingMetrics | None = None
@@ -301,10 +266,17 @@ class ServiceAmbitionGenerator:
     async def _run_one(
         self,
         service: ServiceInput,
-        queue: asyncio.Queue[tuple[str, str] | None],
+        handle: TextIO,
+        lock: asyncio.Lock,
+        processed: set[str],
+        progress: tqdm[Any] | None,
         transcripts_dir: Path | None,
     ) -> None:
-        """Process a single service and enqueue its result."""
+        """Process a single service and write its result to ``handle``.
+
+        Writes are protected by ``lock`` to ensure each JSON line is appended
+        atomically.
+        """
         limiter = self._limiter
         if limiter is None:  # pragma: no cover - defensive
             raise RuntimeError("Limiter not initialized")
@@ -316,7 +288,10 @@ class ServiceAmbitionGenerator:
                 limiter,
                 service,
                 transcripts_dir,
-                queue,
+                handle,
+                lock,
+                processed,
+                progress,
             )
 
     async def _execute_service(
@@ -324,9 +299,12 @@ class ServiceAmbitionGenerator:
         limiter: Semaphore,
         service: ServiceInput,
         transcripts_dir: Path | None,
-        queue: asyncio.Queue[tuple[str, str] | None],
+        handle: TextIO,
+        lock: asyncio.Lock,
+        processed: set[str],
+        progress: tqdm[Any] | None,
     ) -> None:
-        """Run ``service`` within ``limiter`` and enqueue results.
+        """Run ``service`` within ``limiter`` and write results.
 
         The token count from :meth:`_process_service_line` is forwarded to the
         instance's :class:`RollingMetrics` tracker when available."""
@@ -338,10 +316,16 @@ class ServiceAmbitionGenerator:
             if self._metrics:
                 # Track how many tokens this service consumed for throughput metrics
                 self._metrics.record_tokens(tokens)
-            if line is not None:
-                await queue.put((line, svc_id))
+            if line is not None:  # Successful generation
+                async with lock:
+                    await asyncio.to_thread(handle.write, f"{line}\n")
+                    processed.add(svc_id)
+                    if progress:
+                        progress.update(1)
+                    await asyncio.to_thread(handle.flush)
+                    await asyncio.to_thread(os.fsync, handle.fileno())
                 SERVICES_PROCESSED.add(1)
-            else:
+            else:  # Record failures for visibility
                 SERVICES_FAILED.add(1)
 
     async def process_service(
@@ -417,25 +401,34 @@ class ServiceAmbitionGenerator:
             span.set_attribute("concurrency", self.concurrency)
             span.set_attribute("batch_size", self.batch_size)
             self._setup_controls()
-            queue: asyncio.Queue[tuple[str, str] | None] = asyncio.Queue()
             processed: set[str] = set()
-            writer_task = asyncio.create_task(
-                _write_queue(out_path, queue, processed, progress, self.flush_interval)
-            )
+            lock = asyncio.Lock()
+            handle = await asyncio.to_thread(open, out_path, "a", encoding="utf-8")
+            try:
+                services_iter = iter(services)
 
-            services_iter = iter(services)
+                while True:
+                    batch = list(islice(services_iter, self.batch_size))
+                    if not batch:  # No more services to schedule
+                        break
+                    span.set_attribute("service_ids", [svc.service_id for svc in batch])
+                    async with TaskGroup() as tg:
+                        for service in batch:
+                            tg.create_task(
+                                self._run_one(
+                                    service,
+                                    handle,
+                                    lock,
+                                    processed,
+                                    progress,
+                                    transcripts_dir,
+                                )
+                            )
 
-            while True:
-                batch = list(islice(services_iter, self.batch_size))
-                if not batch:
-                    break
-                span.set_attribute("service_ids", [svc.service_id for svc in batch])
-                async with TaskGroup() as tg:
-                    for service in batch:
-                        tg.create_task(self._run_one(service, queue, transcripts_dir))
-
-            await queue.put(None)
-            await writer_task
+                await asyncio.to_thread(handle.flush)
+                await asyncio.to_thread(os.fsync, handle.fileno())
+            finally:
+                await asyncio.to_thread(handle.close)
             return processed
 
     async def generate_async(
