@@ -30,6 +30,10 @@ def test_load_settings_reads_env(monkeypatch) -> None:
     assert settings.max_items_per_mapping is None
     assert settings.mapping_feature_batch_cap_tokens == 95000
     assert settings.token_weighting is True
+    assert settings.mapping_data_dir == Path("data")
+    assert settings.diagnostics is False
+    assert settings.strict_mapping is False
+    assert settings.mapping_mode == "per_set"
     assert settings.reasoning is not None
     assert settings.reasoning.effort == "medium"
 

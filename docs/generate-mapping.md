@@ -10,21 +10,17 @@ Example command:
 poetry run service-ambitions generate-mapping \
   --input evolution.jsonl \
   --output remapped.jsonl \
-  --mapping-batch-size 20 --mapping-parallel-types
+  --strict-mapping --diagnostics
 ```
 
-`--mapping-batch-size` controls how many features are sent in each mapping
-request. Smaller batches shorten prompts but require more API calls; larger
-batches reduce round trips at the cost of bigger prompts and potential context
-limit pressure.
+`--mapping-data-dir` points to the directory containing mapping reference data
+files.
 
-`--mapping-parallel-types` dispatches mapping requests for each mapping type
-concurrently. Disable it with `--no-mapping-parallel-types` to process types
-sequentially when working under tight rate limits.
+`--strict-mapping` raises an error when any requested mapping type is missing or
+produces an empty list. Disable with `--no-strict-mapping` to keep existing
+mappings and continue.
 
-Enable fail-fast behaviour with `--strict` to raise an error when any requested
-mapping type is missing or produces an empty list. Without this flag the command
-will keep existing mappings and continue.
+`--diagnostics` enables verbose logging and spans useful for troubleshooting.
 
 ## Input format
 

@@ -103,13 +103,10 @@ def test_generate_mapping_updates_features(tmp_path, monkeypatch) -> None:
         mapping_types=None,
         *,
         strict,
-        batch_size,
-        parallel_types,
         exhaustive,
         max_items_per_mapping,
     ):
-        called["batch_size"] = batch_size
-        called["parallel_types"] = parallel_types
+        called["strict"] = strict
         for feat in features:
             feat.mappings = {"cat": [Contribution(item="X", contribution=1.0)]}
         return list(features)
@@ -126,26 +123,29 @@ def test_generate_mapping_updates_features(tmp_path, monkeypatch) -> None:
     settings = SimpleNamespace(
         model="cfg",
         openai_api_key="key",
-        mapping_batch_size=30,
-        mapping_parallel_types=True,
         exhaustive_mapping=True,
         max_items_per_mapping=None,
         mapping_feature_batch_cap_tokens=95000,
         reasoning=None,
         models=None,
         web_search=False,
+        diagnostics=False,
+        strict_mapping=False,
+        mapping_data_dir="data",
+        mapping_mode="per_set",
     )
     args = argparse.Namespace(
         input=str(input_path),
         output=str(output_path),
         model=None,
         mapping_model=None,
-        mapping_batch_size=5,
-        mapping_parallel_types=False,
+        strict_mapping=True,
         exhaustive_mapping=True,
         seed=None,
         web_search=None,
         strict=False,
+        diagnostics=None,
+        mapping_data_dir=None,
     )
 
     asyncio.run(_cmd_generate_mapping(args, settings))
@@ -154,8 +154,7 @@ def test_generate_mapping_updates_features(tmp_path, monkeypatch) -> None:
     assert payload["plateaus"][0]["features"][0]["mappings"] == {
         "cat": [{"item": "X", "contribution": 1.0}]
     }
-    assert called["batch_size"] == 5
-    assert called["parallel_types"] is False
+    assert called["strict"] is True
     assert init_called["ran"] is True
 
 
@@ -210,8 +209,6 @@ def test_generate_mapping_logs_stage_totals(tmp_path, monkeypatch) -> None:
         mapping_types=None,
         *,
         strict,
-        batch_size,
-        parallel_types,
         exhaustive,
         max_items_per_mapping,
     ):
@@ -243,26 +240,29 @@ def test_generate_mapping_logs_stage_totals(tmp_path, monkeypatch) -> None:
     settings = SimpleNamespace(
         model="cfg",
         openai_api_key="key",
-        mapping_batch_size=30,
-        mapping_parallel_types=True,
         exhaustive_mapping=True,
         max_items_per_mapping=None,
         mapping_feature_batch_cap_tokens=95000,
         reasoning=None,
         models=None,
         web_search=False,
+        diagnostics=False,
+        strict_mapping=False,
+        mapping_data_dir="data",
+        mapping_mode="per_set",
     )
     args = argparse.Namespace(
         input=str(input_path),
         output=str(output_path),
         model=None,
         mapping_model=None,
-        mapping_batch_size=5,
-        mapping_parallel_types=False,
+        strict_mapping=False,
         exhaustive_mapping=True,
         seed=None,
         web_search=None,
         strict=False,
+        diagnostics=None,
+        mapping_data_dir=None,
     )
 
     asyncio.run(_cmd_generate_mapping(args, settings))

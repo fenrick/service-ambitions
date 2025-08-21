@@ -198,6 +198,7 @@ async def _generate_evolution_for_service(
                 desc_agent,
                 stage="descriptions",
                 metrics=metrics,
+                diagnostics=settings.diagnostics,
                 log_prompts=not args.no_logs,
                 redact_prompts=True,
             )
@@ -205,6 +206,7 @@ async def _generate_evolution_for_service(
                 feat_agent,
                 stage="features",
                 metrics=metrics,
+                diagnostics=settings.diagnostics,
                 log_prompts=not args.no_logs,
                 redact_prompts=True,
             )
@@ -212,6 +214,7 @@ async def _generate_evolution_for_service(
                 map_agent,
                 stage="mapping",
                 metrics=metrics,
+                diagnostics=settings.diagnostics,
                 log_prompts=not args.no_logs,
                 redact_prompts=True,
             )
@@ -315,11 +318,6 @@ async def _cmd_generate_ambitions(
             logfire.info("Generating ambitions", model=model_name)
             model = factory.get("features", args.features_model or args.model)
             concurrency = args.concurrency or settings.concurrency
-            token_weighting = (
-                args.token_weighting
-                if args.token_weighting is not None
-                else settings.token_weighting
-            )
             generator = ServiceAmbitionGenerator(
                 model,
                 concurrency=concurrency,
@@ -328,7 +326,7 @@ async def _cmd_generate_ambitions(
                 retries=settings.retries,
                 retry_base_delay=settings.retry_base_delay,
                 expected_output_tokens=args.expected_output_tokens,
-                token_weighting=token_weighting,
+                token_weighting=settings.token_weighting,
             )
 
             part_path, processed_path = _prepare_paths(output_path, args.resume)
@@ -509,15 +507,9 @@ async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
         map_agent,
         stage="mapping",
         metrics=metrics,
+        diagnostics=settings.diagnostics,
         log_prompts=not args.no_logs,
         redact_prompts=True,
-    )
-
-    mapping_batch_size = args.mapping_batch_size or settings.mapping_batch_size
-    mapping_parallel_types = (
-        args.mapping_parallel_types
-        if args.mapping_parallel_types is not None
-        else settings.mapping_parallel_types
     )
 
     # Warm mapping embeddings upfront so subsequent requests reuse cached vectors.
@@ -538,12 +530,15 @@ async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
         for plateau in evo.plateaus
         for feat in plateau.features
     ]
+    strict_mapping = (
+        args.strict_mapping
+        if getattr(args, "strict_mapping", None) is not None
+        else settings.strict_mapping
+    )
     mapped = await map_features_async(
         session,
         features,
-        strict=args.strict,
-        batch_size=mapping_batch_size,
-        parallel_types=mapping_parallel_types,
+        strict=strict_mapping,
         exhaustive=args.exhaustive_mapping,
         max_items_per_mapping=settings.max_items_per_mapping,
     )
@@ -637,27 +632,26 @@ def main() -> None:
         help="Process at most this many services",
     )
     common.add_argument(
-        "--mapping-batch-size",
-        type=int,
-        help="Number of features per mapping request batch",
-    )
-    common.add_argument(
-        "--mapping-parallel-types",
-        action=argparse.BooleanOptionalAction,
-        default=None,
-        help="Enable or disable parallel mapping type requests",
-    )
-    common.add_argument(
         "--exhaustive-mapping",
         action=argparse.BooleanOptionalAction,
         default=settings.exhaustive_mapping,
         help="Retry mapping prompts until minimum items are found",
     )
     common.add_argument(
-        "--token-weighting",
+        "--mapping-data-dir",
+        help="Directory containing mapping reference data",
+    )
+    common.add_argument(
+        "--diagnostics",
         action=argparse.BooleanOptionalAction,
         default=None,
-        help="Enable or disable token-based concurrency weighting",
+        help="Enable verbose diagnostics output",
+    )
+    common.add_argument(
+        "--strict-mapping",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Fail when feature mappings are missing",
     )
     common.add_argument(
         "--seed",
@@ -798,6 +792,13 @@ def main() -> None:
 
     if args.seed is not None:
         random.seed(args.seed)
+
+    if args.mapping_data_dir:
+        settings.mapping_data_dir = Path(args.mapping_data_dir)
+    if args.diagnostics is not None:
+        settings.diagnostics = args.diagnostics
+    if args.strict_mapping is not None:
+        settings.strict_mapping = args.strict_mapping
 
     _configure_logging(args, settings)
 

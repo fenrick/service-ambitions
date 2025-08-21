@@ -145,11 +145,9 @@ Use `generate-mapping` to refresh mapping contributions for existing evolution
 results. It reads an evolution JSON Lines file and writes an updated file with
 new mapping data. Adjust mapping behaviour with:
 
-- `--mapping-batch-size` – number of features per mapping request batch. Smaller
-  batches shorten prompts but increase API calls.
-- `--mapping-parallel-types` – dispatch mapping types concurrently. Disable with
-  `--no-mapping-parallel-types` to process them sequentially when rate limits are
-  tight.
+- `--mapping-data-dir` – directory containing mapping reference data.
+- `--strict-mapping/--no-strict-mapping` – fail when mappings are missing.
+- `--diagnostics/--no-diagnostics` – enable verbose diagnostics output.
 - `--exhaustive-mapping` – retry mapping prompts until the minimum number of
   items are returned (disable with `--no-exhaustive-mapping`).
 
@@ -157,7 +155,7 @@ Example invocation:
 
 ```bash
 ./run.sh generate-mapping --input evolution.jsonl --output remapped.jsonl \
-  --mapping-batch-size 20 --no-mapping-parallel-types
+  --strict-mapping
 ```
 
 See [generate-mapping](docs/generate-mapping.md) for detailed behaviour and
@@ -245,22 +243,17 @@ Basic invocation:
 Processing happens concurrently; control parallel workers with `--concurrency`
 which defaults to the `concurrency` value in your settings.
 
-Mapping requests are batched. Adjust `--mapping-batch-size` to control how many
-features are sent per mapping request; the default is 30. Smaller batches create
-shorter prompts and quicker responses but increase API calls. Larger batches
-reduce round trips at the cost of bigger prompts, higher latency and a greater
-risk of hitting model context limits.
-
-For each batch the CLI maps Data, Applications and Technologies in parallel.
-This behaviour is enabled by default via `--mapping-parallel-types`. Disable it
-with `--no-mapping-parallel-types` to process mapping types sequentially when
-rate limits are tight.
+Mapping requests default to a per-set strategy. Use `--mapping-data-dir` to
+point to alternative reference datasets. Enable `--strict-mapping` to fail when
+features return no mappings or `--diagnostics` for verbose request logging.
+`--exhaustive-mapping` retries prompts until the minimum number of items are
+found.
 
 Example invocation tuning mapping behaviour:
 
 ```bash
 ./run.sh generate-evolution --input-file sample-services.jsonl \
-  --output-file evolution.jsonl --mapping-batch-size 20 --no-mapping-parallel-types
+  --output-file evolution.jsonl --strict-mapping
 ```
 
 ### Conversation seed
