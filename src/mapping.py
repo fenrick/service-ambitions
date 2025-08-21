@@ -85,7 +85,6 @@ def _merge_mapping_results(
     payload: MappingResponse,
     mapping_types: Mapping[str, MappingTypeConfig],
     *,
-    max_items_per_mapping: int | None = None,
     catalogue_items: Mapping[str, list[MappingItem]] | None = None,
 ) -> list[PlateauFeature]:
     """Return ``features`` merged with mapping ``payload``.
@@ -120,8 +119,6 @@ def _merge_mapping_results(
                 logfire.warning(
                     f"Missing mappings: feature={feature.feature_id} key={key}"
                 )
-            if max_items_per_mapping is not None:
-                cleaned = cleaned[:max_items_per_mapping]
             update_data[key] = cleaned
         merged = feature.model_copy(update={"mappings": feature.mappings | update_data})
         results.append(merged)
