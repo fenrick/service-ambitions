@@ -103,6 +103,26 @@ class Contribution(StrictModel):
     )
 
 
+class DefinitionItem(StrictModel):
+    """Named definition entry used when rendering reference sections."""
+
+    name: Annotated[str, Field(min_length=1, description="Definition term.")]
+    description: Annotated[
+        str, Field(min_length=1, description="Explanation of the term.")
+    ]
+
+
+class DefinitionBlock(StrictModel):
+    """Container for a definition title and its bullet entries."""
+
+    title: Annotated[
+        str, Field(min_length=1, description="Definitions section heading.")
+    ] = "Definitions"
+    bullets: list[DefinitionItem] = Field(
+        default_factory=list, description="Collection of definition items."
+    )
+
+
 class ServiceFeature(StrictModel):
     """Feature already delivered by the service.
 
@@ -555,6 +575,8 @@ class MappingResponse(StrictModel):
 __all__ = [
     "AppConfig",
     "Contribution",
+    "DefinitionBlock",
+    "DefinitionItem",
     "DescriptionResponse",
     "PlateauDescription",
     "PlateauDescriptionsResponse",

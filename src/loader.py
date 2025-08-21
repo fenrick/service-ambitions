@@ -10,13 +10,14 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Sequence, TypeVar, cast
+from typing import Sequence, TypeVar
 
 import logfire
 from pydantic import TypeAdapter
 
 from models import (
     AppConfig,
+    DefinitionBlock,
     MappingItem,
     MappingTypeConfig,
     Role,
@@ -307,13 +308,18 @@ def load_definitions(
     """
 
     path = Path(base_dir) / Path(filename)
-    data: dict[str, object] = _read_json_file(path, dict[str, object])
-    bullets = list(cast(list[dict[str, str]], data.get("bullets", [])))
+    try:
+        data = _read_json_file(path, DefinitionBlock)
+    except Exception as exc:
+        logfire.error(f"Invalid definition data in {path}: {exc}")
+        raise RuntimeError(f"Invalid definitions: {exc}") from exc
+
+    bullets = data.bullets
     if keys:
-        bullets = [b for b in bullets if b.get("name") in keys]
-    lines = [f"## {data.get('title', 'Definitions')}", ""]
+        bullets = [item for item in bullets if item.name in keys]
+    lines = [f"## {data.title}", ""]
     for idx, item in enumerate(bullets, start=1):
-        lines.append(f"{idx}. **{item['name']}**: {item['description']}")
+        lines.append(f"{idx}. **{item.name}**: {item.description}")
     return "\n".join(lines)
 
 
