@@ -389,10 +389,6 @@ async def _cmd_generate_evolution(
         web_search=use_web_search,
     )
 
-    # Warm mapping embeddings upfront so subsequent requests reuse cached vectors.
-    # Failures are logged by ``init_embeddings`` and do not interrupt startup.
-    await init_embeddings()
-
     configure_prompt_dir(settings.prompt_dir)
     system_prompt = load_evolution_prompt(settings.context_id, settings.inspiration)
 
@@ -416,6 +412,10 @@ async def _cmd_generate_evolution(
     if args.dry_run:
         logfire.info(f"Validated {len(services)} services")
         return
+
+    # Warm mapping embeddings upfront so subsequent requests reuse cached vectors.
+    # Failures are logged by ``init_embeddings`` and do not interrupt startup.
+    await init_embeddings()
 
     concurrency = args.concurrency or settings.concurrency
     if concurrency < 1:

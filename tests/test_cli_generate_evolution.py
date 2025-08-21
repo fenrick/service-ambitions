@@ -129,7 +129,10 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         def __init__(self, model, instructions):
             pass
 
-    called = {"ran": False}
+    called = {"ran": False, "embed": False}
+
+    async def fake_init_embeddings() -> None:
+        called["embed"] = True
 
     async def fake_generate(
         self,
@@ -145,6 +148,7 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(
         "cli.PlateauGenerator.generate_service_evolution_async", fake_generate
     )
+    monkeypatch.setattr("cli.init_embeddings", fake_init_embeddings)
     monkeypatch.setattr("cli.configure_prompt_dir", lambda _path: None)
     monkeypatch.setattr("cli.load_evolution_prompt", lambda _ctx, _insp: "prompt")
     monkeypatch.setattr("cli.logfire.force_flush", lambda: None)
@@ -190,6 +194,7 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
 
     assert not output_path.exists()
     assert not called["ran"]
+    assert not called["embed"]
 
 
 def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
