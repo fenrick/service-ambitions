@@ -358,6 +358,24 @@ class AppConfig(StrictModel):
     mapping_parallel_types: bool = Field(
         True, description="Process mapping types for all batches concurrently."
     )
+    exhaustive_mapping: bool = Field(
+        True,
+        description="Retry mapping prompts until minimum items are found.",
+    )
+    use_prefilter: bool = Field(
+        False,
+        description="Enable embedding-based prefiltering of mapping catalogues.",
+    )
+    max_items_per_mapping: int | None = Field(
+        default=None,
+        ge=1,
+        description="Maximum mapping items per feature and type.",
+    )
+    mapping_feature_batch_cap_tokens: int = Field(
+        95000,
+        ge=1,
+        description="Token cap for feature mapping batches.",
+    )
     mapping_types: dict[str, MappingTypeConfig] = Field(
         default_factory=dict,
         description="Mapping type definitions keyed by field name.",

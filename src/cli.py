@@ -10,6 +10,7 @@ import logging
 import os
 import random
 import sys
+from contextlib import nullcontext
 from datetime import datetime, timezone
 from itertools import islice
 from pathlib import Path
@@ -83,6 +84,9 @@ def _configure_logging(args: argparse.Namespace, settings) -> None:
     if settings.logfire_token:
         # Initialize logfire only when a token is configured
         init_logfire(settings.logfire_token)
+    if args.quiet:
+        # Replace log spans with a no-op context manager when quiet
+        logfire.span = lambda *a, **k: nullcontext()  # type: ignore[assignment]
 
 
 def _prepare_paths(output: Path, resume: bool) -> tuple[Path, Path]:
@@ -221,6 +225,10 @@ async def _generate_evolution_for_service(
                 mapping_session=map_session,
                 mapping_batch_size=mapping_batch_size,
                 mapping_parallel_types=mapping_parallel_types,
+                mapping_token_cap=settings.mapping_feature_batch_cap_tokens,
+                exhaustive_mapping=args.exhaustive_mapping,
+                use_prefilter=settings.use_prefilter,
+                max_items_per_mapping=settings.max_items_per_mapping,
                 strict=args.strict,
             )
             global _RUN_META
@@ -552,6 +560,10 @@ async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
         strict=args.strict,
         batch_size=mapping_batch_size,
         parallel_types=mapping_parallel_types,
+        token_cap=settings.mapping_feature_batch_cap_tokens,
+        exhaustive=args.exhaustive_mapping,
+        use_prefilter=settings.use_prefilter,
+        max_items_per_mapping=settings.max_items_per_mapping,
     )
     mapped_by_id = {f.feature_id: f for f in mapped}
     for evo in evolutions:
@@ -654,6 +666,12 @@ def main() -> None:
         help="Enable or disable parallel mapping type requests",
     )
     common.add_argument(
+        "--exhaustive-mapping",
+        action=argparse.BooleanOptionalAction,
+        default=settings.exhaustive_mapping,
+        help="Retry mapping prompts until minimum items are found",
+    )
+    common.add_argument(
         "--token-weighting",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -693,6 +711,11 @@ def main() -> None:
         "--no-logs",
         action="store_true",
         help="Disable file logging and Logfire telemetry",
+    )
+    common.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Disable per-call log spans",
     )
     common.add_argument(
         "--strict",
