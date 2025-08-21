@@ -6,9 +6,11 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
+import pytest
 from pydantic_ai import Agent, messages
 
 import conversation
+from backpressure import RollingMetrics
 from conversation import ConversationSession
 from models import ServiceFeature, ServiceInput
 from stage_metrics import iter_stage_totals, reset_stage_totals
@@ -147,3 +149,34 @@ def test_ask_redacts_prompt_when_enabled(monkeypatch) -> None:
     session.ask("secret")
 
     assert calls == ["Sending prompt: <redacted>"]
+
+
+def test_metrics_recorded_on_success() -> None:
+    """Metrics should capture request and token usage on success."""
+
+    metrics = RollingMetrics(window=1)
+    session = ConversationSession(cast(Agent[None, str], DummyAgent()), metrics=metrics)
+    session.ask("ping")
+
+    assert len(metrics._requests) == 1
+    assert len(metrics._latencies) == 1
+    assert len(metrics._tokens) == 1
+    assert metrics._in_flight == 0
+
+
+def test_metrics_recorded_on_error() -> None:
+    """Metrics should record errors including 429 hints."""
+
+    class ErrorAgent(DummyAgent):
+        def run_sync(self, prompt: str, message_history: list[str], output_type=None):
+            raise RuntimeError("429 rate limit")
+
+    metrics = RollingMetrics(window=1)
+    session = ConversationSession(cast(Agent[None, str], ErrorAgent()), metrics=metrics)
+    with pytest.raises(RuntimeError):
+        session.ask("ping")
+
+    assert len(metrics._requests) == 1
+    assert len(metrics._errors) == 1
+    assert len(metrics._errors_429) == 1
+    assert len(metrics._latencies) == 1

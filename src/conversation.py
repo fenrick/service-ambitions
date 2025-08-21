@@ -15,6 +15,7 @@ from typing import TypeVar, overload
 import logfire
 from pydantic_ai import Agent, messages
 
+from backpressure import RollingMetrics
 from models import ServiceInput
 from redaction import redact_pii
 from stage_metrics import record_stage_metrics
@@ -39,6 +40,7 @@ class ConversationSession:
         stage: str | None = None,
         log_prompts: bool = True,
         redact_prompts: bool = False,
+        metrics: RollingMetrics | None = None,
     ) -> None:
         """Initialise the session with a configured LLM client.
 
@@ -47,12 +49,14 @@ class ConversationSession:
             stage: Optional name of the generation stage for observability.
             log_prompts: When ``True`` debug log prompt text.
             redact_prompts: Redact prompt text before logging when ``log_prompts``.
+            metrics: Optional rolling metrics recorder for request telemetry.
         """
 
         self.client = client
         self.stage = stage
         self.log_prompts = log_prompts
         self.redact_prompts = redact_prompts
+        self.metrics = metrics
         self._history: list[messages.ModelMessage] = []
 
     def add_parent_materials(self, service_input: ServiceInput) -> None:
@@ -74,7 +78,13 @@ class ConversationSession:
     def derive(self) -> "ConversationSession":
         """Return a new session copying the current history."""
 
-        clone = ConversationSession(self.client, stage=self.stage)
+        clone = ConversationSession(
+            self.client,
+            stage=self.stage,
+            log_prompts=self.log_prompts,
+            redact_prompts=self.redact_prompts,
+            metrics=self.metrics,
+        )
         clone._history = list(self._history)
         return clone
 
@@ -111,6 +121,9 @@ class ConversationSession:
         error_429 = False
         prompt_token_estimate = estimate_tokens(prompt, 0)
         start = time.monotonic()
+        if self.metrics:
+            self.metrics.record_request()
+            self.metrics.record_start_tokens(prompt_token_estimate)
         with logfire.span("ConversationSession.ask") as span:
             span.set_attribute("stage", stage)
             span.set_attribute("model_name", model_name)
@@ -139,6 +152,8 @@ class ConversationSession:
                 return result.output
             except Exception as exc:  # pragma: no cover - defensive logging
                 error_429 = "429" in getattr(exc, "args", ("",))[0]
+                if self.metrics:
+                    self.metrics.record_error(is_429=error_429)
                 logfire.error(
                     "Prompt failed",
                     stage=stage,
@@ -151,6 +166,9 @@ class ConversationSession:
                 raise
             finally:
                 duration = time.monotonic() - start
+                if self.metrics:
+                    self.metrics.record_latency(duration)
+                    self.metrics.record_end_tokens(tokens)
                 span.set_attribute("total_tokens", tokens)
                 span.set_attribute("estimated_cost", cost)
                 TOKENS_CONSUMED.add(tokens)
@@ -177,6 +195,9 @@ class ConversationSession:
         error_429 = False
         prompt_token_estimate = estimate_tokens(prompt, 0)
         start = time.monotonic()
+        if self.metrics:
+            self.metrics.record_request()
+            self.metrics.record_start_tokens(prompt_token_estimate)
         with logfire.span("ConversationSession.ask_async") as span:
             span.set_attribute("stage", stage)
             span.set_attribute("model_name", model_name)
@@ -205,6 +226,8 @@ class ConversationSession:
                 return result.output
             except Exception as exc:  # pragma: no cover - defensive logging
                 error_429 = "429" in getattr(exc, "args", ("",))[0]
+                if self.metrics:
+                    self.metrics.record_error(is_429=error_429)
                 logfire.error(
                     "Prompt failed",
                     stage=stage,
@@ -217,6 +240,9 @@ class ConversationSession:
                 raise
             finally:
                 duration = time.monotonic() - start
+                if self.metrics:
+                    self.metrics.record_latency(duration)
+                    self.metrics.record_end_tokens(tokens)
                 span.set_attribute("total_tokens", tokens)
                 span.set_attribute("estimated_cost", cost)
                 TOKENS_CONSUMED.add(tokens)

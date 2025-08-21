@@ -16,6 +16,7 @@ from typing import Any, Coroutine, Sequence, cast
 from pydantic_ai import Agent
 from tqdm import tqdm
 
+from backpressure import RollingMetrics
 from conversation import ConversationSession
 from diagnostics import validate_jsonl
 from generator import AmbitionModel, ServiceAmbitionGenerator
@@ -200,9 +201,16 @@ async def _generate_evolution_for_service(
             feat_agent = Agent(feat_model, instructions=system_prompt)
             map_agent = Agent(map_model, instructions=system_prompt)
 
-            desc_session = ConversationSession(desc_agent, stage="descriptions")
-            feat_session = ConversationSession(feat_agent, stage="features")
-            map_session = ConversationSession(map_agent, stage="mapping")
+            metrics = RollingMetrics()
+            desc_session = ConversationSession(
+                desc_agent, stage="descriptions", metrics=metrics
+            )
+            feat_session = ConversationSession(
+                feat_agent, stage="features", metrics=metrics
+            )
+            map_session = ConversationSession(
+                map_agent, stage="mapping", metrics=metrics
+            )
             generator = PlateauGenerator(
                 feat_session,
                 required_count=settings.features_per_role,
@@ -476,7 +484,8 @@ async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
 
     map_model = factory.get("mapping", args.mapping_model or args.model)
     map_agent = Agent(map_model, instructions="")
-    session = ConversationSession(map_agent, stage="mapping")
+    metrics = RollingMetrics()
+    session = ConversationSession(map_agent, stage="mapping", metrics=metrics)
 
     mapping_batch_size = args.mapping_batch_size or settings.mapping_batch_size
     mapping_parallel_types = (
