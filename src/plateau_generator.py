@@ -74,7 +74,10 @@ class PlateauGenerator:
         mapping_session: ConversationSession | None = None,
         mapping_batch_size: int = 30,
         mapping_parallel_types: bool = True,
-        mapping_token_cap: int = 8000,
+        mapping_token_cap: int = 95000,
+        exhaustive_mapping: bool = True,
+        use_prefilter: bool = False,
+        max_items_per_mapping: int | None = None,
         strict: bool = False,
     ) -> None:
         """Initialise the generator.
@@ -90,6 +93,9 @@ class PlateauGenerator:
                 across all batches when ``True``.
             mapping_token_cap: Maximum tokens permitted for a mapping request
                 batch.
+            exhaustive_mapping: Retry to fill missing mappings when ``True``.
+            use_prefilter: Enable embedding prefiltering when ``True``.
+            max_items_per_mapping: Limit mapping items per type when provided.
             strict: Enforce feature and mapping completeness when ``True``.
         """
         if required_count < 1:
@@ -102,6 +108,9 @@ class PlateauGenerator:
         self.mapping_batch_size = mapping_batch_size
         self.mapping_parallel_types = mapping_parallel_types
         self.mapping_token_cap = mapping_token_cap
+        self.exhaustive_mapping = exhaustive_mapping
+        self.use_prefilter = use_prefilter
+        self.max_items_per_mapping = max_items_per_mapping
         self.strict = strict
         self._service: ServiceInput | None = None
         # Track quarantine file paths for invalid plateau descriptions.
@@ -153,6 +162,9 @@ class PlateauGenerator:
             batch_size=batch_size,
             parallel_types=self.mapping_parallel_types,
             token_cap=self.mapping_token_cap,
+            exhaustive=self.exhaustive_mapping,
+            use_prefilter=self.use_prefilter,
+            max_items_per_mapping=self.max_items_per_mapping,
         )
 
     def _request_description(

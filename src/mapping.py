@@ -54,7 +54,7 @@ _FEATURE_EMBED_CACHE: dict[str, np.ndarray] = {}
 MIN_MAPPING_ITEMS = 2
 """Minimum number of mapping contributions required per feature."""
 
-MAPPING_TOKEN_CAP = 8000
+MAPPING_TOKEN_CAP = 95000
 """Maximum tokens allowed per mapping request."""
 
 SECOND_PASS_TIMEOUT = 20.0
@@ -314,8 +314,12 @@ async def map_feature_async(
     feature: PlateauFeature,
     mapping_types: Mapping[str, MappingTypeConfig] | None = None,
     *,
+    exhaustive: bool = True,
+    use_prefilter: bool = False,
+    max_items_per_mapping: int | None = None,
     second_pass_timeout: float = SECOND_PASS_TIMEOUT,
     second_pass_attempts: int = SECOND_PASS_ATTEMPTS,
+    token_cap: int = MAPPING_TOKEN_CAP,
 ) -> PlateauFeature:
     """Asynchronously return ``feature`` augmented with mapping data.
 
@@ -323,8 +327,12 @@ async def map_feature_async(
         session: Active conversation session used for mapping requests.
         feature: Plateau feature requiring mapping enrichment.
         mapping_types: Optional mapping configuration override keyed by type.
+        exhaustive: Retry to fill missing mappings when ``True``.
+        use_prefilter: Enable embedding prefiltering when ``True``.
+        max_items_per_mapping: Limit mapping items per type when provided.
         second_pass_timeout: Timeout in seconds for second-pass mapping prompts.
         second_pass_attempts: Maximum retry attempts for second-pass prompts.
+        token_cap: Maximum tokens permitted for a mapping prompt.
     """
 
     return (
@@ -332,8 +340,12 @@ async def map_feature_async(
             session,
             [feature],
             mapping_types,
+            exhaustive=exhaustive,
+            use_prefilter=use_prefilter,
+            max_items_per_mapping=max_items_per_mapping,
             second_pass_timeout=second_pass_timeout,
             second_pass_attempts=second_pass_attempts,
+            token_cap=token_cap,
         )
     )[0]
 
@@ -343,8 +355,12 @@ def map_feature(
     feature: PlateauFeature,
     mapping_types: Mapping[str, MappingTypeConfig] | None = None,
     *,
+    exhaustive: bool = True,
+    use_prefilter: bool = False,
+    max_items_per_mapping: int | None = None,
     second_pass_timeout: float = SECOND_PASS_TIMEOUT,
     second_pass_attempts: int = SECOND_PASS_ATTEMPTS,
+    token_cap: int = MAPPING_TOKEN_CAP,
 ) -> PlateauFeature:
     """Return ``feature`` augmented with mapping information.
 
@@ -352,8 +368,12 @@ def map_feature(
         session: Active conversation session used for mapping requests.
         feature: Plateau feature requiring mapping enrichment.
         mapping_types: Optional mapping configuration override keyed by type.
+        exhaustive: Retry to fill missing mappings when ``True``.
+        use_prefilter: Enable embedding prefiltering when ``True``.
+        max_items_per_mapping: Limit mapping items per type when provided.
         second_pass_timeout: Timeout in seconds for second-pass mapping prompts.
         second_pass_attempts: Maximum retry attempts for second-pass prompts.
+        token_cap: Maximum tokens permitted for a mapping prompt.
     """
 
     return asyncio.run(
@@ -361,8 +381,12 @@ def map_feature(
             session,
             feature,
             mapping_types,
+            exhaustive=exhaustive,
+            use_prefilter=use_prefilter,
+            max_items_per_mapping=max_items_per_mapping,
             second_pass_timeout=second_pass_timeout,
             second_pass_attempts=second_pass_attempts,
+            token_cap=token_cap,
         )
     )
 
@@ -427,6 +451,8 @@ def _merge_mapping_results(
     features: Sequence[PlateauFeature],
     payload: MappingResponse,
     mapping_types: Mapping[str, MappingTypeConfig],
+    *,
+    max_items_per_mapping: int | None = None,
 ) -> list[PlateauFeature]:
     """Return ``features`` merged with mapping ``payload``.
 
@@ -452,12 +478,14 @@ def _merge_mapping_results(
         if mapped is None:
             # Each feature must appear in the response; fail fast when absent.
             raise MappingError(f"Missing mappings for feature {feature.feature_id}")
-        update_data = {
-            key: _clean_mapping_values(
+        update_data = {}
+        for key in mapping_types.keys():
+            cleaned = _clean_mapping_values(
                 key, mapped.get(key, []), valid_ids, feature.feature_id
             )
-            for key in mapping_types.keys()
-        }
+            if max_items_per_mapping is not None:
+                cleaned = cleaned[:max_items_per_mapping]
+            update_data[key] = cleaned
         merged = feature.model_copy(update={"mappings": feature.mappings | update_data})
         results.append(merged)
     return results
@@ -468,6 +496,8 @@ async def _reprompt_feature(
     feature: PlateauFeature,
     key: str,
     cfg: MappingTypeConfig,
+    *,
+    max_items_per_mapping: int | None = None,
 ) -> PlateauFeature:
     """Return ``feature`` with mappings filled using a reduced catalogue."""
 
@@ -483,7 +513,9 @@ async def _reprompt_feature(
         extra_instructions=reminder,
     )
     payload = await session.ask_async(prompt, output_type=MappingResponse)
-    merged = _merge_mapping_results([feature], payload, {key: cfg})[0]
+    merged = _merge_mapping_results(
+        [feature], payload, {key: cfg}, max_items_per_mapping=max_items_per_mapping
+    )[0]
     if len(merged.mappings.get(key, [])) < MIN_MAPPING_ITEMS:
         _quarantine_mapping(feature, key, payload)
     return merged
@@ -494,6 +526,9 @@ async def _map_parallel(
     batches: list[Sequence[PlateauFeature]],
     mapping_types: Mapping[str, MappingTypeConfig],
     *,
+    exhaustive: bool = True,
+    use_prefilter: bool = False,
+    max_items_per_mapping: int | None = None,
     second_pass_timeout: float = SECOND_PASS_TIMEOUT,
     second_pass_attempts: int = SECOND_PASS_ATTEMPTS,
 ) -> dict[str, PlateauFeature]:
@@ -503,14 +538,14 @@ async def _map_parallel(
         i: list(batch) for i, batch in enumerate(batches)
     }
     tasks = [
-        _request_mapping(session, batch, i, key, cfg)
+        _request_mapping(session, batch, i, key, cfg, use_prefilter=use_prefilter)
         for i, batch in enumerate(batches)
         for key, cfg in mapping_types.items()
     ]
     responses = await asyncio.gather(*tasks)
     for idx, key, cfg, sub_session, payload in responses:
         batch = batches[idx]
-        if all(not f.mappings.get(key) for f in payload.features):
+        if exhaustive and all(not f.mappings.get(key) for f in payload.features):
             slice_items = _top_k_items(batch, cfg.dataset)
             reminder = (
                 "Previous response contained no mappings. Select relevant items "
@@ -534,11 +569,22 @@ async def _map_parallel(
                 request_timeout=second_pass_timeout,
                 attempts=second_pass_attempts,
             )
-        merged = _merge_mapping_results(batch_map[idx], payload, {key: cfg})
+        merged = _merge_mapping_results(
+            batch_map[idx],
+            payload,
+            {key: cfg},
+            max_items_per_mapping=max_items_per_mapping,
+        )
         for j, feat in enumerate(merged):
-            if len(feat.mappings.get(key, [])) < MIN_MAPPING_ITEMS:
+            if exhaustive and len(feat.mappings.get(key, [])) < MIN_MAPPING_ITEMS:
                 # Retry only the under-filled feature to minimise extra cost.
-                merged[j] = await _reprompt_feature(sub_session, feat, key, cfg)
+                merged[j] = await _reprompt_feature(
+                    sub_session,
+                    feat,
+                    key,
+                    cfg,
+                    max_items_per_mapping=max_items_per_mapping,
+                )
         batch_map[idx] = merged
     results: dict[str, PlateauFeature] = {}
     for batch in batch_map.values():
@@ -552,6 +598,9 @@ async def _map_sequential(
     batches: list[Sequence[PlateauFeature]],
     mapping_types: Mapping[str, MappingTypeConfig],
     *,
+    exhaustive: bool = True,
+    use_prefilter: bool = False,
+    max_items_per_mapping: int | None = None,
     second_pass_timeout: float = SECOND_PASS_TIMEOUT,
     second_pass_attempts: int = SECOND_PASS_ATTEMPTS,
 ) -> dict[str, PlateauFeature]:
@@ -562,9 +611,9 @@ async def _map_sequential(
         batch_list = list(batch)
         for key, cfg in mapping_types.items():
             _, _, _, sub_session, payload = await _request_mapping(
-                session, batch, i, key, cfg
+                session, batch, i, key, cfg, use_prefilter=use_prefilter
             )
-            if all(not f.mappings.get(key) for f in payload.features):
+            if exhaustive and all(not f.mappings.get(key) for f in payload.features):
                 slice_items = _top_k_items(batch, cfg.dataset)
                 reminder = (
                     "Previous response contained no mappings. Select relevant items"
@@ -588,11 +637,22 @@ async def _map_sequential(
                     request_timeout=second_pass_timeout,
                     attempts=second_pass_attempts,
                 )
-            batch_list = _merge_mapping_results(batch_list, payload, {key: cfg})
+            batch_list = _merge_mapping_results(
+                batch_list,
+                payload,
+                {key: cfg},
+                max_items_per_mapping=max_items_per_mapping,
+            )
             for j, feat in enumerate(batch_list):
-                if len(feat.mappings.get(key, [])) < MIN_MAPPING_ITEMS:
+                if exhaustive and len(feat.mappings.get(key, [])) < MIN_MAPPING_ITEMS:
                     # Request additional mappings for under-filled features.
-                    batch_list[j] = await _reprompt_feature(sub_session, feat, key, cfg)
+                    batch_list[j] = await _reprompt_feature(
+                        sub_session,
+                        feat,
+                        key,
+                        cfg,
+                        max_items_per_mapping=max_items_per_mapping,
+                    )
         for updated in batch_list:
             results[updated.feature_id] = updated
     return results
@@ -604,11 +664,13 @@ async def _request_mapping(
     batch_index: int,
     key: str,
     cfg: MappingTypeConfig,
+    *,
+    use_prefilter: bool = False,
 ) -> tuple[int, str, MappingTypeConfig, ConversationSession, MappingResponse]:
     """Return mapping response for ``key`` type for ``batch`` features."""
 
     sub_session = session.derive()
-    overrides = await _preselect_items(batch, cfg)
+    overrides = await _preselect_items(batch, cfg) if use_prefilter else None
     prompt = _build_mapping_prompt(batch, {key: cfg}, item_overrides=overrides)
     logfire.debug(f"Requesting {key} mappings for {len(batch)} features")
 
@@ -646,6 +708,9 @@ async def map_features_async(
     second_pass_timeout: float = SECOND_PASS_TIMEOUT,
     second_pass_attempts: int = SECOND_PASS_ATTEMPTS,
     token_cap: int = MAPPING_TOKEN_CAP,
+    exhaustive: bool = True,
+    use_prefilter: bool = False,
+    max_items_per_mapping: int | None = None,
 ) -> list[PlateauFeature]:
     """Asynchronously return ``features`` with mapping information.
 
@@ -660,6 +725,9 @@ async def map_features_async(
         second_pass_timeout: Timeout in seconds for second-pass mapping prompts.
         second_pass_attempts: Maximum retry attempts for second-pass prompts.
         token_cap: Maximum tokens permitted for a mapping prompt.
+        exhaustive: Retry to fill missing mappings when ``True``.
+        use_prefilter: Enable embedding prefiltering when ``True``.
+        max_items_per_mapping: Limit mapping items per type when provided.
     """
 
     _QUARANTINED_MAPPINGS.clear()
@@ -670,6 +738,9 @@ async def map_features_async(
             session,
             batches,
             mapping_types,
+            exhaustive=exhaustive,
+            use_prefilter=use_prefilter,
+            max_items_per_mapping=max_items_per_mapping,
             second_pass_timeout=second_pass_timeout,
             second_pass_attempts=second_pass_attempts,
         )
@@ -678,6 +749,9 @@ async def map_features_async(
             session,
             batches,
             mapping_types,
+            exhaustive=exhaustive,
+            use_prefilter=use_prefilter,
+            max_items_per_mapping=max_items_per_mapping,
             second_pass_timeout=second_pass_timeout,
             second_pass_attempts=second_pass_attempts,
         )
@@ -709,6 +783,9 @@ def map_features(
     second_pass_timeout: float = SECOND_PASS_TIMEOUT,
     second_pass_attempts: int = SECOND_PASS_ATTEMPTS,
     token_cap: int = MAPPING_TOKEN_CAP,
+    exhaustive: bool = True,
+    use_prefilter: bool = False,
+    max_items_per_mapping: int | None = None,
 ) -> list[PlateauFeature]:
     """Return ``features`` augmented with mapping information.
 
@@ -723,6 +800,9 @@ def map_features(
         second_pass_timeout: Timeout in seconds for second-pass mapping prompts.
         second_pass_attempts: Maximum retry attempts for second-pass prompts.
         token_cap: Maximum tokens permitted for a mapping prompt.
+        exhaustive: Retry to fill missing mappings when ``True``.
+        use_prefilter: Enable embedding prefiltering when ``True``.
+        max_items_per_mapping: Limit mapping items per type when provided.
     """
 
     return asyncio.run(
@@ -736,6 +816,9 @@ def map_features(
             second_pass_timeout=second_pass_timeout,
             second_pass_attempts=second_pass_attempts,
             token_cap=token_cap,
+            exhaustive=exhaustive,
+            use_prefilter=use_prefilter,
+            max_items_per_mapping=max_items_per_mapping,
         )
     )
 

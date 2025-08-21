@@ -137,7 +137,7 @@ runs concurrently with a worker pool bounded by this setting. Pass `--progress`
 to display a progress bar during long runs; it is suppressed automatically in
 CI environments or when stdout is not a TTY. Provide `--seed` to make
 stochastic behaviour such as backoff jitter deterministic during tests and
-demos.
+demos. Pass `--quiet` to disable per-call logging spans.
 
 ### Remapping mode
 
@@ -150,6 +150,8 @@ new mapping data. Adjust mapping behaviour with:
 - `--mapping-parallel-types` – dispatch mapping types concurrently. Disable with
   `--no-mapping-parallel-types` to process them sequentially when rate limits are
   tight.
+- `--exhaustive-mapping` – retry mapping prompts until the minimum number of
+  items are returned (disable with `--no-exhaustive-mapping`).
 
 Example invocation:
 

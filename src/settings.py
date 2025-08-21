@@ -62,6 +62,22 @@ class Settings(BaseSettings):
         True,
         description="Process mapping types for all batches concurrently.",
     )
+    exhaustive_mapping: bool = Field(
+        True, description="Retry mapping prompts until minimum items are found."
+    )
+    use_prefilter: bool = Field(
+        False, description="Enable embedding-based prefiltering for mappings."
+    )
+    max_items_per_mapping: int | None = Field(
+        None,
+        ge=1,
+        description="Maximum mapping items per feature and type.",
+    )
+    mapping_feature_batch_cap_tokens: int = Field(
+        95000,
+        ge=1,
+        description="Token cap for feature mapping batches.",
+    )
     openai_api_key: str = Field(..., description="OpenAI API access token.")
     logfire_token: str | None = Field(
         None, description="Logfire authentication token, if available."
@@ -111,6 +127,10 @@ def load_settings() -> Settings:
             features_per_role=config.features_per_role,
             mapping_batch_size=config.mapping_batch_size,
             mapping_parallel_types=config.mapping_parallel_types,
+            exhaustive_mapping=config.exhaustive_mapping,
+            use_prefilter=config.use_prefilter,
+            max_items_per_mapping=config.max_items_per_mapping,
+            mapping_feature_batch_cap_tokens=config.mapping_feature_batch_cap_tokens,
             web_search=config.web_search,
             _env_file=env_file,
         )
