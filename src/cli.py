@@ -322,7 +322,6 @@ async def _cmd_generate_ambitions(
             generator = ServiceAmbitionGenerator(
                 model,
                 concurrency=concurrency,
-                batch_size=settings.batch_size,
                 request_timeout=settings.request_timeout,
                 retries=settings.retries,
                 retry_base_delay=settings.retry_base_delay,

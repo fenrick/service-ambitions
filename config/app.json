@@ -18,7 +18,6 @@
     "context_id": "university",
     "inspiration": "general",
     "concurrency": 5,
-    "batch_size": 25,
     "request_timeout": 60,
     "retries": 5,
     "retry_base_delay": 0.5,
