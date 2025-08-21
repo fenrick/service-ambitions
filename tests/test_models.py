@@ -71,10 +71,16 @@ def test_plateau_feature_validates_score() -> None:
         )
 
 
-def test_contribution_requires_fields() -> None:
-    """Missing fields should trigger a ``ValidationError``."""
+def test_contribution_requires_item() -> None:
+    """An ``item`` identifier is mandatory for a contribution."""
     with pytest.raises(ValidationError):
         Contribution()  # type: ignore[call-arg]
+
+
+def test_contribution_defaults_weight() -> None:
+    """Omitting ``contribution`` should default the weight to ``None``."""
+    result = Contribution(item="INF-1")
+    assert result.contribution is None
 
 
 def test_contribution_enforces_range() -> None:
@@ -119,22 +125,16 @@ def test_mapping_response_flattens_duplicate_keys() -> None:
     assert result.features[0].mappings["applications"][0].item == "APP-1"
 
 
-def test_mapping_response_limits_items() -> None:
-    """Mapping lists should contain at most five entries."""
+def test_mapping_response_allows_unbounded_items() -> None:
+    """Mapping lists should accept arbitrary numbers of entries."""
     payload = {
         "features": [
             {
                 "feature_id": "f1",
-                "data": [
-                    {"item": "INF-1", "contribution": 0.5},
-                    {"item": "INF-1", "contribution": 0.5},
-                    {"item": "INF-1", "contribution": 0.5},
-                    {"item": "INF-1", "contribution": 0.5},
-                    {"item": "INF-1", "contribution": 0.5},
-                    {"item": "INF-1", "contribution": 0.5},
-                ],
+                "data": [{"item": "INF-1", "contribution": 0.5} for _ in range(6)],
             }
         ]
     }
-    with pytest.raises(ValidationError):
-        MappingResponse.model_validate(payload)
+
+    result = MappingResponse.model_validate(payload)
+    assert len(result.features[0].mappings["data"]) == 6

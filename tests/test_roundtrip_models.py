@@ -23,15 +23,15 @@ TEXT = st.text(min_size=1, max_size=20)
 contributions = st.builds(
     Contribution,
     item=TEXT,
-    contribution=st.floats(min_value=0.1, max_value=1.0),
+    contribution=st.one_of(st.none(), st.floats(min_value=0.1, max_value=1.0)),
 )
 
 
-# Strategy producing mapping dictionaries with up to three types and five items each.
+# Strategy producing mapping dictionaries with up to three types and unbounded items.
 def mapping_dict() -> st.SearchStrategy[Dict[str, List[Contribution]]]:
     return st.dictionaries(
         TEXT,
-        st.lists(contributions, max_size=5),
+        st.lists(contributions),
         max_size=3,
     )
 
