@@ -25,6 +25,7 @@ from conversation import ConversationSession
 from diagnostics import validate_jsonl
 from generator import AmbitionModel, ServiceAmbitionGenerator
 from loader import (
+    configure_mapping_data_dir,
     configure_prompt_dir,
     load_ambition_prompt,
     load_evolution_prompt,
@@ -413,6 +414,7 @@ async def _cmd_generate_evolution(
     )
 
     configure_prompt_dir(settings.prompt_dir)
+    configure_mapping_data_dir(settings.mapping_data_dir)
     system_prompt = load_evolution_prompt(settings.context_id, settings.inspiration)
 
     role_ids = load_role_ids(Path(args.roles_file))
@@ -511,6 +513,8 @@ async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
         log_prompts=not args.no_logs,
         redact_prompts=True,
     )
+
+    configure_mapping_data_dir(settings.mapping_data_dir)
 
     # Warm mapping embeddings upfront so subsequent requests reuse cached vectors.
     # Failures are logged by ``init_embeddings`` and do not interrupt startup.
