@@ -9,6 +9,7 @@ contributions back into :class:`PlateauFeature` objects.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Mapping, Sequence
 
@@ -29,8 +30,15 @@ if TYPE_CHECKING:
     from conversation import ConversationSession
 
 
-_QUARANTINED_MAPPINGS: list[Path] = []
-"""Paths of mapping responses that failed to produce required items."""
+_quarantine_logger: Callable[[Path], None] | None = None
+"""Callback invoked with paths of quarantined mapping files."""
+
+
+def set_quarantine_logger(callback: Callable[[Path], None] | None) -> None:
+    """Register ``callback`` to receive paths of quarantined mapping files."""
+
+    global _quarantine_logger
+    _quarantine_logger = callback
 
 
 async def init_embeddings() -> None:
@@ -50,7 +58,8 @@ def _quarantine_unknown_ids(data: Mapping[str, set[str]]) -> Path:
         "Quarantined unknown mapping identifiers",
         path=str(file_path),
     )
-    _QUARANTINED_MAPPINGS.append(file_path)
+    if _quarantine_logger is not None:
+        _quarantine_logger(file_path)
     return file_path
 
 
@@ -161,7 +170,10 @@ async def map_set(
             svc = service or "unknown"
             qdir = Path("quarantine/mappings") / svc
             qdir.mkdir(parents=True, exist_ok=True)
-            (qdir / f"{set_name}.txt").write_text(raw, encoding="utf-8")
+            qfile = qdir / f"{set_name}.txt"
+            qfile.write_text(raw, encoding="utf-8")
+            if _quarantine_logger is not None:
+                _quarantine_logger(qfile)
             if strict:
                 raise MappingError(
                     f"Invalid mapping response for {svc}/{set_name}"
@@ -190,4 +202,5 @@ __all__ = [
     "map_set",
     "MappingError",
     "init_embeddings",
+    "set_quarantine_logger",
 ]
