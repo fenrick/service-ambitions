@@ -13,7 +13,6 @@ import os
 import random
 import time
 from asyncio import Semaphore, TaskGroup
-from itertools import islice
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, TextIO, TypeVar
 
@@ -191,7 +190,6 @@ class ServiceAmbitionGenerator:
         self,
         model: Model,
         concurrency: int = 5,
-        batch_size: int | None = None,
         request_timeout: float = 60,
         retries: int = 5,
         retry_base_delay: float = 0.5,
@@ -202,8 +200,6 @@ class ServiceAmbitionGenerator:
         Args:
             model: Model used for ambition generation.
             concurrency: Maximum number of concurrent requests.
-            batch_size: Number of services scheduled per batch. ``None``
-                schedules all services at once.
             request_timeout: Per-request timeout in seconds.
             retries: Number of retry attempts on failure.
             retry_base_delay: Initial backoff delay in seconds.
@@ -219,7 +215,6 @@ class ServiceAmbitionGenerator:
             raise ValueError("concurrency must be a positive integer")
         self.model = model
         self.concurrency = concurrency
-        self.batch_size = batch_size
         self.request_timeout = request_timeout
         self.retries = retries
         self.retry_base_delay = retry_base_delay
@@ -283,7 +278,6 @@ class ServiceAmbitionGenerator:
         with logfire.span("run_one") as span:
             span.set_attribute("service.id", service.service_id)
             span.set_attribute("concurrency", self.concurrency)
-            span.set_attribute("batch_size", self.batch_size)
             await self._execute_service(
                 limiter,
                 service,
@@ -390,8 +384,7 @@ class ServiceAmbitionGenerator:
         """Process ``services`` and stream results to ``out_path``.
 
         Args:
-            services: Collection of services requiring ambition generation. The
-                iterable is consumed incrementally in batches.
+            services: Collection of services requiring ambition generation.
             out_path: Destination path for the JSONL results.
             progress: Optional progress bar updated as services complete.
             transcripts_dir: Directory to store per-service transcripts. ``None``
@@ -399,32 +392,23 @@ class ServiceAmbitionGenerator:
         """
         with logfire.span("process_all") as span:
             span.set_attribute("concurrency", self.concurrency)
-            span.set_attribute("batch_size", self.batch_size)
             self._setup_controls()
             processed: set[str] = set()
             lock = asyncio.Lock()
             handle = await asyncio.to_thread(open, out_path, "a", encoding="utf-8")
             try:
-                services_iter = iter(services)
-
-                while True:
-                    batch = list(islice(services_iter, self.batch_size))
-                    if not batch:  # No more services to schedule
-                        break
-                    span.set_attribute("service_ids", [svc.service_id for svc in batch])
-                    async with TaskGroup() as tg:
-                        for service in batch:
-                            tg.create_task(
-                                self._run_one(
-                                    service,
-                                    handle,
-                                    lock,
-                                    processed,
-                                    progress,
-                                    transcripts_dir,
-                                )
+                async with TaskGroup() as tg:
+                    for service in services:
+                        tg.create_task(
+                            self._run_one(
+                                service,
+                                handle,
+                                lock,
+                                processed,
+                                progress,
+                                transcripts_dir,
                             )
-
+                        )
                 await asyncio.to_thread(handle.flush)
                 await asyncio.to_thread(os.fsync, handle.fileno())
             finally:
@@ -442,9 +426,7 @@ class ServiceAmbitionGenerator:
         """Process ``services`` lazily and write ambitions to ``output_path``.
 
         Args:
-            services: Collection of services requiring ambition generation. The
-                iterable is consumed incrementally in batches to keep memory
-                usage low.
+            services: Collection of services requiring ambition generation.
             prompt: Instructions guiding the model's output.
             output_path: Destination path for the JSONL results.
             progress: Optional progress bar updated as services complete.
@@ -461,7 +443,6 @@ class ServiceAmbitionGenerator:
 
         with logfire.span("generate_async") as span:
             span.set_attribute("concurrency", self.concurrency)
-            span.set_attribute("batch_size", self.batch_size)
             self._prompt = prompt
             try:
                 self._limiter = Semaphore(self.concurrency)

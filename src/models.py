@@ -349,11 +349,6 @@ class AppConfig(StrictModel):
         ge=1,
         description="Number of services to process concurrently.",
     )
-    batch_size: int | None = Field(
-        None,
-        ge=1,
-        description="Number of services to schedule per batch.",
-    )
     request_timeout: Annotated[
         int,
         Field(gt=0, description="Per-request timeout in seconds."),
