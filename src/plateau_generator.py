@@ -74,6 +74,7 @@ class PlateauGenerator:
         mapping_batch_size: int = 30,
         mapping_parallel_types: bool = True,
         mapping_token_cap: int = 8000,
+        strict: bool = False,
     ) -> None:
         """Initialise the generator.
 
@@ -88,6 +89,7 @@ class PlateauGenerator:
                 across all batches when ``True``.
             mapping_token_cap: Maximum tokens permitted for a mapping request
                 batch.
+            strict: Enforce feature and mapping completeness when ``True``.
         """
         if required_count < 1:
             raise ValueError("required_count must be positive")
@@ -99,6 +101,7 @@ class PlateauGenerator:
         self.mapping_batch_size = mapping_batch_size
         self.mapping_parallel_types = mapping_parallel_types
         self.mapping_token_cap = mapping_token_cap
+        self.strict = strict
         self._service: ServiceInput | None = None
         # Track quarantine file paths for invalid plateau descriptions.
         self.quarantined_descriptions: list[Path] = []
@@ -145,6 +148,7 @@ class PlateauGenerator:
         return await map_features_async(
             session,
             features,
+            strict=self.strict,
             batch_size=batch_size,
             parallel_types=self.mapping_parallel_types,
             token_cap=self.mapping_token_cap,
@@ -498,11 +502,25 @@ class PlateauGenerator:
         role_ids: Sequence[str],
         meta: ServiceMeta,
         transcripts_dir: Path | None,
+        *,
+        strict: bool = False,
     ) -> ServiceEvolution:
-        """Return ``ServiceEvolution`` from plateau ``results``."""
+        """Return ``ServiceEvolution`` from plateau ``results``.
+
+        Args:
+            service_input: Source service details to evolve.
+            results: Plateau results with features for each maturity level.
+            plateau_names: Ordered plateau names included in the evolution.
+            role_ids: Roles expected to appear across all features.
+            meta: Metadata describing the generation run.
+            transcripts_dir: Directory for persisted transcripts or ``None``.
+            strict: Enforce presence of features for all roles and non-empty
+                mapping lists when ``True``.
+        """
 
         plateaus: list[PlateauResult] = []
         seen: set[str] = set()
+        roles_seen: dict[str, bool] = {r: False for r in role_ids}
         for result in results:
             if result.plateau_name not in plateau_names:
                 raise ValueError(f"Unknown plateau name: {result.plateau_name}")
@@ -510,6 +528,14 @@ class PlateauGenerator:
             for feat in result.features:
                 if feat.customer_type not in role_ids:
                     raise ValueError(f"Unknown customer_type: {feat.customer_type}")
+                roles_seen[feat.customer_type] = True
+                if strict and (
+                    not feat.mappings
+                    or any(len(v) == 0 for v in feat.mappings.values())
+                ):
+                    raise ValueError(
+                        f"Feature {feat.feature_id} has incomplete mappings"
+                    )
                 if feat.feature_id in seen:
                     logfire.warning(
                         "Duplicate feature removed",
@@ -543,6 +569,12 @@ class PlateauGenerator:
                 json.dumps(payload, ensure_ascii=False),
                 encoding="utf-8",
             )
+        if strict:
+            missing = [r for r, seen in roles_seen.items() if not seen]
+            if missing:
+                raise ValueError(
+                    f"No features generated for roles: {', '.join(sorted(missing))}"
+                )
         return evolution
 
     @logfire.instrument()
@@ -736,7 +768,13 @@ class PlateauGenerator:
             )
 
             evolution = await self._assemble_evolution(
-                service_input, results, plateau_names, role_ids, meta, transcripts_dir
+                service_input,
+                results,
+                plateau_names,
+                role_ids,
+                meta,
+                transcripts_dir,
+                strict=self.strict,
             )
 
             if self.quarantined_descriptions:

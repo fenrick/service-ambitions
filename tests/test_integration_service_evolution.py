@@ -84,7 +84,7 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
 
     map_calls = {"n": 0}
 
-    def _fake_map_features(session, features):
+    def _fake_map_features(session, features, *, strict=False):
         map_calls["n"] += 1
         results = []
         for feature in features:
