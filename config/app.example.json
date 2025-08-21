@@ -37,9 +37,8 @@
   // Optional inspiration list to influence outputs.
   "inspiration": "general",
 
-  // Concurrency and batching controls for API requests.
+  // Concurrency controls for API requests.
   "concurrency": 5,
-  "batch_size": 25,
   "request_timeout": 60,
   "retries": 5,
   "retry_base_delay": 0.5,
