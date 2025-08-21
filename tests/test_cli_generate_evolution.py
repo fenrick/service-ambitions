@@ -4,7 +4,6 @@ import argparse
 import asyncio
 import json
 import sys
-from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -95,7 +94,6 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         diagnostics=False,
         strict_mapping=False,
         mapping_data_dir="data",
-        mapping_mode="per_set",
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -111,7 +109,6 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         resume=False,
         seed=None,
         roles_file="data/roles.json",
-        exhaustive_mapping=True,
         transcripts_dir=None,
         web_search=None,
         no_logs=False,
@@ -119,7 +116,6 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         strict=False,
         diagnostics=None,
         strict_mapping=None,
-        mapping_data_dir=None,
     )
 
     monkeypatch.setattr(cli, "_RUN_META", None)
@@ -184,7 +180,6 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         diagnostics=False,
         strict_mapping=False,
         mapping_data_dir="data",
-        mapping_mode="per_set",
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -200,7 +195,6 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         resume=False,
         seed=None,
         roles_file="data/roles.json",
-        exhaustive_mapping=True,
         transcripts_dir=None,
         web_search=None,
         no_logs=False,
@@ -208,7 +202,6 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         strict=False,
         diagnostics=None,
         strict_mapping=None,
-        mapping_data_dir=None,
     )
 
     monkeypatch.setattr(cli, "_RUN_META", None)
@@ -277,7 +270,6 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         diagnostics=False,
         strict_mapping=False,
         mapping_data_dir="data",
-        mapping_mode="per_set",
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -293,7 +285,6 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         resume=True,
         seed=None,
         roles_file="data/roles.json",
-        exhaustive_mapping=True,
         transcripts_dir=None,
         web_search=None,
         no_logs=False,
@@ -301,7 +292,6 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         strict=False,
         diagnostics=None,
         strict_mapping=None,
-        mapping_data_dir=None,
     )
 
     monkeypatch.setattr(cli, "_RUN_META", None)
@@ -359,7 +349,6 @@ def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -
         diagnostics=False,
         strict_mapping=False,
         mapping_data_dir="data",
-        mapping_mode="per_set",
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -375,7 +364,6 @@ def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -
         resume=False,
         seed=None,
         roles_file="data/roles.json",
-        exhaustive_mapping=True,
         transcripts_dir=None,
         web_search=None,
         no_logs=False,
@@ -383,7 +371,6 @@ def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -
         strict=False,
         diagnostics=None,
         strict_mapping=None,
-        mapping_data_dir=None,
     )
 
     monkeypatch.setattr(cli, "_RUN_META", None)
@@ -409,7 +396,6 @@ def test_cli_parses_mapping_options(tmp_path, monkeypatch) -> None:
     )
     monkeypatch.setattr("cli.logfire.force_flush", lambda: None)
 
-    data_dir = tmp_path / "data"
     argv = [
         "prog",
         "generate-evolution",
@@ -417,8 +403,6 @@ def test_cli_parses_mapping_options(tmp_path, monkeypatch) -> None:
         str(tmp_path / "services.jsonl"),
         "--output-file",
         str(tmp_path / "out.jsonl"),
-        "--mapping-data-dir",
-        str(data_dir),
         "--diagnostics",
         "--strict-mapping",
     ]
@@ -426,11 +410,9 @@ def test_cli_parses_mapping_options(tmp_path, monkeypatch) -> None:
 
     cli.main()
 
-    assert called["args"].mapping_data_dir == str(data_dir)
     assert called["args"].diagnostics is True
     assert called["args"].strict_mapping is True
     settings_ns = called["settings"]
-    assert settings_ns.mapping_data_dir == Path(data_dir)
     assert settings_ns.diagnostics is True
     assert settings_ns.strict_mapping is True
 
@@ -497,7 +479,6 @@ def test_generate_evolution_writes_transcripts(tmp_path, monkeypatch) -> None:
         diagnostics=False,
         strict_mapping=False,
         mapping_data_dir="data",
-        mapping_mode="per_set",
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -513,7 +494,6 @@ def test_generate_evolution_writes_transcripts(tmp_path, monkeypatch) -> None:
         resume=False,
         seed=None,
         roles_file="data/roles.json",
-        exhaustive_mapping=True,
         transcripts_dir=None,
         web_search=None,
         no_logs=False,
@@ -521,7 +501,6 @@ def test_generate_evolution_writes_transcripts(tmp_path, monkeypatch) -> None:
         strict=False,
         diagnostics=None,
         strict_mapping=None,
-        mapping_data_dir=None,
     )
 
     monkeypatch.setattr(cli, "_RUN_META", None)

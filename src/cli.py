@@ -631,16 +631,6 @@ def main() -> None:
         help="Process at most this many services",
     )
     common.add_argument(
-        "--exhaustive-mapping",
-        action=argparse.BooleanOptionalAction,
-        default=settings.exhaustive_mapping,
-        help="Retry mapping prompts until minimum items are found",
-    )
-    common.add_argument(
-        "--mapping-data-dir",
-        help="Directory containing mapping reference data",
-    )
-    common.add_argument(
         "--diagnostics",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -792,8 +782,6 @@ def main() -> None:
     if args.seed is not None:
         random.seed(args.seed)
 
-    if args.mapping_data_dir:
-        settings.mapping_data_dir = Path(args.mapping_data_dir)
     if args.diagnostics is not None:
         settings.diagnostics = args.diagnostics
     if args.strict_mapping is not None:
