@@ -18,7 +18,7 @@ import json
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterable, Mapping, Sequence
+from typing import Iterable, Mapping, Sequence, TYPE_CHECKING
 
 import logfire
 import numpy as np
