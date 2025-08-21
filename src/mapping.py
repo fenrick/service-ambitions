@@ -534,7 +534,7 @@ async def _request_mapping(
     attempts = getattr(session, "retries", 5)
     base_delay = getattr(session, "retry_base_delay", 0.5)
     limiter = getattr(session, "_limiter", None)
-    on_retry_after = limiter.throttle if limiter else None
+    on_retry_after = getattr(limiter, "throttle", None)
     metrics = getattr(session, "_metrics", None)
 
     async def _send_prompt() -> MappingResponse:

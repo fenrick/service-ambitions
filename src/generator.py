@@ -12,7 +12,7 @@ import json
 import os
 import random
 import time
-from asyncio import TaskGroup
+from asyncio import Semaphore, TaskGroup
 from itertools import islice
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, TypeVar
@@ -24,14 +24,13 @@ from pydantic_ai.models import Model
 from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModelSettings
 from tqdm import tqdm
 
-from backpressure import AdaptiveSemaphore, RollingMetrics
+from backpressure import RollingMetrics
 from models import ReasoningConfig, ServiceInput
 from redaction import redact_pii
-from token_utils import estimate_tokens
+from token_utils import estimate_cost
 
 SERVICES_PROCESSED = logfire.metric_counter("services_processed")
 SERVICES_FAILED = logfire.metric_counter("services_failed")
-TOKENS_IN_FLIGHT = logfire.metric_counter("tokens_in_flight")
 
 T = TypeVar("T")
 
@@ -243,11 +242,11 @@ class ServiceAmbitionGenerator:
             request_timeout: Per-request timeout in seconds.
             retries: Number of retry attempts on failure.
             retry_base_delay: Initial backoff delay in seconds.
-            expected_output_tokens: Anticipated tokens in each response used to
-                weight concurrency limits.
+            expected_output_tokens: Anticipated tokens in each response. Retained
+                for backwards compatibility.
             flush_interval: Number of lines to write before forcing a flush and
                 ``os.fsync`` to ensure results are durably persisted.
-            token_weighting: Apply token-based weighting to semaphore permits.
+            token_weighting: Deprecated. No longer adjusts concurrency permits.
 
         Raises:
             ValueError: If ``concurrency`` is less than one.
@@ -266,54 +265,43 @@ class ServiceAmbitionGenerator:
         self.flush_interval = flush_interval
         self.token_weighting = token_weighting
         self._prompt: str | None = None
-        self._limiter: AdaptiveSemaphore | None = None
+        self._limiter: Semaphore | None = None
         self._metrics: RollingMetrics | None = None
 
     def _setup_controls(self) -> None:
         """Ensure rate limiter and metrics are initialised."""
 
         if self._limiter is None:
-            self._limiter = AdaptiveSemaphore(self.concurrency)
+            self._limiter = Semaphore(self.concurrency)
         if self._metrics is None:
             self._metrics = RollingMetrics()
-
-    def _estimate_weight(self, service: ServiceInput) -> int:
-        """Return estimated token weight for ``service``."""
-
-        service_json = service.model_dump_json()
-        prompt_payload = (self._prompt or "") + service_json
-        return estimate_tokens(prompt_payload, self.expected_output_tokens)
 
     async def _process_service_line(
         self, service: ServiceInput, transcripts_dir: Path | None
     ) -> tuple[str | None, str, int]:
         """Return JSON line and token count for ``service`` or ``None`` on failure."""
 
-        with logfire.span("process_service") as span:
-            span.set_attribute("service.id", service.service_id)
-            if service.customer_type:
-                span.set_attribute("customer_type", service.customer_type)
-            logfire.info(f"Processing service {service.name}")
-            try:
-                result, tokens = await self.process_service(service)
-            except Exception as exc:
-                msg = f"Failed to process service {service.name}: {exc}"
-                logfire.error(msg)
-                return None, service.service_id, 0
-            line = AmbitionModel.model_validate(result).model_dump_json()
-            if transcripts_dir is not None:
-                payload = {
-                    "request": service.model_dump(),
-                    "response": json.loads(line),
-                }
-                data = redact_pii(json.dumps(payload, ensure_ascii=False))
-                path = transcripts_dir / f"{service.service_id}.json"
-                await asyncio.to_thread(
-                    path.write_text,
-                    data,
-                    encoding="utf-8",
-                )
-            return line, service.service_id, tokens
+        logfire.info(f"Processing service {service.name}")
+        try:
+            result, tokens = await self.process_service(service)
+        except Exception as exc:
+            msg = f"Failed to process service {service.name}: {exc}"
+            logfire.error(msg)
+            return None, service.service_id, 0
+        line = AmbitionModel.model_validate(result).model_dump_json()
+        if transcripts_dir is not None:
+            payload = {
+                "request": service.model_dump(),
+                "response": json.loads(line),
+            }
+            data = redact_pii(json.dumps(payload, ensure_ascii=False))
+            path = transcripts_dir / f"{service.service_id}.json"
+            await asyncio.to_thread(
+                path.write_text,
+                data,
+                encoding="utf-8",
+            )
+        return line, service.service_id, tokens
 
     async def _run_one(
         self,
@@ -325,56 +313,34 @@ class ServiceAmbitionGenerator:
         limiter = self._limiter
         if limiter is None:  # pragma: no cover - defensive
             raise RuntimeError("Limiter not initialized")
-        weight_estimate = self._estimate_weight(service) if self.token_weighting else 1
-        weight = weight_estimate if self.token_weighting else 1
         with logfire.span("run_one") as span:
             span.set_attribute("service.id", service.service_id)
             span.set_attribute("concurrency", self.concurrency)
             span.set_attribute("batch_size", self.batch_size)
-            span.set_attribute("queue_length_before", queue.qsize())
             await self._execute_service(
                 limiter,
-                weight,
-                weight_estimate,
                 service,
                 transcripts_dir,
                 queue,
-                span,
             )
 
     async def _execute_service(
         self,
-        limiter: AdaptiveSemaphore,
-        weight: int,
-        estimate: int,
+        limiter: Semaphore,
         service: ServiceInput,
         transcripts_dir: Path | None,
         queue: asyncio.Queue[tuple[str, str] | None],
-        span: Any,
     ) -> None:
         """Run ``service`` within ``limiter`` and enqueue results."""
 
-        async with limiter(weight):
-            if self._metrics and self.token_weighting:
-                self._metrics.record_start_tokens(estimate)
-            TOKENS_IN_FLIGHT.add(estimate)
-            actual_tokens = 0
-            try:
-                line, svc_id, actual_tokens = await self._process_service_line(
-                    service, transcripts_dir
-                )
-                if line is not None:
-                    await queue.put((line, svc_id))
-                    SERVICES_PROCESSED.add(1)
-                    span.set_attribute("queue_length_after", queue.qsize())
-                else:
-                    SERVICES_FAILED.add(1)
-            finally:
-                if self._metrics and self.token_weighting:
-                    self._metrics.record_end_tokens(actual_tokens)
-                TOKENS_IN_FLIGHT.add(-estimate)
+        async with limiter:
+            line, svc_id, _ = await self._process_service_line(service, transcripts_dir)
+            if line is not None:
+                await queue.put((line, svc_id))
+                SERVICES_PROCESSED.add(1)
+            else:
+                SERVICES_FAILED.add(1)
 
-    @logfire.instrument()
     async def process_service(
         self,
         service: ServiceInput,
@@ -405,16 +371,26 @@ class ServiceAmbitionGenerator:
             raise ValueError("prompt must be provided")
         agent = Agent(self.model, instructions=instructions)
         service_details = service.model_dump_json()
-        result = await _with_retry(
-            lambda: agent.run(service_details, output_type=AmbitionModel),
-            request_timeout=self.request_timeout,
-            attempts=self.retries,
-            base=self.retry_base_delay,
-            on_retry_after=self._limiter.throttle if self._limiter else None,
-            metrics=self._metrics,
-        )
-        usage = result.usage()
-        tokens = usage.total_tokens or 0
+        with logfire.span("process_service") as span:
+            span.set_attribute("service.id", service.service_id)
+            if service.customer_type:
+                span.set_attribute("customer_type", service.customer_type)
+            result = await _with_retry(
+                lambda: agent.run(service_details, output_type=AmbitionModel),
+                request_timeout=self.request_timeout,
+                attempts=self.retries,
+                base=self.retry_base_delay,
+                on_retry_after=getattr(self._limiter, "throttle", None),
+                metrics=self._metrics,
+            )
+            usage = result.usage()
+            tokens = usage.total_tokens or 0
+            model_name = getattr(
+                self.model, "model_name", getattr(self.model, "name", "")
+            )
+            cost = estimate_cost(model_name, tokens)
+            span.set_attribute("total_tokens", tokens)
+            span.set_attribute("cost", cost)
         return result.output.model_dump(), tokens
 
     async def _process_all(
@@ -451,7 +427,6 @@ class ServiceAmbitionGenerator:
                 if not batch:
                     break
                 span.set_attribute("service_ids", [svc.service_id for svc in batch])
-                span.set_attribute("queue_length", queue.qsize())
                 async with TaskGroup() as tg:
                     for service in batch:
                         tg.create_task(self._run_one(service, queue, transcripts_dir))
@@ -491,10 +466,9 @@ class ServiceAmbitionGenerator:
         with logfire.span("generate_async") as span:
             span.set_attribute("concurrency", self.concurrency)
             span.set_attribute("batch_size", self.batch_size)
-            span.set_attribute("queue_length", 0)
             self._prompt = prompt
             try:
-                self._limiter = AdaptiveSemaphore(self.concurrency)
+                self._limiter = Semaphore(self.concurrency)
                 self._metrics = RollingMetrics()
                 processed = await self._process_all(
                     services, output_path, progress, transcripts_dir=transcripts_dir

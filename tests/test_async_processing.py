@@ -1,14 +1,12 @@
 import asyncio
 import json
 import sys
-from contextlib import asynccontextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Iterable
 
 import pytest
 
-import backpressure
 import generator
 from models import ServiceInput
 
@@ -243,122 +241,6 @@ def test_generate_async_saves_transcripts(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio()
-async def test_weighted_acquisition(monkeypatch, tmp_path):
-    """The generator acquires limiter permits proportional to token estimates."""
-
-    captured: list[int] = []
-    metrics_calls: list[SimpleNamespace] = []
-    start_calls: list[int] = []
-    end_calls: list[int] = []
-
-    class DummyLimiter:
-        def __call__(self, weight: int = 1):
-            captured.append(weight)
-
-            @asynccontextmanager
-            async def manager():
-                yield
-
-            return manager()
-
-        def throttle(self, _delay: float) -> None:
-            pass
-
-    async def fake_process_service(self, service, prompt=None):
-        tokens = 2 if "svc1" in service.service_id else 1
-        return {"id": service.service_id}, tokens
-
-    def fake_estimate(prompt: str, expected: int) -> int:
-        return 3 if "svc1" in prompt else 1
-
-    monkeypatch.setattr(generator, "estimate_tokens", fake_estimate)
-    monkeypatch.setattr(
-        generator.ServiceAmbitionGenerator, "process_service", fake_process_service
-    )
-    monkeypatch.setattr(
-        backpressure.logfire,
-        "metric",
-        lambda n, v: metrics_calls.append(SimpleNamespace(name=n, value=v)),
-    )
-
-    gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
-    gen._prompt = "p"
-    gen._limiter = DummyLimiter()
-
-    class DummyMetrics(generator.RollingMetrics):
-        def record_start_tokens(self, count: int) -> None:
-            start_calls.append(count)
-            super().record_start_tokens(count)
-
-        def record_end_tokens(self, count: int) -> None:
-            end_calls.append(count)
-            super().record_end_tokens(count)
-
-    gen._metrics = DummyMetrics(window=1)
-    services = [
-        ServiceInput(service_id="svc1", name="s1", description="d", jobs_to_be_done=[]),
-        ServiceInput(service_id="svc2", name="s2", description="d", jobs_to_be_done=[]),
-    ]
-    await gen._process_all(services, str(tmp_path / "out.jsonl"))
-    assert sorted(captured) == [1, 3]
-    names = {c.name for c in metrics_calls}
-    assert {"tokens_per_second", "tokens_in_flight"} <= names
-    assert sorted(start_calls) == [1, 3]
-    assert sorted(end_calls) == [1, 2]
-
-
-@pytest.mark.asyncio()
-async def test_process_all_without_token_weighting(tmp_path, monkeypatch):
-    """Token weighting may be disabled to use uniform permits."""
-
-    captured: list[int] = []
-    metrics_calls: list[SimpleNamespace] = []
-
-    class DummyLimiter:
-        def __call__(self, weight: int = 1):
-            captured.append(weight)
-
-            @asynccontextmanager
-            async def manager():
-                yield
-
-            return manager()
-
-        def throttle(self, _delay: float) -> None:
-            pass
-
-    async def fake_process_service(self, service, prompt=None):
-        return {"id": service.service_id}, 1
-
-    def fail_estimate(prompt: str, expected: int) -> int:
-        raise AssertionError("estimate_tokens should be bypassed")
-
-    monkeypatch.setattr(generator, "estimate_tokens", fail_estimate)
-    monkeypatch.setattr(
-        generator.ServiceAmbitionGenerator, "process_service", fake_process_service
-    )
-    monkeypatch.setattr(
-        backpressure.logfire,
-        "metric",
-        lambda n, v: metrics_calls.append(SimpleNamespace(name=n, value=v)),
-    )
-
-    gen = generator.ServiceAmbitionGenerator(SimpleNamespace(), token_weighting=False)
-    gen._prompt = "p"
-    gen._limiter = DummyLimiter()
-    gen._metrics = generator.RollingMetrics(window=1)
-    services = [
-        ServiceInput(service_id="svc1", name="s1", description="d", jobs_to_be_done=[]),
-        ServiceInput(service_id="svc2", name="s2", description="d", jobs_to_be_done=[]),
-    ]
-    await gen._process_all(services, str(tmp_path / "out.jsonl"))
-    assert captured == [1, 1]
-    names = {c.name for c in metrics_calls}
-    assert "tokens_per_second" not in names
-    assert "tokens_in_flight" not in names
-
-
-@pytest.mark.asyncio()
 async def test_process_all_fsyncs(tmp_path, monkeypatch):
     """Writer flushes and fsyncs periodically to ensure durability."""
 
@@ -368,18 +250,6 @@ async def test_process_all_fsyncs(tmp_path, monkeypatch):
         fsync_calls.append(fd)
 
     monkeypatch.setattr(generator.os, "fsync", fake_fsync)
-    monkeypatch.setattr(generator, "estimate_tokens", lambda _p, _e: 1)
-
-    class DummyLimiter:
-        def __call__(self, weight: int = 1):
-            @asynccontextmanager
-            async def manager():
-                yield
-
-            return manager()
-
-        def throttle(self, _delay: float) -> None:
-            pass
 
     async def fake_process_service(self, service, prompt=None):
         return {"id": service.service_id}, 1
@@ -390,7 +260,6 @@ async def test_process_all_fsyncs(tmp_path, monkeypatch):
 
     gen = generator.ServiceAmbitionGenerator(SimpleNamespace(), flush_interval=1)
     gen._prompt = "p"
-    gen._limiter = DummyLimiter()
 
     services = [
         ServiceInput(service_id="svc1", name="s1", description="d", jobs_to_be_done=[]),
@@ -405,17 +274,6 @@ async def test_process_all_fsyncs(tmp_path, monkeypatch):
 @pytest.mark.asyncio()
 async def test_run_one_counters_success(monkeypatch):
     """Successful runs update processed and token counters."""
-
-    class DummyLimiter:
-        def __call__(self, weight: int = 1):
-            @asynccontextmanager
-            async def manager():
-                yield
-
-            return manager()
-
-        def throttle(self, _delay: float) -> None:
-            pass
 
     async def ok(self, service, transcripts_dir):
         return ("line", service.service_id, 1)
@@ -433,16 +291,12 @@ async def test_run_one_counters_success(monkeypatch):
 
     processed = DummyCounter()
     failed = DummyCounter()
-    tokens = DummyCounter()
-
     monkeypatch.setattr(generator, "SERVICES_PROCESSED", processed)
     monkeypatch.setattr(generator, "SERVICES_FAILED", failed)
-    monkeypatch.setattr(generator, "TOKENS_IN_FLIGHT", tokens)
     monkeypatch.setattr(generator.ServiceAmbitionGenerator, "_process_service_line", ok)
-    monkeypatch.setattr(generator, "estimate_tokens", lambda *_: 5)
 
     gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
-    gen._limiter = DummyLimiter()
+    gen._limiter = asyncio.Semaphore(1)
     queue: asyncio.Queue[tuple[str, str] | None] = asyncio.Queue()
     service = ServiceInput(
         service_id="s1", name="n", description="d", jobs_to_be_done=[]
@@ -452,24 +306,12 @@ async def test_run_one_counters_success(monkeypatch):
 
     assert processed.value == 1
     assert failed.value == 0
-    assert tokens.calls == [5, -5]
     assert queue.qsize() == 1
 
 
 @pytest.mark.asyncio()
 async def test_run_one_counters_failure(monkeypatch):
     """Failures increment the failed counter and release tokens."""
-
-    class DummyLimiter:
-        def __call__(self, weight: int = 1):
-            @asynccontextmanager
-            async def manager():
-                yield
-
-            return manager()
-
-        def throttle(self, _delay: float) -> None:
-            pass
 
     async def bad(self, service, transcripts_dir):
         return (None, service.service_id, 0)
@@ -487,18 +329,14 @@ async def test_run_one_counters_failure(monkeypatch):
 
     processed = DummyCounter()
     failed = DummyCounter()
-    tokens = DummyCounter()
-
     monkeypatch.setattr(generator, "SERVICES_PROCESSED", processed)
     monkeypatch.setattr(generator, "SERVICES_FAILED", failed)
-    monkeypatch.setattr(generator, "TOKENS_IN_FLIGHT", tokens)
     monkeypatch.setattr(
         generator.ServiceAmbitionGenerator, "_process_service_line", bad
     )
-    monkeypatch.setattr(generator, "estimate_tokens", lambda *_: 3)
 
     gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
-    gen._limiter = DummyLimiter()
+    gen._limiter = asyncio.Semaphore(1)
     queue: asyncio.Queue[tuple[str, str] | None] = asyncio.Queue()
     service = ServiceInput(
         service_id="s2", name="n", description="d", jobs_to_be_done=[]
@@ -508,7 +346,6 @@ async def test_run_one_counters_failure(monkeypatch):
 
     assert processed.value == 0
     assert failed.value == 1
-    assert tokens.calls == [3, -3]
     assert queue.qsize() == 0
 
 
