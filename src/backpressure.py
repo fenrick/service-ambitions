@@ -3,9 +3,7 @@
 This module provides helpers for rate limiting and telemetry. The
 ``AdaptiveSemaphore`` is a weighted semaphore tuned for language model
 workloads. Tasks may reserve multiple permits proportional to their estimated
-output tokens so large responses cannot monopolise concurrency. The
-``Generator`` class derives these weights from its
-``expected_output_tokens`` configuration.
+output tokens so large responses cannot monopolise concurrency.
 
 When upstream services send ``Retry-After`` hints, the semaphore halves the
 available permits and enters a slow-start recovery. After the hinted delay it
@@ -18,11 +16,11 @@ Example:
     from service_ambitions.backpressure import AdaptiveSemaphore
     import math
 
-    expected_output_tokens = 256
+    tokens_per_permit = 256
     limiter = AdaptiveSemaphore(permits=5, ramp_interval=1.0)
 
     token_estimate = 800
-    weight = math.ceil(token_estimate / expected_output_tokens)
+    weight = math.ceil(token_estimate / tokens_per_permit)
 
     async with limiter(weight):
         ...
@@ -63,8 +61,8 @@ AVG_LATENCY = logfire.metric_gauge("avg_latency")
 class AdaptiveSemaphore:
     """Semaphore that reacts to rate limit signals with weighted permits.
 
-    Tasks may acquire multiple permits to reflect anticipated token usage,
-    typically derived from ``expected_output_tokens``. On ``Retry-After`` the
+    Tasks may acquire multiple permits to reflect anticipated token usage.
+    On ``Retry-After`` the
     limiter halves its concurrency and then gradually restores capacity using a
     ramp strategy: permits are released one at a time with an exponentially
     increasing delay after consecutive throttles. This slow-start recovery helps
@@ -148,7 +146,7 @@ class AdaptiveSemaphore:
             ```python
             import math
             token_estimate = 800
-            weight = math.ceil(token_estimate / expected_output_tokens)
+            weight = math.ceil(token_estimate / 256)
             async with limiter(weight):
                 ...
             ```

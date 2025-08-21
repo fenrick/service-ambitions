@@ -325,7 +325,6 @@ async def _cmd_generate_ambitions(
                 request_timeout=settings.request_timeout,
                 retries=settings.retries,
                 retry_base_delay=settings.retry_base_delay,
-                expected_output_tokens=args.expected_output_tokens,
             )
 
             part_path, processed_path = _prepare_paths(output_path, args.resume)
@@ -717,12 +716,6 @@ def main() -> None:
         "--validate-only",
         action="store_true",
         help="Validate an existing output file and exit",
-    )
-    amb.add_argument(
-        "--expected-output-tokens",
-        type=int,
-        default=256,
-        help="Anticipated tokens per response for concurrency tuning",
     )
     amb.set_defaults(func=_cmd_generate_ambitions)
 
