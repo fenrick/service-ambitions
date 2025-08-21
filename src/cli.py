@@ -414,7 +414,7 @@ async def _cmd_generate_evolution(
     )
 
     configure_prompt_dir(settings.prompt_dir)
-    configure_mapping_data_dir(settings.mapping_data_dir)
+    configure_mapping_data_dir(args.mapping_data_dir or settings.mapping_data_dir)
     system_prompt = load_evolution_prompt(settings.context_id, settings.inspiration)
 
     role_ids = load_role_ids(Path(args.roles_file))
@@ -436,7 +436,9 @@ async def _cmd_generate_evolution(
     # Failures are logged by ``init_embeddings`` and do not interrupt startup.
     await init_embeddings()
 
-    concurrency = args.concurrency or settings.concurrency
+    concurrency = (
+        args.concurrency if args.concurrency is not None else settings.concurrency
+    )
     if concurrency < 1:
         raise ValueError("concurrency must be a positive integer")
     sem = asyncio.Semaphore(concurrency)
@@ -514,7 +516,7 @@ async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
         redact_prompts=True,
     )
 
-    configure_mapping_data_dir(settings.mapping_data_dir)
+    configure_mapping_data_dir(args.mapping_data_dir or settings.mapping_data_dir)
 
     # Warm mapping embeddings upfront so subsequent requests reuse cached vectors.
     # Failures are logged by ``init_embeddings`` and do not interrupt startup.
@@ -641,6 +643,11 @@ def main() -> None:
         action=argparse.BooleanOptionalAction,
         default=None,
         help="Fail when feature mappings are missing",
+    )
+    common.add_argument(
+        "--mapping-data-dir",
+        default=None,
+        help="Directory containing mapping reference data",
     )
     common.add_argument(
         "--seed",
@@ -786,6 +793,8 @@ def main() -> None:
         settings.diagnostics = args.diagnostics
     if args.strict_mapping is not None:
         settings.strict_mapping = args.strict_mapping
+    if args.mapping_data_dir is not None:
+        settings.mapping_data_dir = Path(args.mapping_data_dir)
 
     _configure_logging(args, settings)
 

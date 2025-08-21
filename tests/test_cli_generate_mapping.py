@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 from types import SimpleNamespace
+from typing import Any
 
 import cli
 from cli import _cmd_generate_mapping
@@ -42,7 +43,7 @@ def test_generate_mapping_maps_features(tmp_path, monkeypatch) -> None:
     output_path = tmp_path / "out.jsonl"
     input_path.write_text(f"{evo.model_dump_json()}\n", encoding="utf-8")
 
-    called: dict[str, int] = {}
+    called: dict[str, Any] = {}
 
     async def fake_map_features(self, session, feats):
         called["count"] = len(feats)
@@ -54,7 +55,9 @@ def test_generate_mapping_maps_features(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(cli, "Agent", lambda *a, **k: SimpleNamespace())
     monkeypatch.setattr(cli.PlateauGenerator, "_map_features", fake_map_features)
     monkeypatch.setattr(cli, "init_embeddings", fake_init_embeddings)
-    monkeypatch.setattr(cli, "configure_mapping_data_dir", lambda _p: None)
+    monkeypatch.setattr(
+        cli, "configure_mapping_data_dir", lambda p: called.setdefault("path", p)
+    )
 
     settings = SimpleNamespace(
         model="m",
@@ -62,6 +65,8 @@ def test_generate_mapping_maps_features(tmp_path, monkeypatch) -> None:
         diagnostics=False,
         strict_mapping=False,
         mapping_data_dir="data",
+        web_search=False,
+        reasoning=None,
     )
     args = argparse.Namespace(
         input=str(input_path),
@@ -72,6 +77,8 @@ def test_generate_mapping_maps_features(tmp_path, monkeypatch) -> None:
         strict_mapping=None,
         seed=None,
         no_logs=False,
+        mapping_data_dir="maps",
+        web_search=None,
     )
 
     asyncio.run(_cmd_generate_mapping(args, settings))
@@ -80,3 +87,4 @@ def test_generate_mapping_maps_features(tmp_path, monkeypatch) -> None:
     parsed = ServiceEvolution.model_validate_json(out)
     assert parsed.plateaus[0].features[0].mappings["applications"] == []
     assert called["count"] == 1
+    assert called["path"] == "maps"

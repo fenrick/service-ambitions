@@ -21,6 +21,7 @@ poetry run service-ambitions generate-evolution \
 ```
 
 Use `--roles-file` to supply an alternative roles definition file when needed.
+Provide `--mapping-data-dir` to point to a directory of mapping reference data.
 
 Pass `--strict` to abort if any role lacks features or if generated features
 contain empty mapping lists. This turns on a fail-fast mode instead of the

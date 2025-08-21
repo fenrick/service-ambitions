@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import json
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -76,6 +77,10 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr("cli.configure_prompt_dir", lambda _path: None)
     monkeypatch.setattr("cli.load_evolution_prompt", lambda _ctx, _insp: "prompt")
     monkeypatch.setattr("cli.logfire.force_flush", lambda: None)
+    called: dict[str, Any] = {}
+    monkeypatch.setattr(
+        "cli.configure_mapping_data_dir", lambda p: called.setdefault("path", p)
+    )
 
     settings = SimpleNamespace(
         model="test-model",
@@ -112,10 +117,14 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         transcripts_dir=None,
         web_search=None,
         no_logs=False,
+        descriptions_model=None,
+        features_model=None,
+        mapping_model=None,
         search_model=None,
         strict=False,
         diagnostics=None,
         strict_mapping=None,
+        mapping_data_dir=str(tmp_path / "maps"),
     )
 
     monkeypatch.setattr(cli, "_RUN_META", None)
@@ -125,6 +134,7 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
     assert payload["service"]["name"] == "svc"
     assert payload["service"]["service_id"] == "svc-1"
     assert payload["meta"]["schema_version"] == SCHEMA_VERSION
+    assert called["path"] == str(tmp_path / "maps")
 
 
 def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
@@ -198,10 +208,14 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         transcripts_dir=None,
         web_search=None,
         no_logs=False,
+        descriptions_model=None,
+        features_model=None,
+        mapping_model=None,
         search_model=None,
         strict=False,
         diagnostics=None,
         strict_mapping=None,
+        mapping_data_dir=None,
     )
 
     monkeypatch.setattr(cli, "_RUN_META", None)
@@ -218,9 +232,23 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
     output_path = tmp_path / "out.jsonl"
     processed_path = tmp_path / "processed_ids.txt"
     input_path.write_text(
-        json.dumps({"service_id": "s1", "name": "svc1", "jobs_to_be_done": []})
+        json.dumps(
+            {
+                "service_id": "s1",
+                "name": "svc1",
+                "description": "d",
+                "jobs_to_be_done": [],
+            }
+        )
         + "\n"
-        + json.dumps({"service_id": "s2", "name": "svc2", "jobs_to_be_done": []})
+        + json.dumps(
+            {
+                "service_id": "s2",
+                "name": "svc2",
+                "description": "d",
+                "jobs_to_be_done": [],
+            }
+        )
         + "\n",
         encoding="utf-8",
     )
@@ -288,10 +316,14 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         transcripts_dir=None,
         web_search=None,
         no_logs=False,
+        descriptions_model=None,
+        features_model=None,
+        mapping_model=None,
         search_model=None,
         strict=False,
         diagnostics=None,
         strict_mapping=None,
+        mapping_data_dir=None,
     )
 
     monkeypatch.setattr(cli, "_RUN_META", None)
@@ -367,10 +399,14 @@ def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -
         transcripts_dir=None,
         web_search=None,
         no_logs=False,
+        descriptions_model=None,
+        features_model=None,
+        mapping_model=None,
         search_model=None,
         strict=False,
         diagnostics=None,
         strict_mapping=None,
+        mapping_data_dir=None,
     )
 
     monkeypatch.setattr(cli, "_RUN_META", None)
@@ -403,6 +439,8 @@ def test_cli_parses_mapping_options(tmp_path, monkeypatch) -> None:
         str(tmp_path / "services.jsonl"),
         "--output-file",
         str(tmp_path / "out.jsonl"),
+        "--mapping-data-dir",
+        "maps",
         "--diagnostics",
         "--strict-mapping",
     ]
@@ -412,9 +450,11 @@ def test_cli_parses_mapping_options(tmp_path, monkeypatch) -> None:
 
     assert called["args"].diagnostics is True
     assert called["args"].strict_mapping is True
+    assert called["args"].mapping_data_dir == "maps"
     settings_ns = called["settings"]
     assert settings_ns.diagnostics is True
     assert settings_ns.strict_mapping is True
+    assert settings_ns.mapping_data_dir == Path("maps")
 
 
 def test_generate_evolution_writes_transcripts(tmp_path, monkeypatch) -> None:
@@ -497,10 +537,14 @@ def test_generate_evolution_writes_transcripts(tmp_path, monkeypatch) -> None:
         transcripts_dir=None,
         web_search=None,
         no_logs=False,
+        descriptions_model=None,
+        features_model=None,
+        mapping_model=None,
         search_model=None,
         strict=False,
         diagnostics=None,
         strict_mapping=None,
+        mapping_data_dir=None,
     )
 
     monkeypatch.setattr(cli, "_RUN_META", None)
