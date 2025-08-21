@@ -151,6 +151,21 @@ def test_ask_redacts_prompt_when_enabled(monkeypatch) -> None:
     assert calls == ["Sending prompt: <redacted>"]
 
 
+def test_add_parent_materials_redacts_when_enabled(monkeypatch) -> None:
+    """Service material logging should redact PII when enabled."""
+
+    session = ConversationSession(
+        cast(Agent[None, str], DummyAgent()), redact_prompts=True
+    )
+    monkeypatch.setattr(conversation, "redact_pii", lambda s: "<redacted>")
+    calls: list[str] = []
+    monkeypatch.setattr(conversation.logfire, "debug", lambda msg: calls.append(msg))
+
+    session.add_parent_materials(ServiceInput(name="svc", description="x"))
+
+    assert calls == ["Adding service material to history: <redacted>"]
+
+
 def test_metrics_recorded_on_success() -> None:
     """Metrics should capture request and token usage on success."""
 

@@ -70,7 +70,8 @@ class ConversationSession:
             history.
         """
         ctx = "SERVICE_CONTEXT:\n" + service_input.model_dump_json()
-        logfire.debug(f"Adding service material to history: {ctx}")
+        logged_ctx = redact_pii(ctx) if self.redact_prompts else ctx
+        logfire.debug(f"Adding service material to history: {logged_ctx}")
         self._history.append(
             messages.ModelRequest(parts=[messages.UserPromptPart(ctx)])
         )

@@ -522,6 +522,14 @@ def test_cli_no_logs_disables_logging(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "load_settings", lambda: settings)
     monkeypatch.setattr(cli, "init_logfire", fake_init)
 
+    seen: list[bool] = []
+
+    class DummySession:
+        def __init__(self, *a, log_prompts=True, **k):
+            seen.append(log_prompts)
+
+    monkeypatch.setattr(cli, "ConversationSession", DummySession)
+
     argv = [
         "main",
         "generate-ambitions",
@@ -540,6 +548,7 @@ def test_cli_no_logs_disables_logging(tmp_path, monkeypatch):
     assert not (tmp_path / LOG_FILE_NAME).exists()
     assert not (tmp_path / "_transcripts").exists()
     assert not called["init"]
+    assert all(not flag for flag in seen)
 
 
 def test_cli_rejects_invalid_concurrency(monkeypatch):
