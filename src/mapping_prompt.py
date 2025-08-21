@@ -11,6 +11,8 @@ from typing import Sequence
 from loader import load_prompt_text
 from models import MappingItem, MappingResponse, PlateauFeature
 
+MAPPING_SCHEMA = json.dumps(MappingResponse.model_json_schema(), indent=2)
+
 
 def _render_items(items: Sequence[MappingItem]) -> str:
     """Return bullet list representation of ``items`` sorted by identifier."""
@@ -47,14 +49,13 @@ def render_set_prompt(
     """
 
     template = load_prompt_text("mapping_prompt")
-    schema = json.dumps(MappingResponse.model_json_schema(), indent=2)
     mapping_section = f"## Available {set_name}\n\n{_render_items(items)}\n"
     prompt = template.format(
         mapping_labels=set_name,
         mapping_sections=mapping_section,
         mapping_fields=set_name,
         features=_render_features(features),
-        schema=str(schema),
+        schema=MAPPING_SCHEMA,
     )
     return prompt
 
