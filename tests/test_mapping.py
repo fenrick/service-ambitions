@@ -43,7 +43,7 @@ async def test_map_feature_returns_mappings(monkeypatch) -> None:
     def fake_loader(name, *_, **__):
         return template
 
-    monkeypatch.setattr("mapping.load_prompt_text", fake_loader)
+    monkeypatch.setattr("mapping_prompt.load_prompt_text", fake_loader)
     monkeypatch.setattr(
         "mapping.load_mapping_items",
         lambda types, *a, **k: {
@@ -113,7 +113,7 @@ async def test_map_feature_injects_reference_data(monkeypatch) -> None:
     def fake_loader(name, *_, **__):
         return template
 
-    monkeypatch.setattr("mapping.load_prompt_text", fake_loader)
+    monkeypatch.setattr("mapping_prompt.load_prompt_text", fake_loader)
     monkeypatch.setattr(
         "mapping.load_mapping_items",
         lambda types, *a, **k: {
@@ -182,7 +182,7 @@ async def test_map_feature_rejects_invalid_json(monkeypatch) -> None:
     def fake_loader(name, *_, **__):
         return template
 
-    monkeypatch.setattr("mapping.load_prompt_text", fake_loader)
+    monkeypatch.setattr("mapping_prompt.load_prompt_text", fake_loader)
     monkeypatch.setattr(
         "mapping.load_mapping_items",
         lambda types, *a, **k: {
@@ -209,7 +209,7 @@ def test_map_feature_ignores_unknown_ids(monkeypatch) -> None:
     def fake_loader(name, *_, **__):
         return template
 
-    monkeypatch.setattr("mapping.load_prompt_text", fake_loader)
+    monkeypatch.setattr("mapping_prompt.load_prompt_text", fake_loader)
     monkeypatch.setattr(
         "mapping.load_mapping_items",
         lambda types, *a, **k: {
@@ -273,7 +273,7 @@ async def test_map_feature_flattens_nested_mappings(monkeypatch) -> None:
     def fake_loader(name, *_, **__):
         return template
 
-    monkeypatch.setattr("mapping.load_prompt_text", fake_loader)
+    monkeypatch.setattr("mapping_prompt.load_prompt_text", fake_loader)
     monkeypatch.setattr(
         "mapping.load_mapping_items",
         lambda types, *a, **k: {
@@ -328,7 +328,7 @@ async def test_map_feature_flattens_repeated_mapping_keys(monkeypatch) -> None:
     def fake_loader(name, *_, **__):
         return template
 
-    monkeypatch.setattr("mapping.load_prompt_text", fake_loader)
+    monkeypatch.setattr("mapping_prompt.load_prompt_text", fake_loader)
     monkeypatch.setattr(
         "mapping.load_mapping_items",
         lambda types, *a, **k: {
@@ -389,7 +389,7 @@ async def test_map_features_returns_mappings(monkeypatch) -> None:
     def fake_loader(name, *_, **__):
         return template
 
-    monkeypatch.setattr("mapping.load_prompt_text", fake_loader)
+    monkeypatch.setattr("mapping_prompt.load_prompt_text", fake_loader)
     monkeypatch.setattr(
         "mapping.load_mapping_items",
         lambda types, *a, **k: {
@@ -456,7 +456,7 @@ async def test_map_features_allows_empty_lists(monkeypatch) -> None:
     def fake_loader(name, *_, **__):
         return template
 
-    monkeypatch.setattr("mapping.load_prompt_text", fake_loader)
+    monkeypatch.setattr("mapping_prompt.load_prompt_text", fake_loader)
     monkeypatch.setattr(
         "mapping.load_mapping_items",
         lambda types, *a, **k: {
@@ -510,7 +510,7 @@ async def test_map_features_retries_on_empty(monkeypatch) -> None:
             MappingItem(id="INF-2", name="Traffic", description="traffic stats"),
         ]
     }
-    monkeypatch.setattr("mapping.load_prompt_text", fake_loader)
+    monkeypatch.setattr("mapping_prompt.load_prompt_text", fake_loader)
     monkeypatch.setattr("mapping.load_mapping_items", lambda types, *a, **k: items)
 
     initial = json.dumps({"features": [{"feature_id": "f1", "data": []}]})
@@ -558,7 +558,7 @@ async def test_map_features_reprompts_per_feature(monkeypatch, parallel) -> None
         ]
     }
 
-    monkeypatch.setattr("mapping.load_prompt_text", fake_loader)
+    monkeypatch.setattr("mapping_prompt.load_prompt_text", fake_loader)
     monkeypatch.setattr("mapping.load_mapping_items", lambda types, *a, **k: items)
     monkeypatch.setattr(
         "mapping._top_k_items", lambda features, dataset: items[dataset]
@@ -645,7 +645,7 @@ async def test_map_features_reprompts_missing_app_and_tech(monkeypatch) -> None:
         ],
     }
 
-    monkeypatch.setattr("mapping.load_prompt_text", fake_loader)
+    monkeypatch.setattr("mapping_prompt.load_prompt_text", fake_loader)
     monkeypatch.setattr("mapping.load_mapping_items", lambda types, *a, **k: items)
     monkeypatch.setattr(
         "mapping._top_k_items", lambda features, dataset: items[dataset]
