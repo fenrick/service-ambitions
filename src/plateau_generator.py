@@ -19,9 +19,13 @@ from typing import Any, Mapping, Sequence
 import logfire
 
 from conversation import ConversationSession
-from loader import load_plateau_definitions, load_prompt_text, load_role_ids
-from mapping import map_features_async
-from mapping_utils import fit_batch_to_token_cap
+from loader import (
+    load_mapping_items,
+    load_plateau_definitions,
+    load_prompt_text,
+    load_role_ids,
+)
+from mapping import map_set
 from models import (
     DescriptionResponse,
     FeatureItem,
@@ -36,9 +40,8 @@ from models import (
     ServiceMeta,
 )
 from redaction import redact_pii
-from settings import load_settings
-from token_scheduler import TokenScheduler
-from token_utils import estimate_tokens
+
+# Settings and token scheduling are no longer required after simplification.
 
 A_NON_EMPTY_STRING = "'description' must be a non-empty string"
 
@@ -72,11 +75,6 @@ class PlateauGenerator:
         *,
         description_session: ConversationSession | None = None,
         mapping_session: ConversationSession | None = None,
-        mapping_batch_size: int = 30,
-        mapping_parallel_types: bool = True,
-        mapping_token_cap: int = 95000,
-        exhaustive_mapping: bool = True,
-        max_items_per_mapping: int | None = None,
         strict: bool = False,
     ) -> None:
         """Initialise the generator.
@@ -87,13 +85,6 @@ class PlateauGenerator:
             roles: Role identifiers to include during generation.
             description_session: Session used for plateau descriptions.
             mapping_session: Session used for feature mapping.
-            mapping_batch_size: Number of features per mapping request batch.
-            mapping_parallel_types: Dispatch mapping type requests concurrently
-                across all batches when ``True``.
-            mapping_token_cap: Maximum tokens permitted for a mapping request
-                batch.
-            exhaustive_mapping: Retry to fill missing mappings when ``True``.
-            max_items_per_mapping: Limit mapping items per type when provided.
             strict: Enforce feature and mapping completeness when ``True``.
         """
         if required_count < 1:
@@ -103,11 +94,6 @@ class PlateauGenerator:
         self.mapping_session = mapping_session or session
         self.required_count = required_count
         self.roles = list(roles or DEFAULT_ROLE_IDS)
-        self.mapping_batch_size = mapping_batch_size
-        self.mapping_parallel_types = mapping_parallel_types
-        self.mapping_token_cap = mapping_token_cap
-        self.exhaustive_mapping = exhaustive_mapping
-        self.max_items_per_mapping = max_items_per_mapping
         self.strict = strict
         self._service: ServiceInput | None = None
         # Track quarantine file paths for invalid plateau descriptions.
@@ -125,42 +111,23 @@ class PlateauGenerator:
         self.quarantined_descriptions.append(file_path)
         return file_path
 
-    def _compute_mapping_batch_size(
-        self, description: str, features: Sequence[PlateauFeature]
-    ) -> int:
-        """Return an adjusted batch size limited by ``mapping_token_cap``."""
-        return fit_batch_to_token_cap(
-            features,
-            min(self.mapping_batch_size, len(features)),
-            self.mapping_token_cap,
-            lambda fs: estimate_tokens(
-                f"{description}\n"
-                + "\n".join(
-                    f"- {f.feature_id}: {f.name} - {f.description}" for f in fs
-                ),
-                0,
-            ),
-            label="mapping",
-        )
-
     async def _map_features(
         self,
         session: ConversationSession,
-        description: str,
         features: Sequence[PlateauFeature],
     ) -> list[PlateauFeature]:
-        """Map ``features`` using a batch size constrained by ``mapping_token_cap``."""
+        """Return ``features`` mapped across standard datasets in order.
 
-        batch_size = self._compute_mapping_batch_size(description, features)
-        return await map_features_async(
-            session,
-            features,
-            strict=self.strict,
-            batch_size=batch_size,
-            parallel_types=self.mapping_parallel_types,
-            exhaustive=self.exhaustive_mapping,
-            max_items_per_mapping=self.max_items_per_mapping,
-        )
+        Mapping is performed for ``applications``, ``technologies`` and
+        ``information`` sequentially to keep requests deterministic and avoid
+        partial writes.
+        """
+
+        items = load_mapping_items(("applications", "technologies", "information"))
+        mapped = list(features)
+        for key in ("applications", "technologies", "information"):
+            mapped = await map_set(session, key, items[key], mapped)
+        return mapped
 
     def _request_description(
         self, level: int, session: ConversationSession | None = None
@@ -212,12 +179,6 @@ class PlateauGenerator:
         """
         pattern = r"^Prepared plateau-\d+ description for [^:]+:\s*"
         return re.sub(pattern, "", text, flags=re.IGNORECASE)
-
-    @staticmethod
-    def _predict_token_load(text: str) -> int:
-        """Return a token count prediction for ``text``."""
-
-        return max(1, estimate_tokens(text, 0))
 
     def _build_descriptions_prompt(self, plateau_names: Sequence[str]) -> str:
         """Return a prompt requesting descriptions for ``plateau_names``."""
@@ -447,32 +408,25 @@ class PlateauGenerator:
         desc_map: Mapping[str, str],
         service_input: ServiceInput,
     ) -> list[PlateauResult]:
-        """Return plateau results scheduled by token load."""
-        settings = load_settings()
-        scheduler = TokenScheduler(
-            max_workers=min(4, len(plateau_names)),
-            context_window=settings.context_window,
-        )
+        """Return plateau results in the order provided."""
+
+        results: list[PlateauResult] = []
         for name in plateau_names:
             description = desc_map[name]
-            tokens = self._predict_token_load(description)
-
-            async def task(n: str = name, d: str = description) -> PlateauResult:
-                level = DEFAULT_PLATEAU_MAP.get(n)
-                if level is None:
-                    raise ValueError(f"Unknown plateau name: {n}")
-                plateau_session = ConversationSession(
-                    self.session.client,
-                    stage=self.session.stage,
-                    metrics=self.session.metrics,
-                )
-                plateau_session.add_parent_materials(service_input)
-                return await self.generate_plateau_async(
-                    level, n, session=plateau_session, description=d
-                )
-
-            scheduler.submit(task, tokens)
-        return await scheduler.run()
+            level = DEFAULT_PLATEAU_MAP.get(name)
+            if level is None:
+                raise ValueError(f"Unknown plateau name: {name}")
+            plateau_session = ConversationSession(
+                self.session.client,
+                stage=self.session.stage,
+                metrics=self.session.metrics,
+            )
+            plateau_session.add_parent_materials(service_input)
+            result = await self.generate_plateau_async(
+                level, name, session=plateau_session, description=description
+            )
+            results.append(result)
+        return results
 
     def _validate_plateau_results(
         self,
@@ -701,7 +655,7 @@ class PlateauGenerator:
             )
             if self._service is not None:
                 map_session.add_parent_materials(self._service)
-            mapped = await self._map_features(map_session, description, features)
+            mapped = await self._map_features(map_session, features)
             return PlateauResult(
                 plateau=level,
                 plateau_name=plateau_name,

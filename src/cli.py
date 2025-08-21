@@ -161,8 +161,6 @@ async def _generate_evolution_for_service(
     system_prompt: str,
     transcripts_dir: Path | None,
     role_ids: Sequence[str],
-    mapping_batch_size: int,
-    mapping_parallel_types: bool,
     lock: asyncio.Lock,
     output,
     new_ids: set[str],
@@ -223,11 +221,6 @@ async def _generate_evolution_for_service(
                 roles=role_ids,
                 description_session=desc_session,
                 mapping_session=map_session,
-                mapping_batch_size=mapping_batch_size,
-                mapping_parallel_types=mapping_parallel_types,
-                mapping_token_cap=settings.mapping_feature_batch_cap_tokens,
-                exhaustive_mapping=args.exhaustive_mapping,
-                max_items_per_mapping=settings.max_items_per_mapping,
                 strict=args.strict,
             )
             global _RUN_META
@@ -425,12 +418,6 @@ async def _cmd_generate_evolution(
     system_prompt = load_evolution_prompt(settings.context_id, settings.inspiration)
 
     role_ids = load_role_ids(Path(args.roles_file))
-    mapping_batch_size = args.mapping_batch_size or settings.mapping_batch_size
-    mapping_parallel_types = (
-        args.mapping_parallel_types
-        if args.mapping_parallel_types is not None
-        else settings.mapping_parallel_types
-    )
 
     output_path = Path(args.output_file)
     part_path, processed_path = _prepare_paths(output_path, args.resume)
@@ -468,8 +455,6 @@ async def _cmd_generate_evolution(
                 system_prompt=system_prompt,
                 transcripts_dir=transcripts_dir,
                 role_ids=role_ids,
-                mapping_batch_size=mapping_batch_size,
-                mapping_parallel_types=mapping_parallel_types,
                 lock=lock,
                 output=output,
                 new_ids=new_ids,
