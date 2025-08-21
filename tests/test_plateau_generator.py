@@ -25,9 +25,7 @@ from models import (
     ServiceInput,
     ServiceMeta,
 )
-from plateau_generator import (
-    PlateauGenerator,
-)
+from plateau_generator import PlateauGenerator
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -92,18 +90,36 @@ def _feature_payload(count: int, level: int = 1) -> str:
     return json.dumps(payload)
 
 
-def test_predict_token_load_uses_estimate_tokens(monkeypatch) -> None:
-    """Token load predictions should call ``estimate_tokens``."""
+@pytest.mark.asyncio()
+async def test_map_features_calls_sets_in_order(monkeypatch) -> None:
+    """``_map_features`` should invoke ``map_set`` in fixed order."""
 
-    called: dict[str, tuple[str, int]] = {}
+    called: list[str] = []
 
-    def fake_estimate(text: str, expected: int) -> int:
-        called["args"] = (text, expected)
-        return 9
+    async def fake_map_set(session, name, items, feats):
+        called.append(name)
+        return list(feats)
 
-    monkeypatch.setattr("plateau_generator.estimate_tokens", fake_estimate)
-    assert PlateauGenerator._predict_token_load("hello") == 9
-    assert called["args"] == ("hello", 0)
+    monkeypatch.setattr("plateau_generator.map_set", fake_map_set)
+    monkeypatch.setattr(
+        "plateau_generator.load_mapping_items",
+        lambda types=None: {
+            t: [] for t in ("applications", "technologies", "information")
+        },
+    )
+    session = DummySession([])
+    gen = PlateauGenerator(cast(ConversationSession, session))
+    feat = PlateauFeature(
+        feature_id="f1",
+        name="Feat",
+        description="d",
+        score=MaturityScore(level=1, label="Initial", justification="j"),
+        customer_type="learners",
+    )
+
+    await gen._map_features(cast(ConversationSession, session), [feat])
+
+    assert called == ["applications", "technologies", "information"]
 
 
 def test_build_plateau_prompt_excludes_feature_id() -> None:
