@@ -161,9 +161,39 @@ def test_add_parent_materials_redacts_when_enabled(monkeypatch) -> None:
     calls: list[str] = []
     monkeypatch.setattr(conversation.logfire, "debug", lambda msg: calls.append(msg))
 
-    session.add_parent_materials(ServiceInput(name="svc", description="x"))
+    session.add_parent_materials(
+        ServiceInput(
+            service_id="svc-1", name="svc", description="x", jobs_to_be_done=[]
+        )
+    )
 
     assert calls == ["Adding service material to history: <redacted>"]
+    part = cast(messages.UserPromptPart, session._history[0].parts[0])
+    assert cast(str, part.content) == "<redacted>"
+
+
+def test_ask_records_redacted_history(monkeypatch) -> None:
+    """History should store redacted prompts when enabled."""
+
+    class EchoAgent(DummyAgent):
+        def run_sync(self, prompt: str, message_history: list[str], output_type=None):
+            req = messages.ModelRequest(parts=[messages.UserPromptPart(prompt)])
+            return SimpleNamespace(
+                output="pong",
+                new_messages=lambda: [req],
+                usage=lambda: SimpleNamespace(total_tokens=5),
+            )
+
+    session = ConversationSession(
+        cast(Agent[None, str], EchoAgent()), redact_prompts=True
+    )
+    monkeypatch.setattr(conversation, "redact_pii", lambda s: "<redacted>")
+
+    session.ask("topsecret")
+
+    part = cast(messages.ModelRequest, session._history[-1])
+    prompt_part = cast(messages.UserPromptPart, part.parts[0])
+    assert cast(str, prompt_part.content) == "<redacted>"
 
 
 def test_metrics_recorded_on_success() -> None:

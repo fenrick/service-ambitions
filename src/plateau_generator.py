@@ -35,6 +35,7 @@ from models import (
     ServiceInput,
     ServiceMeta,
 )
+from redaction import redact_pii
 from settings import load_settings
 from token_scheduler import TokenScheduler
 from token_utils import estimate_tokens
@@ -563,10 +564,11 @@ class PlateauGenerator:
                 "request": service_input.model_dump(),
                 "response": evolution.model_dump(),
             }
+            data = redact_pii(json.dumps(payload, ensure_ascii=False))
             path = transcripts_dir / f"{service_input.service_id}.json"
             await asyncio.to_thread(
                 path.write_text,
-                json.dumps(payload, ensure_ascii=False),
+                data,
                 encoding="utf-8",
             )
         if strict:

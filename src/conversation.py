@@ -10,7 +10,7 @@ agent without relying on asynchronous execution.
 from __future__ import annotations
 
 import time
-from typing import TypeVar, overload
+from typing import Any, TypeVar, overload
 
 import logfire
 from pydantic_ai import Agent, messages
@@ -70,10 +70,10 @@ class ConversationSession:
             history.
         """
         ctx = "SERVICE_CONTEXT:\n" + service_input.model_dump_json()
-        logged_ctx = redact_pii(ctx) if self.redact_prompts else ctx
-        logfire.debug(f"Adding service material to history: {logged_ctx}")
+        stored_ctx = redact_pii(ctx) if self.redact_prompts else ctx
+        logfire.debug(f"Adding service material to history: {stored_ctx}")
         self._history.append(
-            messages.ModelRequest(parts=[messages.UserPromptPart(ctx)])
+            messages.ModelRequest(parts=[messages.UserPromptPart(stored_ctx)])
         )
 
     def derive(self) -> "ConversationSession":
@@ -88,6 +88,27 @@ class ConversationSession:
         )
         clone._history = list(self._history)
         return clone
+
+    def _record_new_messages(self, msgs: list[messages.ModelMessage]) -> None:
+        """Append ``msgs`` to history, redacting user prompts when enabled."""
+
+        if not self.redact_prompts:
+            self._history.extend(msgs)
+            return
+        sanitised: list[messages.ModelMessage] = []
+        for msg in msgs:
+            if isinstance(msg, messages.ModelRequest):
+                parts: list[Any] = []
+                for part in msg.parts:
+                    if isinstance(part, messages.UserPromptPart):
+                        content = redact_pii(str(part.content))
+                        parts.append(messages.UserPromptPart(content))
+                    else:
+                        parts.append(part)
+                sanitised.append(messages.ModelRequest(parts=parts))
+            else:
+                sanitised.append(msg)
+        self._history.extend(sanitised)
 
     T = TypeVar("T")
 
@@ -138,7 +159,7 @@ class ConversationSession:
                 result = self.client.run_sync(
                     prompt, message_history=self._history, output_type=output_type
                 )
-                self._history.extend(result.new_messages())
+                self._record_new_messages(list(result.new_messages()))
                 usage = result.usage()
                 tokens = usage.total_tokens or 0
                 cost = estimate_cost(model_name, tokens)
@@ -212,7 +233,7 @@ class ConversationSession:
                 result = await self.client.run(
                     prompt, message_history=self._history, output_type=output_type
                 )
-                self._history.extend(result.new_messages())
+                self._record_new_messages(list(result.new_messages()))
                 usage = result.usage()
                 tokens = usage.total_tokens or 0
                 cost = estimate_cost(model_name, tokens)
