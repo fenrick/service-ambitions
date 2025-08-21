@@ -123,10 +123,12 @@ def test_stage_metrics_accumulate() -> None:
 
 
 def test_ask_omits_prompt_logging_when_disabled(monkeypatch) -> None:
-    """Prompts should not be logged when ``log_prompts`` is ``False``."""
+    """Prompts should not be logged when logging is disabled."""
 
     agent = DummyAgent()
-    session = ConversationSession(cast(Agent[None, str], agent), log_prompts=False)
+    session = ConversationSession(
+        cast(Agent[None, str], agent), diagnostics=True, log_prompts=False
+    )
     calls: list[str] = []
     monkeypatch.setattr(conversation.logfire, "debug", lambda msg: calls.append(msg))
 
@@ -140,7 +142,10 @@ def test_ask_redacts_prompt_when_enabled(monkeypatch) -> None:
 
     agent = DummyAgent()
     session = ConversationSession(
-        cast(Agent[None, str], agent), log_prompts=True, redact_prompts=True
+        cast(Agent[None, str], agent),
+        diagnostics=True,
+        log_prompts=True,
+        redact_prompts=True,
     )
     monkeypatch.setattr(conversation, "redact_pii", lambda s: "<redacted>")
     calls: list[str] = []
@@ -155,7 +160,10 @@ def test_add_parent_materials_redacts_when_enabled(monkeypatch) -> None:
     """Service material logging should redact PII when enabled."""
 
     session = ConversationSession(
-        cast(Agent[None, str], DummyAgent()), redact_prompts=True
+        cast(Agent[None, str], DummyAgent()),
+        diagnostics=True,
+        log_prompts=True,
+        redact_prompts=True,
     )
     monkeypatch.setattr(conversation, "redact_pii", lambda s: "<redacted>")
     calls: list[str] = []

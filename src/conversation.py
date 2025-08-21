@@ -10,6 +10,7 @@ agent without relying on asynchronous execution.
 from __future__ import annotations
 
 import time
+from contextlib import nullcontext
 from typing import Any, TypeVar, overload
 
 import logfire
@@ -38,7 +39,8 @@ class ConversationSession:
         client: Agent,
         *,
         stage: str | None = None,
-        log_prompts: bool = True,
+        diagnostics: bool = False,
+        log_prompts: bool = False,
         redact_prompts: bool = False,
         metrics: RollingMetrics | None = None,
     ) -> None:
@@ -47,14 +49,16 @@ class ConversationSession:
         Args:
             client: Pydantic-AI ``Agent`` used for exchanges with the model.
             stage: Optional name of the generation stage for observability.
-            log_prompts: When ``True`` debug log prompt text.
+            diagnostics: Enable detailed logging and span creation.
+            log_prompts: Debug log prompt text when ``diagnostics`` is ``True``.
             redact_prompts: Redact prompt text before logging when ``log_prompts``.
             metrics: Optional rolling metrics recorder for request telemetry.
         """
 
         self.client = client
         self.stage = stage
-        self.log_prompts = log_prompts
+        self.diagnostics = diagnostics
+        self.log_prompts = log_prompts if diagnostics else False
         self.redact_prompts = redact_prompts
         self.metrics = metrics
         self._history: list[messages.ModelMessage] = []
@@ -71,7 +75,8 @@ class ConversationSession:
         """
         ctx = "SERVICE_CONTEXT:\n" + service_input.model_dump_json()
         stored_ctx = redact_pii(ctx) if self.redact_prompts else ctx
-        logfire.debug(f"Adding service material to history: {stored_ctx}")
+        if self.diagnostics and self.log_prompts:
+            logfire.debug(f"Adding service material to history: {stored_ctx}")
         self._history.append(
             messages.ModelRequest(parts=[messages.UserPromptPart(stored_ctx)])
         )
@@ -82,6 +87,7 @@ class ConversationSession:
         clone = ConversationSession(
             self.client,
             stage=self.stage,
+            diagnostics=self.diagnostics,
             log_prompts=self.log_prompts,
             redact_prompts=self.redact_prompts,
             metrics=self.metrics,
@@ -146,12 +152,18 @@ class ConversationSession:
         if self.metrics:
             self.metrics.record_request()
             self.metrics.record_start_tokens(prompt_token_estimate)
-        with logfire.span("ConversationSession.ask") as span:
-            span.set_attribute("stage", stage)
-            span.set_attribute("model_name", model_name)
-            span.set_attribute("prompt_token_estimate", prompt_token_estimate)
+        span_ctx = (
+            logfire.span(self.stage or "ConversationSession.ask")
+            if self.diagnostics
+            else nullcontext()
+        )
+        with span_ctx as span:
+            if span and self.diagnostics:
+                span.set_attribute("stage", stage)
+                span.set_attribute("model_name", model_name)
+                span.set_attribute("prompt_token_estimate", prompt_token_estimate)
             try:
-                if self.log_prompts:
+                if self.diagnostics and self.log_prompts:
                     logged_prompt = (
                         redact_pii(prompt) if self.redact_prompts else prompt
                     )
@@ -191,8 +203,9 @@ class ConversationSession:
                 if self.metrics:
                     self.metrics.record_latency(duration)
                     self.metrics.record_end_tokens(tokens)
-                span.set_attribute("total_tokens", tokens)
-                span.set_attribute("estimated_cost", cost)
+                if span and self.diagnostics:
+                    span.set_attribute("total_tokens", tokens)
+                    span.set_attribute("estimated_cost", cost)
                 TOKENS_CONSUMED.add(tokens)
                 record_stage_metrics(
                     stage, tokens, cost, duration, error_429, prompt_token_estimate
@@ -220,12 +233,18 @@ class ConversationSession:
         if self.metrics:
             self.metrics.record_request()
             self.metrics.record_start_tokens(prompt_token_estimate)
-        with logfire.span("ConversationSession.ask_async") as span:
-            span.set_attribute("stage", stage)
-            span.set_attribute("model_name", model_name)
-            span.set_attribute("prompt_token_estimate", prompt_token_estimate)
+        span_ctx = (
+            logfire.span(self.stage or "ConversationSession.ask_async")
+            if self.diagnostics
+            else nullcontext()
+        )
+        with span_ctx as span:
+            if span and self.diagnostics:
+                span.set_attribute("stage", stage)
+                span.set_attribute("model_name", model_name)
+                span.set_attribute("prompt_token_estimate", prompt_token_estimate)
             try:
-                if self.log_prompts:
+                if self.diagnostics and self.log_prompts:
                     logged_prompt = (
                         redact_pii(prompt) if self.redact_prompts else prompt
                     )
@@ -265,8 +284,9 @@ class ConversationSession:
                 if self.metrics:
                     self.metrics.record_latency(duration)
                     self.metrics.record_end_tokens(tokens)
-                span.set_attribute("total_tokens", tokens)
-                span.set_attribute("estimated_cost", cost)
+                if span and self.diagnostics:
+                    span.set_attribute("total_tokens", tokens)
+                    span.set_attribute("estimated_cost", cost)
                 TOKENS_CONSUMED.add(tokens)
                 record_stage_metrics(
                     stage, tokens, cost, duration, error_429, prompt_token_estimate
