@@ -15,14 +15,11 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterable, Mapping, Sequence
 
 import logfire
-import numpy as np
-from openai import AsyncOpenAI
 from scipy.sparse import csr_matrix
 from sklearn.feature_extraction.text import (  # type: ignore[import-untyped]
     TfidfVectorizer,
@@ -30,7 +27,6 @@ from sklearn.feature_extraction.text import (  # type: ignore[import-untyped]
 
 from generator import _with_retry
 from loader import load_mapping_items, load_mapping_type_config, load_prompt_text
-from mapping_utils import fit_batch_to_token_cap
 from models import (
     Contribution,
     MappingItem,
@@ -38,24 +34,12 @@ from models import (
     MappingTypeConfig,
     PlateauFeature,
 )
-from token_utils import estimate_tokens
 
 if TYPE_CHECKING:
     from conversation import ConversationSession
 
-
-EMBED_MODEL = "text-embedding-3-small"
-"""Embedding model used for catalogue pre-filtering."""
-
-_EMBED_CLIENT: AsyncOpenAI | None = None
-_EMBED_CACHE: dict[str, tuple[np.ndarray, list[MappingItem]]] = {}
-_FEATURE_EMBED_CACHE: dict[str, np.ndarray] = {}
-
 MIN_MAPPING_ITEMS = 2
 """Minimum number of mapping contributions required per feature."""
-
-MAPPING_TOKEN_CAP = 95000
-"""Maximum tokens allowed per mapping request."""
 
 SECOND_PASS_TIMEOUT = 20.0
 """Timeout in seconds for second-pass mapping prompts."""
@@ -65,6 +49,11 @@ SECOND_PASS_ATTEMPTS = 2
 
 _QUARANTINED_MAPPINGS: list[Path] = []
 """Paths of mapping responses that failed to produce required items."""
+
+
+async def init_embeddings() -> None:
+    """Legacy no-op kept for backwards compatibility."""
+    return None
 
 
 def _quarantine_mapping(
@@ -94,33 +83,6 @@ def _chunked(
         yield seq[i : i + size]
 
 
-def _split_batches(
-    features: Sequence[PlateauFeature],
-    mapping_types: Mapping[str, MappingTypeConfig],
-    batch_size: int,
-    token_cap: int,
-) -> list[Sequence[PlateauFeature]]:
-    """Return batches sized so their prompt tokens do not exceed ``token_cap``."""
-
-    batches: list[Sequence[PlateauFeature]] = []
-    idx = 0
-    n = len(features)
-    while idx < n:
-        remaining = features[idx:]
-        size = fit_batch_to_token_cap(
-            remaining,
-            min(batch_size, len(remaining)),
-            token_cap,
-            lambda feats: estimate_tokens(
-                _build_mapping_prompt(feats, mapping_types), 0
-            ),
-            label="mapping",
-        )
-        batches.append(remaining[:size])
-        idx += size
-    return batches
-
-
 @lru_cache(maxsize=None)
 def _catalogue_vectors(
     dataset: str,
@@ -132,121 +94,6 @@ def _catalogue_vectors(
     vectorizer = TfidfVectorizer().fit(item_texts)
     item_vecs = vectorizer.transform(item_texts)
     return vectorizer, item_vecs, items
-
-
-def _get_embed_client() -> AsyncOpenAI:
-    """Return a cached OpenAI client for embedding requests."""
-
-    global _EMBED_CLIENT
-    if _EMBED_CLIENT is None:
-        if not os.getenv("OPENAI_API_KEY"):
-            raise RuntimeError("OPENAI_API_KEY missing")
-        _EMBED_CLIENT = AsyncOpenAI()
-    return _EMBED_CLIENT
-
-
-async def _catalogue_embeddings(
-    dataset: str,
-) -> tuple[np.ndarray, list[MappingItem]]:
-    """Return embedding vectors and items for the ``dataset`` catalogue."""
-
-    cache = _EMBED_CACHE.get(dataset)
-    if cache is not None:
-        return cache
-    client = _get_embed_client()
-    items = load_mapping_items((dataset,))[dataset]
-    texts = [f"{it.name} {it.description}" for it in items]
-    resp = await client.embeddings.create(model=EMBED_MODEL, input=texts)
-    vectors = np.array([d.embedding for d in resp.data])
-    cache = (vectors, items)
-    _EMBED_CACHE[dataset] = cache
-    return cache
-
-
-async def _feature_embeddings(
-    features: Sequence[PlateauFeature],
-) -> list[np.ndarray]:
-    """Return embedding vectors for ``features`` using a module-level cache."""
-
-    uncached: list[tuple[str, str]] = []
-    vectors: dict[str, np.ndarray] = {}
-    for feat in features:
-        cached = _FEATURE_EMBED_CACHE.get(feat.feature_id)
-        if cached is not None:
-            vectors[feat.feature_id] = cached
-        else:
-            text = f"{feat.name} {feat.description}"
-            uncached.append((feat.feature_id, text))
-    if uncached:
-        client = _get_embed_client()
-        resp = await client.embeddings.create(
-            model=EMBED_MODEL, input=[t for _, t in uncached]
-        )
-        for (fid, _), data in zip(uncached, resp.data, strict=False):
-            vec = np.array(data.embedding)
-            _FEATURE_EMBED_CACHE[fid] = vec
-            vectors[fid] = vec
-    return [vectors[feat.feature_id] for feat in features]
-
-
-async def init_embeddings() -> None:
-    """Pre-populate embedding vectors for all mapping datasets.
-
-    Any errors during pre-computation are logged and ignored so that embedding
-    vectors will be generated lazily when first requested.
-    """
-
-    try:
-        cfg = load_mapping_type_config()
-    except Exception as exc:
-        # Loading configuration is a best-effort step; missing config merely
-        # delays embedding generation until first use.
-        logfire.warning(f"Failed to load mapping config: {exc}")
-        return
-
-    datasets = {c.dataset for c in cfg.values()}
-    for name in datasets:
-        try:
-            await _catalogue_embeddings(name)
-        except Exception as exc:
-            # Log and continue so the cache can be populated lazily later.
-            logfire.warning(f"Failed to warm embeddings for {name}: {exc}")
-
-
-async def _embedding_top_k_items(
-    features: Sequence[PlateauFeature], dataset: str, k: int = 40
-) -> list[MappingItem]:
-    """Return ``k`` catalogue items closest to ``features`` using embeddings.
-
-    Results are ordered lexicographically by item identifier so selections
-    remain stable across runs even when similarity scores tie.
-    """
-
-    item_vecs, items = await _catalogue_embeddings(dataset)
-    feat_vecs = np.vstack(await _feature_embeddings(features))
-    sims = feat_vecs @ item_vecs.T
-    top_indices: set[int] = set()
-    for row in sims:
-        ranking = sorted(enumerate(row), key=lambda x: (-x[1], items[x[0]].id))
-        idxs = [idx for idx, _ in ranking[:k]]
-        top_indices.update(idxs)
-    return sorted((items[i] for i in top_indices), key=lambda item: item.id)
-
-
-async def _preselect_items(
-    features: Sequence[PlateauFeature],
-    cfg: MappingTypeConfig,
-    *,
-    k: int = 40,
-) -> dict[str, list[MappingItem]] | None:
-    """Return mapping catalogue overrides selected via embeddings."""
-
-    try:
-        slice_items = await _embedding_top_k_items(features, cfg.dataset, k)
-    except Exception as exc:
-        logfire.warning(f"Embedding pre-filter failed: {exc}")
-        return None
-    return {cfg.dataset: slice_items}
 
 
 class MappingError(RuntimeError):
@@ -315,11 +162,9 @@ async def map_feature_async(
     mapping_types: Mapping[str, MappingTypeConfig] | None = None,
     *,
     exhaustive: bool = True,
-    use_prefilter: bool = False,
     max_items_per_mapping: int | None = None,
     second_pass_timeout: float = SECOND_PASS_TIMEOUT,
     second_pass_attempts: int = SECOND_PASS_ATTEMPTS,
-    token_cap: int = MAPPING_TOKEN_CAP,
 ) -> PlateauFeature:
     """Asynchronously return ``feature`` augmented with mapping data.
 
@@ -328,11 +173,9 @@ async def map_feature_async(
         feature: Plateau feature requiring mapping enrichment.
         mapping_types: Optional mapping configuration override keyed by type.
         exhaustive: Retry to fill missing mappings when ``True``.
-        use_prefilter: Enable embedding prefiltering when ``True``.
         max_items_per_mapping: Limit mapping items per type when provided.
         second_pass_timeout: Timeout in seconds for second-pass mapping prompts.
         second_pass_attempts: Maximum retry attempts for second-pass prompts.
-        token_cap: Maximum tokens permitted for a mapping prompt.
     """
 
     return (
@@ -341,11 +184,9 @@ async def map_feature_async(
             [feature],
             mapping_types,
             exhaustive=exhaustive,
-            use_prefilter=use_prefilter,
             max_items_per_mapping=max_items_per_mapping,
             second_pass_timeout=second_pass_timeout,
             second_pass_attempts=second_pass_attempts,
-            token_cap=token_cap,
         )
     )[0]
 
@@ -356,11 +197,9 @@ def map_feature(
     mapping_types: Mapping[str, MappingTypeConfig] | None = None,
     *,
     exhaustive: bool = True,
-    use_prefilter: bool = False,
     max_items_per_mapping: int | None = None,
     second_pass_timeout: float = SECOND_PASS_TIMEOUT,
     second_pass_attempts: int = SECOND_PASS_ATTEMPTS,
-    token_cap: int = MAPPING_TOKEN_CAP,
 ) -> PlateauFeature:
     """Return ``feature`` augmented with mapping information.
 
@@ -369,11 +208,9 @@ def map_feature(
         feature: Plateau feature requiring mapping enrichment.
         mapping_types: Optional mapping configuration override keyed by type.
         exhaustive: Retry to fill missing mappings when ``True``.
-        use_prefilter: Enable embedding prefiltering when ``True``.
         max_items_per_mapping: Limit mapping items per type when provided.
         second_pass_timeout: Timeout in seconds for second-pass mapping prompts.
         second_pass_attempts: Maximum retry attempts for second-pass prompts.
-        token_cap: Maximum tokens permitted for a mapping prompt.
     """
 
     return asyncio.run(
@@ -382,11 +219,9 @@ def map_feature(
             feature,
             mapping_types,
             exhaustive=exhaustive,
-            use_prefilter=use_prefilter,
             max_items_per_mapping=max_items_per_mapping,
             second_pass_timeout=second_pass_timeout,
             second_pass_attempts=second_pass_attempts,
-            token_cap=token_cap,
         )
     )
 
@@ -429,22 +264,17 @@ def _clean_mapping_values(
     key: str,
     values: list[Contribution],
     valid_ids: dict[str, set[str]],
-    feature_id: str,
-) -> list[Contribution]:
-    """Return ``values`` filtered against ``valid_ids`` for ``key``."""
+) -> tuple[list[Contribution], bool]:
+    """Return filtered ``values`` and flag unknown IDs for ``key``."""
 
-    if not values:
-        logfire.warning(f"Missing mappings: feature={feature_id} key={key}")
-        return []
     valid: list[Contribution] = []
+    unknown = False
     for item in values:
         if item.item not in valid_ids[key]:
-            logfire.warning(
-                f"Dropping unknown {key} ID {item.item} for feature {feature_id}"
-            )
+            unknown = True
             continue
         valid.append(item)
-    return valid
+    return valid, unknown
 
 
 def _merge_mapping_results(
@@ -453,6 +283,7 @@ def _merge_mapping_results(
     mapping_types: Mapping[str, MappingTypeConfig],
     *,
     max_items_per_mapping: int | None = None,
+    catalogue_items: Mapping[str, list[MappingItem]] | None = None,
 ) -> list[PlateauFeature]:
     """Return ``features`` merged with mapping ``payload``.
 
@@ -463,7 +294,7 @@ def _merge_mapping_results(
     # Build a lookup of valid item identifiers for each mapping type to
     # prevent the agent from inventing IDs that do not exist in reference
     # datasets.
-    catalogues = load_mapping_items(
+    catalogues = catalogue_items or load_mapping_items(
         tuple(cfg.dataset for cfg in mapping_types.values())
     )
     valid_ids: dict[str, set[str]] = {
@@ -480,15 +311,43 @@ def _merge_mapping_results(
             raise MappingError(f"Missing mappings for feature {feature.feature_id}")
         update_data = {}
         for key in mapping_types.keys():
-            cleaned = _clean_mapping_values(
-                key, mapped.get(key, []), valid_ids, feature.feature_id
-            )
+            original = mapped.get(key, [])
+            cleaned, unknown = _clean_mapping_values(key, original, valid_ids)
+            if unknown:
+                _quarantine_mapping(feature, key, payload)
+            if not cleaned:
+                logfire.warning(
+                    f"Missing mappings: feature={feature.feature_id} key={key}"
+                )
             if max_items_per_mapping is not None:
                 cleaned = cleaned[:max_items_per_mapping]
             update_data[key] = cleaned
         merged = feature.model_copy(update={"mappings": feature.mappings | update_data})
         results.append(merged)
     return results
+
+
+async def map_set(
+    session: "ConversationSession",
+    set_name: str,
+    items: Sequence[MappingItem],
+    features: Sequence[PlateauFeature],
+) -> list[PlateauFeature]:
+    """Return ``features`` with ``set_name`` mappings populated."""
+
+    cfg = MappingTypeConfig(dataset=set_name, label=set_name)
+    prompt = _build_mapping_prompt(
+        features,
+        {set_name: cfg},
+        item_overrides={set_name: list(items)},
+    )
+    payload = await session.ask_async(prompt, output_type=MappingResponse)
+    return _merge_mapping_results(
+        features,
+        payload,
+        {set_name: cfg},
+        catalogue_items={set_name: list(items)},
+    )
 
 
 async def _reprompt_feature(
@@ -527,7 +386,6 @@ async def _map_parallel(
     mapping_types: Mapping[str, MappingTypeConfig],
     *,
     exhaustive: bool = True,
-    use_prefilter: bool = False,
     max_items_per_mapping: int | None = None,
     second_pass_timeout: float = SECOND_PASS_TIMEOUT,
     second_pass_attempts: int = SECOND_PASS_ATTEMPTS,
@@ -538,7 +396,7 @@ async def _map_parallel(
         i: list(batch) for i, batch in enumerate(batches)
     }
     tasks = [
-        _request_mapping(session, batch, i, key, cfg, use_prefilter=use_prefilter)
+        _request_mapping(session, batch, i, key, cfg)
         for i, batch in enumerate(batches)
         for key, cfg in mapping_types.items()
     ]
@@ -599,7 +457,6 @@ async def _map_sequential(
     mapping_types: Mapping[str, MappingTypeConfig],
     *,
     exhaustive: bool = True,
-    use_prefilter: bool = False,
     max_items_per_mapping: int | None = None,
     second_pass_timeout: float = SECOND_PASS_TIMEOUT,
     second_pass_attempts: int = SECOND_PASS_ATTEMPTS,
@@ -611,7 +468,7 @@ async def _map_sequential(
         batch_list = list(batch)
         for key, cfg in mapping_types.items():
             _, _, _, sub_session, payload = await _request_mapping(
-                session, batch, i, key, cfg, use_prefilter=use_prefilter
+                session, batch, i, key, cfg
             )
             if exhaustive and all(not f.mappings.get(key) for f in payload.features):
                 slice_items = _top_k_items(batch, cfg.dataset)
@@ -664,14 +521,11 @@ async def _request_mapping(
     batch_index: int,
     key: str,
     cfg: MappingTypeConfig,
-    *,
-    use_prefilter: bool = False,
 ) -> tuple[int, str, MappingTypeConfig, ConversationSession, MappingResponse]:
     """Return mapping response for ``key`` type for ``batch`` features."""
 
     sub_session = session.derive()
-    overrides = await _preselect_items(batch, cfg) if use_prefilter else None
-    prompt = _build_mapping_prompt(batch, {key: cfg}, item_overrides=overrides)
+    prompt = _build_mapping_prompt(batch, {key: cfg})
     logfire.debug(f"Requesting {key} mappings for {len(batch)} features")
 
     # Configure retry parameters using session attributes when available to
@@ -707,9 +561,7 @@ async def map_features_async(
     parallel_types: bool = True,
     second_pass_timeout: float = SECOND_PASS_TIMEOUT,
     second_pass_attempts: int = SECOND_PASS_ATTEMPTS,
-    token_cap: int = MAPPING_TOKEN_CAP,
     exhaustive: bool = True,
-    use_prefilter: bool = False,
     max_items_per_mapping: int | None = None,
 ) -> list[PlateauFeature]:
     """Asynchronously return ``features`` with mapping information.
@@ -724,22 +576,19 @@ async def map_features_async(
             batches when ``True``.
         second_pass_timeout: Timeout in seconds for second-pass mapping prompts.
         second_pass_attempts: Maximum retry attempts for second-pass prompts.
-        token_cap: Maximum tokens permitted for a mapping prompt.
         exhaustive: Retry to fill missing mappings when ``True``.
-        use_prefilter: Enable embedding prefiltering when ``True``.
         max_items_per_mapping: Limit mapping items per type when provided.
     """
 
     _QUARANTINED_MAPPINGS.clear()
     mapping_types = mapping_types or load_mapping_type_config()
-    batches = _split_batches(features, mapping_types, batch_size, token_cap)
+    batches = list(_chunked(features, batch_size))
     if parallel_types:
         results = await _map_parallel(
             session,
             batches,
             mapping_types,
             exhaustive=exhaustive,
-            use_prefilter=use_prefilter,
             max_items_per_mapping=max_items_per_mapping,
             second_pass_timeout=second_pass_timeout,
             second_pass_attempts=second_pass_attempts,
@@ -750,7 +599,6 @@ async def map_features_async(
             batches,
             mapping_types,
             exhaustive=exhaustive,
-            use_prefilter=use_prefilter,
             max_items_per_mapping=max_items_per_mapping,
             second_pass_timeout=second_pass_timeout,
             second_pass_attempts=second_pass_attempts,
@@ -782,9 +630,7 @@ def map_features(
     parallel_types: bool = True,
     second_pass_timeout: float = SECOND_PASS_TIMEOUT,
     second_pass_attempts: int = SECOND_PASS_ATTEMPTS,
-    token_cap: int = MAPPING_TOKEN_CAP,
     exhaustive: bool = True,
-    use_prefilter: bool = False,
     max_items_per_mapping: int | None = None,
 ) -> list[PlateauFeature]:
     """Return ``features`` augmented with mapping information.
@@ -799,9 +645,7 @@ def map_features(
             batches when ``True``.
         second_pass_timeout: Timeout in seconds for second-pass mapping prompts.
         second_pass_attempts: Maximum retry attempts for second-pass prompts.
-        token_cap: Maximum tokens permitted for a mapping prompt.
         exhaustive: Retry to fill missing mappings when ``True``.
-        use_prefilter: Enable embedding prefiltering when ``True``.
         max_items_per_mapping: Limit mapping items per type when provided.
     """
 
@@ -815,9 +659,7 @@ def map_features(
             parallel_types=parallel_types,
             second_pass_timeout=second_pass_timeout,
             second_pass_attempts=second_pass_attempts,
-            token_cap=token_cap,
             exhaustive=exhaustive,
-            use_prefilter=use_prefilter,
             max_items_per_mapping=max_items_per_mapping,
         )
     )
@@ -828,6 +670,7 @@ __all__ = [
     "map_feature_async",
     "map_features",
     "map_features_async",
+    "map_set",
     "MappingError",
     "init_embeddings",
 ]

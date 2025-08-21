@@ -105,9 +105,7 @@ def test_generate_mapping_updates_features(tmp_path, monkeypatch) -> None:
         strict,
         batch_size,
         parallel_types,
-        token_cap,
         exhaustive,
-        use_prefilter,
         max_items_per_mapping,
     ):
         called["batch_size"] = batch_size
@@ -131,7 +129,6 @@ def test_generate_mapping_updates_features(tmp_path, monkeypatch) -> None:
         mapping_batch_size=30,
         mapping_parallel_types=True,
         exhaustive_mapping=True,
-        use_prefilter=False,
         max_items_per_mapping=None,
         mapping_feature_batch_cap_tokens=95000,
         reasoning=None,
@@ -215,9 +212,7 @@ def test_generate_mapping_logs_stage_totals(tmp_path, monkeypatch) -> None:
         strict,
         batch_size,
         parallel_types,
-        token_cap,
         exhaustive,
-        use_prefilter,
         max_items_per_mapping,
     ):
         record_stage_metrics(
@@ -251,7 +246,6 @@ def test_generate_mapping_logs_stage_totals(tmp_path, monkeypatch) -> None:
         mapping_batch_size=30,
         mapping_parallel_types=True,
         exhaustive_mapping=True,
-        use_prefilter=False,
         max_items_per_mapping=None,
         mapping_feature_batch_cap_tokens=95000,
         reasoning=None,
@@ -280,11 +274,6 @@ def test_generate_mapping_logs_stage_totals(tmp_path, monkeypatch) -> None:
 
 def test_request_mapping_retries(monkeypatch) -> None:
     """_request_mapping should retry transient errors and pass hooks."""
-
-    async def fake_preselect_items(*_a, **_k):
-        return None
-
-    monkeypatch.setattr(mapping, "_preselect_items", fake_preselect_items)
 
     def fake_build_mapping_prompt(*_a, **_k) -> str:
         return "prompt"

@@ -65,9 +65,6 @@ class Settings(BaseSettings):
     exhaustive_mapping: bool = Field(
         True, description="Retry mapping prompts until minimum items are found."
     )
-    use_prefilter: bool = Field(
-        False, description="Enable embedding-based prefiltering for mappings."
-    )
     max_items_per_mapping: int | None = Field(
         None,
         ge=1,
@@ -128,7 +125,6 @@ def load_settings() -> Settings:
             mapping_batch_size=config.mapping_batch_size,
             mapping_parallel_types=config.mapping_parallel_types,
             exhaustive_mapping=config.exhaustive_mapping,
-            use_prefilter=config.use_prefilter,
             max_items_per_mapping=config.max_items_per_mapping,
             mapping_feature_batch_cap_tokens=config.mapping_feature_batch_cap_tokens,
             web_search=config.web_search,

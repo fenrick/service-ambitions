@@ -27,7 +27,6 @@ def test_load_settings_reads_env(monkeypatch) -> None:
     assert settings.mapping_batch_size == 30
     assert settings.mapping_parallel_types is True
     assert settings.exhaustive_mapping is True
-    assert settings.use_prefilter is False
     assert settings.max_items_per_mapping is None
     assert settings.mapping_feature_batch_cap_tokens == 95000
     assert settings.token_weighting is True
