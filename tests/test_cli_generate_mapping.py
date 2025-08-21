@@ -102,6 +102,7 @@ def test_generate_mapping_updates_features(tmp_path, monkeypatch) -> None:
         features,
         mapping_types=None,
         *,
+        strict,
         batch_size,
         parallel_types,
     ):
@@ -138,6 +139,7 @@ def test_generate_mapping_updates_features(tmp_path, monkeypatch) -> None:
         mapping_parallel_types=False,
         seed=None,
         web_search=None,
+        strict=False,
     )
 
     asyncio.run(_cmd_generate_mapping(args, settings))
@@ -201,6 +203,7 @@ def test_generate_mapping_logs_stage_totals(tmp_path, monkeypatch) -> None:
         features,
         mapping_types=None,
         *,
+        strict,
         batch_size,
         parallel_types,
     ):
@@ -247,6 +250,7 @@ def test_generate_mapping_logs_stage_totals(tmp_path, monkeypatch) -> None:
         mapping_parallel_types=False,
         seed=None,
         web_search=None,
+        strict=False,
     )
 
     asyncio.run(_cmd_generate_mapping(args, settings))

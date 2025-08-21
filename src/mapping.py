@@ -640,6 +640,7 @@ async def map_features_async(
     features: Sequence[PlateauFeature],
     mapping_types: Mapping[str, MappingTypeConfig] | None = None,
     *,
+    strict: bool = False,
     batch_size: int = 30,
     parallel_types: bool = True,
     second_pass_timeout: float = SECOND_PASS_TIMEOUT,
@@ -652,6 +653,7 @@ async def map_features_async(
         session: Active conversation session used for mapping requests.
         features: Plateau features requiring mapping enrichment.
         mapping_types: Optional mapping configuration override keyed by type.
+        strict: Enforce non-empty mappings for all requested types when ``True``.
         batch_size: Number of features per mapping request batch.
         parallel_types: Dispatch mapping type requests concurrently across all
             batches when ``True``.
@@ -684,7 +686,16 @@ async def map_features_async(
             f"Quarantined {len(_QUARANTINED_MAPPINGS)} mapping payload(s)",
             paths=[str(p) for p in _QUARANTINED_MAPPINGS],
         )
-    return [results[f.feature_id] for f in features]
+    ordered = [results[f.feature_id] for f in features]
+    if strict:
+        for feature in ordered:
+            for key in mapping_types.keys():
+                values = feature.mappings.get(key)
+                if not values:
+                    raise MappingError(
+                        f"Missing mappings for feature {feature.feature_id} type {key}"
+                    )
+    return ordered
 
 
 def map_features(
@@ -692,6 +703,7 @@ def map_features(
     features: Sequence[PlateauFeature],
     mapping_types: Mapping[str, MappingTypeConfig] | None = None,
     *,
+    strict: bool = False,
     batch_size: int = 30,
     parallel_types: bool = True,
     second_pass_timeout: float = SECOND_PASS_TIMEOUT,
@@ -704,6 +716,7 @@ def map_features(
         session: Active conversation session used for mapping requests.
         features: Plateau features requiring mapping enrichment.
         mapping_types: Optional mapping configuration override keyed by type.
+        strict: Enforce non-empty mappings for all requested types when ``True``.
         batch_size: Number of features per mapping request batch.
         parallel_types: Dispatch mapping type requests concurrently across all
             batches when ``True``.
@@ -717,6 +730,7 @@ def map_features(
             session,
             features,
             mapping_types,
+            strict=strict,
             batch_size=batch_size,
             parallel_types=parallel_types,
             second_pass_timeout=second_pass_timeout,

@@ -22,6 +22,10 @@ poetry run service-ambitions generate-evolution \
 
 Use `--roles-file` to supply an alternative roles definition file when needed.
 
+Pass `--strict` to abort if any role lacks features or if generated features
+contain empty mapping lists. This turns on a fail-fast mode instead of the
+default best‑effort behaviour.
+
 Services run concurrently using a bounded worker pool configured via the
 `--concurrency` flag or the `concurrency` setting in `config/app.json`. The
 required number of features per role comes from the `features_per_role` setting

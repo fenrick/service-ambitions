@@ -871,3 +871,66 @@ def test_generate_service_evolution_deduplicates_features(monkeypatch) -> None:
     assert len(features) == 1
     expected = hashlib.sha1("A|learners|Foundational".encode()).hexdigest()
     assert features[0].feature_id == expected
+
+
+@pytest.mark.asyncio
+async def test_assemble_evolution_strict_checks() -> None:
+    """Strict mode should validate roles and mappings."""
+
+    session = DummySession([])
+    generator = PlateauGenerator(cast(ConversationSession, session), strict=True)
+    service = ServiceInput(
+        service_id="s1",
+        name="svc",
+        customer_type="retail",
+        description="d",
+        jobs_to_be_done=[{"name": "job"}],
+    )
+    feature = PlateauFeature(
+        feature_id="f1",
+        name="Feat",
+        description="d",
+        score=MaturityScore(level=1, label="Initial", justification="j"),
+        customer_type="learners",
+        mappings={"apps": [Contribution(item="a", contribution=1.0)]},
+    )
+    result = PlateauResult(
+        plateau=1,
+        plateau_name="Foundational",
+        service_description="d",
+        features=[feature],
+    )
+    with pytest.raises(ValueError):
+        await generator._assemble_evolution(
+            service,
+            [result],
+            ["Foundational"],
+            ["learners", "academics"],
+            _meta(),
+            None,
+            strict=True,
+        )
+
+    # Missing mappings should also raise
+    feature.mappings = {}
+    with pytest.raises(ValueError):
+        await generator._assemble_evolution(
+            service,
+            [result],
+            ["Foundational"],
+            ["learners"],
+            _meta(),
+            None,
+            strict=True,
+        )
+
+    # Best-effort mode allows incomplete data
+    await generator._assemble_evolution(
+        service,
+        [result],
+        ["Foundational"],
+        ["learners"],
+        _meta(),
+        None,
+        strict=False,
+    )

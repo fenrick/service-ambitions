@@ -209,6 +209,7 @@ async def _generate_evolution_for_service(
                 mapping_session=map_session,
                 mapping_batch_size=mapping_batch_size,
                 mapping_parallel_types=mapping_parallel_types,
+                strict=args.strict,
             )
             global _RUN_META
             if _RUN_META is None:
@@ -530,6 +531,7 @@ async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
     mapped = await map_features_async(
         session,
         features,
+        strict=args.strict,
         batch_size=mapping_batch_size,
         parallel_types=mapping_parallel_types,
     )
@@ -673,6 +675,12 @@ def main() -> None:
         "--no-logs",
         action="store_true",
         help="Disable file logging and Logfire telemetry",
+    )
+    common.add_argument(
+        "--strict",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Fail on missing roles or mappings when enabled",
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)

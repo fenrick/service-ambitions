@@ -22,6 +22,10 @@ limit pressure.
 concurrently. Disable it with `--no-mapping-parallel-types` to process types
 sequentially when working under tight rate limits.
 
+Enable fail-fast behaviour with `--strict` to raise an error when any requested
+mapping type is missing or produces an empty list. Without this flag the command
+will keep existing mappings and continue.
+
 ## Input format
 
 Provide a JSON Lines file produced by `generate-evolution`. Each line should be a

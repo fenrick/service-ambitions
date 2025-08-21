@@ -49,6 +49,7 @@ async def test_long_description_reduces_batch_size(monkeypatch) -> None:
         features,
         mapping_types=None,
         *,
+        strict=False,
         batch_size,
         parallel_types=True,
         token_cap=0,
@@ -70,7 +71,7 @@ async def test_long_description_reduces_batch_size(monkeypatch) -> None:
             feature_id=f"F{i}",
             name="N",
             description="D",
-            score=MaturityScore(level=1, label="L", justification="J"),
+            score=MaturityScore(level=1, label="Initial", justification="J"),
             customer_type="learners",
         )
         for i in range(5)

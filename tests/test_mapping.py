@@ -731,6 +731,60 @@ async def test_map_features_reprompts_missing_app_and_tech(monkeypatch) -> None:
     assert len(result[0].mappings["technology"]) >= 2
 
 
+@pytest.mark.asyncio
+async def test_map_features_async_strict_raises_missing(monkeypatch) -> None:
+    """Strict mode should raise when a mapping type is missing."""
+
+    feature = PlateauFeature(
+        feature_id="f1",
+        name="N",
+        description="D",
+        score=MaturityScore(level=1, label="Initial", justification="J"),
+        customer_type="learners",
+    )
+    mapping_types = {"apps": MappingTypeConfig(dataset="d", label="Apps")}
+
+    monkeypatch.setattr("mapping._split_batches", lambda feats, *_a, **_k: [feats])
+
+    async def fake_map_parallel(session, batches, _types, **_k):
+        return {feature.feature_id: feature}
+
+    monkeypatch.setattr("mapping._map_parallel", fake_map_parallel)
+
+    session = cast(ConversationSession, DummySession([]))
+    with pytest.raises(mapping.MappingError):
+        await map_features_async(
+            session, [feature], mapping_types=mapping_types, strict=True
+        )
+
+
+@pytest.mark.asyncio
+async def test_map_features_async_best_effort(monkeypatch) -> None:
+    """Best-effort mode allows missing mapping types."""
+
+    feature = PlateauFeature(
+        feature_id="f1",
+        name="N",
+        description="D",
+        score=MaturityScore(level=1, label="Initial", justification="J"),
+        customer_type="learners",
+    )
+    mapping_types = {"apps": MappingTypeConfig(dataset="d", label="Apps")}
+
+    monkeypatch.setattr("mapping._split_batches", lambda feats, *_a, **_k: [feats])
+
+    async def fake_map_parallel(session, batches, _types, **_k):
+        return {feature.feature_id: feature}
+
+    monkeypatch.setattr("mapping._map_parallel", fake_map_parallel)
+
+    session = cast(ConversationSession, DummySession([]))
+    result = await map_features_async(
+        session, [feature], mapping_types=mapping_types, strict=False
+    )
+    assert result[0] is feature
+
+
 def test_top_k_items_breaks_ties_lexicographically(monkeypatch) -> None:
     """Ensure TF-IDF ranking resolves equal scores by item identifier."""
 
