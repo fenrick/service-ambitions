@@ -8,14 +8,13 @@ contributions back into :class:`PlateauFeature` objects.
 
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING, Mapping, Sequence
 
 import logfire
 from pydantic import ValidationError
 
-from loader import load_mapping_items, load_mapping_type_config
+from loader import load_mapping_items
 from mapping_prompt import render_set_prompt
 from models import (
     Contribution,
@@ -172,59 +171,6 @@ async def map_set(
     )
 
 
-async def map_feature_async(
-    session: "ConversationSession",
-    feature: PlateauFeature,
-    mapping_types: Mapping[str, MappingTypeConfig] | None = None,
-    *,
-    max_items_per_mapping: int | None = None,
-    service: str | None = None,
-    strict: bool = False,
-) -> PlateauFeature:
-    """Asynchronously return ``feature`` augmented with mapping data."""
-
-    mapping_types = mapping_types or load_mapping_type_config()
-    mapped = [feature]
-    items = load_mapping_items(tuple(cfg.dataset for cfg in mapping_types.values()))
-    for key, cfg in mapping_types.items():
-        mapped = await map_set(
-            session,
-            key,
-            items[cfg.dataset],
-            mapped,
-            service=service,
-            strict=strict,
-        )
-    result = mapped[0]
-    if max_items_per_mapping is not None:
-        trimmed = {k: v[:max_items_per_mapping] for k, v in result.mappings.items()}
-        result = result.model_copy(update={"mappings": trimmed})
-    return result
-
-
-def map_feature(
-    session: "ConversationSession",
-    feature: PlateauFeature,
-    mapping_types: Mapping[str, MappingTypeConfig] | None = None,
-    *,
-    max_items_per_mapping: int | None = None,
-    service: str | None = None,
-    strict: bool = False,
-) -> PlateauFeature:
-    """Return ``feature`` augmented with mapping information."""
-
-    return asyncio.run(
-        map_feature_async(
-            session,
-            feature,
-            mapping_types,
-            max_items_per_mapping=max_items_per_mapping,
-            service=service,
-            strict=strict,
-        )
-    )
-
-
 class MappingError(RuntimeError):
     """Raised when a mapping response is missing required data."""
 
@@ -233,8 +179,6 @@ class MappingError(RuntimeError):
 
 
 __all__ = [
-    "map_feature",
-    "map_feature_async",
     "map_set",
     "MappingError",
     "init_embeddings",
