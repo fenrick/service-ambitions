@@ -125,8 +125,16 @@ class PlateauGenerator:
 
         items = load_mapping_items(("applications", "technologies", "information"))
         mapped = list(features)
+        service_name = self._service.name if self._service else "unknown"
         for key in ("applications", "technologies", "information"):
-            mapped = await map_set(session, key, items[key], mapped)
+            mapped = await map_set(
+                session,
+                key,
+                items[key],
+                mapped,
+                service=service_name,
+                strict=self.strict,
+            )
         return mapped
 
     def _request_description(
