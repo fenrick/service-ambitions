@@ -8,6 +8,7 @@ contributions back into :class:`PlateauFeature` objects.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Mapping, Sequence
 
@@ -37,18 +38,16 @@ async def init_embeddings() -> None:
     return None
 
 
-def _quarantine_mapping(
-    feature: PlateauFeature, key: str, payload: MappingResponse
-) -> Path:
-    """Persist raw mapping ``payload`` for ``feature`` and record its path."""
+def _quarantine_unknown_ids(data: Mapping[str, set[str]]) -> Path:
+    """Persist unknown mapping identifiers across all sets."""
 
     qdir = Path("quarantine/mappings")
     qdir.mkdir(parents=True, exist_ok=True)
-    file_path = qdir / f"{feature.feature_id}_{key}.json"
-    file_path.write_text(payload.model_dump_json(indent=2), encoding="utf-8")
+    file_path = qdir / "unknown_ids.json"
+    serialisable = {k: sorted(v) for k, v in data.items() if v}
+    file_path.write_text(json.dumps(serialisable, indent=2), encoding="utf-8")
     logfire.warning(
-        f"Quarantined mapping payload for {feature.feature_id}",
-        key=key,
+        "Quarantined unknown mapping identifiers",
         path=str(file_path),
     )
     _QUARANTINED_MAPPINGS.append(file_path)
@@ -59,17 +58,17 @@ def _clean_mapping_values(
     key: str,
     values: list[Contribution],
     valid_ids: dict[str, set[str]],
-) -> tuple[list[Contribution], bool]:
-    """Return filtered ``values`` and flag unknown IDs for ``key``."""
+) -> tuple[list[Contribution], list[str]]:
+    """Return filtered ``values`` and collect unknown IDs for ``key``."""
 
     valid: list[Contribution] = []
-    unknown = False
+    unknown_ids: list[str] = []
     for item in values:
         if item.item not in valid_ids[key]:
-            unknown = True
+            unknown_ids.append(item.item)
             continue
         valid.append(item)
-    return valid, unknown
+    return valid, unknown_ids
 
 
 def _merge_mapping_results(
@@ -97,6 +96,7 @@ def _merge_mapping_results(
 
     mapped_lookup = {item.feature_id: item.mappings for item in payload.features}
     results: list[PlateauFeature] = []
+    dropped: dict[str, set[str]] = {}
     for feature in features:
         mapped = mapped_lookup.get(feature.feature_id)
         if mapped is None:
@@ -106,7 +106,7 @@ def _merge_mapping_results(
             original = mapped.get(key, [])
             cleaned, unknown = _clean_mapping_values(key, original, valid_ids)
             if unknown:
-                _quarantine_mapping(feature, key, payload)
+                dropped.setdefault(key, set()).update(unknown)
             if not cleaned:
                 logfire.warning(
                     f"Missing mappings: feature={feature.feature_id} key={key}"
@@ -116,6 +116,14 @@ def _merge_mapping_results(
             update_data[key] = cleaned
         merged = feature.model_copy(update={"mappings": feature.mappings | update_data})
         results.append(merged)
+    if dropped:
+        for key, ids in dropped.items():
+            logfire.warning(
+                "Dropped unknown mapping IDs",
+                key=key,
+                count=len(ids),
+            )
+        _quarantine_unknown_ids(dropped)
     return results
 
 
