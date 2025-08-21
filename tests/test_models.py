@@ -1,6 +1,7 @@
 """Unit tests for Pydantic models."""
 
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,7 @@ from models import (
     PlateauResult,
     ServiceEvolution,
     ServiceInput,
+    ServiceMeta,
 )
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -43,7 +45,15 @@ def test_service_evolution_contains_plateaus() -> None:
         features=[feature],
     )
 
-    evolution = ServiceEvolution(service=service, plateaus=[plateau])
+    meta = ServiceMeta(
+        run_id="run",
+        seed=None,
+        models={},
+        web_search=False,
+        mapping_types=[],
+        created=datetime.now(timezone.utc),
+    )
+    evolution = ServiceEvolution(meta=meta, service=service, plateaus=[plateau])
 
     assert evolution.plateaus[0].features[0].name == "Feat"
 
@@ -64,7 +74,7 @@ def test_plateau_feature_validates_score() -> None:
 def test_contribution_requires_fields() -> None:
     """Missing fields should trigger a ``ValidationError``."""
     with pytest.raises(ValidationError):
-        Contribution()
+        Contribution()  # type: ignore[call-arg]
 
 
 def test_contribution_enforces_range() -> None:

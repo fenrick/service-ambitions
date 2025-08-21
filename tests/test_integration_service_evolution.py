@@ -2,6 +2,7 @@
 
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
@@ -15,6 +16,7 @@ from models import (
     PlateauFeature,
     ServiceEvolution,
     ServiceInput,
+    ServiceMeta,
 )
 from plateau_generator import PlateauGenerator
 
@@ -114,10 +116,19 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
         description="desc",
         jobs_to_be_done=[{"name": "job"}],
     )
+    meta = ServiceMeta(
+        run_id="run",
+        seed=None,
+        models={},
+        web_search=False,
+        mapping_types=[],
+        created=datetime.now(timezone.utc),
+    )
     evolution = generator.generate_service_evolution(
         service,
         ["Foundational", "Enhanced", "Experimental", "Disruptive"],
         ["learners", "academics", "professional_staff"],
+        meta=meta,
     )
     assert isinstance(evolution, ServiceEvolution)
     assert evolution.meta.schema_version == SCHEMA_VERSION

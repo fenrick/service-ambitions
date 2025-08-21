@@ -8,6 +8,7 @@ throughout the system.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated, List, Literal
 
@@ -26,6 +27,37 @@ class StrictModel(BaseModel):
     """Base model with strict settings to prevent shape drift."""
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
+
+
+class ServiceMeta(StrictModel):
+    """Metadata describing a single generation run."""
+
+    schema_version: str = Field(
+        default=SCHEMA_VERSION,
+        description="Version of the ServiceEvolution schema.",
+    )
+    run_id: Annotated[
+        str,
+        Field(min_length=1, description="Unique identifier for this run."),
+    ]
+    seed: int | None = Field(
+        default=None, description="Seed used for deterministic generation."
+    )
+    models: dict[str, str] = Field(
+        default_factory=dict,
+        description="Mapping of generation stages to model names.",
+    )
+    web_search: bool = Field(
+        default=False, description="Whether web search was enabled."
+    )
+    mapping_types: list[str] = Field(
+        default_factory=list,
+        description="Mapping categories included during feature mapping.",
+    )
+    created: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="ISO-8601 timestamp when the run metadata was created.",
+    )
 
 
 CMMI_LABELS = {
@@ -375,16 +407,9 @@ class PlateauResult(StrictModel):
 
 
 class ServiceEvolution(StrictModel):
-    """Summary of a service's progress across plateaus.
+    """Summary of a service's progress across plateaus."""
 
-    The ``plateaus`` list is ordered from lowest to highest maturity and
-    represents the full evolution output for a given :class:`ServiceInput`.
-    """
-
-    schema_version: str = Field(
-        default=SCHEMA_VERSION,
-        description="Version of the ServiceEvolution schema.",
-    )
+    meta: ServiceMeta = Field(..., description="Metadata for this run.")
     service: ServiceInput = Field(..., description="Service being evaluated.")
     plateaus: list[PlateauResult] = Field(
         default_factory=list, description="Evaluated plateaus for the service."
@@ -563,6 +588,7 @@ __all__ = [
     "ReasoningConfig",
     "Role",
     "SCHEMA_VERSION",
+    "ServiceMeta",
     "ServiceEvolution",
     "ServiceFeature",
     "ServiceFeaturePlateau",

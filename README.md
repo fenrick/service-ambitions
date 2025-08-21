@@ -259,7 +259,8 @@ Each JSON line in the output file follows the `ServiceEvolution` schema:
     "models": {
       "descriptions": "openai:o4-mini",
       "features": "openai:gpt-5",
-      "mapping": "openai:o4-mini"
+      "mapping": "openai:o4-mini",
+      "search": "openai:gpt-4o-search-preview"
     },
     "web_search": false,
     "mapping_types": ["data", "applications", "technology"],

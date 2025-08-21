@@ -33,6 +33,7 @@ from models import (
     RoleFeaturesResponse,
     ServiceEvolution,
     ServiceInput,
+    ServiceMeta,
 )
 from settings import load_settings
 from token_scheduler import TokenScheduler
@@ -495,6 +496,7 @@ class PlateauGenerator:
         results: Sequence[PlateauResult],
         plateau_names: Sequence[str],
         role_ids: Sequence[str],
+        meta: ServiceMeta,
         transcripts_dir: Path | None,
     ) -> ServiceEvolution:
         """Return ``ServiceEvolution`` from plateau ``results``."""
@@ -527,7 +529,9 @@ class PlateauGenerator:
                 )
             )
 
-        evolution = ServiceEvolution(service=service_input, plateaus=plateaus)
+        evolution = ServiceEvolution(
+            meta=meta, service=service_input, plateaus=plateaus
+        )
         if transcripts_dir is not None:
             payload = {
                 "request": service_input.model_dump(),
@@ -700,6 +704,7 @@ class PlateauGenerator:
         role_ids: Sequence[str] | None = None,
         *,
         transcripts_dir: Path | None = None,
+        meta: ServiceMeta,
     ) -> ServiceEvolution:
         """Asynchronously return service evolution for selected plateaus.
 
@@ -731,7 +736,7 @@ class PlateauGenerator:
             )
 
             evolution = await self._assemble_evolution(
-                service_input, results, plateau_names, role_ids, transcripts_dir
+                service_input, results, plateau_names, role_ids, meta, transcripts_dir
             )
 
             if self.quarantined_descriptions:
@@ -750,6 +755,7 @@ class PlateauGenerator:
         role_ids: Sequence[str] | None = None,
         *,
         transcripts_dir: Path | None = None,
+        meta: ServiceMeta,
     ) -> ServiceEvolution:
         """Return service evolution for selected plateaus and roles."""
 
@@ -759,5 +765,6 @@ class PlateauGenerator:
                 plateau_names,
                 role_ids,
                 transcripts_dir=transcripts_dir,
+                meta=meta,
             )
         )

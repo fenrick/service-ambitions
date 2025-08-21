@@ -21,7 +21,7 @@ def test_migrate_from_1_0_to_1_1() -> None:
 
     migrated = migrate_record("1.0", "1.1", source)
 
-    assert migrated["schema_version"] == "1.1"
+    assert migrated["meta"]["schema_version"] == "1.1"
     plateau = migrated["plateaus"][0]
     assert "service_description" not in plateau
     assert plateau["description"] == "desc"

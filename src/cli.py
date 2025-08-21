@@ -9,9 +9,11 @@ import logging
 import os
 import random
 import sys
+from datetime import datetime, timezone
 from itertools import islice
 from pathlib import Path
 from typing import Any, Coroutine, Sequence, cast
+from uuid import uuid4
 
 from pydantic_ai import Agent
 from tqdm import tqdm
@@ -28,7 +30,7 @@ from loader import (
 )
 from mapping import init_embeddings, map_features_async
 from model_factory import ModelFactory
-from models import ServiceEvolution, ServiceInput
+from models import ServiceEvolution, ServiceInput, ServiceMeta
 from monitoring import LOG_FILE_NAME, init_logfire, logfire
 from persistence import atomic_write, read_lines
 from plateau_generator import PlateauGenerator
@@ -39,6 +41,8 @@ from stage_metrics import log_stage_totals, reset_stage_totals
 SERVICES_PROCESSED = logfire.metric_counter("services_processed")
 EVOLUTIONS_GENERATED = logfire.metric_counter("evolutions_generated")
 LINES_WRITTEN = logfire.metric_counter("lines_written")
+
+_RUN_META: ServiceMeta | None = None
 
 SERVICES_FILE_HELP = "Path to the services JSONL file"
 OUTPUT_FILE_HELP = "File to write the results"
@@ -204,8 +208,26 @@ async def _generate_evolution_for_service(
                 mapping_batch_size=mapping_batch_size,
                 mapping_parallel_types=mapping_parallel_types,
             )
+            global _RUN_META
+            if _RUN_META is None:
+                models_map = {
+                    "descriptions": desc_name,
+                    "features": feat_name,
+                    "mapping": map_name,
+                    "search": factory.model_name(
+                        "search", args.search_model or args.model
+                    ),
+                }
+                _RUN_META = ServiceMeta(
+                    run_id=str(uuid4()),
+                    seed=args.seed,
+                    models=models_map,
+                    web_search=getattr(factory, "_web_search", False),
+                    mapping_types=sorted(getattr(settings, "mapping_types", {}).keys()),
+                    created=datetime.now(timezone.utc),
+                )
             evolution = await generator.generate_service_evolution_async(
-                service, transcripts_dir=transcripts_dir
+                service, transcripts_dir=transcripts_dir, meta=_RUN_META
             )
             line = f"{evolution.model_dump_json()}\n"
             async with lock:

@@ -1,5 +1,8 @@
+from typing import Any, cast
+
 import pytest
 
+from conversation import ConversationSession
 from models import MaturityScore, PlateauFeature, PlateauResult, ServiceInput
 from plateau_generator import (
     DEFAULT_PLATEAU_NAMES,
@@ -57,7 +60,11 @@ async def test_long_description_reduces_batch_size(monkeypatch) -> None:
     monkeypatch.setattr("plateau_generator.map_features_async", dummy_map_features)
 
     session = DummySession()
-    gen = PlateauGenerator(session, mapping_batch_size=5, mapping_token_cap=3)
+    gen = PlateauGenerator(
+        cast(ConversationSession, session),
+        mapping_batch_size=5,
+        mapping_token_cap=3,
+    )
     features = [
         PlateauFeature(
             feature_id=f"F{i}",
@@ -68,7 +75,7 @@ async def test_long_description_reduces_batch_size(monkeypatch) -> None:
         )
         for i in range(5)
     ]
-    await gen._map_features(session, "desc", features)
+    await gen._map_features(cast(ConversationSession, session), "desc", features)
 
     assert captured["batch_size"] == 2
     assert captured["order"] == [f"F{i}" for i in range(5)]
@@ -85,7 +92,7 @@ async def test_scheduler_orders_by_predicted_tokens(monkeypatch) -> None:
 
     class SyncScheduler:
         def __init__(self, max_workers: int = 4) -> None:
-            self._queue = []
+            self._queue: list[tuple[int, Any]] = []
 
         def submit(self, func, tokens: int) -> None:
             self._queue.append((tokens, func))
@@ -114,7 +121,7 @@ async def test_scheduler_orders_by_predicted_tokens(monkeypatch) -> None:
     monkeypatch.setattr(PlateauGenerator, "generate_plateau_async", dummy_generate)
 
     session = DummySession()
-    gen = PlateauGenerator(session)
+    gen = PlateauGenerator(cast(ConversationSession, session))
     service_input = ServiceInput(
         service_id="S1",
         name="svc",

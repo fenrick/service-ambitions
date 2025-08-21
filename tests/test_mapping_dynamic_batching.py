@@ -1,5 +1,8 @@
+from typing import cast
+
 import pytest
 
+from conversation import ConversationSession
 from mapping import map_features_async
 from models import MappingTypeConfig, MaturityScore, PlateauFeature
 
@@ -46,7 +49,7 @@ async def test_map_features_downsizes_batches(monkeypatch) -> None:
     ]
     mapping_types = {"apps": MappingTypeConfig(dataset="applications", label="Apps")}
     await map_features_async(
-        DummySession(),
+        cast(ConversationSession, DummySession()),
         features,
         mapping_types=mapping_types,
         batch_size=5,

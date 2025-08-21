@@ -4,11 +4,13 @@ import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
 import numpy as np
 import pytest
 
 import mapping
+from conversation import ConversationSession
 from mapping import map_feature, map_feature_async, map_features_async
 from models import MappingItem, MappingTypeConfig, MaturityScore, PlateauFeature
 
@@ -98,7 +100,7 @@ async def test_map_feature_returns_mappings(monkeypatch) -> None:
         customer_type="learners",
     )
 
-    result = await map_feature_async(session, feature)
+    result = await map_feature_async(cast(ConversationSession, session), feature)
 
     assert isinstance(result, PlateauFeature)
     assert result.mappings["data"][0].item == "INF-1"
@@ -167,7 +169,7 @@ async def test_map_feature_injects_reference_data(monkeypatch) -> None:
         score=MaturityScore(level=3, label="Defined", justification="j"),
         customer_type="learners",
     )
-    await map_feature_async(session, feature)
+    await map_feature_async(cast(ConversationSession, session), feature)
 
     assert len(session.prompts) == 3
     assert "User Data" in session.prompts[0]
@@ -200,7 +202,7 @@ async def test_map_feature_rejects_invalid_json(monkeypatch) -> None:
         customer_type="learners",
     )
     with pytest.raises(ValueError):
-        await map_feature_async(session, feature)
+        await map_feature_async(cast(ConversationSession, session), feature)
 
 
 def test_map_feature_ignores_unknown_ids(monkeypatch) -> None:
@@ -252,7 +254,7 @@ def test_map_feature_ignores_unknown_ids(monkeypatch) -> None:
         score=MaturityScore(level=3, label="Defined", justification="j"),
         customer_type="learners",
     )
-    result = map_feature(session, feature)
+    result = map_feature(cast(ConversationSession, session), feature)
 
     assert result.mappings["data"] == []
 
@@ -305,7 +307,7 @@ async def test_map_feature_flattens_nested_mappings(monkeypatch) -> None:
         customer_type="learners",
     )
 
-    result = await map_feature_async(session, feature)
+    result = await map_feature_async(cast(ConversationSession, session), feature)
 
     assert result.mappings["data"][0].item == "INF-1"
     assert result.mappings["applications"][0].item == "APP-1"
@@ -366,7 +368,7 @@ async def test_map_feature_flattens_repeated_mapping_keys(monkeypatch) -> None:
         customer_type="learners",
     )
 
-    result = await map_feature_async(session, feature)
+    result = await map_feature_async(cast(ConversationSession, session), feature)
 
     assert result.mappings["data"][0].item == "INF-1"
     assert result.mappings["applications"][0].item == "APP-1"
@@ -432,7 +434,7 @@ async def test_map_features_returns_mappings(monkeypatch) -> None:
         customer_type="learners",
     )
 
-    result = await map_features_async(session, [feature])
+    result = await map_features_async(cast(ConversationSession, session), [feature])
 
     assert result[0].mappings["data"][0].item == "INF-1"
     assert "User Data" in session.prompts[0]
@@ -481,7 +483,7 @@ async def test_map_features_allows_empty_lists(monkeypatch) -> None:
         customer_type="learners",
     )
 
-    result = await map_features_async(session, [feature])
+    result = await map_features_async(cast(ConversationSession, session), [feature])
 
     assert result[0].mappings["data"] == []
     assert result[0].mappings["applications"] == []
@@ -525,7 +527,7 @@ async def test_map_features_retries_on_empty(monkeypatch) -> None:
     )
 
     result = await map_features_async(
-        session,
+        cast(ConversationSession, session),
         [feature],
         {"data": MappingTypeConfig(dataset="information", label="Info")},
     )
@@ -602,7 +604,7 @@ async def test_map_features_reprompts_per_feature(monkeypatch, parallel) -> None
     ]
 
     result = await map_features_async(
-        session,
+        cast(ConversationSession, session),
         features,
         {"data": MappingTypeConfig(dataset="information", label="Info")},
         batch_size=2,
@@ -717,7 +719,7 @@ async def test_map_features_reprompts_missing_app_and_tech(monkeypatch) -> None:
     ]
 
     result = await map_features_async(
-        session,
+        cast(ConversationSession, session),
         features,
         {
             "applications": MappingTypeConfig(dataset="applications", label="Apps"),
