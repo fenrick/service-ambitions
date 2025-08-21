@@ -26,6 +26,7 @@ from tqdm import tqdm
 
 from backpressure import AdaptiveSemaphore, RollingMetrics
 from models import ReasoningConfig, ServiceInput
+from redaction import redact_pii
 from token_utils import estimate_tokens
 
 SERVICES_PROCESSED = logfire.metric_counter("services_processed")
@@ -305,10 +306,11 @@ class ServiceAmbitionGenerator:
                     "request": service.model_dump(),
                     "response": json.loads(line),
                 }
+                data = redact_pii(json.dumps(payload, ensure_ascii=False))
                 path = transcripts_dir / f"{service.service_id}.json"
                 await asyncio.to_thread(
                     path.write_text,
-                    json.dumps(payload, ensure_ascii=False),
+                    data,
                     encoding="utf-8",
                 )
             return line, service.service_id, tokens

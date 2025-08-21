@@ -219,7 +219,10 @@ def test_generate_async_saves_transcripts(tmp_path, monkeypatch):
 
     monkeypatch.setattr(generator, "Agent", DummyAgent)
     service = ServiceInput(
-        service_id="svc", name="alpha", description="d", jobs_to_be_done=[]
+        service_id="svc-123",
+        name="alpha",
+        description="Contact j.doe@example.com",
+        jobs_to_be_done=[],
     )
     gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
     out_file = tmp_path / "out.jsonl"
@@ -231,8 +234,12 @@ def test_generate_async_saves_transcripts(tmp_path, monkeypatch):
         )
 
     asyncio.run(run())
-    transcript_path = transcripts / "svc.json"
+    transcript_path = transcripts / "svc-123.json"
     assert transcript_path.exists()
+    data = transcript_path.read_text(encoding="utf-8")
+    assert "j.doe@example.com" not in data
+    assert "svc-123" not in data
+    assert "<redacted>" in data
 
 
 @pytest.mark.asyncio()
