@@ -96,7 +96,7 @@ async def test_map_features_calls_sets_in_order(monkeypatch) -> None:
 
     called: list[str] = []
 
-    async def fake_map_set(session, name, items, feats):
+    async def fake_map_set(session, name, items, feats, **kwargs):
         called.append(name)
         return list(feats)
 

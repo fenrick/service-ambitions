@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Mapping, Sequence
 
 import logfire
+from pydantic import ValidationError
 
 from loader import load_mapping_items, load_mapping_type_config
 from mapping_prompt import render_set_prompt
@@ -124,12 +125,45 @@ async def map_set(
     set_name: str,
     items: Sequence[MappingItem],
     features: Sequence[PlateauFeature],
+    *,
+    service: str | None = None,
+    strict: bool = False,
 ) -> list[PlateauFeature]:
-    """Return ``features`` with ``set_name`` mappings populated."""
+    """Return ``features`` with ``set_name`` mappings populated.
+
+    The agent is queried twice to obtain a valid :class:`MappingResponse`. The
+    second attempt appends a hint instructing the model to return JSON only. If
+    both attempts fail, the raw response is written to
+    ``quarantine/mappings/<service>/<set>.txt`` and an empty mapping list is
+    returned. When ``strict`` is ``True`` a :class:`MappingError` is raised
+    instead of returning partial results.
+    """
 
     cfg = MappingTypeConfig(dataset=set_name, label=set_name)
     prompt = render_set_prompt(set_name, list(items), features)
-    payload = await session.ask_async(prompt, output_type=MappingResponse)
+
+    try:
+        raw = await session.ask_async(prompt)
+        payload = MappingResponse.model_validate_json(raw)
+    except (ValidationError, ValueError):
+        hint_prompt = f"{prompt}\nReturn valid JSON only."
+        raw = await session.ask_async(hint_prompt)
+        try:
+            payload = MappingResponse.model_validate_json(raw)
+        except (ValidationError, ValueError) as exc:
+            svc = service or "unknown"
+            qdir = Path("quarantine/mappings") / svc
+            qdir.mkdir(parents=True, exist_ok=True)
+            (qdir / f"{set_name}.txt").write_text(raw, encoding="utf-8")
+            if strict:
+                raise MappingError(
+                    f"Invalid mapping response for {svc}/{set_name}"
+                ) from exc
+            return [
+                feat.model_copy(update={"mappings": feat.mappings | {set_name: []}})
+                for feat in features
+            ]
+
     return _merge_mapping_results(
         features,
         payload,
@@ -144,6 +178,8 @@ async def map_feature_async(
     mapping_types: Mapping[str, MappingTypeConfig] | None = None,
     *,
     max_items_per_mapping: int | None = None,
+    service: str | None = None,
+    strict: bool = False,
 ) -> PlateauFeature:
     """Asynchronously return ``feature`` augmented with mapping data."""
 
@@ -151,7 +187,14 @@ async def map_feature_async(
     mapped = [feature]
     items = load_mapping_items(tuple(cfg.dataset for cfg in mapping_types.values()))
     for key, cfg in mapping_types.items():
-        mapped = await map_set(session, key, items[cfg.dataset], mapped)
+        mapped = await map_set(
+            session,
+            key,
+            items[cfg.dataset],
+            mapped,
+            service=service,
+            strict=strict,
+        )
     result = mapped[0]
     if max_items_per_mapping is not None:
         trimmed = {k: v[:max_items_per_mapping] for k, v in result.mappings.items()}
@@ -165,6 +208,8 @@ def map_feature(
     mapping_types: Mapping[str, MappingTypeConfig] | None = None,
     *,
     max_items_per_mapping: int | None = None,
+    service: str | None = None,
+    strict: bool = False,
 ) -> PlateauFeature:
     """Return ``feature`` augmented with mapping information."""
 
@@ -174,6 +219,8 @@ def map_feature(
             feature,
             mapping_types,
             max_items_per_mapping=max_items_per_mapping,
+            service=service,
+            strict=strict,
         )
     )
 
