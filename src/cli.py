@@ -327,7 +327,6 @@ async def _cmd_generate_ambitions(
                 retries=settings.retries,
                 retry_base_delay=settings.retry_base_delay,
                 expected_output_tokens=args.expected_output_tokens,
-                token_weighting=settings.token_weighting,
             )
 
             part_path, processed_path = _prepare_paths(output_path, args.resume)

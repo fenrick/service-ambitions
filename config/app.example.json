@@ -39,7 +39,6 @@
 
   // Concurrency and batching controls for API requests.
   "concurrency": 5,
-  "token_weighting": true,
   "batch_size": 25,
   "request_timeout": 60,
   "retries": 5,

@@ -214,10 +214,8 @@ class ServiceAmbitionGenerator:
     """Generate ambitions for services using a Pydantic AI model.
 
     Instances manage a bounded pool of concurrent workers and reuse the input
-    model across requests.  Prompts are provided per ``generate`` invocation to
-    keep the class stateless between runs.  Concurrency permits can optionally
-    be weighted by estimated token usage to smooth throughput across varying
-    request sizes.
+    model across requests. Prompts are provided per ``generate`` invocation to
+    keep the class stateless between runs.
     """
 
     def __init__(
@@ -230,7 +228,6 @@ class ServiceAmbitionGenerator:
         retry_base_delay: float = 0.5,
         expected_output_tokens: int = 256,
         flush_interval: int = 100,
-        token_weighting: bool = True,
     ) -> None:
         """Initialize the generator.
 
@@ -246,7 +243,6 @@ class ServiceAmbitionGenerator:
                 for backwards compatibility.
             flush_interval: Number of lines to write before forcing a flush and
                 ``os.fsync`` to ensure results are durably persisted.
-            token_weighting: Deprecated. No longer adjusts concurrency permits.
 
         Raises:
             ValueError: If ``concurrency`` is less than one.
@@ -263,7 +259,6 @@ class ServiceAmbitionGenerator:
         self.retry_base_delay = retry_base_delay
         self.expected_output_tokens = expected_output_tokens
         self.flush_interval = flush_interval
-        self.token_weighting = token_weighting
         self._prompt: str | None = None
         self._limiter: Semaphore | None = None
         self._metrics: RollingMetrics | None = None
