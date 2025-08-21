@@ -3,7 +3,9 @@
 import argparse
 import asyncio
 import json
+from datetime import datetime, timezone
 from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 
@@ -11,6 +13,7 @@ import cli
 import mapping
 from backpressure import RollingMetrics
 from cli import _cmd_generate_mapping
+from conversation import ConversationSession
 from models import (
     Contribution,
     MappingFeature,
@@ -21,6 +24,7 @@ from models import (
     PlateauResult,
     ServiceEvolution,
     ServiceInput,
+    ServiceMeta,
 )
 from stage_metrics import record_stage_metrics
 
@@ -52,7 +56,16 @@ def test_generate_mapping_updates_features(tmp_path, monkeypatch) -> None:
     input_path = tmp_path / "evo.jsonl"
     output_path = tmp_path / "out.jsonl"
 
+    meta = ServiceMeta(
+        run_id="run",
+        seed=None,
+        models={},
+        web_search=False,
+        mapping_types=[],
+        created=datetime.now(timezone.utc),
+    )
     evo = ServiceEvolution(
+        meta=meta,
         service=ServiceInput(
             service_id="svc-1",
             name="svc",
@@ -144,7 +157,16 @@ def test_generate_mapping_logs_stage_totals(tmp_path, monkeypatch) -> None:
     input_path = tmp_path / "evo.jsonl"
     output_path = tmp_path / "out.jsonl"
 
+    meta = ServiceMeta(
+        run_id="run",
+        seed=None,
+        models={},
+        web_search=False,
+        mapping_types=[],
+        created=datetime.now(timezone.utc),
+    )
     evo = ServiceEvolution(
+        meta=meta,
         service=ServiceInput(
             service_id="svc-1",
             name="svc",
@@ -272,7 +294,7 @@ def test_request_mapping_retries(monkeypatch) -> None:
 
     class DummyLimiter:
         def __init__(self) -> None:
-            self.calls = []
+            self.calls: list[float] = []
 
         def throttle(self, delay: float) -> None:
             self.calls.append(delay)
@@ -316,10 +338,14 @@ def test_request_mapping_retries(monkeypatch) -> None:
     cfg = MappingTypeConfig(dataset="ds", label="Dataset")
 
     session = DummySession()
-    result = asyncio.run(mapping._request_mapping(session, [feature], 0, "cat", cfg))
+    result = asyncio.run(
+        mapping._request_mapping(
+            cast(ConversationSession, session), [feature], 0, "cat", cfg
+        )
+    )
 
     assert session.calls == 2
-    hook = recorded["on_retry_after"]
+    hook = cast(Any, recorded["on_retry_after"])
     assert hook is not None and hook.__self__ is limiter
     assert recorded["metrics"] is metrics
     assert result[0] == 0

@@ -5,6 +5,7 @@ import hashlib
 import json
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import cast
 
@@ -21,6 +22,7 @@ from models import (
     PlateauFeature,
     PlateauResult,
     ServiceInput,
+    ServiceMeta,
 )
 from plateau_generator import (
     PlateauGenerator,
@@ -38,6 +40,17 @@ class DummySession:
         self.client = None
         self.stage = "test"
 
+
+def _meta() -> ServiceMeta:
+    return ServiceMeta(
+        run_id="run",
+        seed=None,
+        models={},
+        web_search=False,
+        mapping_types=[],
+        created=datetime.now(timezone.utc),
+    )
+
     def ask(self, prompt: str, output_type=None) -> object:
         self.prompts.append(prompt)
         response = self._responses.pop(0)
@@ -54,9 +67,13 @@ class DummySession:
 
 def _feature_payload(count: int, level: int = 1) -> str:
     # Build a uniform payload with ``count`` valid features per customer type.
-    features = {"learners": [], "academics": [], "professional_staff": []}
+    features: dict[str, list[dict[str, object]]] = {
+        "learners": [],
+        "academics": [],
+        "professional_staff": [],
+    }
     for role in features:
-        items = []
+        items: list[dict[str, object]] = []
         for i in range(count):
             items.append(
                 {
@@ -667,6 +684,7 @@ def test_generate_service_evolution_filters(monkeypatch) -> None:
         service,
         ["Foundational", "Enhanced"],
         ["learners", "academics"],
+        meta=_meta(),
     )
 
     assert called == [1, 2]
@@ -728,6 +746,7 @@ def test_generate_service_evolution_invalid_role_raises(monkeypatch) -> None:
             service,
             ["Foundational"],
             ["learners"],
+            meta=_meta(),
         )
 
 
@@ -783,6 +802,7 @@ def test_generate_service_evolution_unknown_plateau_raises(monkeypatch) -> None:
             service,
             ["Foundational"],
             ["learners"],
+            meta=_meta(),
         )
 
 
@@ -844,6 +864,7 @@ def test_generate_service_evolution_deduplicates_features(monkeypatch) -> None:
         service,
         ["Foundational"],
         ["learners"],
+        meta=_meta(),
     )
 
     features = evo.plateaus[0].features

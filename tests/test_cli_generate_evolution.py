@@ -10,7 +10,7 @@ import pytest
 
 import cli
 from cli import _cmd_generate_evolution
-from models import SCHEMA_VERSION, ServiceEvolution, ServiceInput
+from models import SCHEMA_VERSION, ServiceEvolution, ServiceInput, ServiceMeta
 
 
 class DummyFactory:
@@ -24,7 +24,7 @@ class DummyFactory:
         return object()
 
 
-cli.ModelFactory = DummyFactory
+cli.ModelFactory = DummyFactory  # type: ignore[assignment,misc]
 
 
 async def _noop_init_embeddings() -> None:
@@ -63,8 +63,10 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         plateau_names=None,
         role_ids=None,
         transcripts_dir=None,
+        meta: ServiceMeta | None = None,
     ) -> ServiceEvolution:
-        return ServiceEvolution(service=service, plateaus=[])
+        assert meta is not None
+        return ServiceEvolution(meta=meta, service=service, plateaus=[])
 
     monkeypatch.setattr("cli.Agent", DummyAgent)
     monkeypatch.setattr(
@@ -109,14 +111,16 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         transcripts_dir=None,
         web_search=None,
         no_logs=False,
+        search_model=None,
     )
 
+    monkeypatch.setattr(cli, "_RUN_META", None)
     asyncio.run(_cmd_generate_evolution(args, settings, None))
 
     payload = json.loads(output_path.read_text(encoding="utf-8").strip())
     assert payload["service"]["name"] == "svc"
     assert payload["service"]["service_id"] == "svc-1"
-    assert payload["schema_version"] == SCHEMA_VERSION
+    assert payload["meta"]["schema_version"] == SCHEMA_VERSION
 
 
 def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
@@ -140,9 +144,11 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         plateau_names=None,
         role_ids=None,
         transcripts_dir=None,
+        meta: ServiceMeta | None = None,
     ) -> ServiceEvolution:
         called["ran"] = True
-        return ServiceEvolution(service=service, plateaus=[])
+        assert meta is not None
+        return ServiceEvolution(meta=meta, service=service, plateaus=[])
 
     monkeypatch.setattr("cli.Agent", DummyAgent)
     monkeypatch.setattr(
@@ -188,8 +194,10 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         transcripts_dir=None,
         web_search=None,
         no_logs=False,
+        search_model=None,
     )
 
+    monkeypatch.setattr(cli, "_RUN_META", None)
     asyncio.run(_cmd_generate_evolution(args, settings, None))
 
     assert not output_path.exists()
@@ -224,9 +232,11 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         plateau_names=None,
         role_ids=None,
         transcripts_dir=None,
+        meta: ServiceMeta | None = None,
     ) -> ServiceEvolution:
         processed.append(service.service_id)
-        return ServiceEvolution(service=service, plateaus=[])
+        assert meta is not None
+        return ServiceEvolution(meta=meta, service=service, plateaus=[])
 
     monkeypatch.setattr("cli.Agent", DummyAgent)
     monkeypatch.setattr(
@@ -271,8 +281,10 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         transcripts_dir=None,
         web_search=None,
         no_logs=False,
+        search_model=None,
     )
 
+    monkeypatch.setattr(cli, "_RUN_META", None)
     asyncio.run(_cmd_generate_evolution(args, settings, None))
 
     assert processed == ["s2"]
@@ -298,8 +310,10 @@ def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -
         plateau_names=None,
         role_ids=None,
         transcripts_dir=None,
+        meta: ServiceMeta | None = None,
     ) -> ServiceEvolution:
-        return ServiceEvolution(service=service, plateaus=[])
+        assert meta is not None
+        return ServiceEvolution(meta=meta, service=service, plateaus=[])
 
     monkeypatch.setattr("cli.Agent", DummyAgent)
     monkeypatch.setattr(
@@ -344,8 +358,10 @@ def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -
         transcripts_dir=None,
         web_search=None,
         no_logs=False,
+        search_model=None,
     )
 
+    monkeypatch.setattr(cli, "_RUN_META", None)
     with pytest.raises(ValueError, match="concurrency must be a positive integer"):
         asyncio.run(_cmd_generate_evolution(args, settings, None))
 
@@ -415,11 +431,13 @@ def test_generate_evolution_writes_transcripts(tmp_path, monkeypatch) -> None:
         plateau_names=None,
         role_ids=None,
         transcripts_dir=None,
+        meta: ServiceMeta | None = None,
     ) -> ServiceEvolution:
         assert transcripts_dir is not None
+        assert meta is not None
         path = transcripts_dir / f"{service.service_id}.json"
         path.write_text("{}", encoding="utf-8")
-        return ServiceEvolution(service=service, plateaus=[])
+        return ServiceEvolution(meta=meta, service=service, plateaus=[])
 
     monkeypatch.setattr("cli.Agent", DummyAgent)
     monkeypatch.setattr(
@@ -464,8 +482,10 @@ def test_generate_evolution_writes_transcripts(tmp_path, monkeypatch) -> None:
         transcripts_dir=None,
         web_search=None,
         no_logs=False,
+        search_model=None,
     )
 
+    monkeypatch.setattr(cli, "_RUN_META", None)
     asyncio.run(_cmd_generate_evolution(args, settings, None))
 
     transcript = output_path.parent / "_transcripts" / "svc-1.json"
