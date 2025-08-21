@@ -21,6 +21,7 @@ import logfire
 from conversation import ConversationSession
 from loader import load_plateau_definitions, load_prompt_text, load_role_ids
 from mapping import map_features_async
+from mapping_utils import fit_batch_to_token_cap
 from models import (
     DescriptionResponse,
     FeatureItem,
@@ -117,29 +118,19 @@ class PlateauGenerator:
         self, description: str, features: Sequence[PlateauFeature]
     ) -> int:
         """Return an adjusted batch size limited by ``mapping_token_cap``."""
-
-        batch_size = min(self.mapping_batch_size, len(features))
-        initial = batch_size
-        while batch_size > 1:
-            feature_lines = "\n".join(
-                f"- {f.feature_id}: {f.name} - {f.description}"
-                for f in features[:batch_size]
-            )
-            tokens = estimate_tokens(f"{description}\n{feature_lines}", 0)
-            if tokens <= self.mapping_token_cap:
-                break
-            batch_size -= 1
-        feature_lines = "\n".join(
-            f"- {f.feature_id}: {f.name} - {f.description}"
-            for f in features[:batch_size]
+        return fit_batch_to_token_cap(
+            features,
+            min(self.mapping_batch_size, len(features)),
+            self.mapping_token_cap,
+            lambda fs: estimate_tokens(
+                f"{description}\n"
+                + "\n".join(
+                    f"- {f.feature_id}: {f.name} - {f.description}" for f in fs
+                ),
+                0,
+            ),
+            label="mapping",
         )
-        tokens = estimate_tokens(f"{description}\n{feature_lines}", 0)
-        if batch_size < initial:
-            logfire.info(
-                f"Reduced mapping batch size from {initial} to {batch_size} "
-                f"({tokens} tokens > cap {self.mapping_token_cap})"
-            )
-        return max(1, batch_size)
 
     async def _map_features(
         self,
