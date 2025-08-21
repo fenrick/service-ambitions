@@ -1,8 +1,12 @@
+"""Utilities for aggregating and reporting per-stage metrics."""
+
 from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Iterator
+
+from monitoring import logfire
 
 
 @dataclass
@@ -61,9 +65,33 @@ def reset_stage_totals() -> None:
     _stage_totals.clear()
 
 
+def log_stage_totals() -> None:
+    """Emit aggregated metrics for each recorded stage."""
+
+    for stage, totals in iter_stage_totals():
+        tokens_sec = (
+            totals.total_tokens / totals.total_duration
+            if totals.total_duration
+            else 0.0
+        )
+        avg_latency = totals.total_duration / totals.prompts if totals.prompts else 0.0
+        rate_429 = totals.errors_429 / totals.prompts if totals.prompts else 0.0
+        logfire.info(
+            "Stage totals",
+            stage=stage,
+            total_tokens=totals.total_tokens,
+            prompt_tokens_estimate=totals.prompt_tokens_estimate,
+            estimated_cost=totals.estimated_cost,
+            tokens_per_sec=tokens_sec,
+            avg_latency=avg_latency,
+            rate_429=rate_429,
+        )
+
+
 __all__ = [
     "StageTotals",
     "record_stage_metrics",
     "iter_stage_totals",
     "reset_stage_totals",
+    "log_stage_totals",
 ]

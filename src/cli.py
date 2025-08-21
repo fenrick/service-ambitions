@@ -34,34 +34,11 @@ from persistence import atomic_write, read_lines
 from plateau_generator import PlateauGenerator
 from service_loader import load_services
 from settings import load_settings
-from stage_metrics import iter_stage_totals, reset_stage_totals
+from stage_metrics import log_stage_totals, reset_stage_totals
 
 SERVICES_PROCESSED = logfire.metric_counter("services_processed")
 EVOLUTIONS_GENERATED = logfire.metric_counter("evolutions_generated")
 LINES_WRITTEN = logfire.metric_counter("lines_written")
-
-
-def _log_stage_totals() -> None:
-    """Emit aggregated per-stage metrics."""
-
-    for stage, totals in iter_stage_totals():
-        tokens_sec = (
-            totals.total_tokens / totals.total_duration
-            if totals.total_duration
-            else 0.0
-        )
-        avg_latency = totals.total_duration / totals.prompts if totals.prompts else 0.0
-        rate_429 = totals.errors_429 / totals.prompts if totals.prompts else 0.0
-        logfire.info(
-            "Stage totals",
-            stage=stage,
-            total_tokens=totals.total_tokens,
-            prompt_tokens_estimate=totals.prompt_tokens_estimate,
-            estimated_cost=totals.estimated_cost,
-            tokens_per_sec=tokens_sec,
-            avg_latency=avg_latency,
-            rate_429=rate_429,
-        )
 
 
 def _configure_logging(args: argparse.Namespace, settings) -> None:
@@ -367,7 +344,7 @@ async def _cmd_generate_ambitions(
             )
             raise
         finally:
-            _log_stage_totals()
+            log_stage_totals()
 
 
 async def _cmd_generate_evolution(
@@ -463,7 +440,7 @@ async def _cmd_generate_evolution(
             processed_path=processed_path,
         )
     finally:
-        _log_stage_totals()
+        log_stage_totals()
 
 
 async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
@@ -528,7 +505,7 @@ async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
             for evo in evolutions:
                 out.write(f"{evo.model_dump_json()}\n")
     finally:
-        _log_stage_totals()
+        log_stage_totals()
 
 
 def main() -> None:
