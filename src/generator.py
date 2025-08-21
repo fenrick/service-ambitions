@@ -193,7 +193,6 @@ class ServiceAmbitionGenerator:
         request_timeout: float = 60,
         retries: int = 5,
         retry_base_delay: float = 0.5,
-        expected_output_tokens: int = 256,
     ) -> None:
         """Initialize the generator.
 
@@ -203,8 +202,6 @@ class ServiceAmbitionGenerator:
             request_timeout: Per-request timeout in seconds.
             retries: Number of retry attempts on failure.
             retry_base_delay: Initial backoff delay in seconds.
-            expected_output_tokens: Anticipated tokens in each response. Retained
-                for backwards compatibility.
 
         Raises:
             ValueError: If ``concurrency`` is less than one.
@@ -218,7 +215,6 @@ class ServiceAmbitionGenerator:
         self.request_timeout = request_timeout
         self.retries = retries
         self.retry_base_delay = retry_base_delay
-        self.expected_output_tokens = expected_output_tokens
         self._prompt: str | None = None
         self._limiter: Semaphore | None = None
         self._metrics: RollingMetrics | None = None
