@@ -9,9 +9,10 @@ agent without relying on asynchronous execution.
 
 from __future__ import annotations
 
+import asyncio
 import time
 from contextlib import nullcontext
-from typing import Any, TypeVar, overload
+from typing import Any, Awaitable, Callable, TypeVar, overload
 
 import logfire
 from pydantic_ai import Agent, messages
@@ -118,29 +119,15 @@ class ConversationSession:
 
     T = TypeVar("T")
 
-    @overload
-    def ask(self, prompt: str) -> str: ...
-
-    @overload
-    def ask(self, prompt: str, output_type: type[T]) -> T: ...
-
-    def ask(self, prompt: str, output_type: type[T] | None = None) -> T | str:
-        """Return the agent's response to ``prompt``.
-
-        The prompt together with accumulated message history is forwarded to the
-        underlying ``Agent``. When ``output_type`` is supplied, the model is
-        asked to return a structured object which is validated and returned. Any
-        new messages are recorded in the session history.
-
-        Args:
-            prompt: The user message to send to the model.
-            output_type: Optional Pydantic model used to validate the response.
-
-        Returns:
-            Structured ``output_type`` instance when provided, otherwise the
-            agent's raw response text.
-        """
-
+    async def _ask_common(
+        self,
+        prompt: str,
+        output_type: type[T] | None,
+        runner: Callable[
+            [str, list[messages.ModelMessage], type[T] | None], Awaitable[Any]
+        ],
+        span_name: str,
+    ) -> T | str:
         stage = self.stage or "unknown"
         model_name = getattr(getattr(self.client, "model", None), "model_name", "")
         PROMPTS_SENT.add(1)
@@ -152,11 +139,7 @@ class ConversationSession:
         if self.metrics:
             self.metrics.record_request()
             self.metrics.record_start_tokens(prompt_token_estimate)
-        span_ctx = (
-            logfire.span(self.stage or "ConversationSession.ask")
-            if self.diagnostics
-            else nullcontext()
-        )
+        span_ctx = logfire.span(span_name) if self.diagnostics else nullcontext()
         with span_ctx as span:
             if span and self.diagnostics:
                 span.set_attribute("stage", stage)
@@ -168,9 +151,7 @@ class ConversationSession:
                         redact_pii(prompt) if self.redact_prompts else prompt
                     )
                     logfire.debug(f"Sending prompt: {logged_prompt}")
-                result = self.client.run_sync(
-                    prompt, message_history=self._history, output_type=output_type
-                )
+                result = await runner(prompt, self._history, output_type)
                 self._record_new_messages(list(result.new_messages()))
                 usage = result.usage()
                 tokens = usage.total_tokens or 0
@@ -210,6 +191,30 @@ class ConversationSession:
                 record_stage_metrics(
                     stage, tokens, cost, duration, error_429, prompt_token_estimate
                 )
+
+    @overload
+    def ask(self, prompt: str) -> str: ...
+
+    @overload
+    def ask(self, prompt: str, output_type: type[T]) -> T: ...
+
+    def ask(self, prompt: str, output_type: type[T] | None = None) -> T | str:
+        """Return the agent's response to ``prompt``."""
+
+        async def runner(
+            user_prompt: str,
+            message_history: list[messages.ModelMessage],
+            out_type: type[Any] | None,
+        ) -> Any:
+            return self.client.run_sync(
+                user_prompt, message_history=message_history, output_type=out_type
+            )
+
+        return asyncio.run(
+            self._ask_common(
+                prompt, output_type, runner, self.stage or "ConversationSession.ask"
+            )
+        )
 
     @overload
     async def ask_async(self, prompt: str) -> str: ...
@@ -222,75 +227,21 @@ class ConversationSession:
     ) -> T | str:
         """Asynchronously return the agent's response to ``prompt``."""
 
-        stage = self.stage or "unknown"
-        model_name = getattr(getattr(self.client, "model", None), "model_name", "")
-        PROMPTS_SENT.add(1)
-        tokens = 0
-        cost = 0.0
-        error_429 = False
-        prompt_token_estimate = estimate_tokens(prompt, 0)
-        start = time.monotonic()
-        if self.metrics:
-            self.metrics.record_request()
-            self.metrics.record_start_tokens(prompt_token_estimate)
-        span_ctx = (
-            logfire.span(self.stage or "ConversationSession.ask_async")
-            if self.diagnostics
-            else nullcontext()
+        async def runner(
+            user_prompt: str,
+            message_history: list[messages.ModelMessage],
+            out_type: type[Any] | None,
+        ) -> Any:
+            return await self.client.run(
+                user_prompt, message_history=message_history, output_type=out_type
+            )
+
+        return await self._ask_common(
+            prompt,
+            output_type,
+            runner,
+            self.stage or "ConversationSession.ask_async",
         )
-        with span_ctx as span:
-            if span and self.diagnostics:
-                span.set_attribute("stage", stage)
-                span.set_attribute("model_name", model_name)
-                span.set_attribute("prompt_token_estimate", prompt_token_estimate)
-            try:
-                if self.diagnostics and self.log_prompts:
-                    logged_prompt = (
-                        redact_pii(prompt) if self.redact_prompts else prompt
-                    )
-                    logfire.debug(f"Sending prompt: {logged_prompt}")
-                result = await self.client.run(
-                    prompt, message_history=self._history, output_type=output_type
-                )
-                self._record_new_messages(list(result.new_messages()))
-                usage = result.usage()
-                tokens = usage.total_tokens or 0
-                cost = estimate_cost(model_name, tokens)
-                logfire.info(
-                    "Prompt succeeded",
-                    stage=stage,
-                    model_name=model_name,
-                    total_tokens=tokens,
-                    prompt_token_estimate=prompt_token_estimate,
-                    estimated_cost=cost,
-                )
-                return result.output
-            except Exception as exc:  # pragma: no cover - defensive logging
-                error_429 = "429" in getattr(exc, "args", ("",))[0]
-                if self.metrics:
-                    self.metrics.record_error(is_429=error_429)
-                logfire.error(
-                    "Prompt failed",
-                    stage=stage,
-                    model_name=model_name,
-                    total_tokens=tokens,
-                    prompt_token_estimate=prompt_token_estimate,
-                    estimated_cost=cost,
-                    error=str(exc),
-                )
-                raise
-            finally:
-                duration = time.monotonic() - start
-                if self.metrics:
-                    self.metrics.record_latency(duration)
-                    self.metrics.record_end_tokens(tokens)
-                if span and self.diagnostics:
-                    span.set_attribute("total_tokens", tokens)
-                    span.set_attribute("estimated_cost", cost)
-                TOKENS_CONSUMED.add(tokens)
-                record_stage_metrics(
-                    stage, tokens, cost, duration, error_429, prompt_token_estimate
-                )
 
 
 __all__ = ["ConversationSession"]
