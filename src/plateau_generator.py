@@ -495,28 +495,26 @@ class PlateauGenerator:
             scheduler.submit(task, tokens)
         return await scheduler.run()
 
-    async def _assemble_evolution(
+    def _validate_plateau_results(
         self,
-        service_input: ServiceInput,
         results: Sequence[PlateauResult],
         plateau_names: Sequence[str],
         role_ids: Sequence[str],
-        meta: ServiceMeta,
-        transcripts_dir: Path | None,
         *,
         strict: bool = False,
-    ) -> ServiceEvolution:
-        """Return ``ServiceEvolution`` from plateau ``results``.
+    ) -> tuple[list[PlateauResult], dict[str, bool]]:
+        """Validate ``results`` and remove duplicates.
 
         Args:
-            service_input: Source service details to evolve.
             results: Plateau results with features for each maturity level.
             plateau_names: Ordered plateau names included in the evolution.
             role_ids: Roles expected to appear across all features.
-            meta: Metadata describing the generation run.
-            transcripts_dir: Directory for persisted transcripts or ``None``.
             strict: Enforce presence of features for all roles and non-empty
                 mapping lists when ``True``.
+
+        Returns:
+            Tuple of validated plateau results and a mapping indicating which
+            roles were encountered.
         """
 
         plateaus: list[PlateauResult] = []
@@ -555,22 +553,49 @@ class PlateauGenerator:
                     features=valid,
                 )
             )
+        return plateaus, roles_seen
 
+    async def _write_transcript(
+        self,
+        transcripts_dir: Path,
+        service_input: ServiceInput,
+        evolution: ServiceEvolution,
+    ) -> None:
+        """Persist a transcript for ``service_input`` and ``evolution``."""
+
+        payload = {
+            "request": service_input.model_dump(mode="json"),
+            "response": evolution.model_dump(mode="json"),
+        }
+        data = redact_pii(json.dumps(payload, ensure_ascii=False))
+        path = transcripts_dir / f"{service_input.service_id}.json"
+        await asyncio.to_thread(
+            path.write_text,
+            data,
+            encoding="utf-8",
+        )
+
+    async def _assemble_evolution(
+        self,
+        service_input: ServiceInput,
+        results: Sequence[PlateauResult],
+        plateau_names: Sequence[str],
+        role_ids: Sequence[str],
+        meta: ServiceMeta,
+        transcripts_dir: Path | None,
+        *,
+        strict: bool = False,
+    ) -> ServiceEvolution:
+        """Return ``ServiceEvolution`` from plateau ``results``."""
+
+        plateaus, roles_seen = self._validate_plateau_results(
+            results, plateau_names, role_ids, strict=strict
+        )
         evolution = ServiceEvolution(
             meta=meta, service=service_input, plateaus=plateaus
         )
         if transcripts_dir is not None:
-            payload = {
-                "request": service_input.model_dump(),
-                "response": evolution.model_dump(),
-            }
-            data = redact_pii(json.dumps(payload, ensure_ascii=False))
-            path = transcripts_dir / f"{service_input.service_id}.json"
-            await asyncio.to_thread(
-                path.write_text,
-                data,
-                encoding="utf-8",
-            )
+            await self._write_transcript(transcripts_dir, service_input, evolution)
         if strict:
             missing = [r for r, seen in roles_seen.items() if not seen]
             if missing:
