@@ -368,10 +368,6 @@ class AppConfig(StrictModel):
         True,
         description="Retry mapping prompts until minimum items are found.",
     )
-    use_prefilter: bool = Field(
-        False,
-        description="Enable embedding-based prefiltering of mapping catalogues.",
-    )
     max_items_per_mapping: int | None = Field(
         default=None,
         ge=1,

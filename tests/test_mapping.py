@@ -3,10 +3,8 @@
 import json
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 from typing import cast
 
-import numpy as np
 import pytest
 
 import mapping
@@ -254,9 +252,18 @@ def test_map_feature_ignores_unknown_ids(monkeypatch) -> None:
         score=MaturityScore(level=3, label="Defined", justification="j"),
         customer_type="learners",
     )
+    quarantined: list[tuple[str, str]] = []
+
+    def fake_quarantine(feat, key, payload):
+        quarantined.append((feat.feature_id, key))
+        return Path("dummy")
+
+    monkeypatch.setattr(mapping, "_quarantine_mapping", fake_quarantine)
+
     result = map_feature(cast(ConversationSession, session), feature)
 
     assert result.mappings["data"] == []
+    assert quarantined == [("f1", "data")]
 
 
 @pytest.mark.asyncio
@@ -845,73 +852,25 @@ def test_catalogue_vectorizer_cached(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_embedding_top_k_items_breaks_ties(monkeypatch) -> None:
-    """Embedding selection also orders items lexicographically when scores tie."""
+async def test_feature_vector_cache(monkeypatch) -> None:
+    """Vectoriser fitting should occur only once per dataset."""
 
-    items = [
-        MappingItem(id="B", name="Same", description="entry"),
-        MappingItem(id="A", name="Same", description="entry"),
-    ]
-    item_vecs = np.array([[1.0, 0.0], [1.0, 0.0]])
+    calls: dict[str, int] = {"load": 0, "fit": 0}
 
-    async def fake_catalogue_embeddings(dataset: str):
-        return item_vecs, items
+    def fake_loader(types, *_, **__):
+        calls["load"] += 1
+        return {"catalogue": [MappingItem(id="A", name="One", description="")]}
 
-    monkeypatch.setattr("mapping._catalogue_embeddings", fake_catalogue_embeddings)
+    monkeypatch.setattr("mapping.load_mapping_items", fake_loader)
 
-    class DummyEmbeddings:
-        async def create(self, model: str, input: list[str]):
-            return SimpleNamespace(
-                data=[SimpleNamespace(embedding=[1.0, 0.0]) for _ in input]
-            )
+    orig_fit = mapping.TfidfVectorizer.fit
 
-    class DummyClient:
-        embeddings = DummyEmbeddings()
+    def wrapped_fit(self, raw_documents, y=None):
+        calls["fit"] += 1
+        return orig_fit(self, raw_documents, y)
 
-    async def fake_client():
-        return DummyClient()
-
-    monkeypatch.setattr("mapping._get_embed_client", fake_client)
-
-    feature = PlateauFeature(
-        feature_id="f1",
-        name="Same",
-        description="entry",
-        score=MaturityScore(level=3, label="Defined", justification="j"),
-        customer_type="learners",
-    )
-
-    result = await mapping._embedding_top_k_items([feature], "catalogue", k=2)
-    assert [item.id for item in result] == ["A", "B"]
-
-
-@pytest.mark.asyncio
-async def test_feature_embedding_cache(monkeypatch) -> None:
-    """Repeated feature lookups should reuse cached embeddings."""
-
-    mapping._FEATURE_EMBED_CACHE.clear()
-
-    async def fake_catalogue_embeddings(dataset: str):
-        return np.array([[1.0, 0.0]]), [MappingItem(id="A", name="One", description="")]
-
-    monkeypatch.setattr("mapping._catalogue_embeddings", fake_catalogue_embeddings)
-
-    calls = {"create": 0}
-
-    class DummyEmbeddings:
-        async def create(self, model: str, input: list[str]):
-            calls["create"] += 1
-            return SimpleNamespace(
-                data=[SimpleNamespace(embedding=[1.0, 0.0]) for _ in input]
-            )
-
-    class DummyClient:
-        embeddings = DummyEmbeddings()
-
-    async def fake_client():
-        return DummyClient()
-
-    monkeypatch.setattr("mapping._get_embed_client", fake_client)
+    monkeypatch.setattr(mapping.TfidfVectorizer, "fit", wrapped_fit)
+    mapping._catalogue_vectors.cache_clear()
 
     feature = PlateauFeature(
         feature_id="f1",
@@ -921,58 +880,8 @@ async def test_feature_embedding_cache(monkeypatch) -> None:
         customer_type="learners",
     )
 
-    await mapping._embedding_top_k_items([feature], "catalogue", k=1)
-    await mapping._embedding_top_k_items([feature], "catalogue", k=1)
+    mapping._top_k_items([feature], "catalogue", k=1)
+    mapping._top_k_items([feature], "catalogue", k=1)
 
-    assert calls["create"] == 1
-
-
-@pytest.mark.asyncio
-async def test_init_embeddings_populates_cache(monkeypatch) -> None:
-    """Initializer should preload embeddings for all datasets."""
-
-    mapping._EMBED_CACHE.clear()
-    configs = {
-        "a": MappingTypeConfig(label="A", dataset="ds1"),
-        "b": MappingTypeConfig(label="B", dataset="ds2"),
-    }
-    monkeypatch.setattr("mapping.load_mapping_type_config", lambda: configs)
-
-    seen: list[str] = []
-
-    async def fake_catalogue_embeddings(name: str):
-        seen.append(name)
-        mapping._EMBED_CACHE[name] = (np.zeros((1, 1)), [])
-        return mapping._EMBED_CACHE[name]
-
-    monkeypatch.setattr("mapping._catalogue_embeddings", fake_catalogue_embeddings)
-
-    await mapping.init_embeddings()
-
-    assert set(seen) == {"ds1", "ds2"}
-    assert set(mapping._EMBED_CACHE) == {"ds1", "ds2"}
-
-
-@pytest.mark.asyncio
-async def test_init_embeddings_handles_errors(monkeypatch) -> None:
-    """Initializer should log and skip datasets that fail."""
-
-    mapping._EMBED_CACHE.clear()
-    configs = {
-        "a": MappingTypeConfig(label="A", dataset="good"),
-        "b": MappingTypeConfig(label="B", dataset="bad"),
-    }
-    monkeypatch.setattr("mapping.load_mapping_type_config", lambda: configs)
-
-    async def fake_catalogue_embeddings(name: str):
-        if name == "bad":
-            raise RuntimeError("boom")
-        mapping._EMBED_CACHE[name] = (np.zeros((1, 1)), [])
-        return mapping._EMBED_CACHE[name]
-
-    monkeypatch.setattr("mapping._catalogue_embeddings", fake_catalogue_embeddings)
-
-    await mapping.init_embeddings()
-
-    assert "good" in mapping._EMBED_CACHE
-    assert "bad" not in mapping._EMBED_CACHE
+    assert calls["load"] == 1
+    assert calls["fit"] == 1

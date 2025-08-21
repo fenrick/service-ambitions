@@ -52,9 +52,7 @@ async def test_long_description_reduces_batch_size(monkeypatch) -> None:
         strict=False,
         batch_size,
         parallel_types=True,
-        token_cap=0,
         exhaustive=True,
-        use_prefilter=False,
         max_items_per_mapping=None,
     ):
         captured["batch_size"] = batch_size
