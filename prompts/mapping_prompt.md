@@ -2,6 +2,9 @@
 
 Map each feature to relevant {mapping_labels} from the lists below.
 
+Lists use a compact tab-separated layout:
+`ID\tname\tdescription`.
+
 {mapping_sections}
 
 ## Features

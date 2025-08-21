@@ -15,19 +15,27 @@ MAPPING_SCHEMA = json.dumps(MappingResponse.model_json_schema(), indent=2)
 
 
 def _render_items(items: Sequence[MappingItem]) -> str:
-    """Return bullet list representation of ``items`` sorted by identifier."""
+    """Return tab-separated ``items`` sorted by identifier.
+
+    Each line follows the compact format ``ID\tname\tdescription`` to simplify
+    parsing by the language model and remove decorative bullets.
+    """
 
     return "\n".join(
-        f"- {entry.id}: {entry.name} - {entry.description}"
+        f"{entry.id}\t{entry.name}\t{entry.description}"
         for entry in sorted(items, key=lambda i: i.id)
     )
 
 
 def _render_features(features: Sequence[PlateauFeature]) -> str:
-    """Return bullet list representation of ``features`` sorted by feature ID."""
+    """Return tab-separated ``features`` sorted by feature ID.
+
+    Lines are formatted as ``ID\tname\tdescription`` without leading bullets or
+    repeated delimiters.
+    """
 
     return "\n".join(
-        f"- {feat.feature_id}: {feat.name} - {feat.description}"
+        f"{feat.feature_id}\t{feat.name}\t{feat.description}"
         for feat in sorted(features, key=lambda f: f.feature_id)
     )
 
