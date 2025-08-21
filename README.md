@@ -97,6 +97,7 @@ subcommands to select the desired operation:
 poetry run service-ambitions generate-ambitions --input-file sample-services.jsonl --output-file ambitions.jsonl
 poetry run service-ambitions generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl
 poetry run service-ambitions generate-mapping --input evolution.jsonl --output remapped.jsonl
+poetry run service-ambitions migrate-jsonl --input ambitions.jsonl --output upgraded.jsonl --from 1.0 --to 1.1
 ```
 
 Alternatively, use the provided shell script which forwards all arguments to the CLI:
@@ -105,6 +106,7 @@ Alternatively, use the provided shell script which forwards all arguments to the
 ./run.sh generate-ambitions --input-file sample-services.jsonl --output-file ambitions.jsonl
 ./run.sh generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl
 ./run.sh generate-mapping --input evolution.jsonl --output remapped.jsonl
+./run.sh migrate-jsonl --input ambitions.jsonl --output upgraded.jsonl --from 1.0 --to 1.1
 ```
 
 ## Usage
@@ -141,6 +143,18 @@ Example invocation:
 
 See [generate-mapping](docs/generate-mapping.md) for detailed behaviour and
 troubleshooting.
+
+### Schema migration
+
+Use `migrate-jsonl` to upgrade records between supported schema versions. Each
+line of the input JSON Lines file is parsed, migrated and written to the
+output file.
+
+Example:
+
+```bash
+./run.sh migrate-jsonl --input ambitions.jsonl --output upgraded.jsonl --from 1.0 --to 1.1
+```
 
 ## Adaptive backpressure
 
