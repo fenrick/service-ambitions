@@ -90,7 +90,8 @@ def _merge_mapping_results(
     """Return ``features`` merged with mapping ``payload``.
 
     Any mappings referencing unknown item identifiers are dropped rather than
-    causing an error. This allows the calling code to rerun generation without
+    causing an error. Features with no valid mappings are tallied per set and
+    logged once. This allows the calling code to rerun generation without
     manual intervention when the agent invents IDs.
     """
 
@@ -105,6 +106,7 @@ def _merge_mapping_results(
     mapped_lookup = {item.feature_id: item.mappings for item in payload.features}
     results: list[PlateauFeature] = []
     dropped: dict[str, set[str]] = {}
+    missing: dict[str, int] = {}
     for feature in features:
         mapped = mapped_lookup.get(feature.feature_id)
         if mapped is None:
@@ -116,9 +118,7 @@ def _merge_mapping_results(
             if unknown:
                 dropped.setdefault(key, set()).update(unknown)
             if not cleaned:
-                logfire.warning(
-                    f"Missing mappings: feature={feature.feature_id} key={key}"
-                )
+                missing[key] = missing.get(key, 0) + 1
             update_data[key] = cleaned
         merged = feature.model_copy(update={"mappings": feature.mappings | update_data})
         results.append(merged)
@@ -130,6 +130,9 @@ def _merge_mapping_results(
                 count=len(ids),
             )
         _quarantine_unknown_ids(dropped)
+    if missing:
+        for key, count in missing.items():
+            logfire.warning(f"{key}.missing={count}")
     return results
 
 
