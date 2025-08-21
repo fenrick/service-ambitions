@@ -83,6 +83,17 @@ class Settings(BaseSettings):
         False, description="Enable OpenAI web search tooling for model browsing."
     )
 
+    mapping_data_dir: Path = Field(
+        Path("data"), description="Directory containing mapping reference data."
+    )
+    diagnostics: bool = Field(
+        False, description="Enable verbose diagnostics and tracing."
+    )
+    strict_mapping: bool = Field(
+        False, description="Fail when feature mappings are missing."
+    )
+    mapping_mode: str = Field("per_set", description="Mapping execution mode.")
+
     model_config = SettingsConfigDict(extra="ignore")
 
 
@@ -128,6 +139,10 @@ def load_settings() -> Settings:
             max_items_per_mapping=config.max_items_per_mapping,
             mapping_feature_batch_cap_tokens=config.mapping_feature_batch_cap_tokens,
             web_search=config.web_search,
+            mapping_data_dir=getattr(config, "mapping_data_dir", Path("data")),
+            diagnostics=getattr(config, "diagnostics", False),
+            strict_mapping=getattr(config, "strict_mapping", False),
+            mapping_mode=getattr(config, "mapping_mode", "per_set"),
             _env_file=env_file,
         )
     except ValidationError as exc:

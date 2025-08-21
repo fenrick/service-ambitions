@@ -4,7 +4,9 @@ import argparse
 import asyncio
 import json
 import sys
+from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -87,13 +89,15 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         inspiration="general",
         reasoning=None,
         features_per_role=5,
-        mapping_batch_size=30,
-        mapping_parallel_types=True,
         exhaustive_mapping=True,
         max_items_per_mapping=None,
         mapping_feature_batch_cap_tokens=95000,
         web_search=False,
         models=None,
+        diagnostics=False,
+        strict_mapping=False,
+        mapping_data_dir="data",
+        mapping_mode="per_set",
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -109,14 +113,15 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         resume=False,
         seed=None,
         roles_file="data/roles.json",
-        mapping_batch_size=None,
-        mapping_parallel_types=None,
         exhaustive_mapping=True,
         transcripts_dir=None,
         web_search=None,
         no_logs=False,
         search_model=None,
         strict=False,
+        diagnostics=None,
+        strict_mapping=None,
+        mapping_data_dir=None,
     )
 
     monkeypatch.setattr(cli, "_RUN_META", None)
@@ -175,13 +180,15 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         inspiration="insp",
         reasoning=None,
         features_per_role=5,
-        mapping_batch_size=30,
-        mapping_parallel_types=True,
         exhaustive_mapping=True,
         max_items_per_mapping=None,
         mapping_feature_batch_cap_tokens=95000,
         web_search=False,
         models=None,
+        diagnostics=False,
+        strict_mapping=False,
+        mapping_data_dir="data",
+        mapping_mode="per_set",
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -197,14 +204,15 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         resume=False,
         seed=None,
         roles_file="data/roles.json",
-        mapping_batch_size=None,
-        mapping_parallel_types=None,
         exhaustive_mapping=True,
         transcripts_dir=None,
         web_search=None,
         no_logs=False,
         search_model=None,
         strict=False,
+        diagnostics=None,
+        strict_mapping=None,
+        mapping_data_dir=None,
     )
 
     monkeypatch.setattr(cli, "_RUN_META", None)
@@ -267,13 +275,15 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         inspiration="insp",
         reasoning=None,
         features_per_role=5,
-        mapping_batch_size=30,
-        mapping_parallel_types=True,
         exhaustive_mapping=True,
         max_items_per_mapping=None,
         mapping_feature_batch_cap_tokens=95000,
         web_search=False,
         models=None,
+        diagnostics=False,
+        strict_mapping=False,
+        mapping_data_dir="data",
+        mapping_mode="per_set",
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -289,14 +299,15 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         resume=True,
         seed=None,
         roles_file="data/roles.json",
-        mapping_batch_size=None,
-        mapping_parallel_types=None,
         exhaustive_mapping=True,
         transcripts_dir=None,
         web_search=None,
         no_logs=False,
         search_model=None,
         strict=False,
+        diagnostics=None,
+        strict_mapping=None,
+        mapping_data_dir=None,
     )
 
     monkeypatch.setattr(cli, "_RUN_META", None)
@@ -349,10 +360,12 @@ def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -
         inspiration="insp",
         reasoning=None,
         features_per_role=5,
-        mapping_batch_size=30,
-        mapping_parallel_types=True,
         web_search=False,
         models=None,
+        diagnostics=False,
+        strict_mapping=False,
+        mapping_data_dir="data",
+        mapping_mode="per_set",
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -368,13 +381,15 @@ def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -
         resume=False,
         seed=None,
         roles_file="data/roles.json",
-        mapping_batch_size=None,
-        mapping_parallel_types=None,
+        exhaustive_mapping=True,
         transcripts_dir=None,
         web_search=None,
         no_logs=False,
         search_model=None,
         strict=False,
+        diagnostics=None,
+        strict_mapping=None,
+        mapping_data_dir=None,
     )
 
     monkeypatch.setattr(cli, "_RUN_META", None)
@@ -385,10 +400,11 @@ def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -
 def test_cli_parses_mapping_options(tmp_path, monkeypatch) -> None:
     """generate-evolution should parse mapping options via the common parser."""
 
-    called: dict[str, argparse.Namespace] = {}
+    called: dict[str, Any] = {}
 
-    def fake_cmd(args: argparse.Namespace, _settings, transcripts_dir) -> None:
+    def fake_cmd(args: argparse.Namespace, settings, transcripts_dir) -> None:
         called["args"] = args
+        called["settings"] = settings
         called["transcripts_dir"] = transcripts_dir
 
     monkeypatch.setattr(cli, "_cmd_generate_evolution", fake_cmd)
@@ -399,6 +415,7 @@ def test_cli_parses_mapping_options(tmp_path, monkeypatch) -> None:
     )
     monkeypatch.setattr("cli.logfire.force_flush", lambda: None)
 
+    data_dir = tmp_path / "data"
     argv = [
         "prog",
         "generate-evolution",
@@ -406,16 +423,22 @@ def test_cli_parses_mapping_options(tmp_path, monkeypatch) -> None:
         str(tmp_path / "services.jsonl"),
         "--output-file",
         str(tmp_path / "out.jsonl"),
-        "--mapping-batch-size",
-        "12",
-        "--no-mapping-parallel-types",
+        "--mapping-data-dir",
+        str(data_dir),
+        "--diagnostics",
+        "--strict-mapping",
     ]
     monkeypatch.setattr(sys, "argv", argv)
 
     cli.main()
 
-    assert called["args"].mapping_batch_size == 12
-    assert called["args"].mapping_parallel_types is False
+    assert called["args"].mapping_data_dir == str(data_dir)
+    assert called["args"].diagnostics is True
+    assert called["args"].strict_mapping is True
+    settings_ns = called["settings"]
+    assert settings_ns.mapping_data_dir == Path(data_dir)
+    assert settings_ns.diagnostics is True
+    assert settings_ns.strict_mapping is True
 
 
 def test_generate_evolution_writes_transcripts(tmp_path, monkeypatch) -> None:
@@ -474,13 +497,15 @@ def test_generate_evolution_writes_transcripts(tmp_path, monkeypatch) -> None:
         inspiration="general",
         reasoning=None,
         features_per_role=5,
-        mapping_batch_size=30,
-        mapping_parallel_types=True,
         exhaustive_mapping=True,
         max_items_per_mapping=None,
         mapping_feature_batch_cap_tokens=95000,
         models=None,
         web_search=False,
+        diagnostics=False,
+        strict_mapping=False,
+        mapping_data_dir="data",
+        mapping_mode="per_set",
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -496,14 +521,15 @@ def test_generate_evolution_writes_transcripts(tmp_path, monkeypatch) -> None:
         resume=False,
         seed=None,
         roles_file="data/roles.json",
-        mapping_batch_size=None,
-        mapping_parallel_types=None,
         exhaustive_mapping=True,
         transcripts_dir=None,
         web_search=None,
         no_logs=False,
         search_model=None,
         strict=False,
+        diagnostics=None,
+        strict_mapping=None,
+        mapping_data_dir=None,
     )
 
     monkeypatch.setattr(cli, "_RUN_META", None)
