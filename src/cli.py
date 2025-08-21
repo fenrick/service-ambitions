@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import inspect
+import json
 import logging
 import os
 import random
@@ -34,6 +35,7 @@ from models import ServiceEvolution, ServiceInput, ServiceMeta
 from monitoring import LOG_FILE_NAME, init_logfire, logfire
 from persistence import atomic_write, read_lines
 from plateau_generator import PlateauGenerator
+from schema_migration import migrate_record
 from service_loader import load_services
 from settings import load_settings
 from stage_metrics import log_stage_totals, reset_stage_totals
@@ -548,6 +550,25 @@ async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
         log_stage_totals()
 
 
+def _cmd_migrate_jsonl(args: argparse.Namespace, _settings) -> None:
+    """Migrate records in a JSONL file between schema versions."""
+
+    input_path = Path(args.input)
+    output_path = Path(args.output)
+
+    with (
+        input_path.open("r", encoding="utf-8") as src,
+        output_path.open("w", encoding="utf-8") as dst,
+    ):
+        for line in src:
+            if not line.strip():
+                # Skip empty lines to avoid json parser errors
+                continue
+            record = json.loads(line)
+            migrated = migrate_record(args.from_version, args.to_version, record)
+            dst.write(f"{json.dumps(migrated)}\n")
+
+
 def main() -> None:
     """Parse arguments and dispatch to the requested subcommand."""
 
@@ -725,6 +746,22 @@ def main() -> None:
         help=OUTPUT_FILE_HELP,
     )
     map_p.set_defaults(func=_cmd_generate_mapping)
+
+    mig = subparsers.add_parser(
+        "migrate-jsonl",
+        help="Migrate JSONL records between schema versions",
+    )
+    mig.add_argument("--input", required=True, help="Path to the input JSONL file")
+    mig.add_argument(
+        "--output", required=True, help="File to write the migrated records"
+    )
+    mig.add_argument(
+        "--from", dest="from_version", required=True, help="Source schema version"
+    )
+    mig.add_argument(
+        "--to", dest="to_version", required=True, help="Target schema version"
+    )
+    mig.set_defaults(func=_cmd_migrate_jsonl)
 
     args = parser.parse_args()
 
