@@ -454,20 +454,21 @@ class RoleFeaturesResponse(BaseModel):
 
 def _extract_mapping_list(value: object, key: str) -> list[Contribution]:
     """Return mapping list from ``value`` or an empty list."""
-
     if isinstance(value, list):
         return value
-    if isinstance(value, dict):
-        direct = value.get(key)
-        if isinstance(direct, list):
-            return direct
-        nested = value.get("mappings")
-        if isinstance(nested, dict):
-            inner = nested.get(key)
-            if isinstance(inner, list):
-                return inner
-        elif isinstance(nested, list):
-            return nested
+    if not isinstance(value, dict):
+        return []
+
+    direct = value.get(key)
+    if isinstance(direct, list):
+        return direct
+
+    nested = value.get("mappings")
+    if isinstance(nested, dict):  # Prefer nested dict over list for precision
+        inner = nested.get(key)
+        return inner if isinstance(inner, list) else []
+    if isinstance(nested, list):  # Fallback when nested is already a list
+        return nested
     return []
 
 
