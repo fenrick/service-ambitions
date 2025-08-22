@@ -93,3 +93,27 @@ def test_render_features_normalizes_whitespace() -> None:
     ]
     result = mapping_prompt._render_features(features)
     assert result == "1 2\tFirst Feature\tdesc more"
+
+
+def test_render_set_prompt_normalizes_whitespace(monkeypatch) -> None:
+    """Whitespace is sanitised when rendering the full prompt."""
+
+    template = "{mapping_sections}\n{features}"
+    monkeypatch.setattr("mapping_prompt.load_prompt_text", lambda _n: template)
+
+    items = [
+        MappingItem(id="A\nB", name="Item\tName", description="desc"),
+    ]
+    features = [
+        PlateauFeature(
+            feature_id="1\t2",
+            name="First\nFeature",
+            description="desc\tmore",
+            score=MaturityScore(level=1, label="Initial", justification="j"),
+            customer_type="learners",
+        )
+    ]
+
+    prompt = render_set_prompt("test", items, features)
+    assert "A B\tItem Name\tdesc" in prompt
+    assert "1 2\tFirst Feature\tdesc more" in prompt
