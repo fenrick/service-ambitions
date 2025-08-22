@@ -3,9 +3,16 @@
 from __future__ import annotations
 
 from typing import Sequence
+import types
+import sys
 
 import pytest
 
+stub_loader = types.ModuleType("loader")
+stub_loader.load_prompt_text = lambda name: ""
+sys.modules["loader"] = stub_loader
+
+import mapping_prompt
 from mapping_prompt import render_set_prompt
 from models import MappingItem, MaturityScore, PlateauFeature
 
@@ -56,3 +63,33 @@ def test_render_set_prompt_orders_content(shuffle: bool, monkeypatch) -> None:
             "test", list(reversed(items)), list(reversed(features))
         )
         assert prompt_again == prompt
+
+
+def test_render_items_normalizes_whitespace() -> None:
+    """Newline and tab characters are replaced with spaces in items."""
+
+    items = [
+        MappingItem(
+            id="A\nB",
+            name="Item\tName",
+            description="desc\nmore",
+        )
+    ]
+    result = mapping_prompt._render_items(items)
+    assert result == "A B\tItem Name\tdesc more"
+
+
+def test_render_features_normalizes_whitespace() -> None:
+    """Embedded whitespace in features is sanitized."""
+
+    features = [
+        PlateauFeature(
+            feature_id="1\t2",
+            name="First\nFeature",
+            description="desc\tmore",
+            score=MaturityScore(level=1, label="Initial", justification="j"),
+            customer_type="learners",
+        )
+    ]
+    result = mapping_prompt._render_features(features)
+    assert result == "1 2\tFirst Feature\tdesc more"
