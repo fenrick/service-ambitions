@@ -202,6 +202,7 @@ async def _generate_evolution_for_service(
                 diagnostics=settings.diagnostics,
                 log_prompts=not args.no_logs,
                 redact_prompts=True,
+                transcripts_dir=transcripts_dir,
             )
             feat_session = ConversationSession(
                 feat_agent,
@@ -210,6 +211,7 @@ async def _generate_evolution_for_service(
                 diagnostics=settings.diagnostics,
                 log_prompts=not args.no_logs,
                 redact_prompts=True,
+                transcripts_dir=transcripts_dir,
             )
             map_session = ConversationSession(
                 map_agent,
@@ -218,6 +220,7 @@ async def _generate_evolution_for_service(
                 diagnostics=settings.diagnostics,
                 log_prompts=not args.no_logs,
                 redact_prompts=True,
+                transcripts_dir=transcripts_dir,
             )
             generator = PlateauGenerator(
                 feat_session,
