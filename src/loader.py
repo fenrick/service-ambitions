@@ -147,35 +147,39 @@ def load_prompt_text(prompt_name: str, base_dir: Path | None = None) -> str:
 
 
 @lru_cache(maxsize=None)
-def load_mapping_items(
-    mapping_types: Sequence[str] | None = None,
-    base_dir: Path | str | None = None,
-) -> dict[str, list[MappingItem]]:
-    """Return mapping reference data for ``mapping_types``.
+def load_mapping_items(data_dir: Path) -> dict[str, list[MappingItem]]:
+    """Return mapping reference data sourced from ``data_dir``.
+
+    Each ``*.json`` file within ``data_dir`` is treated as a catalogue of
+    :class:`MappingItem` entries. Files that cannot be parsed as a list of
+    ``MappingItem`` objects are ignored, allowing the directory to contain
+    unrelated JSON documents. Items are stably sorted by their ``id`` so the
+    original order of entries with duplicate identifiers is preserved.
 
     Args:
-        mapping_types: Mapping dataset names to load. Defaults to the standard
-            information, applications and technologies datasets.
-        base_dir: Optional directory containing mapping data files. When
-            omitted, the globally configured :data:`MAPPING_DATA_DIR` is used.
+        data_dir: Directory containing mapping set files.
 
     Returns:
-        A dictionary mapping each ``mapping_type`` to a sorted list of
-        :class:`MappingItem` records.
+        Mapping of dataset name (derived from filename stem) to sorted
+        ``MappingItem`` lists.
 
     Raises:
-        FileNotFoundError: If a required file is missing.
-        RuntimeError: If a file cannot be read or parsed.
+        FileNotFoundError: If ``data_dir`` does not exist.
     """
 
-    datasets = mapping_types or ("information", "applications", "technologies")
-    base_path = Path(base_dir) if base_dir is not None else MAPPING_DATA_DIR
-    files = {name: f"{name}.json" for name in datasets}
+    if not data_dir.is_dir():
+        raise FileNotFoundError(f"Mapping data directory not found: {data_dir}")
+
     data: dict[str, list[MappingItem]] = {}
-    for key, filename in files.items():
-        path = base_path / filename
-        items = _read_json_file(path, list[MappingItem])
-        data[key] = sorted(items, key=lambda item: item.id)
+    for path in sorted(data_dir.glob("*.json")):
+        try:
+            items = _read_json_file(path, list[MappingItem])
+        except FileNotFoundError:
+            raise
+        except Exception:
+            # Skip files that do not contain ``MappingItem`` records.
+            continue
+        data[path.stem] = sorted(items, key=lambda item: item.id)
     return data
 
 

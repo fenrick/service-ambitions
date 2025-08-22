@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Mapping, Sequence
 import logfire
 from pydantic import ValidationError
 
-from loader import load_mapping_items
+from loader import MAPPING_DATA_DIR, load_mapping_items
 from mapping_prompt import render_set_prompt
 from models import (
     Contribution,
@@ -90,9 +90,7 @@ def _merge_mapping_results(
     manual intervention when the agent invents IDs.
     """
 
-    catalogues = catalogue_items or load_mapping_items(
-        tuple(cfg.dataset for cfg in mapping_types.values())
-    )
+    catalogues = catalogue_items or load_mapping_items(MAPPING_DATA_DIR)
     valid_ids: dict[str, set[str]] = {
         key: {item.id for item in catalogues[cfg.dataset]}
         for key, cfg in mapping_types.items()

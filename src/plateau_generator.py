@@ -20,6 +20,7 @@ import logfire
 
 from conversation import ConversationSession
 from loader import (
+    MAPPING_DATA_DIR,
     load_mapping_items,
     load_plateau_definitions,
     load_prompt_text,
@@ -124,7 +125,7 @@ class PlateauGenerator:
         deterministic and partial writes are avoided.
         """
 
-        items = load_mapping_items(("applications", "technologies", "information"))
+        items = load_mapping_items(MAPPING_DATA_DIR)
         service_name = self._service.name if self._service else "unknown"
 
         base = list(features)
