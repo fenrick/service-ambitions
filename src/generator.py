@@ -228,9 +228,9 @@ class ServiceAmbitionGenerator:
             self._metrics = RollingMetrics()
 
     async def _process_service_line(
-        self, service: ServiceInput, transcripts_dir: Path | None
-    ) -> tuple[str | None, str, int]:
-        """Return JSON line and token count for ``service`` or ``None`` on failure."""
+        self, service: ServiceInput
+    ) -> tuple[dict[str, Any] | None, str, int]:
+        """Return ambitions payload and token count or ``None`` on failure."""
 
         logfire.info(f"Processing service {service.name}")
         try:
@@ -239,20 +239,7 @@ class ServiceAmbitionGenerator:
             msg = f"Failed to process service {service.name}: {exc}"
             logfire.error(msg)
             return None, service.service_id, 0
-        line = AmbitionModel.model_validate(result).model_dump_json()
-        if transcripts_dir is not None:
-            payload = {
-                "request": service.model_dump(),
-                "response": json.loads(line),
-            }
-            data = redact_pii(json.dumps(payload, ensure_ascii=False))
-            path = transcripts_dir / f"{service.service_id}.json"
-            await asyncio.to_thread(
-                path.write_text,
-                data,
-                encoding="utf-8",
-            )
-        return line, service.service_id, tokens
+        return result, service.service_id, tokens
 
     async def _run_one(
         self,
@@ -294,29 +281,41 @@ class ServiceAmbitionGenerator:
         processed: set[str],
         progress: tqdm[Any] | None,
     ) -> None:
-        """Run ``service`` within ``limiter`` and write results.
+        """Process ``service`` and append its result to ``handle``.
 
-        The token count from :meth:`_process_service_line` is forwarded to the
-        instance's :class:`RollingMetrics` tracker when available."""
+        ``process_service`` is rate limited via ``limiter`` while the final
+        JSONL write is protected by ``lock`` to keep output consistent.
+        """
 
         async with limiter:
-            line, svc_id, tokens = await self._process_service_line(
-                service, transcripts_dir
-            )
-            if self._metrics:
-                # Track how many tokens this service consumed for throughput metrics
-                self._metrics.record_tokens(tokens)
-            if line is not None:  # Successful generation
-                async with lock:
-                    await asyncio.to_thread(handle.write, f"{line}\n")
-                    processed.add(svc_id)
-                    if progress:
-                        progress.update(1)
-                    await asyncio.to_thread(handle.flush)
-                    await asyncio.to_thread(os.fsync, handle.fileno())
-                SERVICES_PROCESSED.add(1)
-            else:  # Record failures for visibility
-                SERVICES_FAILED.add(1)
+            payload, svc_id, tokens = await self._process_service_line(service)
+
+        if self._metrics:
+            # Track token usage after releasing the semaphore to avoid blocking
+            self._metrics.record_tokens(tokens)
+
+        if payload is not None:
+            line = AmbitionModel.model_validate(payload).model_dump_json()
+            if transcripts_dir is not None:
+                transcript = {
+                    "request": service.model_dump(),
+                    "response": json.loads(line),
+                }
+                data = redact_pii(json.dumps(transcript, ensure_ascii=False))
+                path = transcripts_dir / f"{svc_id}.json"
+                await asyncio.to_thread(path.write_text, data, encoding="utf-8")
+
+            async with lock:
+                await asyncio.to_thread(handle.write, f"{line}\n")
+                processed.add(svc_id)
+                if progress:
+                    progress.update(1)
+                await asyncio.to_thread(handle.flush)
+                await asyncio.to_thread(os.fsync, handle.fileno())
+
+            SERVICES_PROCESSED.add(1)
+        else:
+            SERVICES_FAILED.add(1)
 
     async def process_service(
         self,

@@ -118,24 +118,37 @@ class PlateauGenerator:
     ) -> list[PlateauFeature]:
         """Return ``features`` mapped across standard datasets in order.
 
-        Mapping is performed for ``applications``, ``technologies`` and
-        ``information`` sequentially to keep requests deterministic and avoid
-        partial writes.
+        Each mapping set receives the full ``features`` list to avoid any
+        filtering or batching. Results are merged sequentially for
+        ``applications``, ``technologies`` and ``information`` so requests remain
+        deterministic and partial writes are avoided.
         """
 
         items = load_mapping_items(("applications", "technologies", "information"))
-        mapped = list(features)
         service_name = self._service.name if self._service else "unknown"
+
+        base = list(features)
+        mapped_sets: list[list[PlateauFeature]] = []
         for key in ("applications", "technologies", "information"):
-            mapped = await map_set(
+            result = await map_set(
                 session,
                 key,
                 items[key],
-                mapped,
+                base,
                 service=service_name,
                 strict=self.strict,
             )
-        return mapped
+            mapped_sets.append(result)
+
+        merged: dict[str, PlateauFeature] = {feat.feature_id: feat for feat in base}
+        for result in mapped_sets:
+            for feat in result:
+                existing = merged[feat.feature_id]
+                merged[feat.feature_id] = existing.model_copy(
+                    update={"mappings": existing.mappings | feat.mappings}
+                )
+
+        return list(merged.values())
 
     def _request_description(
         self, level: int, session: ConversationSession | None = None

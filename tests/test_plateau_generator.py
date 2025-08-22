@@ -91,13 +91,15 @@ def _feature_payload(count: int, level: int = 1) -> str:
 
 
 @pytest.mark.asyncio()
-async def test_map_features_calls_sets_in_order(monkeypatch) -> None:
-    """``_map_features`` should invoke ``map_set`` in fixed order."""
+async def test_map_features_maps_all_sets_with_full_list(monkeypatch) -> None:
+    """Each mapping set processes the full feature list exactly once."""
 
     called: list[str] = []
+    received: list[list[str]] = []
 
     async def fake_map_set(session, name, items, feats, **kwargs):
         called.append(name)
+        received.append([f.feature_id for f in feats])
         return list(feats)
 
     monkeypatch.setattr("plateau_generator.map_set", fake_map_set)
@@ -109,17 +111,27 @@ async def test_map_features_calls_sets_in_order(monkeypatch) -> None:
     )
     session = DummySession([])
     gen = PlateauGenerator(cast(ConversationSession, session))
-    feat = PlateauFeature(
-        feature_id="f1",
-        name="Feat",
-        description="d",
-        score=MaturityScore(level=1, label="Initial", justification="j"),
-        customer_type="learners",
-    )
+    feats = [
+        PlateauFeature(
+            feature_id="f1",
+            name="Feat1",
+            description="d1",
+            score=MaturityScore(level=1, label="Initial", justification="j"),
+            customer_type="learners",
+        ),
+        PlateauFeature(
+            feature_id="f2",
+            name="Feat2",
+            description="d2",
+            score=MaturityScore(level=1, label="Initial", justification="j"),
+            customer_type="academics",
+        ),
+    ]
 
-    await gen._map_features(cast(ConversationSession, session), [feat])
+    await gen._map_features(cast(ConversationSession, session), feats)
 
     assert called == ["applications", "technologies", "information"]
+    assert all(ids == ["f1", "f2"] for ids in received)
 
 
 def test_build_plateau_prompt_excludes_feature_id() -> None:
