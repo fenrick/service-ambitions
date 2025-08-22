@@ -10,8 +10,10 @@ agent without relying on asynchronous execution.
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from contextlib import contextmanager, nullcontext
+from pathlib import Path
 from typing import Any, Awaitable, Callable, TypeVar, overload
 
 import logfire
@@ -44,6 +46,7 @@ class ConversationSession:
         log_prompts: bool = False,
         redact_prompts: bool = False,
         metrics: RollingMetrics | None = None,
+        transcripts_dir: Path | None = None,
     ) -> None:
         """Initialise the session with a configured LLM client.
 
@@ -54,6 +57,8 @@ class ConversationSession:
             log_prompts: Debug log prompt text when ``diagnostics`` is ``True``.
             redact_prompts: Redact prompt text before logging when ``log_prompts``.
             metrics: Optional rolling metrics recorder for request telemetry.
+            transcripts_dir: Directory used to store prompt/response transcripts
+                when diagnostics mode is enabled.
         """
 
         self.client = client
@@ -63,6 +68,12 @@ class ConversationSession:
         self.redact_prompts = redact_prompts
         self.metrics = metrics
         self._history: list[messages.ModelMessage] = []
+        self.transcripts_dir = (
+            transcripts_dir
+            if transcripts_dir is not None
+            else (Path("transcripts") if diagnostics else None)
+        )
+        self._service_id: str | None = None
 
     def add_parent_materials(self, service_input: ServiceInput) -> None:
         """Seed the conversation with details about the target service.
@@ -81,6 +92,7 @@ class ConversationSession:
         self._history.append(
             messages.ModelRequest(parts=[messages.UserPromptPart(stored_ctx)])
         )
+        self._service_id = service_input.service_id
 
     def derive(self) -> "ConversationSession":
         """Return a new session copying the current history."""
@@ -92,8 +104,10 @@ class ConversationSession:
             log_prompts=self.log_prompts,
             redact_prompts=self.redact_prompts,
             metrics=self.metrics,
+            transcripts_dir=self.transcripts_dir,
         )
         clone._history = list(self._history)
+        clone._service_id = self._service_id
         return clone
 
     def _record_new_messages(self, msgs: list[messages.ModelMessage]) -> None:
@@ -143,6 +157,26 @@ class ConversationSession:
             # redact prompt if requested before logging
             logged_prompt = redact_pii(prompt) if self.redact_prompts else prompt
             logfire.debug(f"Sending prompt: {logged_prompt}")
+
+    async def _write_transcript(self, prompt: str, response: Any) -> None:
+        """Persist ``prompt`` and ``response`` when diagnostics are enabled."""
+
+        if not (
+            self.diagnostics and self.transcripts_dir and self._service_id is not None
+        ):
+            return
+        svc_dir = self.transcripts_dir / self._service_id
+        try:
+            await asyncio.to_thread(svc_dir.mkdir, parents=True, exist_ok=True)
+        except Exception:  # pragma: no cover - defensive
+            return
+        stage_name = self.stage or "unknown"
+        prompt_txt = redact_pii(prompt) if self.redact_prompts else prompt
+        resp_txt = redact_pii(str(response)) if self.redact_prompts else str(response)
+        payload = {"prompt": prompt_txt, "response": resp_txt}
+        data = json.dumps(payload, ensure_ascii=False)
+        path = svc_dir / f"{stage_name}.json"
+        await asyncio.to_thread(path.write_text, data, encoding="utf-8")
 
     def _handle_success(
         self,
@@ -249,6 +283,7 @@ class ConversationSession:
                 output, tokens, cost = self._handle_success(
                     result, stage, model_name, prompt_token_estimate
                 )
+                await self._write_transcript(prompt, output)
                 return output
             except Exception as exc:  # pragma: no cover - defensive logging
                 error_429 = self._handle_failure(

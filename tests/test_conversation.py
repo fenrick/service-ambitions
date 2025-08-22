@@ -122,12 +122,15 @@ def test_stage_metrics_accumulate() -> None:
     assert totals.total_tokens == 5
 
 
-def test_ask_omits_prompt_logging_when_disabled(monkeypatch) -> None:
+def test_ask_omits_prompt_logging_when_disabled(tmp_path, monkeypatch) -> None:
     """Prompts should not be logged when logging is disabled."""
 
     agent = DummyAgent()
     session = ConversationSession(
-        cast(Agent[None, str], agent), diagnostics=True, log_prompts=False
+        cast(Agent[None, str], agent),
+        diagnostics=True,
+        log_prompts=False,
+        transcripts_dir=tmp_path,
     )
     calls: list[str] = []
     monkeypatch.setattr(conversation.logfire, "debug", lambda msg: calls.append(msg))
@@ -137,7 +140,7 @@ def test_ask_omits_prompt_logging_when_disabled(monkeypatch) -> None:
     assert calls == []
 
 
-def test_ask_redacts_prompt_when_enabled(monkeypatch) -> None:
+def test_ask_redacts_prompt_when_enabled(tmp_path, monkeypatch) -> None:
     """Prompt text should pass through ``redact_pii`` before logging."""
 
     agent = DummyAgent()
@@ -146,6 +149,7 @@ def test_ask_redacts_prompt_when_enabled(monkeypatch) -> None:
         diagnostics=True,
         log_prompts=True,
         redact_prompts=True,
+        transcripts_dir=tmp_path,
     )
     monkeypatch.setattr(conversation, "redact_pii", lambda s: "<redacted>")
     calls: list[str] = []
@@ -156,7 +160,7 @@ def test_ask_redacts_prompt_when_enabled(monkeypatch) -> None:
     assert calls == ["Sending prompt: <redacted>"]
 
 
-def test_add_parent_materials_redacts_when_enabled(monkeypatch) -> None:
+def test_add_parent_materials_redacts_when_enabled(tmp_path, monkeypatch) -> None:
     """Service material logging should redact PII when enabled."""
 
     session = ConversationSession(
@@ -164,6 +168,7 @@ def test_add_parent_materials_redacts_when_enabled(monkeypatch) -> None:
         diagnostics=True,
         log_prompts=True,
         redact_prompts=True,
+        transcripts_dir=tmp_path,
     )
     monkeypatch.setattr(conversation, "redact_pii", lambda s: "<redacted>")
     calls: list[str] = []
@@ -233,3 +238,29 @@ def test_metrics_recorded_on_error() -> None:
     assert len(metrics._errors) == 1
     assert len(metrics._errors_429) == 1
     assert len(metrics._latencies) == 1
+
+
+def test_diagnostics_writes_transcript(tmp_path) -> None:
+    """Diagnostics mode should persist prompt/response transcripts."""
+
+    agent = DummyAgent()
+    session = ConversationSession(
+        cast(Agent[None, str], agent),
+        stage="stage",
+        diagnostics=True,
+        transcripts_dir=tmp_path,
+    )
+    service = ServiceInput(
+        service_id="svc-1",
+        name="svc",
+        customer_type=None,
+        description="d",
+        jobs_to_be_done=[],
+    )
+    session.add_parent_materials(service)
+    session.ask("ping")
+
+    path = tmp_path / "svc-1" / "stage.json"
+    assert path.exists()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data == {"prompt": "ping", "response": "pong"}

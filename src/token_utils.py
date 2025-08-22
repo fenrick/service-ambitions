@@ -7,7 +7,14 @@ available and otherwise falls back to a simple heuristic. It also provides
 
 from __future__ import annotations
 
+from typing import Any
+
 import tiktoken
+
+try:
+    _ENCODING: Any | None = tiktoken.get_encoding("cl100k_base")
+except Exception:  # pragma: no cover - fallback when encoding unavailable
+    _ENCODING = None
 
 
 def estimate_tokens(prompt: str, expected_output: int) -> int:
@@ -21,10 +28,9 @@ def estimate_tokens(prompt: str, expected_output: int) -> int:
         The estimated total number of tokens for the prompt plus the expected
         output.
     """
-    if tiktoken is not None:
+    if _ENCODING is not None:
         # Use the installed ``tiktoken`` package for accurate token counts.
-        encoding = tiktoken.get_encoding("cl100k_base")
-        return len(encoding.encode(prompt)) + expected_output
+        return len(_ENCODING.encode(prompt)) + expected_output
 
     # Fallback to a rough heuristic when ``tiktoken`` is unavailable.
     return len(prompt) // 4 + expected_output
