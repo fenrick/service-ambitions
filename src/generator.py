@@ -102,7 +102,7 @@ async def _with_retry(
     cap: float = 8.0,
     on_retry_after: Callable[[float], None] | None = None,
     metrics: RollingMetrics | None = None,
-) -> T:
+) -> tuple[T, int]:
     """Execute ``coro_factory`` with exponential backoff and jitter.
 
     Each attempt is wrapped in ``asyncio.wait_for`` to enforce a sixty second
@@ -163,7 +163,7 @@ async def _with_retry(
             await asyncio.sleep(delay)
             continue
         _record_latency(start)
-        return result
+        return result, attempt
     raise RuntimeError("Unreachable retry state")
 
 
@@ -229,17 +229,17 @@ class ServiceAmbitionGenerator:
 
     async def _process_service_line(
         self, service: ServiceInput
-    ) -> tuple[dict[str, Any] | None, str, int]:
-        """Return ambitions payload and token count or ``None`` on failure."""
+    ) -> tuple[dict[str, Any] | None, str, int, float, int, str]:
+        """Return ambitions payload and metrics or ``None`` on failure."""
 
         logfire.info(f"Processing service {service.name}")
         try:
-            result, tokens = await self.process_service(service)
+            result, tokens, cost, retries = await self.process_service(service)
         except Exception as exc:
             msg = f"Failed to process service {service.name}: {exc}"
             logfire.error(msg)
-            return None, service.service_id, 0
-        return result, service.service_id, tokens
+            return None, service.service_id, 0, 0.0, self.retries - 1, "error"
+        return result, service.service_id, tokens, cost, retries, "success"
 
     async def _run_one(
         self,
@@ -258,10 +258,9 @@ class ServiceAmbitionGenerator:
         limiter = self._limiter
         if limiter is None:  # pragma: no cover - defensive
             raise RuntimeError("Limiter not initialized")
-        with logfire.span("run_one") as span:
+        with logfire.span("service") as span:
             span.set_attribute("service.id", service.service_id)
-            span.set_attribute("concurrency", self.concurrency)
-            await self._execute_service(
+            tokens, cost, retries, status = await self._execute_service(
                 limiter,
                 service,
                 transcripts_dir,
@@ -270,6 +269,10 @@ class ServiceAmbitionGenerator:
                 processed,
                 progress,
             )
+            span.set_attribute("tokens.total", tokens)
+            span.set_attribute("cost.estimate", cost)
+            span.set_attribute("retries", retries)
+            span.set_attribute("status", status)
 
     async def _execute_service(
         self,
@@ -280,7 +283,7 @@ class ServiceAmbitionGenerator:
         lock: asyncio.Lock,
         processed: set[str],
         progress: tqdm[Any] | None,
-    ) -> None:
+    ) -> tuple[int, float, int, str]:
         """Process ``service`` and append its result to ``handle``.
 
         ``process_service`` is rate limited via ``limiter`` while the final
@@ -288,7 +291,9 @@ class ServiceAmbitionGenerator:
         """
 
         async with limiter:
-            payload, svc_id, tokens = await self._process_service_line(service)
+            payload, svc_id, tokens, cost, retries, status = (
+                await self._process_service_line(service)
+            )
 
         if self._metrics:
             # Track token usage after releasing the semaphore to avoid blocking
@@ -316,13 +321,14 @@ class ServiceAmbitionGenerator:
             SERVICES_PROCESSED.add(1)
         else:
             SERVICES_FAILED.add(1)
+        return tokens, cost, retries, status
 
     async def process_service(
         self,
         service: ServiceInput,
         prompt: str | None = None,
-    ) -> tuple[dict[str, Any], int]:
-        """Return ambitions and token usage for ``service``.
+    ) -> tuple[dict[str, Any], int, float, int]:
+        """Return ambitions, token usage and retry count for ``service``.
 
         Args:
             service: Structured representation of the service under analysis.
@@ -347,27 +353,19 @@ class ServiceAmbitionGenerator:
             raise ValueError("prompt must be provided")
         agent = Agent(self.model, instructions=instructions)
         service_details = service.model_dump_json()
-        with logfire.span("process_service") as span:
-            span.set_attribute("service.id", service.service_id)
-            if service.customer_type:
-                span.set_attribute("customer_type", service.customer_type)
-            result = await _with_retry(
-                lambda: agent.run(service_details, output_type=AmbitionModel),
-                request_timeout=self.request_timeout,
-                attempts=self.retries,
-                base=self.retry_base_delay,
-                on_retry_after=getattr(self._limiter, "throttle", None),
-                metrics=self._metrics,
-            )
-            usage = result.usage()
-            tokens = usage.total_tokens or 0
-            model_name = getattr(
-                self.model, "model_name", getattr(self.model, "name", "")
-            )
-            cost = estimate_cost(model_name, tokens)
-            span.set_attribute("total_tokens", tokens)
-            span.set_attribute("cost", cost)
-        return result.output.model_dump(), tokens
+        result, retries = await _with_retry(
+            lambda: agent.run(service_details, output_type=AmbitionModel),
+            request_timeout=self.request_timeout,
+            attempts=self.retries,
+            base=self.retry_base_delay,
+            on_retry_after=getattr(self._limiter, "throttle", None),
+            metrics=self._metrics,
+        )
+        usage = result.usage()
+        tokens = usage.total_tokens or 0
+        model_name = getattr(self.model, "model_name", getattr(self.model, "name", ""))
+        cost = estimate_cost(model_name, tokens)
+        return result.output.model_dump(), tokens, cost, retries
 
     async def _process_all(
         self,

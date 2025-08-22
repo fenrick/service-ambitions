@@ -240,7 +240,6 @@ class ConversationSession:
         if self.metrics:
             # record request initiation metrics
             self.metrics.record_request()
-            self.metrics.record_start_tokens(prompt_token_estimate)
         with self._prepare_span(
             span_name, stage, model_name, prompt_token_estimate
         ) as span:
