@@ -94,13 +94,8 @@ class Contribution(StrictModel):
     item: Annotated[
         str, Field(min_length=1, description="Identifier of the mapped element.")
     ]
-    contribution: float | None = Field(
-        default=None,
-        description=(
-            "Importance weight. ``None`` implies a default weight of 1.0 or"
-            " indicates the mapping should be ignored."
-        ),
-    )
+    contribution: float | None = None
+    """Importance weight. ``None`` uses a default of ``1.0`` or ignores the mapping."""
 
 
 class DefinitionItem(StrictModel):

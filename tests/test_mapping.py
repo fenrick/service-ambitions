@@ -60,6 +60,7 @@ async def test_map_set_retries_on_failure(monkeypatch) -> None:
     )
     assert session.prompts == ["PROMPT", "PROMPT\nReturn valid JSON only."]
     assert mapped[0].mappings["applications"][0].item == "a"
+    assert mapped[0].mappings["applications"][0].contribution is None
 
 
 @pytest.mark.asyncio()
@@ -150,6 +151,9 @@ def test_merge_mapping_results_aggregates_unknown_ids(monkeypatch, tmp_path) -> 
     assert merged[1].mappings["applications"] == []
     assert merged[0].mappings["technologies"] == []
     assert merged[1].mappings["technologies"] == []
+    assert (
+        merged[0].mappings["applications"][0].contribution is None
+    )  # Preserve ``None`` weights
 
     qfile = tmp_path / "quarantine" / "mappings" / "unknown" / "unknown_ids.json"
     data = json.loads(qfile.read_text())

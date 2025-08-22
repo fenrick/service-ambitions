@@ -138,3 +138,18 @@ def test_mapping_response_allows_unbounded_items() -> None:
 
     result = MappingResponse.model_validate(payload)
     assert len(result.features[0].mappings["data"]) == 6
+
+
+def test_mapping_response_accepts_none_contribution() -> None:
+    """Contributions with ``None`` weights should be preserved."""
+    payload = {
+        "features": [
+            {
+                "feature_id": "f1",
+                "data": [{"item": "INF-1", "contribution": None}],
+            }
+        ]
+    }
+
+    result = MappingResponse.model_validate(payload)
+    assert result.features[0].mappings["data"][0].contribution is None
