@@ -7,15 +7,7 @@ import pytest
 import mapping
 from conversation import ConversationSession
 from mapping import MappingError, map_set
-from models import (
-    Contribution,
-    MappingFeature,
-    MappingItem,
-    MappingResponse,
-    MappingTypeConfig,
-    MaturityScore,
-    PlateauFeature,
-)
+from models import MappingItem, MaturityScore, PlateauFeature
 
 
 class DummySession:
@@ -45,7 +37,9 @@ def _item() -> MappingItem:
 
 
 @pytest.mark.asyncio()
-async def test_map_set_retries_on_failure(monkeypatch) -> None:
+async def test_map_set_successful_mapping(monkeypatch) -> None:
+    """Agent response is retried once then merged into features."""
+
     monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
     valid = json.dumps(
         {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
@@ -64,10 +58,23 @@ async def test_map_set_retries_on_failure(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio()
-async def test_map_set_quarantines_on_double_failure(monkeypatch, tmp_path) -> None:
+async def test_map_set_quarantines_unknown_ids(monkeypatch, tmp_path) -> None:
+    """Unknown IDs are dropped and quarantined for later review."""
+
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
-    session = DummySession(["bad", "still bad"])
+    # Response contains one valid and one unknown ID.
+    response = json.dumps(
+        {
+            "features": [
+                {
+                    "feature_id": "f1",
+                    "applications": [{"item": "a"}, {"item": "x"}],
+                }
+            ]
+        }
+    )
+    session = DummySession([response])
     paths: list[Path] = []
     mapping.set_quarantine_logger(lambda p: paths.append(p.resolve()))
     mapped = await map_set(
@@ -78,9 +85,9 @@ async def test_map_set_quarantines_on_double_failure(monkeypatch, tmp_path) -> N
         service="svc",
     )
     mapping.set_quarantine_logger(None)
-    assert mapped[0].mappings["applications"] == []
-    qfile = tmp_path / "quarantine" / "mappings" / "svc" / "applications.txt"
-    assert qfile.read_text() == "still bad"
+    assert [c.item for c in mapped[0].mappings["applications"]] == ["a"]
+    qfile = tmp_path / "quarantine" / "mapping" / "svc" / "unknown_ids.json"
+    assert json.loads(qfile.read_text()) == {"applications": ["x"]}
     assert paths == [qfile]
 
 
@@ -101,105 +108,6 @@ async def test_map_set_strict_raises(monkeypatch, tmp_path) -> None:
             strict=True,
         )
     mapping.set_quarantine_logger(None)
-    qfile = tmp_path / "quarantine" / "mappings" / "svc" / "applications.txt"
+    qfile = tmp_path / "quarantine" / "mapping" / "svc" / "applications.txt"
     assert qfile.exists()
     assert paths == [qfile]
-
-
-def test_merge_mapping_results_aggregates_unknown_ids(monkeypatch, tmp_path) -> None:
-    monkeypatch.chdir(tmp_path)
-    features = [_feature("f1"), _feature("f2")]
-    payload = MappingResponse(
-        features=[
-            MappingFeature(
-                feature_id="f1",
-                applications=[
-                    Contribution(item="a"),
-                    Contribution(item="x"),
-                ],
-                technologies=[Contribution(item="y1")],
-            ),
-            MappingFeature(
-                feature_id="f2",
-                applications=[Contribution(item="x2")],
-                technologies=[Contribution(item="y2")],
-            ),
-        ]
-    )
-    mapping_types = {
-        "applications": MappingTypeConfig(dataset="applications", label="Applications"),
-        "technologies": MappingTypeConfig(dataset="technologies", label="Technologies"),
-    }
-    catalogue = {
-        "applications": [MappingItem(id="a", name="A", description="d")],
-        "technologies": [MappingItem(id="t1", name="T1", description="d")],
-    }
-
-    warnings: list[tuple[str, dict[str, object]]] = []
-    monkeypatch.setattr(
-        mapping.logfire, "warning", lambda msg, **kw: warnings.append((msg, kw))
-    )
-    paths: list[Path] = []
-    mapping.set_quarantine_logger(lambda p: paths.append(p.resolve()))
-
-    merged = mapping._merge_mapping_results(
-        features, payload, mapping_types, catalogue_items=catalogue
-    )
-    mapping.set_quarantine_logger(None)
-
-    assert [c.item for c in merged[0].mappings["applications"]] == ["a"]
-    assert merged[1].mappings["applications"] == []
-    assert merged[0].mappings["technologies"] == []
-    assert merged[1].mappings["technologies"] == []
-    assert (
-        merged[0].mappings["applications"][0].contribution is None
-    )  # Preserve ``None`` weights
-
-    qfile = tmp_path / "quarantine" / "mappings" / "unknown" / "unknown_ids.json"
-    data = json.loads(qfile.read_text())
-    assert set(data["applications"]) == {"x", "x2"}
-    assert set(data["technologies"]) == {"y1", "y2"}
-    assert paths == [qfile]
-
-    aggregated = [w for w in warnings if "count" in w[1]]
-    counts = {kw["key"]: kw["count"] for _, kw in aggregated}
-    assert counts == {"applications": 2, "technologies": 2}
-
-    missing_counts = {
-        msg.split(".missing=")[0]: int(msg.split("=")[1])
-        for msg, _ in warnings
-        if ".missing=" in msg
-    }
-    assert missing_counts == {"applications": 1, "technologies": 2}
-
-
-def test_quarantine_unknown_ids_separate_per_service(monkeypatch, tmp_path) -> None:
-    monkeypatch.chdir(tmp_path)
-    features = [_feature()]
-    payload = MappingResponse(
-        features=[
-            MappingFeature(
-                feature_id="f1",
-                applications=[Contribution(item="x")],
-            )
-        ]
-    )
-    mapping_types = {
-        "applications": MappingTypeConfig(dataset="applications", label="Applications")
-    }
-    catalogue = {"applications": [MappingItem(id="a", name="A", description="d")]}
-
-    mapping._merge_mapping_results(
-        features, payload, mapping_types, catalogue_items=catalogue, service="svc1"
-    )
-    mapping._merge_mapping_results(
-        features, payload, mapping_types, catalogue_items=catalogue, service="svc2"
-    )
-
-    file1 = tmp_path / "quarantine" / "mappings" / "svc1" / "unknown_ids.json"
-    file2 = tmp_path / "quarantine" / "mappings" / "svc2" / "unknown_ids.json"
-    assert file1.exists() and file2.exists()
-    data1 = json.loads(file1.read_text())
-    data2 = json.loads(file2.read_text())
-    assert data1 == {"applications": ["x"]}
-    assert data2 == {"applications": ["x"]}

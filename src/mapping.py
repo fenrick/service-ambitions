@@ -44,7 +44,7 @@ def set_quarantine_logger(callback: Callable[[Path], None] | None) -> None:
 def _quarantine_unknown_ids(data: Mapping[str, set[str]], service_id: str) -> Path:
     """Persist unknown mapping identifiers for ``service_id`` across all sets."""
 
-    file_path = Path("quarantine/mappings") / service_id / "unknown_ids.json"
+    file_path = Path("quarantine/mapping") / service_id / "unknown_ids.json"
     file_path.parent.mkdir(parents=True, exist_ok=True)
     serialisable = {k: sorted(v) for k, v in data.items() if v}
     file_path.write_text(json.dumps(serialisable, indent=2), encoding="utf-8")
@@ -143,7 +143,7 @@ async def map_set(
     The agent is queried twice to obtain a valid :class:`MappingResponse`. The
     second attempt appends a hint instructing the model to return JSON only. If
     both attempts fail, the raw response is written to
-    ``quarantine/mappings/<service>/<set>.txt`` and an empty mapping list is
+    ``quarantine/mapping/<service>/<set>.txt`` and an empty mapping list is
     returned. When ``strict`` is ``True`` a :class:`MappingError` is raised
     instead of returning partial results.
     """
@@ -161,7 +161,7 @@ async def map_set(
             payload = MappingResponse.model_validate_json(raw)
         except (ValidationError, ValueError) as exc:
             svc = service or "unknown"
-            qdir = Path("quarantine/mappings") / svc
+            qdir = Path("quarantine/mapping") / svc
             qdir.mkdir(parents=True, exist_ok=True)
             qfile = qdir / f"{set_name}.txt"
             qfile.write_text(raw, encoding="utf-8")
