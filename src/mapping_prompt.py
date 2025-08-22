@@ -14,6 +14,12 @@ from models import MappingItem, MappingResponse, PlateauFeature
 MAPPING_SCHEMA = json.dumps(MappingResponse.model_json_schema(), indent=2)
 
 
+def _sanitize(value: str) -> str:
+    """Replace newlines and tabs with spaces."""
+
+    return value.replace("\n", " ").replace("\t", " ")
+
+
 def _render_items(items: Sequence[MappingItem]) -> str:
     """Return tab-separated ``items`` sorted by identifier.
 
@@ -22,7 +28,7 @@ def _render_items(items: Sequence[MappingItem]) -> str:
     """
 
     return "\n".join(
-        f"{entry.id}\t{entry.name}\t{entry.description}"
+        f"{_sanitize(entry.id)}\t{_sanitize(entry.name)}\t{_sanitize(entry.description)}"
         for entry in sorted(items, key=lambda i: i.id)
     )
 
@@ -35,7 +41,7 @@ def _render_features(features: Sequence[PlateauFeature]) -> str:
     """
 
     return "\n".join(
-        f"{feat.feature_id}\t{feat.name}\t{feat.description}"
+        f"{_sanitize(feat.feature_id)}\t{_sanitize(feat.name)}\t{_sanitize(feat.description)}"
         for feat in sorted(features, key=lambda f: f.feature_id)
     )
 
