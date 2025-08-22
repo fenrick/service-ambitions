@@ -83,9 +83,9 @@ def _configure_logging(args: argparse.Namespace, settings) -> None:
         level=getattr(logging, level_name.upper(), logging.INFO),
         force=True,
     )
-    if settings.logfire_token:
-        # Initialize logfire only when a token is configured
-        init_logfire(settings.logfire_token)
+    # Initialize logfire regardless of token availability; a missing token
+    # keeps logging local without sending telemetry to the cloud.
+    init_logfire(settings.logfire_token)
     if args.quiet:
         # Replace log spans with a no-op context manager when quiet
         logfire.span = lambda *a, **k: nullcontext()  # type: ignore[assignment]
