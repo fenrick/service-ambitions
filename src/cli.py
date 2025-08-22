@@ -411,6 +411,8 @@ async def _cmd_generate_evolution(
     )
 
     configure_prompt_dir(settings.prompt_dir)
+    if args.mapping_data_dir is None and not settings.diagnostics:
+        raise RuntimeError("--mapping-data-dir is required in production mode")
     configure_mapping_data_dir(args.mapping_data_dir or settings.mapping_data_dir)
     system_prompt = load_evolution_prompt(settings.context_id, settings.inspiration)
 
@@ -509,6 +511,8 @@ async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
         redact_prompts=True,
     )
 
+    if args.mapping_data_dir is None and not settings.diagnostics:
+        raise RuntimeError("--mapping-data-dir is required in production mode")
     configure_mapping_data_dir(args.mapping_data_dir or settings.mapping_data_dir)
 
     input_path = Path(args.input)
@@ -778,6 +782,8 @@ def main() -> None:
         settings.strict_mapping = args.strict_mapping
     if args.mapping_data_dir is not None:
         settings.mapping_data_dir = Path(args.mapping_data_dir)
+    if not hasattr(settings, "mapping_mode"):
+        settings.mapping_mode = "per_set"
 
     _configure_logging(args, settings)
 

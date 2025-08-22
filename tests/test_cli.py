@@ -739,3 +739,45 @@ def test_cli_validate_only(tmp_path, monkeypatch):
     cli.main()
 
     assert not called["ran"]
+
+
+def test_cli_flag_overrides_settings(monkeypatch, tmp_path):
+    """Diagnostics, strict-mapping and mapping-data-dir flags update settings."""
+    settings = SimpleNamespace(
+        model="cfg",
+        log_level="INFO",
+        prompt_dir=str(tmp_path),
+        context_id="ctx",
+        inspiration="insp",
+        concurrency=1,
+        openai_api_key="dummy",
+        logfire_token=None,
+        reasoning=None,
+        web_search=False,
+    )
+    captured: dict[str, object] = {}
+
+    def fake_cmd(args, cfg, _):
+        captured["settings"] = cfg
+
+    monkeypatch.setattr(cli, "_cmd_generate_ambitions", fake_cmd)
+    monkeypatch.setattr(cli, "load_settings", lambda: settings)
+
+    argv = [
+        "main",
+        "generate-ambitions",
+        "--mapping-data-dir",
+        str(tmp_path),
+        "--diagnostics",
+        "--strict-mapping",
+        "--no-logs",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+
+    cli.main()
+
+    cfg = captured["settings"]
+    assert cfg.diagnostics is True
+    assert cfg.strict_mapping is True
+    assert cfg.mapping_data_dir == Path(tmp_path)
+    assert cfg.mapping_mode == "per_set"
