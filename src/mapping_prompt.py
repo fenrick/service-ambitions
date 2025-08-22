@@ -23,12 +23,13 @@ def _sanitize(value: str) -> str:
 def _render_items(items: Sequence[MappingItem]) -> str:
     """Return tab-separated ``items`` sorted by identifier.
 
-    Each line follows the compact format ``ID\tname\tdescription`` to simplify
-    parsing by the language model and remove decorative bullets.
+    The compact format ``ID\tname\tdescription`` is used for each line. Any
+    embedded newline or tab characters are replaced with spaces to ensure
+    deterministic rendering for the language model.
     """
 
     return "\n".join(
-        f"{_sanitize(entry.id)}\t{_sanitize(entry.name)}\t{_sanitize(entry.description)}"
+        "\t".join(_sanitize(part) for part in (entry.id, entry.name, entry.description))
         for entry in sorted(items, key=lambda i: i.id)
     )
 
@@ -36,12 +37,14 @@ def _render_items(items: Sequence[MappingItem]) -> str:
 def _render_features(features: Sequence[PlateauFeature]) -> str:
     """Return tab-separated ``features`` sorted by feature ID.
 
-    Lines are formatted as ``ID\tname\tdescription`` without leading bullets or
-    repeated delimiters.
+    Lines are formatted as ``ID\tname\tdescription`` and sanitised to replace
+    any internal newlines or tabs with spaces.
     """
 
     return "\n".join(
-        f"{_sanitize(feat.feature_id)}\t{_sanitize(feat.name)}\t{_sanitize(feat.description)}"
+        "\t".join(
+            _sanitize(part) for part in (feat.feature_id, feat.name, feat.description)
+        )
         for feat in sorted(features, key=lambda f: f.feature_id)
     )
 
@@ -61,17 +64,19 @@ def render_set_prompt(
     Returns:
         Fully rendered prompt string.
     """
-
-    template = load_prompt_text("mapping_prompt")
-    mapping_section = f"## Available {set_name}\n\n{_render_items(items)}\n"
-    prompt = template.format(
+    # Instruction template defines sections for catalogue items and feature
+    # descriptions. Rendering is deterministic as both helpers sort inputs.
+    instruction = load_prompt_text("mapping_prompt")
+    catalogue_lines = _render_items(items)
+    feature_lines = _render_features(features)
+    mapping_section = f"## Available {set_name}\n\n{catalogue_lines}\n"
+    return instruction.format(
         mapping_labels=set_name,
         mapping_sections=mapping_section,
         mapping_fields=set_name,
-        features=_render_features(features),
+        features=feature_lines,
         schema=MAPPING_SCHEMA,
     )
-    return prompt
 
 
 __all__ = ["render_set_prompt"]
