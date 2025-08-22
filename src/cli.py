@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Coroutine, Sequence, cast
 from uuid import uuid4
 
+import logfire
 from pydantic_ai import Agent
 from tqdm import tqdm
 
@@ -34,7 +35,7 @@ from loader import (
 from mapping import init_embeddings
 from model_factory import ModelFactory
 from models import ServiceEvolution, ServiceInput, ServiceMeta
-from monitoring import LOG_FILE_NAME, init_logfire, logfire
+from monitoring import LOG_FILE_NAME, init_logfire
 from persistence import atomic_write, read_lines
 from plateau_generator import PlateauGenerator
 from schema_migration import migrate_record
@@ -82,9 +83,9 @@ def _configure_logging(args: argparse.Namespace, settings) -> None:
         level=getattr(logging, level_name.upper(), logging.INFO),
         force=True,
     )
-    if settings.logfire_token:
-        # Initialize logfire only when a token is configured
-        init_logfire(settings.logfire_token)
+    # Initialize logfire regardless of token availability; a missing token
+    # keeps logging local without sending telemetry to the cloud.
+    init_logfire(settings.logfire_token)
     if args.quiet:
         # Replace log spans with a no-op context manager when quiet
         logfire.span = lambda *a, **k: nullcontext()  # type: ignore[assignment]

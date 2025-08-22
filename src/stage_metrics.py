@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
+import logging
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Iterator
 
-from monitoring import logfire
+import logfire
 
 
 @dataclass
@@ -76,6 +78,15 @@ def log_stage_totals() -> None:
         )
         avg_latency = totals.total_duration / totals.prompts if totals.prompts else 0.0
         rate_429 = totals.errors_429 / totals.prompts if totals.prompts else 0.0
+        payload = {
+            "stage": stage,
+            "total_tokens": totals.total_tokens,
+            "prompt_tokens_estimate": totals.prompt_tokens_estimate,
+            "estimated_cost": totals.estimated_cost,
+            "tokens_per_sec": tokens_sec,
+            "avg_latency": avg_latency,
+            "rate_429": rate_429,
+        }
         logfire.info(
             "Stage totals",
             stage=stage,
@@ -86,6 +97,7 @@ def log_stage_totals() -> None:
             avg_latency=avg_latency,
             rate_429=rate_429,
         )
+        logging.getLogger(__name__).info(json.dumps(payload))
 
 
 __all__ = [
