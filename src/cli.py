@@ -32,7 +32,6 @@ from loader import (
     load_evolution_prompt,
     load_role_ids,
 )
-from mapping import init_embeddings
 from model_factory import ModelFactory
 from models import ServiceEvolution, ServiceInput, ServiceMeta
 from monitoring import LOG_FILE_NAME, init_logfire
@@ -430,10 +429,6 @@ async def _cmd_generate_evolution(
         logfire.info(f"Validated {len(services)} services")
         return
 
-    # Warm mapping embeddings upfront so subsequent requests reuse cached vectors.
-    # Failures are logged by ``init_embeddings`` and do not interrupt startup.
-    await init_embeddings()
-
     concurrency = (
         args.concurrency if args.concurrency is not None else settings.concurrency
     )
@@ -515,10 +510,6 @@ async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
     )
 
     configure_mapping_data_dir(args.mapping_data_dir or settings.mapping_data_dir)
-
-    # Warm mapping embeddings upfront so subsequent requests reuse cached vectors.
-    # Failures are logged by ``init_embeddings`` and do not interrupt startup.
-    await init_embeddings()
 
     input_path = Path(args.input)
     lines = await asyncio.to_thread(input_path.read_text, encoding="utf-8")

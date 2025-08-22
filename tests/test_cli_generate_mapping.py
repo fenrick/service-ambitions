@@ -49,12 +49,8 @@ def test_generate_mapping_maps_features(tmp_path, monkeypatch) -> None:
         called["count"] = len(feats)
         return [f.model_copy(update={"mappings": {"applications": []}}) for f in feats]
 
-    async def fake_init_embeddings() -> None:
-        return None
-
     monkeypatch.setattr(cli, "Agent", lambda *a, **k: SimpleNamespace())
     monkeypatch.setattr(cli.PlateauGenerator, "_map_features", fake_map_features)
-    monkeypatch.setattr(cli, "init_embeddings", fake_init_embeddings)
     monkeypatch.setattr(
         cli, "configure_mapping_data_dir", lambda p: called.setdefault("path", p)
     )
