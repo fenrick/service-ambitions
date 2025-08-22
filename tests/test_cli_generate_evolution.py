@@ -204,7 +204,7 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         strict=False,
         diagnostics=None,
         strict_mapping=None,
-        mapping_data_dir=None,
+        mapping_data_dir="data",
     )
 
     monkeypatch.setattr(cli, "_RUN_META", None)
@@ -311,7 +311,7 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         strict=False,
         diagnostics=None,
         strict_mapping=None,
-        mapping_data_dir=None,
+        mapping_data_dir="data",
     )
 
     monkeypatch.setattr(cli, "_RUN_META", None)
@@ -394,7 +394,7 @@ def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -
         strict=False,
         diagnostics=None,
         strict_mapping=None,
-        mapping_data_dir=None,
+        mapping_data_dir="data",
     )
 
     monkeypatch.setattr(cli, "_RUN_META", None)
@@ -532,7 +532,7 @@ def test_generate_evolution_writes_transcripts(tmp_path, monkeypatch) -> None:
         strict=False,
         diagnostics=None,
         strict_mapping=None,
-        mapping_data_dir=None,
+        mapping_data_dir="data",
     )
 
     monkeypatch.setattr(cli, "_RUN_META", None)
