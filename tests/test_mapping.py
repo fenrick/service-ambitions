@@ -68,7 +68,7 @@ async def test_map_set_quarantines_on_double_failure(monkeypatch, tmp_path) -> N
     monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
     session = DummySession(["bad", "still bad"])
     paths: list[Path] = []
-    mapping.set_quarantine_logger(lambda p: paths.append(p))
+    mapping.set_quarantine_logger(lambda p: paths.append(p.resolve()))
     mapped = await map_set(
         cast(ConversationSession, session),
         "applications",
@@ -89,7 +89,7 @@ async def test_map_set_strict_raises(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
     session = DummySession(["bad", "still bad"])
     paths: list[Path] = []
-    mapping.set_quarantine_logger(lambda p: paths.append(p))
+    mapping.set_quarantine_logger(lambda p: paths.append(p.resolve()))
     with pytest.raises(MappingError):
         await map_set(
             cast(ConversationSession, session),
@@ -139,7 +139,7 @@ def test_merge_mapping_results_aggregates_unknown_ids(monkeypatch, tmp_path) -> 
         mapping.logfire, "warning", lambda msg, **kw: warnings.append((msg, kw))
     )
     paths: list[Path] = []
-    mapping.set_quarantine_logger(lambda p: paths.append(p))
+    mapping.set_quarantine_logger(lambda p: paths.append(p.resolve()))
 
     merged = mapping._merge_mapping_results(
         features, payload, mapping_types, catalogue_items=catalogue
@@ -151,7 +151,7 @@ def test_merge_mapping_results_aggregates_unknown_ids(monkeypatch, tmp_path) -> 
     assert merged[0].mappings["technologies"] == []
     assert merged[1].mappings["technologies"] == []
 
-    qfile = tmp_path / "quarantine" / "mappings" / "unknown_ids.json"
+    qfile = tmp_path / "quarantine" / "mappings" / "unknown" / "unknown_ids.json"
     data = json.loads(qfile.read_text())
     assert set(data["applications"]) == {"x", "x2"}
     assert set(data["technologies"]) == {"y1", "y2"}
@@ -167,3 +167,35 @@ def test_merge_mapping_results_aggregates_unknown_ids(monkeypatch, tmp_path) -> 
         if ".missing=" in msg
     }
     assert missing_counts == {"applications": 1, "technologies": 2}
+
+
+def test_quarantine_unknown_ids_separate_per_service(monkeypatch, tmp_path) -> None:
+    monkeypatch.chdir(tmp_path)
+    features = [_feature()]
+    payload = MappingResponse(
+        features=[
+            MappingFeature(
+                feature_id="f1",
+                applications=[Contribution(item="x")],
+            )
+        ]
+    )
+    mapping_types = {
+        "applications": MappingTypeConfig(dataset="applications", label="Applications")
+    }
+    catalogue = {"applications": [MappingItem(id="a", name="A", description="d")]}
+
+    mapping._merge_mapping_results(
+        features, payload, mapping_types, catalogue_items=catalogue, service="svc1"
+    )
+    mapping._merge_mapping_results(
+        features, payload, mapping_types, catalogue_items=catalogue, service="svc2"
+    )
+
+    file1 = tmp_path / "quarantine" / "mappings" / "svc1" / "unknown_ids.json"
+    file2 = tmp_path / "quarantine" / "mappings" / "svc2" / "unknown_ids.json"
+    assert file1.exists() and file2.exists()
+    data1 = json.loads(file1.read_text())
+    data2 = json.loads(file2.read_text())
+    assert data1 == {"applications": ["x"]}
+    assert data2 == {"applications": ["x"]}
