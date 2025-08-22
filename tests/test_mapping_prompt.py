@@ -2,19 +2,19 @@
 
 from __future__ import annotations
 
-from typing import Sequence
-import types
 import sys
+import types
+from typing import Sequence
 
 import pytest
 
 stub_loader = types.ModuleType("loader")
-stub_loader.load_prompt_text = lambda name: ""
+stub_loader.load_prompt_text = lambda name: ""  # type: ignore[attr-defined]
 sys.modules["loader"] = stub_loader
 
-import mapping_prompt
-from mapping_prompt import render_set_prompt
-from models import MappingItem, MaturityScore, PlateauFeature
+import mapping_prompt  # noqa: E402
+from mapping_prompt import render_set_prompt  # noqa: E402
+from models import MappingItem, MaturityScore, PlateauFeature  # noqa: E402
 
 
 @pytest.mark.parametrize("shuffle", [False, True])

@@ -46,12 +46,11 @@ async def init_embeddings() -> None:
     return None
 
 
-def _quarantine_unknown_ids(data: Mapping[str, set[str]]) -> Path:
-    """Persist unknown mapping identifiers across all sets."""
+def _quarantine_unknown_ids(data: Mapping[str, set[str]], service_id: str) -> Path:
+    """Persist unknown mapping identifiers for ``service_id`` across all sets."""
 
-    qdir = Path("quarantine/mappings")
-    qdir.mkdir(parents=True, exist_ok=True)
-    file_path = qdir / "unknown_ids.json"
+    file_path = Path("quarantine/mappings") / service_id / "unknown_ids.json"
+    file_path.parent.mkdir(parents=True, exist_ok=True)
     serialisable = {k: sorted(v) for k, v in data.items() if v}
     file_path.write_text(json.dumps(serialisable, indent=2), encoding="utf-8")
     logfire.warning(
@@ -86,6 +85,7 @@ def _merge_mapping_results(
     mapping_types: Mapping[str, MappingTypeConfig],
     *,
     catalogue_items: Mapping[str, list[MappingItem]] | None = None,
+    service: str = "unknown",
 ) -> list[PlateauFeature]:
     """Return ``features`` merged with mapping ``payload``.
 
@@ -129,7 +129,7 @@ def _merge_mapping_results(
                 key=key,
                 count=len(ids),
             )
-        _quarantine_unknown_ids(dropped)
+        _quarantine_unknown_ids(dropped, service)
     if missing:
         for key, count in missing.items():
             logfire.warning(f"{key}.missing={count}")
@@ -188,6 +188,7 @@ async def map_set(
         payload,
         {set_name: cfg},
         catalogue_items={set_name: list(items)},
+        service=service or "unknown",
     )
 
 
