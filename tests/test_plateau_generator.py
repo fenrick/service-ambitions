@@ -105,9 +105,7 @@ async def test_map_features_maps_all_sets_with_full_list(monkeypatch) -> None:
     monkeypatch.setattr("plateau_generator.map_set", fake_map_set)
     monkeypatch.setattr(
         "plateau_generator.load_mapping_items",
-        lambda types=None: {
-            t: [] for t in ("applications", "technologies", "information")
-        },
+        lambda path: {t: [] for t in ("applications", "technologies", "information")},
     )
     session = DummySession([])
     gen = PlateauGenerator(cast(ConversationSession, session))
