@@ -275,8 +275,8 @@ async def test_process_all_fsyncs(tmp_path, monkeypatch):
 async def test_run_one_counters_success(tmp_path, monkeypatch):
     """Successful runs update processed and token counters."""
 
-    async def ok(self, service, transcripts_dir):
-        return ("line", service.service_id, 1)
+    async def ok(self, service):
+        return ({"line": service.service_id}, service.service_id, 1)
 
     class DummyCounter:
         def __init__(self) -> None:
@@ -319,7 +319,7 @@ async def test_run_one_counters_success(tmp_path, monkeypatch):
     assert processed.value == 1
     assert failed.value == 0
     assert processed_set == {"s1"}
-    assert outfile.read_text() == "line\n"
+    assert outfile.read_text() == '{"line":"s1"}\n'
     assert gen._metrics.tokens == [1]
 
 
@@ -327,7 +327,7 @@ async def test_run_one_counters_success(tmp_path, monkeypatch):
 async def test_run_one_counters_failure(tmp_path, monkeypatch):
     """Failures increment the failed counter and release tokens."""
 
-    async def bad(self, service, transcripts_dir):
+    async def bad(self, service):
         return (None, service.service_id, 0)
 
     class DummyCounter:
