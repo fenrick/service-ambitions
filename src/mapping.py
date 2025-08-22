@@ -44,7 +44,9 @@ def set_quarantine_logger(callback: Callable[[Path], None] | None) -> None:
 def _quarantine_unknown_ids(data: Mapping[str, set[str]], service_id: str) -> Path:
     """Persist unknown mapping identifiers for ``service_id`` across all sets."""
 
-    file_path = Path("quarantine/mapping") / service_id / "unknown_ids.json"
+    file_path = Path("quarantine/mappings") / service_id / "unknown_ids.json"
+    # ``exist_ok=True`` avoids race conditions when multiple threads create the
+    # directory concurrently.
     file_path.parent.mkdir(parents=True, exist_ok=True)
     serialisable = {k: sorted(v) for k, v in data.items() if v}
     file_path.write_text(json.dumps(serialisable, indent=2), encoding="utf-8")
