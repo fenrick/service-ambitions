@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Coroutine, Sequence, cast
 from uuid import uuid4
 
+import logfire
 from pydantic_ai import Agent
 from tqdm import tqdm
 
@@ -34,7 +35,7 @@ from loader import (
 from mapping import init_embeddings
 from model_factory import ModelFactory
 from models import ServiceEvolution, ServiceInput, ServiceMeta
-from monitoring import LOG_FILE_NAME, init_logfire, logfire
+from monitoring import LOG_FILE_NAME, init_logfire
 from persistence import atomic_write, read_lines
 from plateau_generator import PlateauGenerator
 from schema_migration import migrate_record
