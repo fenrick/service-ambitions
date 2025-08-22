@@ -86,9 +86,41 @@ async def test_map_set_quarantines_unknown_ids(monkeypatch, tmp_path) -> None:
     )
     mapping.set_quarantine_logger(None)
     assert [c.item for c in mapped[0].mappings["applications"]] == ["a"]
-    qfile = tmp_path / "quarantine" / "mapping" / "svc" / "unknown_ids.json"
+    qfile = tmp_path / "quarantine" / "mappings" / "svc" / "unknown_ids.json"
     assert json.loads(qfile.read_text()) == {"applications": ["x"]}
     assert paths == [qfile]
+
+
+@pytest.mark.asyncio()
+async def test_quarantine_separates_unknown_ids_by_service(
+    monkeypatch, tmp_path
+) -> None:
+    """Unknown IDs are quarantined per service ID."""
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    response = json.dumps(
+        {"features": [{"feature_id": "f1", "applications": [{"item": "x"}]}]}
+    )
+    session = DummySession([response, response])
+    await map_set(
+        cast(ConversationSession, session),
+        "applications",
+        [_item()],
+        [_feature()],
+        service="svc1",
+    )
+    await map_set(
+        cast(ConversationSession, session),
+        "applications",
+        [_item()],
+        [_feature()],
+        service="svc2",
+    )
+    qfile1 = tmp_path / "quarantine" / "mappings" / "svc1" / "unknown_ids.json"
+    qfile2 = tmp_path / "quarantine" / "mappings" / "svc2" / "unknown_ids.json"
+    assert json.loads(qfile1.read_text()) == {"applications": ["x"]}
+    assert json.loads(qfile2.read_text()) == {"applications": ["x"]}
 
 
 @pytest.mark.asyncio()
