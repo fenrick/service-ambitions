@@ -41,11 +41,6 @@ def set_quarantine_logger(callback: Callable[[Path], None] | None) -> None:
     _quarantine_logger = callback
 
 
-async def init_embeddings() -> None:
-    """Legacy no-op kept for backwards compatibility."""
-    return None
-
-
 def _quarantine_unknown_ids(data: Mapping[str, set[str]], service_id: str) -> Path:
     """Persist unknown mapping identifiers for ``service_id`` across all sets."""
 
@@ -202,6 +197,5 @@ class MappingError(RuntimeError):
 __all__ = [
     "map_set",
     "MappingError",
-    "init_embeddings",
     "set_quarantine_logger",
 ]
