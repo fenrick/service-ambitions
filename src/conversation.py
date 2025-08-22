@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from typing import Any, Awaitable, Callable, TypeVar, overload
 
 import logfire
@@ -117,6 +117,107 @@ class ConversationSession:
                 sanitised.append(msg)
         self._history.extend(sanitised)
 
+    @contextmanager
+    def _prepare_span(
+        self,
+        span_name: str,
+        stage: str,
+        model_name: str,
+        prompt_token_estimate: int,
+    ) -> Any:
+        """Create a logging span and attach common attributes."""
+
+        span_ctx = logfire.span(span_name) if self.diagnostics else nullcontext()
+        with span_ctx as span:
+            if span and self.diagnostics:
+                # annotate span for observability when diagnostics enabled
+                span.set_attribute("stage", stage)
+                span.set_attribute("model_name", model_name)
+                span.set_attribute("prompt_token_estimate", prompt_token_estimate)
+            yield span
+
+    def _log_prompt(self, prompt: str) -> None:
+        """Optionally log the prompt text for debugging."""
+
+        if self.diagnostics and self.log_prompts:
+            # redact prompt if requested before logging
+            logged_prompt = redact_pii(prompt) if self.redact_prompts else prompt
+            logfire.debug(f"Sending prompt: {logged_prompt}")
+
+    def _handle_success(
+        self,
+        result: Any,
+        stage: str,
+        model_name: str,
+        prompt_token_estimate: int,
+    ) -> tuple[Any, int, float]:
+        """Process a successful model invocation."""
+
+        self._record_new_messages(list(result.new_messages()))
+        usage = result.usage()
+        tokens = usage.total_tokens or 0
+        cost = estimate_cost(model_name, tokens)
+        logfire.info(
+            "Prompt succeeded",
+            stage=stage,
+            model_name=model_name,
+            total_tokens=tokens,
+            prompt_token_estimate=prompt_token_estimate,
+            estimated_cost=cost,
+        )
+        return result.output, tokens, cost
+
+    def _handle_failure(
+        self,
+        exc: Exception,
+        stage: str,
+        model_name: str,
+        prompt_token_estimate: int,
+        tokens: int,
+        cost: float,
+    ) -> bool:
+        """Log failure details and record metrics."""
+
+        error_429 = "429" in getattr(exc, "args", ("",))[0]
+        if self.metrics:
+            # tag metrics when the model rate limits
+            self.metrics.record_error(is_429=error_429)
+        logfire.error(
+            "Prompt failed",
+            stage=stage,
+            model_name=model_name,
+            total_tokens=tokens,
+            prompt_token_estimate=prompt_token_estimate,
+            estimated_cost=cost,
+            error=str(exc),
+        )
+        return error_429
+
+    def _finalise_metrics(
+        self,
+        span: Any,
+        stage: str,
+        tokens: int,
+        cost: float,
+        start: float,
+        error_429: bool,
+        prompt_token_estimate: int,
+    ) -> None:
+        """Record latency, token usage and stage metrics."""
+
+        duration = time.monotonic() - start
+        if self.metrics:
+            # persist timing and token consumption metrics
+            self.metrics.record_latency(duration)
+            self.metrics.record_end_tokens(tokens)
+        if span and self.diagnostics:
+            span.set_attribute("total_tokens", tokens)
+            span.set_attribute("estimated_cost", cost)
+        TOKENS_CONSUMED.add(tokens)
+        record_stage_metrics(
+            stage, tokens, cost, duration, error_429, prompt_token_estimate
+        )
+
     T = TypeVar("T")
 
     async def _ask_common(
@@ -137,59 +238,38 @@ class ConversationSession:
         prompt_token_estimate = estimate_tokens(prompt, 0)
         start = time.monotonic()
         if self.metrics:
+            # record request initiation metrics
             self.metrics.record_request()
             self.metrics.record_start_tokens(prompt_token_estimate)
-        span_ctx = logfire.span(span_name) if self.diagnostics else nullcontext()
-        with span_ctx as span:
-            if span and self.diagnostics:
-                span.set_attribute("stage", stage)
-                span.set_attribute("model_name", model_name)
-                span.set_attribute("prompt_token_estimate", prompt_token_estimate)
+        with self._prepare_span(
+            span_name, stage, model_name, prompt_token_estimate
+        ) as span:
             try:
-                if self.diagnostics and self.log_prompts:
-                    logged_prompt = (
-                        redact_pii(prompt) if self.redact_prompts else prompt
-                    )
-                    logfire.debug(f"Sending prompt: {logged_prompt}")
+                self._log_prompt(prompt)
                 result = await runner(prompt, self._history, output_type)
-                self._record_new_messages(list(result.new_messages()))
-                usage = result.usage()
-                tokens = usage.total_tokens or 0
-                cost = estimate_cost(model_name, tokens)
-                logfire.info(
-                    "Prompt succeeded",
-                    stage=stage,
-                    model_name=model_name,
-                    total_tokens=tokens,
-                    prompt_token_estimate=prompt_token_estimate,
-                    estimated_cost=cost,
+                output, tokens, cost = self._handle_success(
+                    result, stage, model_name, prompt_token_estimate
                 )
-                return result.output
+                return output
             except Exception as exc:  # pragma: no cover - defensive logging
-                error_429 = "429" in getattr(exc, "args", ("",))[0]
-                if self.metrics:
-                    self.metrics.record_error(is_429=error_429)
-                logfire.error(
-                    "Prompt failed",
-                    stage=stage,
-                    model_name=model_name,
-                    total_tokens=tokens,
-                    prompt_token_estimate=prompt_token_estimate,
-                    estimated_cost=cost,
-                    error=str(exc),
+                error_429 = self._handle_failure(
+                    exc,
+                    stage,
+                    model_name,
+                    prompt_token_estimate,
+                    tokens,
+                    cost,
                 )
                 raise
             finally:
-                duration = time.monotonic() - start
-                if self.metrics:
-                    self.metrics.record_latency(duration)
-                    self.metrics.record_end_tokens(tokens)
-                if span and self.diagnostics:
-                    span.set_attribute("total_tokens", tokens)
-                    span.set_attribute("estimated_cost", cost)
-                TOKENS_CONSUMED.add(tokens)
-                record_stage_metrics(
-                    stage, tokens, cost, duration, error_429, prompt_token_estimate
+                self._finalise_metrics(
+                    span,
+                    stage,
+                    tokens,
+                    cost,
+                    start,
+                    error_429,
+                    prompt_token_estimate,
                 )
 
     @overload
