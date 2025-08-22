@@ -34,9 +34,11 @@ def test_process_service_async(monkeypatch):
         jobs_to_be_done=[{"name": "job"}],
     )
     gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
-    result, tokens = asyncio.run(gen.process_service(service, "prompt"))
+    result, tokens, cost, retries = asyncio.run(gen.process_service(service, "prompt"))
     assert json.loads(result["service"]) == service.model_dump()
     assert tokens == 1
+    assert cost >= 0
+    assert retries == 0
 
 
 def test_process_service_retries(monkeypatch):
@@ -67,11 +69,13 @@ def test_process_service_retries(monkeypatch):
         jobs_to_be_done=[{"name": "job"}],
     )
     gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
-    result, tokens = asyncio.run(gen.process_service(service, "prompt"))
+    result, tokens, cost, retries = asyncio.run(gen.process_service(service, "prompt"))
 
     assert attempts["count"] == 3
     assert json.loads(result["service"]) == service.model_dump()
     assert tokens == 1
+    assert cost >= 0
+    assert retries == 2
 
 
 def test_with_retry_logs_attempt(monkeypatch):
@@ -196,7 +200,7 @@ def test_with_retry_honours_retry_after(monkeypatch):
     monkeypatch.setattr(generator.asyncio, "sleep", fake_sleep)
     monkeypatch.setattr(generator.random, "random", lambda: 0.0)
 
-    result = asyncio.run(
+    result, retries = asyncio.run(
         generator._with_retry(
             lambda: flaky(),
             request_timeout=0.1,
@@ -208,6 +212,7 @@ def test_with_retry_honours_retry_after(monkeypatch):
     )
 
     assert result == "ok"
+    assert retries == 1
     assert slept["delay"] == 10.0
     assert throttled["called"] == 1
 
@@ -252,7 +257,7 @@ async def test_process_all_fsyncs(tmp_path, monkeypatch):
     monkeypatch.setattr(generator.os, "fsync", fake_fsync)
 
     async def fake_process_service(self, service, prompt=None):
-        return {"id": service.service_id}, 1
+        return {"id": service.service_id}, 1, 0.0, 0
 
     monkeypatch.setattr(
         generator.ServiceAmbitionGenerator, "process_service", fake_process_service
@@ -276,7 +281,7 @@ async def test_run_one_counters_success(tmp_path, monkeypatch):
     """Successful runs update processed and token counters."""
 
     async def ok(self, service):
-        return ({"line": service.service_id}, service.service_id, 1)
+        return ({"line": service.service_id}, service.service_id, 1, 0.0, 0, "success")
 
     class DummyCounter:
         def __init__(self) -> None:
@@ -328,7 +333,7 @@ async def test_run_one_counters_failure(tmp_path, monkeypatch):
     """Failures increment the failed counter and release tokens."""
 
     async def bad(self, service):
-        return (None, service.service_id, 0)
+        return (None, service.service_id, 0, 0.0, 0, "error")
 
     class DummyCounter:
         def __init__(self) -> None:

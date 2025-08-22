@@ -19,7 +19,8 @@ class DummyAgent:
 
     async def run(self, user_prompt: str, output_type):
         return SimpleNamespace(
-            output=SimpleNamespace(model_dump=lambda: {"service": user_prompt})
+            output=SimpleNamespace(model_dump=lambda: {"service": user_prompt}),
+            usage=lambda: SimpleNamespace(total_tokens=1),
         )
 
 
