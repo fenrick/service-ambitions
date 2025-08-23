@@ -175,7 +175,8 @@ async def test_map_set_strict_unknown_ids(monkeypatch, tmp_path) -> None:
     qfile = tmp_path / "quarantine" / "mappings" / "svc" / "unknown_ids.json"
     assert json.loads(qfile.read_text()) == {"applications": ["x"]}
     assert paths == [qfile]
-    
+
+
 async def test_map_set_diagnostics_includes_rationale(monkeypatch) -> None:
     """Diagnostics responses with rationales are accepted."""
 
@@ -199,4 +200,3 @@ async def test_map_set_diagnostics_includes_rationale(monkeypatch) -> None:
         diagnostics=True,
     )
     assert mapped[0].mappings["applications"][0].item == "a"
-

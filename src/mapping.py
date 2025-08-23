@@ -9,6 +9,7 @@ contributions back into :class:`PlateauFeature` objects.
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Mapping, Sequence, cast
@@ -28,6 +29,7 @@ from models import (
     PlateauFeature,
     StrictModel,
 )
+from telemetry import record_mapping_set
 
 if TYPE_CHECKING:
     from conversation import ConversationSession
@@ -73,8 +75,8 @@ def _merge_mapping_results(
     catalogue_items: Mapping[str, list[MappingItem]] | None = None,
     service: str = "unknown",
     strict: bool = False,
-) -> list[PlateauFeature]:
-    """Return ``features`` merged with mapping ``payload``.
+) -> tuple[list[PlateauFeature], int]:
+    """Return ``features`` merged with mapping ``payload`` and unknown count.
 
     All mapping identifiers are validated against ``valid_ids``. Invented
     identifiers are removed from the result and logged with up to
@@ -115,6 +117,7 @@ def _merge_mapping_results(
             update_data[key] = cleaned
         merged = feature.model_copy(update={"mappings": feature.mappings | update_data})
         results.append(merged)
+    unknown_total = 0
     if dropped:
         for key, ids in dropped.items():
             logfire.warning(
@@ -123,6 +126,7 @@ def _merge_mapping_results(
                 count=len(ids),
                 examples=ids[:UNKNOWN_ID_LOG_LIMIT],
             )
+            unknown_total += len(ids)
         # Persist all unknown identifiers for later analysis.
         _quarantine_unknown_ids({k: set(v) for k, v in dropped.items()}, service)
         if strict:
@@ -132,7 +136,7 @@ def _merge_mapping_results(
             logfire.warning(f"{key}.missing={count}")
         if strict:
             raise MappingError("Mappings missing for one or more features")
-    return results
+    return results, unknown_total
 
 
 async def map_set(
@@ -166,14 +170,23 @@ async def map_set(
         MappingDiagnosticsResponse if use_diag else MappingResponse
     )
 
+    start = time.monotonic()
+    retries = 0
+    tokens = 0
+    cost = 0.0
     try:
         raw = await session.ask_async(prompt, output_type=model_type)
+        tokens += getattr(session, "last_tokens", 0)
+        cost += getattr(session, "last_cost", 0.0)
         payload: StrictModel = (
             raw if isinstance(raw, StrictModel) else model_type.model_validate_json(raw)
         )
     except (ValidationError, ValueError):
+        retries = 1
         hint_prompt = f"{prompt}\nReturn valid JSON only."
         raw = await session.ask_async(hint_prompt, output_type=model_type)
+        tokens += getattr(session, "last_tokens", 0)
+        cost += getattr(session, "last_cost", 0.0)
         try:
             payload = (
                 raw
@@ -193,6 +206,16 @@ async def map_set(
                 raise MappingError(
                     f"Invalid mapping response for {svc}/{set_name}"
                 ) from exc
+            record_mapping_set(
+                set_name,
+                features=len(features),
+                mapped_ids=0,
+                unknown_ids=0,
+                retries=retries,
+                latency=time.monotonic() - start,
+                tokens=tokens,
+                cost=cost,
+            )
             return [
                 feat.model_copy(update={"mappings": feat.mappings | {set_name: []}})
                 for feat in features
@@ -214,7 +237,7 @@ async def map_set(
     else:
         payload_norm = cast(MappingResponse, payload)
 
-    return _merge_mapping_results(
+    merged, unknown_count = _merge_mapping_results(
         features,
         payload_norm,
         {set_name: cfg},
@@ -222,6 +245,19 @@ async def map_set(
         service=service or "unknown",
         strict=strict,
     )
+    latency = time.monotonic() - start
+    mapped_ids = sum(len(f.mappings.get(set_name, [])) for f in merged)
+    record_mapping_set(
+        set_name,
+        features=len(features),
+        mapped_ids=mapped_ids,
+        unknown_ids=unknown_count,
+        retries=retries,
+        latency=latency,
+        tokens=tokens,
+        cost=cost,
+    )
+    return merged
 
 
 class MappingError(RuntimeError):

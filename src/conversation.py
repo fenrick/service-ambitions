@@ -66,6 +66,9 @@ class ConversationSession:
             else (Path("transcripts") if diagnostics else None)
         )
         self._service_id: str | None = None
+        # Token usage and cost for the most recent request
+        self.last_tokens: int = 0
+        self.last_cost: float = 0.0
 
     def add_parent_materials(self, service_input: ServiceInput) -> None:
         """Seed the conversation with details about the target service.
@@ -254,6 +257,8 @@ class ConversationSession:
                 output, tokens, cost = self._handle_success(
                     result, stage, model_name, prompt_token_estimate
                 )
+                self.last_tokens = tokens
+                self.last_cost = cost
                 await self._write_transcript(prompt, output)
                 return output
             except Exception as exc:  # pragma: no cover - defensive logging

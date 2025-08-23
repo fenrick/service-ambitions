@@ -20,6 +20,7 @@ import logfire
 from pydantic_ai import Agent
 from tqdm import tqdm
 
+import telemetry
 from canonical import canonicalise_record
 from conversation import ConversationSession
 from diagnostics import validate_jsonl
@@ -31,6 +32,7 @@ from loader import (
     load_evolution_prompt,
     load_role_ids,
 )
+from mapping import set_quarantine_logger
 from model_factory import ModelFactory
 from models import ServiceEvolution, ServiceInput, ServiceMeta
 from monitoring import LOG_FILE_NAME, init_logfire
@@ -770,12 +772,17 @@ def main() -> None:
 
     _configure_logging(args, settings)
 
+    telemetry.reset()
+    set_quarantine_logger(telemetry.record_quarantine)
     result = args.func(args, settings, None)
     if inspect.isawaitable(result):
         # Cast ensures that asyncio.run receives a proper Coroutine
         asyncio.run(cast(Coroutine[Any, Any, Any], result))
 
+    telemetry.print_summary()
     logfire.force_flush()
+    if settings.strict_mapping and telemetry.has_quarantines():
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
