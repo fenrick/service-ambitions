@@ -207,7 +207,6 @@ def test_with_retry_honours_retry_after(monkeypatch):
             attempts=2,
             base=0.1,
             on_retry_after=fake_throttle,
-            metrics=generator.RollingMetrics(window=1),
         )
     )
 

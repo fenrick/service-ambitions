@@ -21,7 +21,6 @@ import logfire
 from pydantic_ai import Agent
 from tqdm import tqdm
 
-from backpressure import RollingMetrics
 from conversation import ConversationSession
 from diagnostics import validate_jsonl
 from generator import AmbitionModel, ServiceAmbitionGenerator
@@ -194,11 +193,9 @@ async def _generate_evolution_for_service(
             feat_agent = Agent(feat_model, instructions=system_prompt)
             map_agent = Agent(map_model, instructions=system_prompt)
 
-            metrics = RollingMetrics()
             desc_session = ConversationSession(
                 desc_agent,
                 stage="descriptions",
-                metrics=metrics,
                 diagnostics=settings.diagnostics,
                 log_prompts=not args.no_logs,
                 redact_prompts=True,
@@ -207,7 +204,6 @@ async def _generate_evolution_for_service(
             feat_session = ConversationSession(
                 feat_agent,
                 stage="features",
-                metrics=metrics,
                 diagnostics=settings.diagnostics,
                 log_prompts=not args.no_logs,
                 redact_prompts=True,
@@ -216,7 +212,6 @@ async def _generate_evolution_for_service(
             map_session = ConversationSession(
                 map_agent,
                 stage="mapping",
-                metrics=metrics,
                 diagnostics=settings.diagnostics,
                 log_prompts=not args.no_logs,
                 redact_prompts=True,
@@ -504,11 +499,9 @@ async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
 
     map_model = factory.get("mapping", args.mapping_model or args.model)
     map_agent = Agent(map_model, instructions="")
-    metrics = RollingMetrics()
     session = ConversationSession(
         map_agent,
         stage="mapping",
-        metrics=metrics,
         diagnostics=settings.diagnostics,
         log_prompts=not args.no_logs,
         redact_prompts=True,

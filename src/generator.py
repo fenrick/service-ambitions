@@ -11,7 +11,6 @@ import asyncio
 import json
 import os
 import random
-import time
 from asyncio import Semaphore, TaskGroup
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, TextIO, TypeVar
@@ -23,7 +22,6 @@ from pydantic_ai.models import Model
 from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModelSettings
 from tqdm import tqdm
 
-from backpressure import RollingMetrics
 from models import ReasoningConfig, ServiceInput
 from redaction import redact_pii
 from token_utils import estimate_cost
@@ -101,7 +99,6 @@ async def _with_retry(
     base: float = 0.5,
     cap: float = 8.0,
     on_retry_after: Callable[[float], None] | None = None,
-    metrics: RollingMetrics | None = None,
 ) -> tuple[T, int]:
     """Execute ``coro_factory`` with exponential backoff and jitter.
 
@@ -125,9 +122,6 @@ async def _with_retry(
     """
 
     def _handle_retry(exc: BaseException, attempt: int) -> float:
-        if metrics:
-            is_429 = RateLimitError is not None and isinstance(exc, RateLimitError)
-            metrics.record_error(is_429=is_429)
         if attempt == attempts - 1:
             raise
         delay = min(cap, base * (2**attempt))
@@ -139,21 +133,10 @@ async def _with_retry(
                 on_retry_after(hint)
         return delay
 
-    def _record_request() -> None:
-        if metrics:
-            metrics.record_request()
-
-    def _record_latency(start_time: float) -> None:
-        if metrics:
-            metrics.record_latency(time.monotonic() - start_time)
-
     for attempt in range(attempts):
-        _record_request()
-        start = time.monotonic()
         try:
             result = await asyncio.wait_for(coro_factory(), timeout=request_timeout)
         except TRANSIENT_EXCEPTIONS as exc:
-            _record_latency(start)
             delay = _handle_retry(exc, attempt)
             logfire.warning(
                 "Retrying request",
@@ -162,7 +145,6 @@ async def _with_retry(
             )
             await asyncio.sleep(delay)
             continue
-        _record_latency(start)
         return result, attempt
     raise RuntimeError("Unreachable retry state")
 
@@ -217,15 +199,12 @@ class ServiceAmbitionGenerator:
         self.retry_base_delay = retry_base_delay
         self._prompt: str | None = None
         self._limiter: Semaphore | None = None
-        self._metrics: RollingMetrics | None = None
 
     def _setup_controls(self) -> None:
-        """Ensure rate limiter and metrics are initialised."""
+        """Ensure rate limiter is initialised."""
 
         if self._limiter is None:
             self._limiter = Semaphore(self.concurrency)
-        if self._metrics is None:
-            self._metrics = RollingMetrics()
 
     async def _process_service_line(
         self, service: ServiceInput
@@ -295,9 +274,7 @@ class ServiceAmbitionGenerator:
                 await self._process_service_line(service)
             )
 
-        if self._metrics:
-            # Track token usage after releasing the semaphore to avoid blocking
-            self._metrics.record_tokens(tokens)
+        # Token usage is tracked via logfire metrics.
 
         if payload is not None:
             line = AmbitionModel.model_validate(payload).model_dump_json()
@@ -359,7 +336,6 @@ class ServiceAmbitionGenerator:
             attempts=self.retries,
             base=self.retry_base_delay,
             on_retry_after=getattr(self._limiter, "throttle", None),
-            metrics=self._metrics,
         )
         usage = result.usage()
         tokens = usage.total_tokens or 0
@@ -439,7 +415,6 @@ class ServiceAmbitionGenerator:
             self._prompt = prompt
             try:
                 self._limiter = Semaphore(self.concurrency)
-                self._metrics = RollingMetrics()
                 processed = await self._process_all(
                     services, output_path, progress, transcripts_dir=transcripts_dir
                 )
@@ -451,7 +426,6 @@ class ServiceAmbitionGenerator:
             finally:
                 self._prompt = None
                 self._limiter = None
-                self._metrics = None
 
     async def generate(
         self,
