@@ -21,7 +21,6 @@ from pydantic_ai import Agent, messages
 
 from models import ServiceInput
 from redaction import redact_pii
-from stage_metrics import record_stage_metrics
 from token_utils import estimate_cost, estimate_tokens
 
 PROMPTS_SENT = logfire.metric_counter("prompts_sent")
@@ -204,10 +203,9 @@ class ConversationSession:
         prompt_token_estimate: int,
         tokens: int,
         cost: float,
-    ) -> bool:
+    ) -> None:
         """Log failure details."""
 
-        error_429 = "429" in getattr(exc, "args", ("",))[0]
         logfire.error(
             "Prompt failed",
             stage=stage,
@@ -217,28 +215,22 @@ class ConversationSession:
             estimated_cost=cost,
             error=str(exc),
         )
-        return error_429
 
     def _finalise_metrics(
         self,
         span: Any,
-        stage: str,
         tokens: int,
         cost: float,
         start: float,
-        error_429: bool,
-        prompt_token_estimate: int,
     ) -> None:
-        """Record latency, token usage and stage metrics."""
+        """Record latency and token usage."""
 
         duration = time.monotonic() - start
         if span and self.diagnostics:
             span.set_attribute("total_tokens", tokens)
             span.set_attribute("estimated_cost", cost)
+            span.set_attribute("duration", duration)
         TOKENS_CONSUMED.add(tokens)
-        record_stage_metrics(
-            stage, tokens, cost, duration, error_429, prompt_token_estimate
-        )
 
     T = TypeVar("T")
 
@@ -256,7 +248,6 @@ class ConversationSession:
         PROMPTS_SENT.add(1)
         tokens = 0
         cost = 0.0
-        error_429 = False
         prompt_token_estimate = estimate_tokens(prompt, 0)
         start = time.monotonic()
         with self._prepare_span(
@@ -271,7 +262,7 @@ class ConversationSession:
                 await self._write_transcript(prompt, output)
                 return output
             except Exception as exc:  # pragma: no cover - defensive logging
-                error_429 = self._handle_failure(
+                self._handle_failure(
                     exc,
                     stage,
                     model_name,
@@ -281,15 +272,7 @@ class ConversationSession:
                 )
                 raise
             finally:
-                self._finalise_metrics(
-                    span,
-                    stage,
-                    tokens,
-                    cost,
-                    start,
-                    error_429,
-                    prompt_token_estimate,
-                )
+                self._finalise_metrics(span, tokens, cost, start)
 
     @overload
     def ask(self, prompt: str) -> str: ...

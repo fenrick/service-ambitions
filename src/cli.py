@@ -39,7 +39,6 @@ from plateau_generator import PlateauGenerator
 from schema_migration import migrate_record
 from service_loader import load_services
 from settings import load_settings
-from stage_metrics import log_stage_totals, reset_stage_totals
 
 SERVICES_PROCESSED = logfire.metric_counter("services_processed")
 EVOLUTIONS_GENERATED = logfire.metric_counter("evolutions_generated")
@@ -278,7 +277,6 @@ async def _cmd_generate_ambitions(
     args: argparse.Namespace, settings, transcripts_dir: Path | None
 ) -> None:
     """Generate service ambitions and write them to disk."""
-    reset_stage_totals()
     output_path = Path(args.output_file)
     attrs = {"output_path": str(output_path), "resume": args.resume}
     with logfire.span("cmd_generate_ambitions", attributes=attrs) as span:
@@ -385,16 +383,12 @@ async def _cmd_generate_ambitions(
                 error=str(exc),
             )
             raise
-        finally:
-            log_stage_totals()
 
 
 async def _cmd_generate_evolution(
     args: argparse.Namespace, settings, transcripts_dir: Path | None
 ) -> None:
     """Generate service evolution summaries."""
-
-    reset_stage_totals()
 
     use_web_search = (
         args.web_search if args.web_search is not None else settings.web_search
@@ -467,23 +461,19 @@ async def _cmd_generate_evolution(
     if progress:
         progress.close()
 
-    try:
-        processed_ids = _save_results(
-            resume=args.resume,
-            part_path=part_path,
-            output_path=output_path,
-            existing_lines=existing_lines,
-            processed_ids=processed_ids,
-            new_ids=new_ids,
-            processed_path=processed_path,
-        )
-    finally:
-        log_stage_totals()
+    processed_ids = _save_results(
+        resume=args.resume,
+        part_path=part_path,
+        output_path=output_path,
+        existing_lines=existing_lines,
+        processed_ids=processed_ids,
+        new_ids=new_ids,
+        processed_path=processed_path,
+    )
 
 
 async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
     """Augment evolution features with mapping results."""
-    reset_stage_totals()
 
     use_web_search = (
         args.web_search if args.web_search is not None else settings.web_search
@@ -538,15 +528,12 @@ async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
             plateau.features = [mapped_by_id[f.feature_id] for f in plateau.features]
 
     output_path = Path(args.output)
+    out = await asyncio.to_thread(output_path.open, "w", encoding="utf-8")
     try:
-        out = await asyncio.to_thread(output_path.open, "w", encoding="utf-8")
-        try:
-            for evo in evolutions:
-                await asyncio.to_thread(out.write, f"{evo.model_dump_json()}\n")
-        finally:
-            await asyncio.to_thread(out.close)
+        for evo in evolutions:
+            await asyncio.to_thread(out.write, f"{evo.model_dump_json()}\n")
     finally:
-        log_stage_totals()
+        await asyncio.to_thread(out.close)
 
 
 def _cmd_migrate_jsonl(args: argparse.Namespace, _settings) -> None:
