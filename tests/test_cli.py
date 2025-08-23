@@ -485,10 +485,11 @@ def test_cli_no_logs_disables_logging(tmp_path, monkeypatch):
         diagnostics=False,
     )
 
-    called = {"init": False}
+    called: dict[str, object] = {}
 
-    def fake_init(token, diagnostics=False):
-        called["init"] = True
+    def fake_init(token, diagnostics):
+        called["token"] = token
+        called["diagnostics"] = diagnostics
 
     async def fake_generate_async(
         self, services, prompt, output_path, progress=None, transcripts_dir=None
@@ -526,7 +527,7 @@ def test_cli_no_logs_disables_logging(tmp_path, monkeypatch):
     assert output_file.exists()
     assert not (tmp_path / LOG_FILE_NAME).exists()
     assert not (tmp_path / "_transcripts").exists()
-    assert not called["init"]
+    assert called == {}
     assert all(not flag for flag in seen)
 
 
