@@ -19,7 +19,6 @@ from typing import Any, Awaitable, Callable, TypeVar, overload
 import logfire
 from pydantic_ai import Agent, messages
 
-from backpressure import RollingMetrics
 from models import ServiceInput
 from redaction import redact_pii
 from stage_metrics import record_stage_metrics
@@ -45,7 +44,6 @@ class ConversationSession:
         diagnostics: bool = False,
         log_prompts: bool = False,
         redact_prompts: bool = False,
-        metrics: RollingMetrics | None = None,
         transcripts_dir: Path | None = None,
     ) -> None:
         """Initialise the session with a configured LLM client.
@@ -56,7 +54,6 @@ class ConversationSession:
             diagnostics: Enable detailed logging and span creation.
             log_prompts: Debug log prompt text when ``diagnostics`` is ``True``.
             redact_prompts: Redact prompt text before logging when ``log_prompts``.
-            metrics: Optional rolling metrics recorder for request telemetry.
             transcripts_dir: Directory used to store prompt/response transcripts
                 when diagnostics mode is enabled.
         """
@@ -66,7 +63,6 @@ class ConversationSession:
         self.diagnostics = diagnostics
         self.log_prompts = log_prompts if diagnostics else False
         self.redact_prompts = redact_prompts
-        self.metrics = metrics
         self._history: list[messages.ModelMessage] = []
         self.transcripts_dir = (
             transcripts_dir
@@ -103,7 +99,6 @@ class ConversationSession:
             diagnostics=self.diagnostics,
             log_prompts=self.log_prompts,
             redact_prompts=self.redact_prompts,
-            metrics=self.metrics,
             transcripts_dir=self.transcripts_dir,
         )
         clone._history = list(self._history)
@@ -210,12 +205,9 @@ class ConversationSession:
         tokens: int,
         cost: float,
     ) -> bool:
-        """Log failure details and record metrics."""
+        """Log failure details."""
 
         error_429 = "429" in getattr(exc, "args", ("",))[0]
-        if self.metrics:
-            # tag metrics when the model rate limits
-            self.metrics.record_error(is_429=error_429)
         logfire.error(
             "Prompt failed",
             stage=stage,
@@ -240,10 +232,6 @@ class ConversationSession:
         """Record latency, token usage and stage metrics."""
 
         duration = time.monotonic() - start
-        if self.metrics:
-            # persist timing and token consumption metrics
-            self.metrics.record_latency(duration)
-            self.metrics.record_end_tokens(tokens)
         if span and self.diagnostics:
             span.set_attribute("total_tokens", tokens)
             span.set_attribute("estimated_cost", cost)
@@ -271,9 +259,6 @@ class ConversationSession:
         error_429 = False
         prompt_token_estimate = estimate_tokens(prompt, 0)
         start = time.monotonic()
-        if self.metrics:
-            # record request initiation metrics
-            self.metrics.record_request()
         with self._prepare_span(
             span_name, stage, model_name, prompt_token_estimate
         ) as span:
