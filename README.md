@@ -146,7 +146,7 @@ demos.
 
 ### Remapping mode
 
-Use `generate-mapping` to refresh mapping contributions for existing evolution
+Use `generate-mapping` to refresh feature mappings for existing evolution
 results. It reads an evolution JSON Lines file and writes an updated file with
 new mapping data. Adjust mapping behaviour with:
 
@@ -292,7 +292,7 @@ Each JSON line in the output file follows the `ServiceEvolution` schema:
           "customer_type": "string",
           "mappings": {
             "information": [{ "item": "string" }],
-            "applications": [{ "item": "string", "contribution": 0.5 }],
+            "applications": [{ "item": "string" }],
             "technologies": [{ "item": "string" }]
           }
         }
@@ -322,9 +322,8 @@ Fields in the schema:
       - `score`: object with CMMI maturity `level`, `label` and `justification`.
       - `customer_type`: audience benefiting from the feature.
       - `mappings`: object with `information`, `applications` and
-        `technologies` lists of mapping items describing why a mapped item
-        supports the feature. Each item may include an optional `contribution`
-        weight between 0.1 and 1.0.
+        `technologies` lists of mapping items referencing supporting IDs. Use
+        `--diagnostics` to include a brief `rationale` for each mapping.
 
 ## Reference Data
 
@@ -379,13 +378,12 @@ Map each feature to relevant Applications from the list below.
 ## Instructions
 
 - Return a JSON object with a top-level "features" array.
-- Each element must include "feature_id" and an "applications" array.
-- Items may include an optional "contribution" value between 0.1 and 1.0.
+- Each element must include "feature_id" and an "applications" array of objects with an "item" field only.
 - Do not invent IDs; only use those provided.
 - Do not include any text outside the JSON object.
 ```
 
-Repeat this structure for the `technologies` and `information` datasets.
+Repeat this structure for the `technologies` and `information` datasets. Run with `--diagnostics` to additionally request a one-line rationale for each mapping.
 
 ## Testing
 

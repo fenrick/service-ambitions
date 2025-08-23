@@ -20,11 +20,7 @@ from models import (
 TEXT = st.text(min_size=1, max_size=20)
 
 # Strategy generating valid ``Contribution`` instances.
-contributions = st.builds(
-    Contribution,
-    item=TEXT,
-    contribution=st.one_of(st.none(), st.floats(min_value=0.1, max_value=1.0)),
-)
+contributions = st.builds(Contribution, item=TEXT)
 
 
 # Strategy producing mapping dictionaries with up to three types and unbounded items.

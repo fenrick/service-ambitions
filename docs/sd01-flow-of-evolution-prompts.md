@@ -170,7 +170,7 @@ Map each feature to relevant Information, Applications and Technologies from the
 #### Instructions
 - Return a JSON object with a top-level "features" array.
 - Each element must include "feature_id" and a "mappings" object containing "information", "applications" and "technologies" arrays.
-- Items may include an optional "contribution" field in the range [0.1, 1.0] where 1.0 = critical, 0.5 = helpful and 0.1 = weak.
+- Each mapping entry must include an "item" field. When diagnostics are enabled, also return a single-line "rationale" for the match.
 - Do not invent IDs; only use those provided.
 - Maintain terminology consistent with the situational context, definitions and inspirations.
 - Do not include any text outside the JSON object.
@@ -188,9 +188,9 @@ Map each feature to relevant Information, Applications and Technologies from the
         "properties": {
           "feature_id": {"type": "string"},
             "mappings": {"type": "object", "properties": {
-              "information": {"type": "array", "items": {"type": "object", "properties": {"item": {"type": "string"}, "contribution": {"type": "number", "minimum": 0.1, "maximum": 1.0}}, "required": ["item"]}},
-              "applications": {"type": "array", "items": {"type": "object", "properties": {"item": {"type": "string"}, "contribution": {"type": "number", "minimum": 0.1, "maximum": 1.0}}, "required": ["item"]}},
-              "technologies": {"type": "array", "items": {"type": "object", "properties": {"item": {"type": "string"}, "contribution": {"type": "number", "minimum": 0.1, "maximum": 1.0}}, "required": ["item"]}}
+              "information": {"type": "array", "items": {"type": "object", "properties": {"item": {"type": "string"}, "rationale": {"type": "string"}}, "required": ["item"]}},
+              "applications": {"type": "array", "items": {"type": "object", "properties": {"item": {"type": "string"}, "rationale": {"type": "string"}}, "required": ["item"]}},
+              "technologies": {"type": "array", "items": {"type": "object", "properties": {"item": {"type": "string"}, "rationale": {"type": "string"}}, "required": ["item"]}}
             }, "required": ["information", "applications", "technologies"]}
         },
         "required": ["feature_id", "mappings"]

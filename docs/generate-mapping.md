@@ -36,13 +36,13 @@ present, is replaced.
 ## Output format
 
 The output mirrors the input structure with refreshed mappings under each
-feature. Mapping lists include an `item` identifier and may include a
-`contribution` weight in the range `[0.1, 1.0]`.
+feature. Mapping lists include an `item` identifier only. Pass `--diagnostics`
+to also receive a `rationale` explaining each match.
 
 ```json
 "mappings": {
   "applications": [{"item": "APP001"}],
-  "technologies": [{"item": "TECH002", "contribution": 0.5}],
+  "technologies": [{"item": "TECH002"}],
   "information": [{"item": "INFO003"}]
 }
 ```

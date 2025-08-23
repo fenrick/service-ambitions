@@ -195,9 +195,9 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
     async def dummy_map_features(self, session, feats):
         call["n"] += 1
         for feat in feats:
-            feat.mappings["data"] = [Contribution(item="d", contribution=0.5)]
-            feat.mappings["applications"] = [Contribution(item="a", contribution=0.5)]
-            feat.mappings["technology"] = [Contribution(item="t", contribution=0.5)]
+            feat.mappings["data"] = [Contribution(item="d")]
+            feat.mappings["applications"] = [Contribution(item="a")]
+            feat.mappings["technology"] = [Contribution(item="t")]
         return feats
 
     monkeypatch.setattr(PlateauGenerator, "_map_features", dummy_map_features)
@@ -911,7 +911,7 @@ def test_validate_plateau_results_strict_checks() -> None:
         description="d",
         score=MaturityScore(level=1, label="Initial", justification="j"),
         customer_type="learners",
-        mappings={"apps": [Contribution(item="a", contribution=1.0)]},
+        mappings={"apps": [Contribution(item="a")]},
     )
     result = PlateauResult(
         plateau=1,
