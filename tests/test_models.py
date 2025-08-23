@@ -146,3 +146,19 @@ def test_mapping_diagnostics_response_parses_rationale() -> None:
 
     result = MappingDiagnosticsResponse.model_validate(payload)
     assert result.features[0].mappings["data"][0].rationale == "why"
+
+
+def test_service_meta_validates_context_window() -> None:
+    """context_window must be non-negative."""
+
+    with pytest.raises(ValidationError):
+        ServiceMeta(run_id="run", context_window=-1)
+
+
+def test_service_meta_validates_catalogue_hash() -> None:
+    """catalogue_hash must be a 64 character hex string when set."""
+
+    with pytest.raises(ValidationError):
+        ServiceMeta(run_id="run", catalogue_hash="abc")
+    # valid hash should not raise
+    ServiceMeta(run_id="run", catalogue_hash="0" * 64)

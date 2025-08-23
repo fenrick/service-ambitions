@@ -52,6 +52,9 @@ class DummySession:
     def add_parent_materials(self, service_input: ServiceInput) -> None:
         pass
 
+    def derive(self) -> "DummySession":
+        return self
+
 
 def _meta() -> ServiceMeta:
     return ServiceMeta(
