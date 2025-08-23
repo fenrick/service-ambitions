@@ -27,8 +27,8 @@ poetry run service-ambitions generate-evolution \
 Use `--roles-file` to supply an alternative roles definition file when needed.
 
 Logfire is required by the CLI but the `LOGFIRE_TOKEN` environment variable is
-optional for local runs. Set the token to stream traces to Logfire; omit it to
-disable telemetry.
+optional for local runs. Set the token to stream traces to Logfire; without it,
+telemetry remains local.
 
 Pass `--strict` to abort if any role lacks features or if generated features
 contain empty mapping lists. This turns on a fail-fast mode instead of the
