@@ -295,7 +295,7 @@ def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
 
     assert captured["model"] == "test-model"
     assert captured["api_key"] == "dummy"
-    assert captured["seed"] is None
+    assert captured["seed"] == 0
     assert captured["web_search"] is False
 
 

@@ -19,9 +19,13 @@ import logfire
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.models import Model
-from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModelSettings
+from pydantic_ai.models.openai import (
+    OpenAIResponsesModel,
+    OpenAIResponsesModelSettings,
+)
 from tqdm import tqdm
 
+from canonical import canonicalise_record
 from models import ReasoningConfig, ServiceInput
 from redaction import redact_pii
 from token_utils import estimate_cost
@@ -277,13 +281,25 @@ class ServiceAmbitionGenerator:
         # Token usage is tracked via logfire metrics.
 
         if payload is not None:
-            line = AmbitionModel.model_validate(payload).model_dump_json()
+            record = canonicalise_record(
+                AmbitionModel.model_validate(payload).model_dump(mode="python")
+            )
+            line = json.dumps(
+                record, separators=(",", ":"), ensure_ascii=False, sort_keys=True
+            )
             if transcripts_dir is not None:
                 transcript = {
                     "request": service.model_dump(),
-                    "response": json.loads(line),
+                    "response": record,
                 }
-                data = redact_pii(json.dumps(transcript, ensure_ascii=False))
+                data = redact_pii(
+                    json.dumps(
+                        transcript,
+                        separators=(",", ":"),
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    )
+                )
                 path = transcripts_dir / f"{svc_id}.json"
                 await asyncio.to_thread(path.write_text, data, encoding="utf-8")
 
@@ -469,9 +485,11 @@ def build_model(
         os.environ.setdefault("OPENAI_API_KEY", api_key)
     # Allow callers to pass provider-prefixed names such as ``openai:gpt-4``.
     model_name = model_name.split(":", 1)[-1]
-    settings: OpenAIResponsesModelSettings = {}
-    if seed is not None:
-        settings["seed"] = seed
+    settings: OpenAIResponsesModelSettings = {
+        "temperature": 0,
+        "top_p": 1,
+        "seed": seed if seed is not None else 0,
+    }
     if web_search:
         # Allow optional access to the ``web_search_preview`` tool which provides
         # browsing capabilities. Disabling keeps runs deterministic and avoids
