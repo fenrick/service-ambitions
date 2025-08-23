@@ -75,7 +75,9 @@ async def test_map_set_quarantines_unknown_ids(monkeypatch, tmp_path) -> None:
     )
     session = DummySession([response])
     paths: list[Path] = []
-    mapping.set_quarantine_logger(lambda p: paths.append(p.resolve()))
+    monkeypatch.setattr(
+        "telemetry.record_quarantine", lambda p: paths.append(p.resolve())
+    )
     warnings: list[tuple[str, dict[str, Any]]] = []
     monkeypatch.setattr(
         mapping.logfire, "warning", lambda msg, **kw: warnings.append((msg, kw))
@@ -87,11 +89,14 @@ async def test_map_set_quarantines_unknown_ids(monkeypatch, tmp_path) -> None:
         [_feature()],
         service="svc",
     )
-    mapping.set_quarantine_logger(None)
     assert [c.item for c in mapped[0].mappings["applications"]] == ["a"]
-    qfile = tmp_path / "quarantine" / "mappings" / "svc" / "unknown_ids.json"
-    assert json.loads(qfile.read_text()) == {"applications": ["x"]}
-    assert paths == [qfile]
+    qdir = tmp_path / "quarantine" / "svc" / "applications"
+    qfile = qdir / "unknown_ids_1.json"
+    assert json.loads(qfile.read_text()) == ["x"]
+    manifest = json.loads((qdir / "manifest.json").read_text())
+    assert manifest["unknown_ids"]["count"] == 1
+    assert manifest["unknown_ids"]["examples"] == [["x"]]
+    assert paths == [qfile.resolve()]
     dropped = [kw for msg, kw in warnings if msg == "Dropped unknown mapping IDs"]
     assert dropped[0]["examples"] == ["x"]
 
@@ -122,10 +127,10 @@ async def test_quarantine_separates_unknown_ids_by_service(
         [_feature()],
         service="svc2",
     )
-    qfile1 = tmp_path / "quarantine" / "mappings" / "svc1" / "unknown_ids.json"
-    qfile2 = tmp_path / "quarantine" / "mappings" / "svc2" / "unknown_ids.json"
-    assert json.loads(qfile1.read_text()) == {"applications": ["x"]}
-    assert json.loads(qfile2.read_text()) == {"applications": ["x"]}
+    qfile1 = tmp_path / "quarantine" / "svc1" / "applications" / "unknown_ids_1.json"
+    qfile2 = tmp_path / "quarantine" / "svc2" / "applications" / "unknown_ids_1.json"
+    assert json.loads(qfile1.read_text()) == ["x"]
+    assert json.loads(qfile2.read_text()) == ["x"]
 
 
 @pytest.mark.asyncio()
@@ -134,7 +139,9 @@ async def test_map_set_strict_raises(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
     session = DummySession(["bad", "still bad"])
     paths: list[Path] = []
-    mapping.set_quarantine_logger(lambda p: paths.append(p.resolve()))
+    monkeypatch.setattr(
+        "telemetry.record_quarantine", lambda p: paths.append(p.resolve())
+    )
     with pytest.raises(MappingError):
         await map_set(
             cast(ConversationSession, session),
@@ -144,10 +151,9 @@ async def test_map_set_strict_raises(monkeypatch, tmp_path) -> None:
             service="svc",
             strict=True,
         )
-    mapping.set_quarantine_logger(None)
-    qfile = tmp_path / "quarantine" / "mapping" / "svc" / "applications.txt"
+    qfile = tmp_path / "quarantine" / "svc" / "applications" / "json_parse_error_1.json"
     assert qfile.exists()
-    assert paths == [qfile]
+    assert paths == [qfile.resolve()]
 
 
 @pytest.mark.asyncio()
@@ -161,7 +167,9 @@ async def test_map_set_strict_unknown_ids(monkeypatch, tmp_path) -> None:
     )
     session = DummySession([response])
     paths: list[Path] = []
-    mapping.set_quarantine_logger(lambda p: paths.append(p.resolve()))
+    monkeypatch.setattr(
+        "telemetry.record_quarantine", lambda p: paths.append(p.resolve())
+    )
     with pytest.raises(MappingError):
         await map_set(
             cast(ConversationSession, session),
@@ -171,12 +179,12 @@ async def test_map_set_strict_unknown_ids(monkeypatch, tmp_path) -> None:
             service="svc",
             strict=True,
         )
-    mapping.set_quarantine_logger(None)
-    qfile = tmp_path / "quarantine" / "mappings" / "svc" / "unknown_ids.json"
-    assert json.loads(qfile.read_text()) == {"applications": ["x"]}
-    assert paths == [qfile]
+    qfile = tmp_path / "quarantine" / "svc" / "applications" / "unknown_ids_1.json"
+    assert json.loads(qfile.read_text()) == ["x"]
+    assert paths == [qfile.resolve()]
 
 
+@pytest.mark.asyncio()
 async def test_map_set_diagnostics_includes_rationale(monkeypatch) -> None:
     """Diagnostics responses with rationales are accepted."""
 
