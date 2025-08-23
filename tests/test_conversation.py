@@ -125,6 +125,24 @@ def test_ask_omits_prompt_logging_when_disabled(tmp_path, monkeypatch) -> None:
     assert calls == []
 
 
+def test_catalogue_strings_not_logged_by_default(monkeypatch) -> None:
+    """Catalogue details should not leak to logs without explicit opt-in."""
+
+    agent = DummyAgent()
+    session = ConversationSession(
+        cast(Agent[None, str], agent),
+        diagnostics=True,
+        log_prompts=False,
+    )
+    logged: list[str] = []
+    monkeypatch.setattr(conversation.logfire, "debug", lambda msg: logged.append(msg))
+
+    prompt = "## Available widgets\nW1\tWidget One\tDesc"
+    session.ask(prompt)
+
+    assert not any("Widget One" in msg for msg in logged)
+
+
 def test_ask_redacts_prompt_when_enabled(tmp_path, monkeypatch) -> None:
     """Prompt text should pass through ``redact_pii`` before logging."""
 

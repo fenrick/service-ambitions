@@ -25,7 +25,8 @@ poetry run service-ambitions generate-evolution \
 `--strict-mapping/--no-strict-mapping` fails when feature mappings are missing or
 contain unknown identifiers.
 `--diagnostics/--no-diagnostics` enables verbose diagnostics output and
-telemetry instrumentation.
+telemetry instrumentation. Prompt text is hidden from logs unless
+`--allow-prompt-logging` is passed.
 Use `--roles-file` to supply an alternative roles definition file when needed.
 
 Logfire is required by the CLI but the `LOGFIRE_TOKEN` environment variable is

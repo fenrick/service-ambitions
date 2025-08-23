@@ -57,7 +57,7 @@ class ConversationSession:
         self.client = client
         self.stage = stage
         self.diagnostics = diagnostics
-        self.log_prompts = log_prompts if diagnostics else False
+        self.log_prompts = log_prompts
         self.redact_prompts = redact_prompts
         self._history: list[messages.ModelMessage] = []
         self.transcripts_dir = (

@@ -22,6 +22,7 @@ produces an empty list or contains unknown identifiers. Disable with
 
 `--diagnostics` enables verbose logging and telemetry instrumentation useful for
 troubleshooting. Instrumentation runs only when this verbose mode is enabled.
+Prompt text is omitted unless `--allow-prompt-logging` is supplied.
 
 Mapping runs once per configured set. Each prompt receives the relevant
 reference list—`applications`, `technologies` and `information` by default—and
