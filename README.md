@@ -18,7 +18,10 @@ handled via [Pydantic AI](https://pydantic.dev/pydantic-ai/).
 Create a `.env` file in the project root with:
 
 ```
+# Required for API access
 OPENAI_API_KEY=your_api_key_here
+# Optional: provide to publish telemetry to Logfire
+# LOGFIRE_TOKEN=your_logfire_token
 ```
 
 For production deployments, inject the variable using your platform's secret
@@ -80,10 +83,10 @@ directory, `--context-id` to select a situational context, and
 supports swapping sections to suit different industries.
 
 This project depends on the [Pydantic Logfire](https://logfire.pydantic.dev/)
-libraries even when telemetry is disabled. Logfire is required but the
-`LOGFIRE_TOKEN` environment variable is optional for local runs. Set the token
-to send traces to Logfire. When configured, the CLI instruments Pydantic,
-Pydantic AI, OpenAI and system metrics automatically.
+libraries for telemetry. The `LOGFIRE_TOKEN` environment variable is optional:
+without it, Logfire still records logs and metrics locally but nothing is sent
+to the cloud. Provide a token to stream traces to Logfire. When configured, the
+CLI instruments Pydantic, Pydantic AI, OpenAI and system metrics automatically.
 
 ## Installation
 
