@@ -77,6 +77,7 @@ class PlateauGenerator:
         description_session: ConversationSession | None = None,
         mapping_session: ConversationSession | None = None,
         strict: bool = False,
+        use_local_cache: bool = False,
     ) -> None:
         """Initialise the generator.
 
@@ -87,6 +88,8 @@ class PlateauGenerator:
             description_session: Session used for plateau descriptions.
             mapping_session: Session used for feature mapping.
             strict: Enforce feature and mapping completeness when ``True``.
+            use_local_cache: Read and write mapping results from ``.cache`` when
+                ``True``.
         """
         if required_count < 1:
             raise ValueError("required_count must be positive")
@@ -96,6 +99,7 @@ class PlateauGenerator:
         self.required_count = required_count
         self.roles = list(roles or DEFAULT_ROLE_IDS)
         self.strict = strict
+        self.use_local_cache = use_local_cache
         self._service: ServiceInput | None = None
         # Track quarantine file paths for invalid plateau descriptions.
         self.quarantined_descriptions: list[Path] = []
@@ -140,6 +144,7 @@ class PlateauGenerator:
                 base,
                 service=service_name,
                 strict=self.strict,
+                use_local_cache=self.use_local_cache,
             )
             mapped_sets.append(result)
 

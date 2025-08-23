@@ -24,6 +24,9 @@ produces an empty list or contains unknown identifiers. Disable with
 troubleshooting. Instrumentation runs only when this verbose mode is enabled.
 Prompt text is omitted unless `--allow-prompt-logging` is supplied.
 
+`--use-local-cache` reads and writes mapping responses under `.cache/mapping` to
+avoid repeated network requests during development.
+
 Mapping runs once per configured set. Each prompt receives the relevant
 reference list—`applications`, `technologies` and `information` by default—and
 returns items matched to the feature.

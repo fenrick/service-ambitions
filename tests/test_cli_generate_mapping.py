@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import json
 from types import SimpleNamespace
 from typing import Any
 
@@ -54,6 +55,11 @@ def test_generate_mapping_maps_features(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(
         cli, "configure_mapping_data_dir", lambda p: called.setdefault("path", p)
     )
+    monkeypatch.setattr(
+        cli,
+        "canonicalise_record",
+        lambda r: json.loads(json.dumps(r, default=str)),
+    )
 
     settings = SimpleNamespace(
         model="m",
@@ -76,6 +82,7 @@ def test_generate_mapping_maps_features(tmp_path, monkeypatch) -> None:
         allow_prompt_logging=False,
         mapping_data_dir="maps",
         web_search=None,
+        use_local_cache=False,
     )
 
     asyncio.run(_cmd_generate_mapping(args, settings))

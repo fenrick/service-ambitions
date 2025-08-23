@@ -9,6 +9,7 @@ contributions back into :class:`PlateauFeature` objects.
 from __future__ import annotations
 
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING, Mapping, Sequence, cast
 
 import logfire
@@ -119,6 +120,7 @@ async def map_set(
     service: str | None = None,
     strict: bool = False,
     diagnostics: bool | None = None,
+    use_local_cache: bool = False,
 ) -> list[PlateauFeature]:
     """Return ``features`` with ``set_name`` mappings populated.
 
@@ -127,7 +129,9 @@ async def map_set(
     both attempts fail, the raw response is written to
     ``quarantine/mapping/<service>/<set>.txt`` and an empty mapping list is
     returned. When ``strict`` is ``True`` a :class:`MappingError` is raised
-    instead of returning partial results.
+    instead of returning partial results. When ``use_local_cache`` is ``True``
+    responses are cached under ``.cache/mapping`` using ``hash(prompt)`` so
+    repeated requests can bypass network calls.
     """
 
     cfg = MappingTypeConfig(dataset=set_name, label=set_name)
@@ -140,52 +144,72 @@ async def map_set(
     model_type: type[StrictModel] = (
         MappingDiagnosticsResponse if use_diag else MappingResponse
     )
+    cache_file: Path | None = None
+    payload: StrictModel | None = None
+    if use_local_cache:
+        cache_dir = Path(".cache") / "mapping" / set_name
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        cache_file = cache_dir / f"{hash(prompt)}.json"
+        if cache_file.exists():
+            # Cache hit, parse payload from disk and skip the network.
+            cached = cache_file.read_text(encoding="utf-8")
+            payload = model_type.model_validate_json(cached)
 
     start = time.monotonic()
     retries = 0
     tokens = 0
     cost = 0.0
-    try:
-        raw = await session.ask_async(prompt, output_type=model_type)
-        tokens += getattr(session, "last_tokens", 0)
-        cost += getattr(session, "last_cost", 0.0)
-        payload: StrictModel = (
-            raw if isinstance(raw, StrictModel) else model_type.model_validate_json(raw)
-        )
-    except (ValidationError, ValueError):
-        retries = 1
-        hint_prompt = f"{prompt}\nReturn valid JSON only."
-        raw = await session.ask_async(hint_prompt, output_type=model_type)
-        tokens += getattr(session, "last_tokens", 0)
-        cost += getattr(session, "last_cost", 0.0)
+    if payload is None:
+        # Cache miss triggers a network request.
         try:
+            raw = await session.ask_async(prompt, output_type=model_type)
+            tokens += getattr(session, "last_tokens", 0)
+            cost += getattr(session, "last_cost", 0.0)
             payload = (
                 raw
                 if isinstance(raw, StrictModel)
                 else model_type.model_validate_json(raw)
             )
-        except (ValidationError, ValueError) as exc:
-            svc = service or "unknown"
-            text = raw if isinstance(raw, str) else raw.model_dump()
-            _writer.write(set_name, svc, "json_parse_error", text)
-            if strict:
-                raise MappingError(
-                    f"Invalid mapping response for {svc}/{set_name}"
-                ) from exc
-            record_mapping_set(
-                set_name,
-                features=len(features),
-                mapped_ids=0,
-                unknown_ids=0,
-                retries=retries,
-                latency=time.monotonic() - start,
-                tokens=tokens,
-                cost=cost,
+        except (ValidationError, ValueError):
+            retries = 1
+            hint_prompt = f"{prompt}\nReturn valid JSON only."
+            raw = await session.ask_async(hint_prompt, output_type=model_type)
+            tokens += getattr(session, "last_tokens", 0)
+            cost += getattr(session, "last_cost", 0.0)
+            try:
+                payload = (
+                    raw
+                    if isinstance(raw, StrictModel)
+                    else model_type.model_validate_json(raw)
+                )
+            except (ValidationError, ValueError) as exc:
+                svc = service or "unknown"
+                text = raw if isinstance(raw, str) else raw.model_dump()
+                _writer.write(set_name, svc, "json_parse_error", text)
+                if strict:
+                    raise MappingError(
+                        f"Invalid mapping response for {svc}/{set_name}"
+                    ) from exc
+                record_mapping_set(
+                    set_name,
+                    features=len(features),
+                    mapped_ids=0,
+                    unknown_ids=0,
+                    retries=retries,
+                    latency=time.monotonic() - start,
+                    tokens=tokens,
+                    cost=cost,
+                )
+                return [
+                    feat.model_copy(update={"mappings": feat.mappings | {set_name: []}})
+                    for feat in features
+                ]
+        if cache_file:
+            # Persist successful responses for future runs.
+            cache_file.write_text(
+                raw if isinstance(raw, str) else raw.model_dump_json(),
+                encoding="utf-8",
             )
-            return [
-                feat.model_copy(update={"mappings": feat.mappings | {set_name: []}})
-                for feat in features
-            ]
 
     if use_diag:
         diag_payload = cast(MappingDiagnosticsResponse, payload)

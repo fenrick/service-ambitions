@@ -208,3 +208,49 @@ async def test_map_set_diagnostics_includes_rationale(monkeypatch) -> None:
         diagnostics=True,
     )
     assert mapped[0].mappings["applications"][0].item == "a"
+
+
+@pytest.mark.asyncio()
+async def test_map_set_writes_cache(monkeypatch, tmp_path) -> None:
+    """Cache miss writes the model response to the filesystem."""
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    response = json.dumps(
+        {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
+    )
+    session = DummySession([response])
+    await map_set(
+        cast(ConversationSession, session),
+        "applications",
+        [_item()],
+        [_feature()],
+        use_local_cache=True,
+    )
+    cache_file = Path(".cache") / "mapping" / "applications" / f"{hash('PROMPT')}.json"
+    assert cache_file.exists()
+    assert json.loads(cache_file.read_text()) == json.loads(response)
+
+
+@pytest.mark.asyncio()
+async def test_map_set_reads_cache(monkeypatch, tmp_path) -> None:
+    """Cache hit bypasses the network call."""
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    cached = json.dumps(
+        {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
+    )
+    cache_dir = Path(".cache") / "mapping" / "applications"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    (cache_dir / f"{hash('PROMPT')}.json").write_text(cached)
+    session = DummySession([cached])
+    mapped = await map_set(
+        cast(ConversationSession, session),
+        "applications",
+        [_item()],
+        [_feature()],
+        use_local_cache=True,
+    )
+    assert session.prompts == []
+    assert mapped[0].mappings["applications"][0].item == "a"

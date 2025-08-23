@@ -156,6 +156,7 @@ new mapping data. Adjust mapping behaviour with:
   contain unknown identifiers.
 - `--diagnostics/--no-diagnostics` – enable verbose diagnostics output and
   instrumentation.
+- `--use-local-cache` – reuse cached mapping responses under `.cache/mapping`.
 
 Example invocation:
 
