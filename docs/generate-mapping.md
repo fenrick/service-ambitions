@@ -10,7 +10,7 @@ Example command:
 poetry run service-ambitions generate-mapping \
   --input evolution.jsonl \
   --output remapped.jsonl \
-  --strict-mapping --diagnostics
+  --strict-mapping --diagnostics --no-logs
 ```
 
 `--mapping-data-dir` points to the directory containing mapping reference data
@@ -20,7 +20,8 @@ files.
 produces an empty list. Disable with `--no-strict-mapping` to keep existing
 mappings and continue.
 
-`--diagnostics` enables verbose logging and spans useful for troubleshooting.
+`--diagnostics` enables verbose logging and telemetry instrumentation useful for
+troubleshooting. Instrumentation runs only when this verbose mode is enabled.
 
 Mapping runs once per configured set. Each prompt receives the relevant
 reference list—`applications`, `technologies` and `information` by default—and

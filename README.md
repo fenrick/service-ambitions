@@ -85,8 +85,10 @@ supports swapping sections to suit different industries.
 This project depends on the [Pydantic Logfire](https://logfire.pydantic.dev/)
 libraries for telemetry. The `LOGFIRE_TOKEN` environment variable is optional:
 without it, Logfire still records logs and metrics locally but nothing is sent
-to the cloud. Provide a token to stream traces to Logfire. When configured, the
-CLI instruments Pydantic, Pydantic AI, OpenAI and system metrics automatically.
+to the cloud. Provide a token to stream traces to Logfire. The CLI only
+instruments Pydantic, Pydantic AI, OpenAI and system metrics when run with the
+`--diagnostics` flag, which enables verbose diagnostics. Use `--no-logs` to
+avoid writing local log files.
 
 ## Installation
 
@@ -114,19 +116,19 @@ Run the CLI through Poetry to ensure it uses the managed environment. Use
 subcommands to select the desired operation:
 
 ```bash
-poetry run service-ambitions generate-ambitions --input-file sample-services.jsonl --output-file ambitions.jsonl
-poetry run service-ambitions generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl
-poetry run service-ambitions generate-mapping --input evolution.jsonl --output remapped.jsonl
-poetry run service-ambitions migrate-jsonl --input ambitions.jsonl --output upgraded.jsonl --from 1.0 --to 1.1
+poetry run service-ambitions generate-ambitions --input-file sample-services.jsonl --output-file ambitions.jsonl --no-logs
+poetry run service-ambitions generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl --no-logs
+poetry run service-ambitions generate-mapping --input evolution.jsonl --output remapped.jsonl --no-logs
+poetry run service-ambitions migrate-jsonl --input ambitions.jsonl --output upgraded.jsonl --from 1.0 --to 1.1 --no-logs
 ```
 
 Alternatively, use the provided shell script which forwards all arguments to the CLI:
 
 ```bash
-./run.sh generate-ambitions --input-file sample-services.jsonl --output-file ambitions.jsonl
-./run.sh generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl
-./run.sh generate-mapping --input evolution.jsonl --output remapped.jsonl
-./run.sh migrate-jsonl --input ambitions.jsonl --output upgraded.jsonl --from 1.0 --to 1.1
+./run.sh generate-ambitions --input-file sample-services.jsonl --output-file ambitions.jsonl --no-logs
+./run.sh generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl --no-logs
+./run.sh generate-mapping --input evolution.jsonl --output remapped.jsonl --no-logs
+./run.sh migrate-jsonl --input ambitions.jsonl --output upgraded.jsonl --from 1.0 --to 1.1 --no-logs
 ```
 
 ## Usage
@@ -150,13 +152,14 @@ new mapping data. Adjust mapping behaviour with:
 
 - `--mapping-data-dir` – directory containing mapping reference data.
 - `--strict-mapping/--no-strict-mapping` – fail when mappings are missing.
-- `--diagnostics/--no-diagnostics` – enable verbose diagnostics output.
+- `--diagnostics/--no-diagnostics` – enable verbose diagnostics output and
+  instrumentation.
 
 Example invocation:
 
 ```bash
 ./run.sh generate-mapping --input evolution.jsonl --output remapped.jsonl \
-  --strict-mapping
+  --strict-mapping --no-logs
 ```
 
 See [generate-mapping](docs/generate-mapping.md) for detailed behaviour and
@@ -171,7 +174,7 @@ output file.
 Example:
 
 ```bash
-./run.sh migrate-jsonl --input ambitions.jsonl --output upgraded.jsonl --from 1.0 --to 1.1
+./run.sh migrate-jsonl --input ambitions.jsonl --output upgraded.jsonl --from 1.0 --to 1.1 --no-logs
 ```
 
 ## Concurrency control
@@ -205,12 +208,13 @@ Use the `generate-evolution` subcommand to score each service against all
 configured plateau features and customer segments. It reads services from an
 input JSON Lines file and writes a `ServiceEvolution` record for each line in
 the output file. Logs are written to `service.log` in the current working
-directory. Enable verbose logs with `-v` or `-vv`.
+directory. Enable verbose logs with `-v` or `-vv`, or pass `--no-logs` to skip
+writing this file.
 
 Basic invocation:
 
 ```bash
-./run.sh generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl
+./run.sh generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl --no-logs
 ```
 
 Processing happens concurrently; control parallel workers with `--concurrency`
@@ -218,13 +222,14 @@ which defaults to the `concurrency` value in your settings.
 
 Mapping requests default to a per-set strategy. Use `--mapping-data-dir` to
 point to alternative reference datasets. Enable `--strict-mapping` to fail when
-features return no mappings or `--diagnostics` for verbose request logging.
+features return no mappings. Pass `--diagnostics` to enable verbose mode and
+telemetry instrumentation.
 
 Example invocation tuning mapping behaviour:
 
 ```bash
 ./run.sh generate-evolution --input-file sample-services.jsonl \
-  --output-file evolution.jsonl --strict-mapping
+  --output-file evolution.jsonl --strict-mapping --no-logs
 ```
 
 ### Conversation seed
