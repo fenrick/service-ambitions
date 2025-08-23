@@ -84,18 +84,19 @@ class MaturityScore(BaseModel):
 
 
 class Contribution(StrictModel):
-    """Weighted reference item supporting a feature.
-
-    The ``contribution`` value measures how strongly the referenced item
-    influences a feature's assessment. Larger numbers indicate greater
-    importance.
-    """
+    """Reference item identifier supporting a feature."""
 
     item: Annotated[
         str, Field(min_length=1, description="Identifier of the mapped element.")
     ]
-    contribution: float | None = None
-    """Importance weight. ``None`` uses a default of ``1.0`` or ignores the mapping."""
+
+
+class DiagnosticContribution(Contribution):
+    """Contribution with an additional rationale used during diagnostics."""
+
+    rationale: Annotated[
+        str, Field(min_length=1, description="Reason the item applies to the feature.")
+    ]
 
 
 class DefinitionItem(StrictModel):
@@ -479,7 +480,7 @@ class RoleFeaturesResponse(BaseModel):
     features: list[FeatureItem]
 
 
-def _extract_mapping_list(value: object, key: str) -> list[Contribution]:
+def _extract_mapping_list(value: object, key: str) -> list[object]:
     """Return mapping list from ``value`` or an empty list."""
     if isinstance(value, list):
         return value
@@ -501,7 +502,7 @@ def _extract_mapping_list(value: object, key: str) -> list[Contribution]:
 
 def _normalize_mapping_values(
     mapping: dict[str, object],
-) -> dict[str, list[Contribution]]:
+) -> dict[str, list[object]]:
     """Return mapping dictionary with nested structures flattened."""
 
     return {key: _extract_mapping_list(value, key) for key, value in mapping.items()}
@@ -554,9 +555,47 @@ class MappingResponse(StrictModel):
     )
 
 
+class MappingDiagnosticsFeature(StrictModel):
+    """Schema for mapped features with rationales during diagnostics."""
+
+    feature_id: Annotated[str, Field(min_length=1, description="Feature identifier.")]
+    mappings: dict[str, list[DiagnosticContribution]] = Field(
+        default_factory=dict,
+        description="Mapping contributions with rationales by type.",
+    )
+
+    model_config = ConfigDict(extra="allow")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _collect_mappings(cls, data: dict[str, object]) -> dict[str, object]:
+        """Collect arbitrary mapping lists into ``mappings``."""
+
+        mapping: dict[str, object] = {}
+        for key in tuple(data):
+            if key == "feature_id":
+                continue
+            value = data.pop(key)
+            if key == "mappings" and isinstance(value, dict):
+                mapping.update(value)
+                continue
+            mapping[key] = value
+        data["mappings"] = _normalize_mapping_values(mapping)
+        return data
+
+
+class MappingDiagnosticsResponse(StrictModel):
+    """Schema for diagnostic mapping responses including rationales."""
+
+    features: list[MappingDiagnosticsFeature] = Field(
+        ..., description="Collection of features with mapping details and rationales."
+    )
+
+
 __all__ = [
     "AppConfig",
     "Contribution",
+    "DiagnosticContribution",
     "DefinitionBlock",
     "DefinitionItem",
     "DescriptionResponse",
@@ -568,6 +607,8 @@ __all__ = [
     "MappingFeature",
     "MappingItem",
     "MappingResponse",
+    "MappingDiagnosticsFeature",
+    "MappingDiagnosticsResponse",
     "MappingTypeConfig",
     "MaturityScore",
     "PlateauFeature",

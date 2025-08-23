@@ -1,4 +1,4 @@
-# Feature mapping
+# Feature mapping (diagnostics)
 
 Map each feature to relevant {mapping_labels} from the lists below.
 
@@ -16,10 +16,11 @@ Lists use a compact tab-separated layout:
 - Return a JSON object with a top-level "features" array.
 - Each element must include "feature_id" and the following arrays: {mapping_fields}.
 - Select all relevant IDs from the lists provided.
- - Each entry in these arrays must be an object containing only an "item" field for the selected ID.
- - Do not include weights or explanations.
- - Do not invent IDs.
- - No limit on the number of items you can return.
+- Each entry in these arrays must be an object containing:
+  - "item" for the selected ID.
+  - "rationale" with a single-line explanation of the match.
+- Do not invent IDs or rationales.
+- No limit on the number of items you can return.
 - Maintain terminology consistent with the situational context, definitions and inspirations.
 - Do not include any text outside the JSON object.
 - The response must adhere to the JSON schema provided below.

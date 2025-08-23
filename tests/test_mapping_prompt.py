@@ -117,3 +117,17 @@ def test_render_set_prompt_normalizes_whitespace(monkeypatch) -> None:
     prompt = render_set_prompt("test", items, features)
     assert "A B\tItem Name\tdesc" in prompt
     assert "1 2\tFirst Feature\tdesc more" in prompt
+
+
+def test_render_set_prompt_uses_diagnostics_template(monkeypatch) -> None:
+    """Diagnostics mode loads the alternate prompt template."""
+
+    called: dict[str, str] = {}
+
+    def fake_load(name: str) -> str:
+        called["name"] = name
+        return "{schema}"
+
+    monkeypatch.setattr("mapping_prompt.load_prompt_text", fake_load)
+    render_set_prompt("test", [], [], diagnostics=True)
+    assert called["name"] == "mapping_prompt_diagnostics"
