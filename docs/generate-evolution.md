@@ -26,6 +26,10 @@ poetry run service-ambitions generate-evolution \
 `--diagnostics/--no-diagnostics` enables verbose diagnostics output.
 Use `--roles-file` to supply an alternative roles definition file when needed.
 
+Logfire is required by the CLI but the `LOGFIRE_TOKEN` environment variable is
+optional for local runs. Set the token to stream traces to Logfire; omit it to
+disable telemetry.
+
 Pass `--strict` to abort if any role lacks features or if generated features
 contain empty mapping lists. This turns on a fail-fast mode instead of the
 default best‑effort behaviour.
@@ -77,7 +81,6 @@ Each line in the output file is a JSON object with:
       "search": "openai:gpt-4o-search-preview"
     },
     "web_search": false,
-    "mapping_types": ["data", "applications", "technology"],
     "created": "2024-01-01T00:00:00Z"
   },
   "service": {
@@ -104,9 +107,9 @@ Each line in the output file is a JSON object with:
           },
           "customer_type": "string",
           "mappings": {
-            "data": [{ "item": "string", "contribution": 0.5 }],
+            "information": [{ "item": "string" }],
             "applications": [{ "item": "string", "contribution": 0.5 }],
-            "technology": [{ "item": "string", "contribution": 0.5 }]
+            "technologies": [{ "item": "string" }]
           }
         }
       ]
