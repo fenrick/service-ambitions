@@ -360,10 +360,6 @@ class AppConfig(StrictModel):
         int,
         Field(ge=1, description="Required number of features per role."),
     ] = 5
-    exhaustive_mapping: bool = Field(
-        True,
-        description="Retry mapping prompts until minimum items are found.",
-    )
     mapping_types: dict[str, MappingTypeConfig] = Field(
         default_factory=dict,
         description="Mapping type definitions keyed by field name.",

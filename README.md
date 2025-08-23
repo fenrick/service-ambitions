@@ -148,8 +148,6 @@ new mapping data. Adjust mapping behaviour with:
 - `--mapping-data-dir` – directory containing mapping reference data.
 - `--strict-mapping/--no-strict-mapping` – fail when mappings are missing.
 - `--diagnostics/--no-diagnostics` – enable verbose diagnostics output.
-- `--exhaustive-mapping` – retry mapping prompts until the minimum number of
-  items are returned (disable with `--no-exhaustive-mapping`).
 
 Example invocation:
 
@@ -218,8 +216,6 @@ which defaults to the `concurrency` value in your settings.
 Mapping requests default to a per-set strategy. Use `--mapping-data-dir` to
 point to alternative reference datasets. Enable `--strict-mapping` to fail when
 features return no mappings or `--diagnostics` for verbose request logging.
-`--exhaustive-mapping` retries prompts until the minimum number of items are
-found.
 
 Example invocation tuning mapping behaviour:
 

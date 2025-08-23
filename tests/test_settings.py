@@ -24,7 +24,6 @@ def test_load_settings_reads_env(monkeypatch) -> None:
     assert settings.retries == 5
     assert settings.retry_base_delay == 0.5
     assert settings.features_per_role == 5
-    assert settings.exhaustive_mapping is True
     assert settings.mapping_data_dir == Path("data")
     assert settings.diagnostics is False
     assert settings.strict_mapping is False
