@@ -88,7 +88,8 @@ without it, Logfire still records logs and metrics locally but nothing is sent
 to the cloud. Provide a token to stream traces to Logfire. The CLI only
 instruments Pydantic, Pydantic AI, OpenAI and system metrics when run with the
 `--diagnostics` flag, which enables verbose diagnostics. Use `--no-logs` to
-avoid writing local log files.
+avoid writing local log files. Prompts are excluded from logs unless
+`--allow-prompt-logging` is specified.
 
 ## Installation
 

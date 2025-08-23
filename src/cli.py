@@ -198,7 +198,7 @@ async def _generate_evolution_for_service(
                 desc_agent,
                 stage="descriptions",
                 diagnostics=settings.diagnostics,
-                log_prompts=not args.no_logs,
+                log_prompts=args.allow_prompt_logging,
                 redact_prompts=True,
                 transcripts_dir=transcripts_dir,
             )
@@ -206,7 +206,7 @@ async def _generate_evolution_for_service(
                 feat_agent,
                 stage="features",
                 diagnostics=settings.diagnostics,
-                log_prompts=not args.no_logs,
+                log_prompts=args.allow_prompt_logging,
                 redact_prompts=True,
                 transcripts_dir=transcripts_dir,
             )
@@ -214,7 +214,7 @@ async def _generate_evolution_for_service(
                 map_agent,
                 stage="mapping",
                 diagnostics=settings.diagnostics,
-                log_prompts=not args.no_logs,
+                log_prompts=args.allow_prompt_logging,
                 redact_prompts=True,
                 transcripts_dir=transcripts_dir,
             )
@@ -512,7 +512,7 @@ async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
         map_agent,
         stage="mapping",
         diagnostics=settings.diagnostics,
-        log_prompts=not args.no_logs,
+        log_prompts=args.allow_prompt_logging,
         redact_prompts=True,
     )
 
@@ -678,6 +678,11 @@ def main() -> None:
             "Enable web search when prompts need external lookups. "
             "Adds latency and cost"
         ),
+    )
+    common.add_argument(
+        "--allow-prompt-logging",
+        action="store_true",
+        help="Include raw prompt text in debug logs when diagnostics are enabled",
     )
     common.add_argument(
         "--no-logs",
