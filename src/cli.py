@@ -35,12 +35,12 @@ from loader import (
     load_mapping_items,
     load_role_ids,
 )
-from mapping import set_quarantine_logger
 from model_factory import ModelFactory
 from models import ServiceEvolution, ServiceInput, ServiceMeta
 from monitoring import LOG_FILE_NAME, init_logfire
 from persistence import atomic_write, read_lines
 from plateau_generator import PlateauGenerator
+from quarantine import QuarantineWriter
 from schema_migration import migrate_record
 from service_loader import load_services
 from settings import load_settings
@@ -50,6 +50,7 @@ EVOLUTIONS_GENERATED = logfire.metric_counter("evolutions_generated")
 LINES_WRITTEN = logfire.metric_counter("lines_written")
 
 _RUN_META: ServiceMeta | None = None
+_writer = QuarantineWriter()
 
 SERVICES_FILE_HELP = "Path to the services JSONL file"
 OUTPUT_FILE_HELP = "File to write the results"
@@ -276,13 +277,12 @@ async def _generate_evolution_for_service(
                 output_path=getattr(output, "name", ""),
             )
         except Exception as exc:  # noqa: BLE001
-            quarantine_dir = Path("quarantine")
-            await asyncio.to_thread(quarantine_dir.mkdir, parents=True, exist_ok=True)
-            quarantine_file = quarantine_dir / f"{service.service_id}.json"
-            await asyncio.to_thread(
-                quarantine_file.write_text,
-                service.model_dump_json(indent=2),
-                encoding="utf-8",
+            quarantine_file = await asyncio.to_thread(
+                _writer.write,
+                "evolution",
+                service.service_id,
+                "schema_mismatch",
+                service.model_dump(),
             )
             logfire.exception(
                 "Failed to generate evolution",
@@ -795,7 +795,6 @@ def main() -> None:
     _configure_logging(args, settings)
 
     telemetry.reset()
-    set_quarantine_logger(telemetry.record_quarantine)
     result = args.func(args, settings, None)
     if inspect.isawaitable(result):
         # Cast ensures that asyncio.run receives a proper Coroutine

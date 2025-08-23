@@ -8,10 +8,7 @@ contributions back into :class:`PlateauFeature` objects.
 
 from __future__ import annotations
 
-import json
 import time
-from collections.abc import Callable
-from pathlib import Path
 from typing import TYPE_CHECKING, Mapping, Sequence, cast
 
 import logfire
@@ -29,42 +26,17 @@ from models import (
     PlateauFeature,
     StrictModel,
 )
+from quarantine import QuarantineWriter
 from telemetry import record_mapping_set
 
 if TYPE_CHECKING:
     from conversation import ConversationSession
 
 
-_quarantine_logger: Callable[[Path], None] | None = None
-"""Callback invoked with paths of quarantined mapping files."""
+_writer = QuarantineWriter()
 
 UNKNOWN_ID_LOG_LIMIT = 5
 """Maximum number of unknown IDs to include in warning logs."""
-
-
-def set_quarantine_logger(callback: Callable[[Path], None] | None) -> None:
-    """Register ``callback`` to receive paths of quarantined mapping files."""
-
-    global _quarantine_logger
-    _quarantine_logger = callback
-
-
-def _quarantine_unknown_ids(data: Mapping[str, set[str]], service_id: str) -> Path:
-    """Persist unknown mapping identifiers for ``service_id`` across all sets."""
-
-    file_path = Path("quarantine/mappings") / service_id / "unknown_ids.json"
-    # ``exist_ok=True`` avoids race conditions when multiple threads create the
-    # directory concurrently.
-    file_path.parent.mkdir(parents=True, exist_ok=True)
-    serialisable = {k: sorted(v) for k, v in data.items() if v}
-    file_path.write_text(json.dumps(serialisable, indent=2), encoding="utf-8")
-    logfire.warning(
-        "Quarantined unknown mapping identifiers",
-        path=str(file_path),
-    )
-    if _quarantine_logger is not None:
-        _quarantine_logger(file_path)
-    return file_path
 
 
 def _merge_mapping_results(
@@ -122,13 +94,12 @@ def _merge_mapping_results(
         for key, ids in dropped.items():
             logfire.warning(
                 "Dropped unknown mapping IDs",
-                key=key,
+                set_name=key,
                 count=len(ids),
                 examples=ids[:UNKNOWN_ID_LOG_LIMIT],
             )
             unknown_total += len(ids)
-        # Persist all unknown identifiers for later analysis.
-        _quarantine_unknown_ids({k: set(v) for k, v in dropped.items()}, service)
+            _writer.write(key, service or "unknown", "unknown_ids", sorted(ids))
         if strict:
             raise MappingError("Unknown mapping identifiers returned")
     if missing:
@@ -195,13 +166,8 @@ async def map_set(
             )
         except (ValidationError, ValueError) as exc:
             svc = service or "unknown"
-            qdir = Path("quarantine/mapping") / svc
-            qdir.mkdir(parents=True, exist_ok=True)
-            qfile = qdir / f"{set_name}.txt"
-            text = raw if isinstance(raw, str) else raw.model_dump_json()
-            qfile.write_text(text, encoding="utf-8")
-            if _quarantine_logger is not None:
-                _quarantine_logger(qfile)
+            text = raw if isinstance(raw, str) else raw.model_dump()
+            _writer.write(set_name, svc, "json_parse_error", text)
             if strict:
                 raise MappingError(
                     f"Invalid mapping response for {svc}/{set_name}"
@@ -270,5 +236,4 @@ class MappingError(RuntimeError):
 __all__ = [
     "map_set",
     "MappingError",
-    "set_quarantine_logger",
 ]
