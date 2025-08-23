@@ -33,6 +33,9 @@ if TYPE_CHECKING:
 _quarantine_logger: Callable[[Path], None] | None = None
 """Callback invoked with paths of quarantined mapping files."""
 
+UNKNOWN_ID_LOG_LIMIT = 5
+"""Maximum number of unknown IDs to include in warning logs."""
+
 
 def set_quarantine_logger(callback: Callable[[Path], None] | None) -> None:
     """Register ``callback`` to receive paths of quarantined mapping files."""
@@ -59,23 +62,6 @@ def _quarantine_unknown_ids(data: Mapping[str, set[str]], service_id: str) -> Pa
     return file_path
 
 
-def _clean_mapping_values(
-    key: str,
-    values: list[Contribution],
-    valid_ids: dict[str, set[str]],
-) -> tuple[list[Contribution], list[str]]:
-    """Return filtered ``values`` and collect unknown IDs for ``key``."""
-
-    valid: list[Contribution] = []
-    unknown_ids: list[str] = []
-    for item in values:
-        if item.item not in valid_ids[key]:
-            unknown_ids.append(item.item)
-            continue
-        valid.append(item)
-    return valid, unknown_ids
-
-
 def _merge_mapping_results(
     features: Sequence[PlateauFeature],
     payload: MappingResponse,
@@ -83,13 +69,14 @@ def _merge_mapping_results(
     *,
     catalogue_items: Mapping[str, list[MappingItem]] | None = None,
     service: str = "unknown",
+    strict: bool = False,
 ) -> list[PlateauFeature]:
     """Return ``features`` merged with mapping ``payload``.
 
-    Any mappings referencing unknown item identifiers are dropped rather than
-    causing an error. Features with no valid mappings are tallied per set and
-    logged once. This allows the calling code to rerun generation without
-    manual intervention when the agent invents IDs.
+    All mapping identifiers are validated against ``valid_ids``. Invented
+    identifiers are removed from the result and logged with up to
+    ``UNKNOWN_ID_LOG_LIMIT`` examples per set. When ``strict`` is ``True`` the
+    presence of unknown or missing identifiers raises :class:`MappingError`.
     """
 
     catalogues = catalogue_items or load_mapping_items(MAPPING_DATA_DIR)
@@ -100,7 +87,7 @@ def _merge_mapping_results(
 
     mapped_lookup = {item.feature_id: item.mappings for item in payload.features}
     results: list[PlateauFeature] = []
-    dropped: dict[str, set[str]] = {}
+    dropped: dict[str, list[str]] = {}
     missing: dict[str, int] = {}
     for feature in features:
         mapped = mapped_lookup.get(feature.feature_id)
@@ -109,10 +96,18 @@ def _merge_mapping_results(
         update_data = {}
         for key in mapping_types.keys():
             original = mapped.get(key, [])
-            cleaned, unknown = _clean_mapping_values(key, original, valid_ids)
+            cleaned: list[Contribution] = []
+            unknown: list[str] = []
+            for item in original:
+                # Guard against invented identifiers by dropping unknown IDs.
+                if item.item not in valid_ids[key]:
+                    unknown.append(item.item)
+                    continue
+                cleaned.append(item)
             if unknown:
-                dropped.setdefault(key, set()).update(unknown)
+                dropped.setdefault(key, []).extend(unknown)
             if not cleaned:
+                # Track features missing any valid mappings for this set.
                 missing[key] = missing.get(key, 0) + 1
             update_data[key] = cleaned
         merged = feature.model_copy(update={"mappings": feature.mappings | update_data})
@@ -123,11 +118,17 @@ def _merge_mapping_results(
                 "Dropped unknown mapping IDs",
                 key=key,
                 count=len(ids),
+                examples=ids[:UNKNOWN_ID_LOG_LIMIT],
             )
-        _quarantine_unknown_ids(dropped, service)
+        # Persist all unknown identifiers for later analysis.
+        _quarantine_unknown_ids({k: set(v) for k, v in dropped.items()}, service)
+        if strict:
+            raise MappingError("Unknown mapping identifiers returned")
     if missing:
         for key, count in missing.items():
             logfire.warning(f"{key}.missing={count}")
+        if strict:
+            raise MappingError("Mappings missing for one or more features")
     return results
 
 
@@ -184,6 +185,7 @@ async def map_set(
         {set_name: cfg},
         catalogue_items={set_name: list(items)},
         service=service or "unknown",
+        strict=strict,
     )
 
 
