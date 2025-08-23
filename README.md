@@ -80,10 +80,10 @@ directory, `--context-id` to select a situational context, and
 supports swapping sections to suit different industries.
 
 This project depends on the [Pydantic Logfire](https://logfire.pydantic.dev/)
-libraries even when telemetry is disabled. Set the `LOGFIRE_TOKEN` environment
-variable and optionally supply a service name via `--logfire-service` to enable
-tracing. When configured, the CLI instruments Pydantic, Pydantic AI, OpenAI and
-system metrics automatically.
+libraries even when telemetry is disabled. Logfire is required but the
+`LOGFIRE_TOKEN` environment variable is optional for local runs. Set the token
+to send traces to Logfire. When configured, the CLI instruments Pydantic,
+Pydantic AI, OpenAI and system metrics automatically.
 
 ## Installation
 
@@ -184,8 +184,8 @@ Each service is evaluated across the plateaus defined in
 
 1. **Descriptions** – a single request returns narratives for all plateaus.
 2. **Features and Mapping** – for each plateau, generate learner, academic and
-   professional staff features and link them to reference Data, Applications
-   and Technologies using the previously collected description.
+   professional staff features and link them to reference Information,
+   Applications and Technologies using the previously collected description.
 
 This workflow issues one call to fetch all descriptions, then queries each
 plateau separately for feature generation. The result is a complete
@@ -257,7 +257,6 @@ Each JSON line in the output file follows the `ServiceEvolution` schema:
       "search": "openai:gpt-4o-search-preview"
     },
     "web_search": false,
-    "mapping_types": ["data", "applications", "technology"],
     "created": "2024-01-01T00:00:00Z"
   },
   "service": {
@@ -284,9 +283,9 @@ Each JSON line in the output file follows the `ServiceEvolution` schema:
           },
           "customer_type": "string",
           "mappings": {
-            "data": [{ "item": "string", "contribution": 0.5 }],
+            "information": [{ "item": "string" }],
             "applications": [{ "item": "string", "contribution": 0.5 }],
-            "technology": [{ "item": "string", "contribution": 0.5 }]
+            "technologies": [{ "item": "string" }]
           }
         }
       ]
@@ -303,7 +302,6 @@ Fields in the schema:
   - `seed`: integer used for deterministic sampling when supported.
   - `models`: mapping of generation stages to model identifiers.
   - `web_search`: whether web search was enabled.
-  - `mapping_types`: categories included during feature mapping.
   - `created`: ISO-8601 timestamp when the record was produced.
 - `service`: `ServiceInput` with `service_id`, `name`, `description`, optional
   `customer_type`, `jobs_to_be_done`, and existing `features`.
@@ -315,9 +313,10 @@ Fields in the schema:
       - `feature_id`, `name`, and `description`.
       - `score`: object with CMMI maturity `level`, `label` and `justification`.
       - `customer_type`: audience benefiting from the feature.
-      - `mappings`: object with `data`, `applications` and `technology` lists of
-        `Contribution` objects describing why a mapped item supports the
-        feature.
+      - `mappings`: object with `information`, `applications` and
+        `technologies` lists of mapping items describing why a mapped item
+        supports the feature. Each item may include an optional `contribution`
+        weight between 0.1 and 1.0.
 
 ## Reference Data
 
@@ -360,26 +359,25 @@ Generate service features for the {service_name} service at plateau {plateau}.
 - Do not include any text outside the JSON object.
 ```
 
-### Mapping prompt
+### Mapping prompts
+
+Each mapping set runs with its own prompt. Example for applications:
 
 ```markdown
-# Feature mapping
+# Applications mapping
 
-Map each feature to relevant Data, Applications and Technologies from the lists
-below.
+Map each feature to relevant Applications from the list below.
 
 ## Instructions
 
 - Return a JSON object with a top-level "features" array.
-- Each element must include "feature_id" and a "mappings" object containing
-  "data", "applications" and "technology" arrays.
-- For each mapping list, return at most 5 items.
-- Items in these arrays must provide "item" and "contribution" fields. The
-  "contribution" value is a number in [0.1, 1.0] where 1.0 = critical, 0.5 =
-  helpful and 0.1 = weak.
+- Each element must include "feature_id" and an "applications" array.
+- Items may include an optional "contribution" value between 0.1 and 1.0.
 - Do not invent IDs; only use those provided.
 - Do not include any text outside the JSON object.
 ```
+
+Repeat this structure for the `technologies` and `information` datasets.
 
 ## Testing
 

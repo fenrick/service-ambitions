@@ -150,9 +150,9 @@ Generate service features for the Learning & Teaching service at plateau 1.
 ```
 
 ### Mapping Prompt
-Map each feature to relevant Data, Applications, Technologies from the lists below.
+Map each feature to relevant Information, Applications and Technologies from the lists below.
 
-#### Available Data
+#### Available Information
 - INFO001: User Data - Information about the user.
 - INFO002: Course Material - Content used for teaching.
 
@@ -169,11 +169,8 @@ Map each feature to relevant Data, Applications, Technologies from the lists bel
 
 #### Instructions
 - Return a JSON object with a top-level "features" array.
-- Each element must include "feature_id" and a "mappings" object containing "data", "applications" and "technology" arrays.
-- For each mapping list, return at most 5 items.
-- Items in these arrays must provide "item" and "contribution" fields. The
-  "contribution" value is a number in [0.1, 1.0] where 1.0 = critical, 0.5 =
-  helpful and 0.1 = weak.
+- Each element must include "feature_id" and a "mappings" object containing "information", "applications" and "technologies" arrays.
+- Items may include an optional "contribution" field in the range [0.1, 1.0] where 1.0 = critical, 0.5 = helpful and 0.1 = weak.
 - Do not invent IDs; only use those provided.
 - Maintain terminology consistent with the situational context, definitions and inspirations.
 - Do not include any text outside the JSON object.
@@ -190,11 +187,11 @@ Map each feature to relevant Data, Applications, Technologies from the lists bel
         "type": "object",
         "properties": {
           "feature_id": {"type": "string"},
-          "mappings": {"type": "object", "properties": {
-            "data": {"type": "array", "maxItems": 5, "items": {"type": "object", "properties": {"item": {"type": "string"}, "contribution": {"type": "number", "minimum": 0.1, "maximum": 1.0}}, "required": ["item", "contribution"]}},
-            "applications": {"type": "array", "maxItems": 5, "items": {"type": "object", "properties": {"item": {"type": "string"}, "contribution": {"type": "number", "minimum": 0.1, "maximum": 1.0}}, "required": ["item", "contribution"]}},
-            "technology": {"type": "array", "maxItems": 5, "items": {"type": "object", "properties": {"item": {"type": "string"}, "contribution": {"type": "number", "minimum": 0.1, "maximum": 1.0}}, "required": ["item", "contribution"]}}
-          }, "required": ["data", "applications", "technology"]}
+            "mappings": {"type": "object", "properties": {
+              "information": {"type": "array", "items": {"type": "object", "properties": {"item": {"type": "string"}, "contribution": {"type": "number", "minimum": 0.1, "maximum": 1.0}}, "required": ["item"]}},
+              "applications": {"type": "array", "items": {"type": "object", "properties": {"item": {"type": "string"}, "contribution": {"type": "number", "minimum": 0.1, "maximum": 1.0}}, "required": ["item"]}},
+              "technologies": {"type": "array", "items": {"type": "object", "properties": {"item": {"type": "string"}, "contribution": {"type": "number", "minimum": 0.1, "maximum": 1.0}}, "required": ["item"]}}
+            }, "required": ["information", "applications", "technologies"]}
         },
         "required": ["feature_id", "mappings"]
       }
