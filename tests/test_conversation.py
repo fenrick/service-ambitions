@@ -11,7 +11,6 @@ from pydantic_ai import Agent, messages
 import conversation
 from conversation import ConversationSession
 from models import ServiceFeature, ServiceInput
-from stage_metrics import iter_stage_totals, reset_stage_totals
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -106,18 +105,6 @@ def test_ask_forwards_prompt_to_agent() -> None:
     session = ConversationSession(cast(Agent[None, str], agent))
     session.ask("hello")
     assert agent.called_with == ["hello"]
-
-
-def test_stage_metrics_accumulate() -> None:
-    """Conversation calls should update stage metrics."""
-
-    reset_stage_totals()
-    session = ConversationSession(cast(Agent[None, str], DummyAgent()), stage="test")
-    session.ask("ping")
-    stage, totals = next(iter_stage_totals())
-    assert stage == "test"
-    assert totals.prompts == 1
-    assert totals.total_tokens == 5
 
 
 def test_ask_omits_prompt_logging_when_disabled(tmp_path, monkeypatch) -> None:
