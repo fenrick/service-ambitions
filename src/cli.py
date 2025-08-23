@@ -20,6 +20,7 @@ import logfire
 from pydantic_ai import Agent
 from tqdm import tqdm
 
+from canonical import canonicalise_record
 from conversation import ConversationSession
 from diagnostics import validate_jsonl
 from generator import AmbitionModel, ServiceAmbitionGenerator
@@ -241,9 +242,12 @@ async def _generate_evolution_for_service(
             evolution = await generator.generate_service_evolution_async(
                 service, transcripts_dir=transcripts_dir, meta=_RUN_META
             )
-            line = f"{evolution.model_dump_json()}\n"
+            record = canonicalise_record(evolution.model_dump(mode="python"))
+            line = json.dumps(
+                record, separators=(",", ":"), ensure_ascii=False, sort_keys=True
+            )
             async with lock:
-                await asyncio.to_thread(output.write, line)
+                await asyncio.to_thread(output.write, f"{line}\n")
                 new_ids.add(service.service_id)
                 EVOLUTIONS_GENERATED.add(1)
                 LINES_WRITTEN.add(1)
@@ -527,7 +531,11 @@ async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
     out = await asyncio.to_thread(output_path.open, "w", encoding="utf-8")
     try:
         for evo in evolutions:
-            await asyncio.to_thread(out.write, f"{evo.model_dump_json()}\n")
+            record = canonicalise_record(evo.model_dump(mode="python"))
+            line = json.dumps(
+                record, separators=(",", ":"), ensure_ascii=False, sort_keys=True
+            )
+            await asyncio.to_thread(out.write, f"{line}\n")
     finally:
         await asyncio.to_thread(out.close)
 
@@ -624,6 +632,7 @@ def main() -> None:
     common.add_argument(
         "--seed",
         type=int,
+        default=0,
         help="Seed random number generation for reproducible output",
     )
     common.add_argument(
