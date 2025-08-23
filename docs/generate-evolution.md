@@ -22,7 +22,8 @@ poetry run service-ambitions generate-evolution \
 ```
 
 `--mapping-data-dir` points to a directory of mapping reference data.
-`--strict-mapping/--no-strict-mapping` fails when feature mappings are missing.
+`--strict-mapping/--no-strict-mapping` fails when feature mappings are missing or
+contain unknown identifiers.
 `--diagnostics/--no-diagnostics` enables verbose diagnostics output and
 telemetry instrumentation.
 Use `--roles-file` to supply an alternative roles definition file when needed.

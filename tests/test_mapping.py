@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Sequence, cast
+from typing import Any, Sequence, cast
 
 import pytest
 
@@ -76,6 +76,10 @@ async def test_map_set_quarantines_unknown_ids(monkeypatch, tmp_path) -> None:
     session = DummySession([response])
     paths: list[Path] = []
     mapping.set_quarantine_logger(lambda p: paths.append(p.resolve()))
+    warnings: list[tuple[str, dict[str, Any]]] = []
+    monkeypatch.setattr(
+        mapping.logfire, "warning", lambda msg, **kw: warnings.append((msg, kw))
+    )
     mapped = await map_set(
         cast(ConversationSession, session),
         "applications",
@@ -88,6 +92,8 @@ async def test_map_set_quarantines_unknown_ids(monkeypatch, tmp_path) -> None:
     qfile = tmp_path / "quarantine" / "mappings" / "svc" / "unknown_ids.json"
     assert json.loads(qfile.read_text()) == {"applications": ["x"]}
     assert paths == [qfile]
+    dropped = [kw for msg, kw in warnings if msg == "Dropped unknown mapping IDs"]
+    assert dropped[0]["examples"] == ["x"]
 
 
 @pytest.mark.asyncio()
@@ -145,6 +151,31 @@ async def test_map_set_strict_raises(monkeypatch, tmp_path) -> None:
 
 
 @pytest.mark.asyncio()
+async def test_map_set_strict_unknown_ids(monkeypatch, tmp_path) -> None:
+    """Strict mode raises when the agent invents mapping identifiers."""
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    response = json.dumps(
+        {"features": [{"feature_id": "f1", "applications": [{"item": "x"}]}]}
+    )
+    session = DummySession([response])
+    paths: list[Path] = []
+    mapping.set_quarantine_logger(lambda p: paths.append(p.resolve()))
+    with pytest.raises(MappingError):
+        await map_set(
+            cast(ConversationSession, session),
+            "applications",
+            [_item()],
+            [_feature()],
+            service="svc",
+            strict=True,
+        )
+    mapping.set_quarantine_logger(None)
+    qfile = tmp_path / "quarantine" / "mappings" / "svc" / "unknown_ids.json"
+    assert json.loads(qfile.read_text()) == {"applications": ["x"]}
+    assert paths == [qfile]
+    
 async def test_map_set_diagnostics_includes_rationale(monkeypatch) -> None:
     """Diagnostics responses with rationales are accepted."""
 
@@ -168,3 +199,4 @@ async def test_map_set_diagnostics_includes_rationale(monkeypatch) -> None:
         diagnostics=True,
     )
     assert mapped[0].mappings["applications"][0].item == "a"
+

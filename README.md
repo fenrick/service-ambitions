@@ -151,7 +151,8 @@ results. It reads an evolution JSON Lines file and writes an updated file with
 new mapping data. Adjust mapping behaviour with:
 
 - `--mapping-data-dir` – directory containing mapping reference data.
-- `--strict-mapping/--no-strict-mapping` – fail when mappings are missing.
+- `--strict-mapping/--no-strict-mapping` – fail when mappings are missing or
+  contain unknown identifiers.
 - `--diagnostics/--no-diagnostics` – enable verbose diagnostics output and
   instrumentation.
 
@@ -222,8 +223,8 @@ which defaults to the `concurrency` value in your settings.
 
 Mapping requests default to a per-set strategy. Use `--mapping-data-dir` to
 point to alternative reference datasets. Enable `--strict-mapping` to fail when
-features return no mappings. Pass `--diagnostics` to enable verbose mode and
-telemetry instrumentation.
+features return no mappings or when the agent invents identifiers. Pass
+`--diagnostics` to enable verbose mode and telemetry instrumentation.
 
 Example invocation tuning mapping behaviour:
 

@@ -16,9 +16,9 @@ poetry run service-ambitions generate-mapping \
 `--mapping-data-dir` points to the directory containing mapping reference data
 files.
 
-`--strict-mapping` raises an error when any requested mapping type is missing or
-produces an empty list. Disable with `--no-strict-mapping` to keep existing
-mappings and continue.
+`--strict-mapping` raises an error when any requested mapping type is missing,
+produces an empty list or contains unknown identifiers. Disable with
+`--no-strict-mapping` to drop unknown mappings and continue.
 
 `--diagnostics` enables verbose logging and telemetry instrumentation useful for
 troubleshooting. Instrumentation runs only when this verbose mode is enabled.
