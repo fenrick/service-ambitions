@@ -23,9 +23,6 @@ from models import ServiceInput
 from redaction import redact_pii
 from token_utils import estimate_cost, estimate_tokens
 
-PROMPTS_SENT = logfire.metric_counter("prompts_sent")
-TOKENS_CONSUMED = logfire.metric_counter("tokens_consumed")
-
 
 class ConversationSession:
     """Manage a conversational interaction with a Pydantic-AI agent.
@@ -230,7 +227,6 @@ class ConversationSession:
             span.set_attribute("total_tokens", tokens)
             span.set_attribute("estimated_cost", cost)
             span.set_attribute("duration", duration)
-        TOKENS_CONSUMED.add(tokens)
 
     T = TypeVar("T")
 
@@ -245,7 +241,6 @@ class ConversationSession:
     ) -> T | str:
         stage = self.stage or "unknown"
         model_name = getattr(getattr(self.client, "model", None), "model_name", "")
-        PROMPTS_SENT.add(1)
         tokens = 0
         cost = 0.0
         prompt_token_estimate = estimate_tokens(prompt, 0)
