@@ -226,6 +226,7 @@ async def _generate_evolution_for_service(
                 description_session=desc_session,
                 mapping_session=map_session,
                 strict=args.strict,
+                use_local_cache=args.use_local_cache,
             )
             global _RUN_META
             if _RUN_META is None:
@@ -539,7 +540,11 @@ async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
         if getattr(args, "strict_mapping", None) is not None
         else settings.strict_mapping
     )
-    generator = PlateauGenerator(session, strict=strict_mapping)
+    generator = PlateauGenerator(
+        session,
+        strict=strict_mapping,
+        use_local_cache=args.use_local_cache,
+    )
     mapped = await generator._map_features(session, features)
     mapped_by_id = {f.feature_id: f for f in mapped}
     for evo in evolutions:
@@ -694,6 +699,11 @@ def main() -> None:
         action=argparse.BooleanOptionalAction,
         default=False,
         help="Fail on missing roles or mappings when enabled",
+    )
+    common.add_argument(
+        "--use-local-cache",
+        action="store_true",
+        help="Cache mapping responses under .cache/mapping for offline runs",
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
