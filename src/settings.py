@@ -42,9 +42,6 @@ class Settings(BaseSettings):
     features_per_role: int = Field(
         5, ge=1, description="Required number of features per role."
     )
-    exhaustive_mapping: bool = Field(
-        True, description="Retry mapping prompts until minimum items are found."
-    )
     openai_api_key: str = Field(..., description="OpenAI API access token.")
     logfire_token: str | None = Field(
         None, description="Logfire authentication token, if available."
@@ -101,7 +98,6 @@ def load_settings() -> Settings:
             retries=config.retries,
             retry_base_delay=config.retry_base_delay,
             features_per_role=config.features_per_role,
-            exhaustive_mapping=config.exhaustive_mapping,
             web_search=config.web_search,
             mapping_data_dir=getattr(config, "mapping_data_dir", Path("data")),
             diagnostics=getattr(config, "diagnostics", False),
