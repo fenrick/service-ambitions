@@ -54,10 +54,33 @@ class ServiceMeta(StrictModel):
         default_factory=list,
         description="Mapping categories included during feature mapping.",
     )
+    context_window: int = Field(
+        0,
+        ge=0,
+        description="Context window of the primary generation model in tokens.",
+    )
+    diagnostics: bool = Field(
+        False, description="Whether diagnostics mode was enabled during the run."
+    )
+    catalogue_hash: str | None = Field(
+        default=None,
+        description="SHA256 hash of the compiled mapping catalogue used for this run.",
+    )
     created: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         description="ISO-8601 timestamp when the run metadata was created.",
     )
+
+    @field_validator("catalogue_hash")
+    @classmethod
+    def _validate_hash(cls, value: str | None) -> str | None:
+        """Ensure ``catalogue_hash`` is a 64 character hex string when provided."""
+
+        if value is None:
+            return value
+        if len(value) != 64 or any(c not in "0123456789abcdef" for c in value.lower()):
+            raise ValueError("catalogue_hash must be 64 hex characters")
+        return value
 
 
 CMMI_LABELS = {

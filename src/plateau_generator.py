@@ -131,8 +131,10 @@ class PlateauGenerator:
         base = list(features)
         mapped_sets: list[list[PlateauFeature]] = []
         for key in ("applications", "technologies", "information"):
+            set_session = session.derive()
+            set_session.stage = f"mapping_{key}"
             result = await map_set(
-                session,
+                set_session,
                 key,
                 items[key],
                 base,

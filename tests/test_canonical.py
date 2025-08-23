@@ -45,3 +45,6 @@ def test_canonicalise_record_sorts_features_and_mappings() -> None:
     assert [f["feature_id"] for f in plateau_feats] == ["1", "2"]
     assert [c["item"] for c in plateau_feats[0]["mappings"]["tech"]] == ["c", "d"]
     assert result["meta"]["seed"] == 0
+    assert result["meta"]["context_window"] == 0
+    assert result["meta"]["diagnostics"] is False
+    assert result["meta"]["catalogue_hash"] == ""

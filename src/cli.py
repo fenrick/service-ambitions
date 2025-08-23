@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import inspect
 import json
 import logging
@@ -26,10 +27,12 @@ from conversation import ConversationSession
 from diagnostics import validate_jsonl
 from generator import AmbitionModel, ServiceAmbitionGenerator
 from loader import (
+    MAPPING_DATA_DIR,
     configure_mapping_data_dir,
     configure_prompt_dir,
     load_ambition_prompt,
     load_evolution_prompt,
+    load_mapping_items,
     load_role_ids,
 )
 from mapping import set_quarantine_logger
@@ -233,12 +236,26 @@ async def _generate_evolution_for_service(
                         "search", args.search_model or args.model
                     ),
                 }
+                items = load_mapping_items(MAPPING_DATA_DIR)
+                serialised = json.dumps(
+                    {
+                        k: [i.model_dump(mode="json") for i in v]
+                        for k, v in items.items()
+                    },
+                    separators=(",", ":"),
+                    sort_keys=True,
+                )
+                catalogue_hash = hashlib.sha256(serialised.encode("utf-8")).hexdigest()
+                context_window = getattr(feat_model, "max_input_tokens", 0)
                 _RUN_META = ServiceMeta(
                     run_id=str(uuid4()),
                     seed=args.seed,
                     models=models_map,
                     web_search=getattr(factory, "_web_search", False),
                     mapping_types=sorted(getattr(settings, "mapping_types", {}).keys()),
+                    context_window=context_window,
+                    diagnostics=settings.diagnostics,
+                    catalogue_hash=catalogue_hash,
                     created=datetime.now(timezone.utc),
                 )
             evolution = await generator.generate_service_evolution_async(

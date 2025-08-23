@@ -48,6 +48,12 @@ def canonicalise_record(record: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(meta, dict):
         if meta.get("seed") is None:
             meta["seed"] = 0
+        if meta.get("context_window") is None:
+            meta["context_window"] = 0
+        if meta.get("diagnostics") is None:
+            meta["diagnostics"] = False
+        if meta.get("catalogue_hash") is None:
+            meta["catalogue_hash"] = ""
 
     return record
 
