@@ -111,7 +111,7 @@ Each line in the output file is a JSON object with:
           "customer_type": "string",
           "mappings": {
             "information": [{ "item": "string" }],
-            "applications": [{ "item": "string", "contribution": 0.5 }],
+            "applications": [{ "item": "string" }],
             "technologies": [{ "item": "string" }]
           }
         }

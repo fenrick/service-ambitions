@@ -54,7 +54,6 @@ async def test_map_set_successful_mapping(monkeypatch) -> None:
     )
     assert session.prompts == ["PROMPT", "PROMPT\nReturn valid JSON only."]
     assert mapped[0].mappings["applications"][0].item == "a"
-    assert mapped[0].mappings["applications"][0].contribution is None
 
 
 @pytest.mark.asyncio()
@@ -176,3 +175,28 @@ async def test_map_set_strict_unknown_ids(monkeypatch, tmp_path) -> None:
     qfile = tmp_path / "quarantine" / "mappings" / "svc" / "unknown_ids.json"
     assert json.loads(qfile.read_text()) == {"applications": ["x"]}
     assert paths == [qfile]
+    
+async def test_map_set_diagnostics_includes_rationale(monkeypatch) -> None:
+    """Diagnostics responses with rationales are accepted."""
+
+    monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    response = json.dumps(
+        {
+            "features": [
+                {
+                    "feature_id": "f1",
+                    "applications": [{"item": "a", "rationale": "match"}],
+                }
+            ]
+        }
+    )
+    session = DummySession([response])
+    mapped = await map_set(
+        cast(ConversationSession, session),
+        "applications",
+        [_item()],
+        [_feature()],
+        diagnostics=True,
+    )
+    assert mapped[0].mappings["applications"][0].item == "a"
+

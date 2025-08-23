@@ -9,9 +9,17 @@ import json
 from typing import Sequence
 
 from loader import load_prompt_text
-from models import MappingItem, MappingResponse, PlateauFeature
+from models import (
+    MappingDiagnosticsResponse,
+    MappingItem,
+    MappingResponse,
+    PlateauFeature,
+)
 
 MAPPING_SCHEMA = json.dumps(MappingResponse.model_json_schema(), indent=2)
+MAPPING_DIAGNOSTICS_SCHEMA = json.dumps(
+    MappingDiagnosticsResponse.model_json_schema(), indent=2
+)
 
 
 def _sanitize(value: str) -> str:
@@ -53,6 +61,8 @@ def render_set_prompt(
     set_name: str,
     items: Sequence[MappingItem],
     features: Sequence[PlateauFeature],
+    *,
+    diagnostics: bool = False,
 ) -> str:
     """Return a prompt requesting mappings for ``features`` against ``set_name``.
 
@@ -66,7 +76,9 @@ def render_set_prompt(
     """
     # Instruction template defines sections for catalogue items and feature
     # descriptions. Rendering is deterministic as both helpers sort inputs.
-    instruction = load_prompt_text("mapping_prompt")
+    instruction = load_prompt_text(
+        "mapping_prompt_diagnostics" if diagnostics else "mapping_prompt"
+    )
     catalogue_lines = _render_items(items)
     feature_lines = _render_features(features)
     mapping_section = f"## Available {set_name}\n\n{catalogue_lines}\n"
@@ -75,7 +87,7 @@ def render_set_prompt(
         mapping_sections=mapping_section,
         mapping_fields=set_name,
         features=feature_lines,
-        schema=MAPPING_SCHEMA,
+        schema=MAPPING_DIAGNOSTICS_SCHEMA if diagnostics else MAPPING_SCHEMA,
     )
 
 

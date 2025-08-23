@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from models import (
     Contribution,
+    MappingDiagnosticsResponse,
     MappingResponse,
     MaturityScore,
     PlateauFeature,
@@ -77,16 +78,10 @@ def test_contribution_requires_item() -> None:
         Contribution()  # type: ignore[call-arg]
 
 
-def test_contribution_defaults_weight() -> None:
-    """Omitting ``contribution`` should default the weight to ``None``."""
+def test_contribution_requires_item_only() -> None:
+    """Only an ``item`` identifier is stored for a contribution."""
     result = Contribution(item="INF-1")
-    assert result.contribution is None
-
-
-def test_contribution_allows_any_weight() -> None:
-    """Contribution weights outside the previous range are accepted."""
-    result = Contribution(item="INF-1", contribution=1.5)
-    assert result.contribution == 1.5
+    assert result.item == "INF-1"
 
 
 def test_mapping_response_handles_nested_mappings() -> None:
@@ -96,7 +91,7 @@ def test_mapping_response_handles_nested_mappings() -> None:
             {
                 "feature_id": "f1",
                 "mappings": {
-                    "data": [{"item": "INF-1", "contribution": 0.5}],
+                    "data": [{"item": "INF-1"}],
                 },
             }
         ]
@@ -113,9 +108,7 @@ def test_mapping_response_flattens_duplicate_keys() -> None:
         "features": [
             {
                 "feature_id": "f1",
-                "applications": {
-                    "applications": [{"item": "APP-1", "contribution": 0.5}]
-                },
+                "applications": {"applications": [{"item": "APP-1"}]},
             }
         ]
     }
@@ -131,7 +124,7 @@ def test_mapping_response_allows_unbounded_items() -> None:
         "features": [
             {
                 "feature_id": "f1",
-                "data": [{"item": "INF-1", "contribution": 0.5} for _ in range(6)],
+                "data": [{"item": "INF-1"} for _ in range(6)],
             }
         ]
     }
@@ -140,16 +133,16 @@ def test_mapping_response_allows_unbounded_items() -> None:
     assert len(result.features[0].mappings["data"]) == 6
 
 
-def test_mapping_response_accepts_none_contribution() -> None:
-    """Contributions with ``None`` weights should be preserved."""
+def test_mapping_diagnostics_response_parses_rationale() -> None:
+    """Diagnostic responses require a rationale for each mapping."""
     payload = {
         "features": [
             {
                 "feature_id": "f1",
-                "data": [{"item": "INF-1", "contribution": None}],
+                "data": [{"item": "INF-1", "rationale": "why"}],
             }
         ]
     }
 
-    result = MappingResponse.model_validate(payload)
-    assert result.features[0].mappings["data"][0].contribution is None
+    result = MappingDiagnosticsResponse.model_validate(payload)
+    assert result.features[0].mappings["data"][0].rationale == "why"

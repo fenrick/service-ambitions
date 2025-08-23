@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Mapping, Sequence
+from typing import TYPE_CHECKING, Mapping, Sequence, cast
 
 import logfire
 from pydantic import ValidationError
@@ -20,10 +20,13 @@ from loader import MAPPING_DATA_DIR, load_mapping_items
 from mapping_prompt import render_set_prompt
 from models import (
     Contribution,
+    MappingDiagnosticsResponse,
+    MappingFeature,
     MappingItem,
     MappingResponse,
     MappingTypeConfig,
     PlateauFeature,
+    StrictModel,
 )
 
 if TYPE_CHECKING:
@@ -140,6 +143,7 @@ async def map_set(
     *,
     service: str | None = None,
     strict: bool = False,
+    diagnostics: bool | None = None,
 ) -> list[PlateauFeature]:
     """Return ``features`` with ``set_name`` mappings populated.
 
@@ -152,22 +156,37 @@ async def map_set(
     """
 
     cfg = MappingTypeConfig(dataset=set_name, label=set_name)
-    prompt = render_set_prompt(set_name, list(items), features)
+    use_diag = (
+        diagnostics
+        if diagnostics is not None
+        else getattr(session, "diagnostics", False)
+    )
+    prompt = render_set_prompt(set_name, list(items), features, diagnostics=use_diag)
+    model_type: type[StrictModel] = (
+        MappingDiagnosticsResponse if use_diag else MappingResponse
+    )
 
     try:
-        raw = await session.ask_async(prompt)
-        payload = MappingResponse.model_validate_json(raw)
+        raw = await session.ask_async(prompt, output_type=model_type)
+        payload: StrictModel = (
+            raw if isinstance(raw, StrictModel) else model_type.model_validate_json(raw)
+        )
     except (ValidationError, ValueError):
         hint_prompt = f"{prompt}\nReturn valid JSON only."
-        raw = await session.ask_async(hint_prompt)
+        raw = await session.ask_async(hint_prompt, output_type=model_type)
         try:
-            payload = MappingResponse.model_validate_json(raw)
+            payload = (
+                raw
+                if isinstance(raw, StrictModel)
+                else model_type.model_validate_json(raw)
+            )
         except (ValidationError, ValueError) as exc:
             svc = service or "unknown"
             qdir = Path("quarantine/mapping") / svc
             qdir.mkdir(parents=True, exist_ok=True)
             qfile = qdir / f"{set_name}.txt"
-            qfile.write_text(raw, encoding="utf-8")
+            text = raw if isinstance(raw, str) else raw.model_dump_json()
+            qfile.write_text(text, encoding="utf-8")
             if _quarantine_logger is not None:
                 _quarantine_logger(qfile)
             if strict:
@@ -179,9 +198,25 @@ async def map_set(
                 for feat in features
             ]
 
+    if use_diag:
+        diag_payload = cast(MappingDiagnosticsResponse, payload)
+        plain = [
+            MappingFeature(
+                feature_id=feat.feature_id,
+                mappings={
+                    key: [Contribution(item=c.item) for c in vals]
+                    for key, vals in feat.mappings.items()
+                },
+            )
+            for feat in diag_payload.features
+        ]
+        payload_norm = MappingResponse(features=plain)
+    else:
+        payload_norm = cast(MappingResponse, payload)
+
     return _merge_mapping_results(
         features,
-        payload,
+        payload_norm,
         {set_name: cfg},
         catalogue_items={set_name: list(items)},
         service=service or "unknown",
