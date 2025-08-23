@@ -37,7 +37,7 @@ def test_init_logfire_configures_sdk(monkeypatch):
 
     monkeypatch.setitem(sys.modules, "logfire", dummy_module)
 
-    monitoring.init_logfire("token")
+    monitoring.init_logfire("token", diagnostics=True)
 
     assert called["token"] == "token"
     assert called["service_name"] == "service-ambition-generator"

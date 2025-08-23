@@ -81,7 +81,7 @@ def _configure_logging(args: argparse.Namespace, settings) -> None:
     )
     # Initialize logfire regardless of token availability; a missing token
     # keeps logging local without sending telemetry to the cloud.
-    init_logfire(settings.logfire_token)
+    init_logfire(settings.logfire_token, diagnostics=settings.diagnostics)
 
 
 def _prepare_paths(output: Path, resume: bool) -> tuple[Path, Path]:
