@@ -137,7 +137,7 @@ runs concurrently with a worker pool bounded by this setting. Pass `--progress`
 to display a progress bar during long runs; it is suppressed automatically in
 CI environments or when stdout is not a TTY. Provide `--seed` to make
 stochastic behaviour such as backoff jitter deterministic during tests and
-demos. Pass `--quiet` to disable per-call logging spans.
+demos.
 
 ### Remapping mode
 

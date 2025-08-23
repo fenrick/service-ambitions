@@ -10,7 +10,6 @@ import logging
 import os
 import random
 import sys
-from contextlib import nullcontext
 from datetime import datetime, timezone
 from itertools import islice
 from pathlib import Path
@@ -83,9 +82,6 @@ def _configure_logging(args: argparse.Namespace, settings) -> None:
     # Initialize logfire regardless of token availability; a missing token
     # keeps logging local without sending telemetry to the cloud.
     init_logfire(settings.logfire_token)
-    if args.quiet:
-        # Replace log spans with a no-op context manager when quiet
-        logfire.span = lambda *a, **k: nullcontext()  # type: ignore[assignment]
 
 
 def _prepare_paths(output: Path, resume: bool) -> tuple[Path, Path]:
@@ -659,11 +655,6 @@ def main() -> None:
         "--no-logs",
         action="store_true",
         help="Disable file logging and Logfire telemetry",
-    )
-    common.add_argument(
-        "--quiet",
-        action="store_true",
-        help="Disable per-call log spans",
     )
     common.add_argument(
         "--strict",
