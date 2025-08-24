@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Verify generator output against a locked golden file."""
 
 from __future__ import annotations

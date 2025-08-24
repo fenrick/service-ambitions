@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Centralised application configuration management.
 
 This module exposes :class:`Settings`, a ``pydantic-settings`` model that

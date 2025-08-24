@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 import sys
 from types import SimpleNamespace
 

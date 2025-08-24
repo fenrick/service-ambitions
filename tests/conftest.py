@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Test configuration for service-ambitions.
 
 Ensures OpenAI calls are stubbed and a deterministic API key is present.

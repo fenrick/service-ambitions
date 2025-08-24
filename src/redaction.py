@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Utility helpers for sanitising sensitive data in logs."""
 
 from __future__ import annotations

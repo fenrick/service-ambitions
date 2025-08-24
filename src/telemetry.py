@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Aggregate mapping metrics for end-of-run reporting."""
 
 from __future__ import annotations

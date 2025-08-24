@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Integration test for four-plateau service evolution."""
 
 import json

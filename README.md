@@ -327,6 +327,10 @@ bandit -r src -ll
 pip-audit
 ```
 
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines and mandatory

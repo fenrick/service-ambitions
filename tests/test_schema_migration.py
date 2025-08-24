@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Tests for schema migration utilities."""
 
 import pytest

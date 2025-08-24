@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Utilities for enriching plateau features with mapping data.
 
 Mapping information such as related applications or technologies is gathered by

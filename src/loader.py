@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Utilities for loading prompts, configuration and reference data.
 
 The helpers in this module centralise file-system access for prompt templates,

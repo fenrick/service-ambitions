@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Utilities for deterministic serialisation of service records."""
 
 from __future__ import annotations
