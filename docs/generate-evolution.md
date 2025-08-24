@@ -39,7 +39,7 @@ contain empty mapping lists. This turns on a fail-fast mode instead of the
 default best‑effort behaviour.
 
 Services run concurrently using a bounded worker pool configured via the
-`--concurrency` flag or the `concurrency` setting in `config/app.json`. The
+`--concurrency` flag or the `concurrency` setting in `config/app.yaml`. The
 required number of features per role comes from the `features_per_role` setting
 in the same file.
 
@@ -48,7 +48,7 @@ deterministic when supported by the provider.
 
 ### Model selection
 
-Defaults come from `config/app.json`:
+Defaults come from `config/app.yaml`:
 
 | Stage        | Default model                  | Fast/cheap alternative |
 |--------------|--------------------------------|------------------------|

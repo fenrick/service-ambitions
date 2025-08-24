@@ -1,0 +1,62 @@
+# Default LLM used for most prompts.
+# Replace with the provider and model you prefer, e.g., "openai:gpt-4".
+model: openai:YOUR_MODEL
+
+models:
+  # Model used for plateau descriptions.
+  descriptions: openai:YOUR_DESCRIPTIONS_MODEL
+  # Model used for feature generation.
+  features: openai:YOUR_FEATURES_MODEL
+  # Model used for mapping tasks.
+  mapping: openai:YOUR_MAPPING_MODEL
+  # Model used for search operations.
+  search: openai:YOUR_SEARCH_MODEL
+
+# Reasoning effort controls depth of analysis ("low", "medium", or "high").
+# Typical presets: "low" (cheap & fast), "medium" (balanced), "high" (max quality).
+reasoning:
+  effort: medium
+
+# Toggle to enable OpenAI's experimental web search capability.
+web_search: false
+
+# Adjust log level as needed: DEBUG, INFO, WARNING, ERROR.
+log_level: INFO
+
+# Mapping type definitions: dataset names and display labels.
+mapping_types:
+  data:
+    dataset: information
+    label: Data
+  applications:
+    dataset: applications
+    label: Applications
+  technology:
+    dataset: technologies
+    label: Technologies
+
+# Reference datasets used for mapping features to catalogues.
+mapping_sets:
+  - name: Applications
+    file: applications.json
+    field: applications
+  - name: Technologies
+    file: technologies.json
+    field: technology
+  - name: Data
+    file: information.json
+    field: data
+
+# Directory containing prompt components.
+prompt_dir: prompts
+# Identifier for context-specific prompts.
+context_id: YOUR_CONTEXT_ID
+# Optional inspiration list to influence outputs.
+inspiration: general
+
+# Concurrency controls for API requests.
+concurrency: 5              # Number of services processed in parallel.
+request_timeout: 60         # Per-request timeout in seconds.
+retries: 5                  # Number of retry attempts.
+retry_base_delay: 0.5       # Initial backoff delay in seconds.
+features_per_role: 5        # Required number of features per role.

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Sequence, Tuple, TypeVar
 
 import logfire
+import yaml
 from pydantic import TypeAdapter
 
 from models import (
@@ -123,6 +124,21 @@ def _read_json_file(path: Path, schema: type[T]) -> T:
         ) from exc
 
 
+def _read_yaml_file(path: Path, schema: type[T]) -> T:
+    """Return YAML data loaded from ``path`` validated against ``schema``."""
+
+    try:
+        adapter = TypeAdapter(schema)
+        return adapter.validate_python(yaml.safe_load(_read_file(path)))
+    except FileNotFoundError:
+        raise
+    except Exception as exc:
+        logfire.error(f"Error reading YAML file {path}: {exc}")
+        raise RuntimeError(
+            f"An error occurred while reading the YAML file: {exc}"
+        ) from exc
+
+
 def load_prompt_text(prompt_name: str, base_dir: Path | None = None) -> str:
     """Return the contents of a prompt template.
 
@@ -143,7 +159,7 @@ def load_prompt_text(prompt_name: str, base_dir: Path | None = None) -> str:
         RuntimeError: If the file cannot be read.
     """
 
-    directory = base_dir or PROMPT_DIR
+    directory = Path(base_dir) if base_dir is not None else PROMPT_DIR
     filename = prompt_name if prompt_name.endswith(".md") else f"{prompt_name}.md"
     return _read_file(directory / filename)
 
@@ -182,7 +198,7 @@ def _load_mapping_items(
 @lru_cache(maxsize=None)
 def load_app_config(
     base_dir: Path | str = Path("config"),
-    filename: Path | str = Path("app.json"),
+    filename: Path | str = Path("app.yaml"),
 ) -> AppConfig:
     """Return application configuration from ``base_dir``.
 
@@ -190,13 +206,13 @@ def load_app_config(
     """
 
     path = Path(base_dir) / Path(filename)
-    return _read_json_file(path, AppConfig)
+    return _read_yaml_file(path, AppConfig)
 
 
 @lru_cache(maxsize=None)
 def load_mapping_type_config(
     base_dir: Path | str = Path("config"),
-    filename: Path | str = Path("app.json"),
+    filename: Path | str = Path("app.yaml"),
 ) -> dict[str, MappingTypeConfig]:
     """Return mapping type configuration from ``base_dir``.
 
@@ -443,4 +459,4 @@ def load_ambition_prompt(
 
 
 # Backward compatibility alias
-load_prompt = load_evolution_prompt
+load_prompt = load_ambition_prompt
