@@ -7,6 +7,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from typing import cast
 
 import pytest
@@ -18,6 +19,7 @@ from conversation import (
 from models import (
     Contribution,
     FeatureItem,
+    MappingSet,
     MaturityScore,
     PlateauFeature,
     PlateauResult,
@@ -105,10 +107,20 @@ async def test_map_features_maps_all_sets_with_full_list(monkeypatch) -> None:
         received.append([f.feature_id for f in feats])
         return list(feats)
 
+    mapping_sets = [
+        MappingSet(name="Applications", file="applications.json", field="applications"),
+        MappingSet(name="Technologies", file="technologies.json", field="technology"),
+        MappingSet(name="Data", file="information.json", field="data"),
+        MappingSet(name="Extra", file="extra.json", field="extra"),
+    ]
     monkeypatch.setattr("plateau_generator.map_set", fake_map_set)
     monkeypatch.setattr(
+        "plateau_generator.load_settings",
+        lambda: SimpleNamespace(mapping_sets=mapping_sets),
+    )
+    monkeypatch.setattr(
         "plateau_generator.load_mapping_items",
-        lambda path: {t: [] for t in ("applications", "technologies", "information")},
+        lambda path, sets: {s.field: [] for s in sets},
     )
     session = DummySession([])
     gen = PlateauGenerator(cast(ConversationSession, session))
@@ -131,7 +143,7 @@ async def test_map_features_maps_all_sets_with_full_list(monkeypatch) -> None:
 
     await gen._map_features(cast(ConversationSession, session), feats)
 
-    assert called == ["applications", "technologies", "information"]
+    assert called == [s.field for s in mapping_sets]
     assert all(ids == ["f1", "f2"] for ids in received)
 
 

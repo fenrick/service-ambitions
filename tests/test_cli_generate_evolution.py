@@ -91,6 +91,7 @@ def test_generate_evolution_writes_results(tmp_path, monkeypatch) -> None:
         diagnostics=False,
         strict_mapping=False,
         mapping_data_dir="data",
+        mapping_sets=[],
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -178,6 +179,7 @@ def test_generate_evolution_dry_run(tmp_path, monkeypatch) -> None:
         diagnostics=False,
         strict_mapping=False,
         mapping_data_dir="data",
+        mapping_sets=[],
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -285,6 +287,7 @@ def test_generate_evolution_resume(tmp_path, monkeypatch) -> None:
         diagnostics=False,
         strict_mapping=False,
         mapping_data_dir="data",
+        mapping_sets=[],
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -369,6 +372,7 @@ def test_generate_evolution_rejects_invalid_concurrency(tmp_path, monkeypatch) -
         diagnostics=False,
         strict_mapping=False,
         mapping_data_dir="data",
+        mapping_sets=[],
     )
     args = argparse.Namespace(
         input_file=str(input_path),
@@ -417,7 +421,7 @@ def test_cli_parses_mapping_options(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(
         cli,
         "load_settings",
-        lambda: SimpleNamespace(log_level="INFO", logfire_token=None),
+        lambda: SimpleNamespace(log_level="INFO", logfire_token=None, mapping_sets=[]),
     )
     monkeypatch.setattr("cli.logfire.force_flush", lambda: None)
 
@@ -507,6 +511,7 @@ def test_generate_evolution_writes_transcripts(tmp_path, monkeypatch) -> None:
         diagnostics=False,
         strict_mapping=False,
         mapping_data_dir="data",
+        mapping_sets=[],
     )
     args = argparse.Namespace(
         input_file=str(input_path),

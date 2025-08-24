@@ -58,6 +58,7 @@ def test_cli_generates_output(tmp_path, monkeypatch):
         models=None,
         web_search=False,
         diagnostics=False,
+        mapping_sets=[],
     )
 
     async def fake_process_service(self, service, prompt=None):
@@ -117,6 +118,7 @@ def test_cli_dry_run_skips_processing(tmp_path, monkeypatch):
         models=None,
         web_search=False,
         diagnostics=False,
+        mapping_sets=[],
     )
 
     called = {"ran": False}
@@ -190,6 +192,7 @@ def test_cli_switches_context(tmp_path, monkeypatch):
         reasoning=None,
         web_search=False,
         diagnostics=False,
+        mapping_sets=[],
     )
 
     async def fake_process_service(self, service, prompt=None):
@@ -252,6 +255,7 @@ def test_cli_model_instantiation_arguments(tmp_path, monkeypatch):
         reasoning=None,
         web_search=False,
         diagnostics=False,
+        mapping_sets=[],
     )
 
     captured: dict[str, str] = {}
@@ -324,6 +328,7 @@ def test_cli_seed_sets_random(tmp_path, monkeypatch):
         reasoning=None,
         web_search=False,
         diagnostics=False,
+        mapping_sets=[],
     )
 
     captured: dict[str, int | None] = {}
@@ -404,6 +409,7 @@ def test_cli_enables_logfire(tmp_path, monkeypatch):
         reasoning=None,
         web_search=False,
         diagnostics=False,
+        mapping_sets=[],
     )
 
     async def fake_process_service(self, service, prompt=None):
@@ -483,6 +489,7 @@ def test_cli_no_logs_disables_logging(tmp_path, monkeypatch):
         retries=5,
         retry_base_delay=0.5,
         diagnostics=False,
+        mapping_sets=[],
     )
 
     called: dict[str, object] = {}
@@ -548,6 +555,7 @@ def test_cli_rejects_invalid_concurrency(monkeypatch):
         reasoning=None,
         web_search=False,
         diagnostics=False,
+        mapping_sets=[],
     )
     monkeypatch.setattr(cli, "load_settings", lambda: settings)
 
@@ -592,6 +600,7 @@ def test_cli_verbose_logging(tmp_path, monkeypatch):
         reasoning=None,
         web_search=False,
         diagnostics=False,
+        mapping_sets=[],
     )
 
     async def fake_process_service(self, service, prompt=None):
@@ -657,6 +666,7 @@ def test_cli_resume_skips_processed(tmp_path, monkeypatch):
         reasoning=None,
         web_search=False,
         diagnostics=False,
+        mapping_sets=[],
     )
 
     processed: list[str] = []
@@ -728,6 +738,7 @@ def test_cli_validate_only(tmp_path, monkeypatch):
         models=None,
         web_search=False,
         diagnostics=False,
+        mapping_sets=[],
     )
 
     monkeypatch.setattr(cli, "load_settings", lambda: settings)
@@ -767,6 +778,7 @@ def test_cli_flag_overrides_settings(monkeypatch, tmp_path):
         reasoning=None,
         web_search=False,
         diagnostics=False,
+        mapping_sets=[],
     )
     captured: dict[str, object] = {}
 

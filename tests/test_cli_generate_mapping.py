@@ -67,6 +67,7 @@ def test_generate_mapping_maps_features(tmp_path, monkeypatch) -> None:
         diagnostics=False,
         strict_mapping=False,
         mapping_data_dir="data",
+        mapping_sets=[],
         web_search=False,
         reasoning=None,
     )

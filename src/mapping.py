@@ -28,6 +28,7 @@ from models import (
     StrictModel,
 )
 from quarantine import QuarantineWriter
+from settings import load_settings
 from telemetry import record_mapping_set
 
 if TYPE_CHECKING:
@@ -57,7 +58,9 @@ def _merge_mapping_results(
     presence of unknown or missing identifiers raises :class:`MappingError`.
     """
 
-    catalogues = catalogue_items or load_mapping_items(MAPPING_DATA_DIR)
+    catalogues = catalogue_items or load_mapping_items(
+        MAPPING_DATA_DIR, load_settings().mapping_sets
+    )
     valid_ids: dict[str, set[str]] = {
         key: {item.id for item in catalogues[cfg.dataset]}
         for key, cfg in mapping_types.items()
