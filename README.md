@@ -313,6 +313,13 @@ Map each feature to relevant Applications from the list below.
 
 Repeat this structure for the `technologies` and `information` datasets. Run with `--diagnostics` to additionally request a one-line rationale for each mapping.
 
+## IDE support
+
+The repository includes an `.editorconfig` file and default VS Code settings.
+Opening the workspace in VS Code enables format-on-save with Black, import
+sorting and linting via Ruff, plus Mypy and Bandit checks. Editors that support
+EditorConfig will automatically apply the same indentation and newline rules.
+
 ## Testing
 
 Run the following checks before committing:
