@@ -139,3 +139,7 @@ mypy .
 bandit -r src -ll
 pip-audit
 ```
+
+---
+
+This documentation is licensed under the [MIT License](../LICENSE).

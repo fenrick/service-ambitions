@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Factory for constructing stage-specific OpenAI models."""
 
 from __future__ import annotations

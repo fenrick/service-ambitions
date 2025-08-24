@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Pydantic models describing service inputs, evaluation outputs, and configuration.
 
 These definitions act as the contract between the command-line interface, the

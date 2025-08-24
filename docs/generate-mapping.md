@@ -56,3 +56,7 @@ to also receive a `rationale` explaining each match.
 - Ensure `OPENAI_API_KEY` is set and valid.
 - Use `--dry-run` to validate input files without making API calls.
 - Check network access and API quotas if mapping requests fail repeatedly.
+
+---
+
+This documentation is licensed under the [MIT License](../LICENSE).

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 from model_factory import ModelFactory
 from models import StageModels
 

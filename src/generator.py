@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Async ambition generation using Pydantic AI.
 
 This module orchestrates concurrent requests to an LLM and streams the

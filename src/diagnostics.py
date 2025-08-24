@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Helpers for validating generated output files."""
 
 from __future__ import annotations

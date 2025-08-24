@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Utilities for writing quarantined payloads."""
 
 from __future__ import annotations

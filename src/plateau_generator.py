@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Plateau feature generation and service evolution utilities.
 
 The :class:`PlateauGenerator` coordinates prompt construction, model

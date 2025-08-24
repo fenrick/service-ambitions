@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Tests for canonicalise_record helper."""
 
 from canonical import canonicalise_record
