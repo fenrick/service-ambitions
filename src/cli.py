@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Command-line interface for generating service ambitions and evolutions."""
 
 from __future__ import annotations

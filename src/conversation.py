@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Conversational session wrapper for LLM interactions.
 
 This module exposes :class:`ConversationSession`, a light abstraction over a

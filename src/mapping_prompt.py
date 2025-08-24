@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Prompt rendering utilities for feature mappings.
 
 This module provides deterministic formatting for mapping prompts to ensure

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Helpers for enabling Pydantic Logfire telemetry.
 
 Logfire operates locally without an API token; the token is only required for

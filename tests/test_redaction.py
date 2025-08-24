@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Tests for the :mod:`redaction` helpers."""
 
 from redaction import redact_pii

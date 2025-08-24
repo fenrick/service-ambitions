@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 import asyncio
 from types import SimpleNamespace
 

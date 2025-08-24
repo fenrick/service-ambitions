@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Utility helpers for estimating token usage and cost.
 
 This module exposes :func:`estimate_tokens`, which uses ``tiktoken`` when

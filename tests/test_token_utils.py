@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Tests for the :mod:`token_utils` module."""
 
 from __future__ import annotations

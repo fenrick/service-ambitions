@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Property-based tests ensuring schema round-trips preserve data."""
 
 from __future__ import annotations

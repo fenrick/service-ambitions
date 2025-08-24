@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Tests for plateau feature generation."""
 
 import asyncio

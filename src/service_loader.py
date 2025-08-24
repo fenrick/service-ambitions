@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Iterators for service definition files.
 
 This module provides :class:`ServiceLoader` and :func:`load_services` for

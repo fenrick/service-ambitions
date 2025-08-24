@@ -246,3 +246,7 @@ Generate service features for the Learning & Teaching service at plateau 4 using
 ### Mapping Prompt
 Map features produced for plateau 4 using the same Data, Applications and Technologies lists, instructions and schema as Stage 5.
 
+
+---
+
+This documentation is licensed under the [MIT License](../LICENSE).

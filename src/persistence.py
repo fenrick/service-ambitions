@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Utilities for safe, resumable file writes.
 
 This module centralises helper functions used to atomically update output files

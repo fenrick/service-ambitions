@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Tests for :func:`loader.load_definitions`."""
 
 from __future__ import annotations

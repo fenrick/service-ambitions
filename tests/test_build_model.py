@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Tests for ``build_model`` utility."""
 
 from generator import build_model

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Integration tests for CLI subcommands."""
 
 import sys
