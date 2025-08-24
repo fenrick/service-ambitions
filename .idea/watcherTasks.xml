@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="FileWatcherManager">
+    <option name="tasks">
+      <FileWatcherTask>
+        <option name="name" value="Black" />
+        <option name="description" value="Format Python files with Black" />
+        <option name="program" value="poetry" />
+        <option name="arguments" value="run black --preview --enable-unstable-feature string_processing $FilePath$" />
+        <option name="workingDir" value="$ProjectFileDir$" />
+        <option name="trigger" value="ON_SAVE" />
+      </FileWatcherTask>
+      <FileWatcherTask>
+        <option name="name" value="Ruff" />
+        <option name="description" value="Run Ruff linter" />
+        <option name="program" value="poetry" />
+        <option name="arguments" value="run ruff check --fix $FilePath$" />
+        <option name="workingDir" value="$ProjectFileDir$" />
+        <option name="trigger" value="ON_SAVE" />
+      </FileWatcherTask>
+    </option>
+  </component>
+</project>
