@@ -346,4 +346,5 @@ This project is licensed under the [MIT License](LICENSE).
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines and mandatory
-quality checks.
+quality checks. All participants are expected to uphold the
+[Code of Conduct](CODE_OF_CONDUCT.md).
