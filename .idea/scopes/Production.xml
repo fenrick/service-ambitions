@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component name="DependencyValidationManager">
+  <scope name="Production" pattern="file[service-ambitions]:src//*&&!file[service-ambitions]:tests//*" />
+</component>

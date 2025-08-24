@@ -1,0 +1,7 @@
+<templateSet group="project">
+  <template name="log" value="logger.debug(\"$END$\")" description="Insert debug log" toReformat="true" toShortenFQNames="true">
+    <context>
+      <option name="PYTHON" value="true" />
+    </context>
+  </template>
+</templateSet>
