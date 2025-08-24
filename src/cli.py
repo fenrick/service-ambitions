@@ -788,6 +788,7 @@ def main() -> None:
         default="ambitions.jsonl",
         help=OUTPUT_FILE_HELP,
     )
+    val_p.add_argument("--transcripts-dir", help=TRANSCRIPTS_HELP)
     val_p.set_defaults(func=_cmd_validate)
 
     args = parser.parse_args()
