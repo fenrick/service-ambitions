@@ -100,7 +100,7 @@ def test_load_prompt_with_definition_keys(tmp_path):
         "insp",
         str(prompts_dir),
         definitions_dir=str(data_dir),
-        definition_keys=["d2"],
+        definition_keys=("d2",),
         plateaus_dir=str(data_dir),
     )
     expected = (
@@ -290,8 +290,13 @@ def test_invalid_fixture_quarantines(tmp_path):
 def test_load_mapping_type_config(tmp_path):
     base = tmp_path / "config"
     base.mkdir()
-    (base / "app.json").write_text(
-        '{"mapping_types": {"alpha": {"dataset": "ds", "label": "Alpha"}}}',
+    (base / "app.yaml").write_text(
+        """
+mapping_types:
+  alpha:
+    dataset: ds
+    label: Alpha
+""",
         encoding="utf-8",
     )
     load_app_config.cache_clear()
@@ -303,8 +308,13 @@ def test_load_mapping_type_config(tmp_path):
 def test_load_app_config(tmp_path):
     base = tmp_path / "config"
     base.mkdir()
-    (base / "app.json").write_text(
-        '{"mapping_types": {"beta": {"dataset": "ds2", "label": "Beta"}}}',
+    (base / "app.yaml").write_text(
+        """
+mapping_types:
+  beta:
+    dataset: ds2
+    label: Beta
+""",
         encoding="utf-8",
     )
     load_app_config.cache_clear()
@@ -315,8 +325,12 @@ def test_load_app_config(tmp_path):
 def test_load_app_config_models(tmp_path):
     base = tmp_path / "config"
     base.mkdir()
-    (base / "app.json").write_text(
-        '{"models": {"features": "m1", "mapping": "m2"}}',
+    (base / "app.yaml").write_text(
+        """
+models:
+  features: m1
+  mapping: m2
+""",
         encoding="utf-8",
     )
     load_app_config.cache_clear()
@@ -329,8 +343,12 @@ def test_load_app_config_models(tmp_path):
 def test_load_app_config_reasoning(tmp_path):
     base = tmp_path / "config"
     base.mkdir()
-    (base / "app.json").write_text(
-        '{"reasoning": {"effort": "high", "summary": "detailed"}}',
+    (base / "app.yaml").write_text(
+        """
+reasoning:
+  effort: high
+  summary: detailed
+""",
         encoding="utf-8",
     )
     load_app_config.cache_clear()

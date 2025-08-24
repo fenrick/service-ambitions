@@ -23,6 +23,7 @@ dependencies = [
     "opentelemetry-instrumentation-sqlite3 (>=0.57b0,<0.58)",
     "opentelemetry-instrumentation-starlette (>=0.57b0,<0.58)",
     "opentelemetry-instrumentation-urllib (>=0.57b0,<0.58)",
+    "pyyaml (>=6.0.2,<7.0.0)",
 ]
 
 [project.scripts]
@@ -39,6 +40,8 @@ pre-commit = "*"
 pytest = "*"
 pytest-xdist = "*"
 hypothesis = "*"
+types-pyyaml = "^6.0.12.20250822"
+pytest-asyncio = "^1.1.0"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

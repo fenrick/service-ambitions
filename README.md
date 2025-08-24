@@ -5,10 +5,10 @@
 Copy the sample configuration and customise it for your environment:
 
 ```
-cp config/app.example.json config/app.json
+cp config/app.example.yaml config/app.yaml
 ```
 
-Then edit `config/app.json` to set models, reasoning presets and other options.
+Then edit `config/app.yaml` to set models, reasoning presets and other options.
 
 The CLI requires an OpenAI API key available in the `OPENAI_API_KEY` environment
 variable. Settings are loaded via Pydantic, which reads from a `.env` file if
@@ -32,15 +32,13 @@ variable. Model identifiers must include a provider prefix, in the form
 `<provider>:<model>`. The default is `openai:gpt-5` with medium reasoning effort.
 
 Stage-specific model overrides live under the `models` block in
-`config/app.json`. Defaults are:
+`config/app.yaml`. Defaults are:
 
-```json
-{
-  "descriptions": "openai:o4-mini",
-  "features": "openai:gpt-5",
-  "mapping": "openai:o4-mini",
-  "search": "openai:gpt-4o-search-preview"
-}
+```yaml
+descriptions: openai:o4-mini
+features: openai:gpt-5
+mapping: openai:o4-mini
+search: openai:gpt-4o-search-preview
 ```
 
 | Stage        | Default model                  | Fast/cheap alternative |
@@ -63,7 +61,7 @@ for details.
 | balanced     | `openai:gpt-5`     | medium           |
 | max quality  | `openai:gpt-5`     | high             |
 
-Select a preset by setting `reasoning.effort` in `config/app.json` to
+Select a preset by setting `reasoning.effort` in `config/app.yaml` to
 `low`, `medium` or `high`.
 
 OpenAI's experimental web search tool can be enabled via the `web_search`
@@ -141,7 +139,7 @@ demos.
 
 Requests run in parallel using a standard semaphore. Each service consumes a
 single permit, so throughput is capped only by the `--concurrency` flag (or the
-`concurrency` setting in `config/app.json`).
+`concurrency` setting in `config/app.yaml`).
 
 ## Plateau-first workflow
 
@@ -263,13 +261,13 @@ contains items with identifiers, names, and descriptions. These lists are
 injected into mapping prompts so that features can be matched against consistent
 options. Mapping prompts run separately for information, applications and
 technologies to keep each decision focused. All application configuration is
-stored in `config/app.json`; the chat model and any reasoning parameters live
+stored in `config/app.yaml`; the chat model and any reasoning parameters live
 at the top level, while mapping types and their associated datasets live under
 the `mapping_types` section, allowing new categories to be added without code
 changes. Plateau definitions and their level mappings come from
 `data/service_feature_plateaus.json`. Roles are defined in `data/roles.json`,
 and the required number of features per role is controlled by
-`features_per_role` in `config/app.json`.
+`features_per_role` in `config/app.yaml`.
 
 ## Prompt examples
 
