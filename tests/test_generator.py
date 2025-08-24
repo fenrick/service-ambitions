@@ -23,7 +23,7 @@ class DummySpan:
 
 
 async def fake_process_service(self, service, prompt=None):
-    return {"id": service.service_id}, 3, 0.5, 1
+    return {"id": service.service_id}, 3, 1
 
 
 spans: list[DummySpan] = []
@@ -46,6 +46,5 @@ def test_service_span_records_metrics(monkeypatch, tmp_path):
     assert len(spans) == 1
     span = spans[0]
     assert span.attributes["tokens.total"] == 3
-    assert span.attributes["cost.estimate"] == 0.5
     assert span.attributes["retries"] == 1
     assert span.attributes["status"] == "success"

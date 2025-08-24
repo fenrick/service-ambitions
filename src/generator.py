@@ -29,7 +29,6 @@ from tqdm import tqdm
 from canonical import canonicalise_record
 from models import ReasoningConfig, ServiceInput
 from redaction import redact_pii
-from token_utils import estimate_cost
 
 SERVICES_PROCESSED = logfire.metric_counter("services_processed")
 SERVICES_FAILED = logfire.metric_counter("services_failed")
@@ -213,17 +212,17 @@ class ServiceAmbitionGenerator:
 
     async def _process_service_line(
         self, service: ServiceInput
-    ) -> tuple[dict[str, Any] | None, str, int, float, int, str]:
+    ) -> tuple[dict[str, Any] | None, str, int, int, str]:
         """Return ambitions payload and metrics or ``None`` on failure."""
 
         logfire.info(f"Processing service {service.name}")
         try:
-            result, tokens, cost, retries = await self.process_service(service)
+            result, tokens, retries = await self.process_service(service)
         except Exception as exc:
             msg = f"Failed to process service {service.name}: {exc}"
             logfire.error(msg)
-            return None, service.service_id, 0, 0.0, self.retries - 1, "error"
-        return result, service.service_id, tokens, cost, retries, "success"
+            return None, service.service_id, 0, self.retries - 1, "error"
+        return result, service.service_id, tokens, retries, "success"
 
     async def _run_one(
         self,
@@ -244,7 +243,7 @@ class ServiceAmbitionGenerator:
             raise RuntimeError("Limiter not initialized")
         with logfire.span("service") as span:
             span.set_attribute("service.id", service.service_id)
-            tokens, cost, retries, status = await self._execute_service(
+            tokens, retries, status = await self._execute_service(
                 limiter,
                 service,
                 transcripts_dir,
@@ -254,7 +253,6 @@ class ServiceAmbitionGenerator:
                 progress,
             )
             span.set_attribute("tokens.total", tokens)
-            span.set_attribute("cost.estimate", cost)
             span.set_attribute("retries", retries)
             span.set_attribute("status", status)
 
@@ -267,7 +265,7 @@ class ServiceAmbitionGenerator:
         lock: asyncio.Lock,
         processed: set[str],
         progress: tqdm[Any] | None,
-    ) -> tuple[int, float, int, str]:
+    ) -> tuple[int, int, str]:
         """Process ``service`` and append its result to ``handle``.
 
         ``process_service`` is rate limited via ``limiter`` while the final
@@ -275,8 +273,8 @@ class ServiceAmbitionGenerator:
         """
 
         async with limiter:
-            payload, svc_id, tokens, cost, retries, status = (
-                await self._process_service_line(service)
+            payload, svc_id, tokens, retries, status = await self._process_service_line(
+                service
             )
 
         # Token usage is tracked via logfire metrics.
@@ -315,14 +313,14 @@ class ServiceAmbitionGenerator:
             SERVICES_PROCESSED.add(1)
         else:
             SERVICES_FAILED.add(1)
-        return tokens, cost, retries, status
+        return tokens, retries, status
 
     async def process_service(
         self,
         service: ServiceInput,
         prompt: str | None = None,
-    ) -> tuple[dict[str, Any], int, float, int]:
-        """Return ambitions, token usage and retry count for ``service``.
+    ) -> tuple[dict[str, Any], int, int]:
+        """Return ambitions and token usage for ``service``.
 
         Args:
             service: Structured representation of the service under analysis.
@@ -356,9 +354,7 @@ class ServiceAmbitionGenerator:
         )
         usage = result.usage()
         tokens = usage.total_tokens or 0
-        model_name = getattr(self.model, "model_name", getattr(self.model, "name", ""))
-        cost = estimate_cost(model_name, tokens)
-        return result.output.model_dump(), tokens, cost, retries
+        return result.output.model_dump(), tokens, retries
 
     async def _process_all(
         self,

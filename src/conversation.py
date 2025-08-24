@@ -22,7 +22,6 @@ from pydantic_ai import Agent, messages
 
 from models import ServiceInput
 from redaction import redact_pii
-from token_utils import estimate_cost, estimate_tokens
 
 
 class ConversationSession:
@@ -67,9 +66,8 @@ class ConversationSession:
             else (Path("transcripts") if diagnostics else None)
         )
         self._service_id: str | None = None
-        # Token usage and cost for the most recent request
+        # Token usage for the most recent request
         self.last_tokens: int = 0
-        self.last_cost: float = 0.0
 
     def add_parent_materials(self, service_input: ServiceInput) -> None:
         """Seed the conversation with details about the target service.
@@ -132,7 +130,6 @@ class ConversationSession:
         span_name: str,
         stage: str,
         model_name: str,
-        prompt_token_estimate: int,
     ) -> Any:
         """Create a logging span and attach common attributes."""
 
@@ -142,7 +139,6 @@ class ConversationSession:
                 # annotate span for observability when diagnostics enabled
                 span.set_attribute("stage", stage)
                 span.set_attribute("model_name", model_name)
-                span.set_attribute("prompt_token_estimate", prompt_token_estimate)
             yield span
 
     def _log_prompt(self, prompt: str) -> None:
@@ -178,32 +174,26 @@ class ConversationSession:
         result: Any,
         stage: str,
         model_name: str,
-        prompt_token_estimate: int,
-    ) -> tuple[Any, int, float]:
+    ) -> tuple[Any, int]:
         """Process a successful model invocation."""
 
         self._record_new_messages(list(result.new_messages()))
         usage = result.usage()
         tokens = usage.total_tokens or 0
-        cost = estimate_cost(model_name, tokens)
         logfire.info(
             "Prompt succeeded",
             stage=stage,
             model_name=model_name,
             total_tokens=tokens,
-            prompt_token_estimate=prompt_token_estimate,
-            estimated_cost=cost,
         )
-        return result.output, tokens, cost
+        return result.output, tokens
 
     def _handle_failure(
         self,
         exc: Exception,
         stage: str,
         model_name: str,
-        prompt_token_estimate: int,
         tokens: int,
-        cost: float,
     ) -> None:
         """Log failure details."""
 
@@ -212,8 +202,6 @@ class ConversationSession:
             stage=stage,
             model_name=model_name,
             total_tokens=tokens,
-            prompt_token_estimate=prompt_token_estimate,
-            estimated_cost=cost,
             error=str(exc),
         )
 
@@ -221,7 +209,6 @@ class ConversationSession:
         self,
         span: Any,
         tokens: int,
-        cost: float,
         start: float,
     ) -> None:
         """Record latency and token usage."""
@@ -229,7 +216,6 @@ class ConversationSession:
         duration = time.monotonic() - start
         if span and self.diagnostics:
             span.set_attribute("total_tokens", tokens)
-            span.set_attribute("estimated_cost", cost)
             span.set_attribute("duration", duration)
 
     T = TypeVar("T")
@@ -246,20 +232,13 @@ class ConversationSession:
         stage = self.stage or "unknown"
         model_name = getattr(getattr(self.client, "model", None), "model_name", "")
         tokens = 0
-        cost = 0.0
-        prompt_token_estimate = estimate_tokens(prompt, 0)
         start = time.monotonic()
-        with self._prepare_span(
-            span_name, stage, model_name, prompt_token_estimate
-        ) as span:
+        with self._prepare_span(span_name, stage, model_name) as span:
             try:
                 self._log_prompt(prompt)
                 result = await runner(prompt, self._history, output_type)
-                output, tokens, cost = self._handle_success(
-                    result, stage, model_name, prompt_token_estimate
-                )
+                output, tokens = self._handle_success(result, stage, model_name)
                 self.last_tokens = tokens
-                self.last_cost = cost
                 await self._write_transcript(prompt, output)
                 return output
             except Exception as exc:  # pragma: no cover - defensive logging
@@ -267,13 +246,11 @@ class ConversationSession:
                     exc,
                     stage,
                     model_name,
-                    prompt_token_estimate,
                     tokens,
-                    cost,
                 )
                 raise
             finally:
-                self._finalise_metrics(span, tokens, cost, start)
+                self._finalise_metrics(span, tokens, start)
 
     @overload
     def ask(self, prompt: str) -> str: ...
