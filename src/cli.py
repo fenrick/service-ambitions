@@ -301,7 +301,7 @@ async def _cmd_generate_ambitions(
     attrs = {"output_path": str(output_path), "resume": args.resume}
     with logfire.span("cmd_generate_ambitions", attributes=attrs) as span:
         try:
-            if args.validate_only:
+            if getattr(args, "validate_only", False):
                 count = validate_jsonl(output_path, AmbitionModel)
                 logfire.info(
                     "Validated output",
@@ -403,6 +403,33 @@ async def _cmd_generate_ambitions(
                 error=str(exc),
             )
             raise
+
+
+async def _cmd_run(
+    args: argparse.Namespace, settings, transcripts_dir: Path | None
+) -> None:
+    """Execute the default generation workflow."""
+
+    await _cmd_generate_ambitions(args, settings, transcripts_dir)
+
+
+async def _cmd_diagnose(
+    args: argparse.Namespace, settings, transcripts_dir: Path | None
+) -> None:
+    """Run the generator with diagnostics and transcripts enabled."""
+
+    settings.diagnostics = True
+    args.no_logs = False
+    await _cmd_generate_ambitions(args, settings, transcripts_dir)
+
+
+async def _cmd_validate(
+    args: argparse.Namespace, settings, transcripts_dir: Path | None
+) -> None:
+    """Validate inputs without invoking the language model."""
+
+    args.dry_run = True
+    await _cmd_generate_ambitions(args, settings, transcripts_dir)
 
 
 async def _cmd_generate_evolution(
@@ -708,85 +735,59 @@ def main() -> None:
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    amb = subparsers.add_parser(
-        "generate-ambitions",
+    run_p = subparsers.add_parser(
+        "run",
         parents=[common],
         help="Generate service ambitions",
         description="Generate service ambitions",
     )
-    amb.add_argument(
+    run_p.add_argument(
         "--input-file",
         default="sample-services.jsonl",
         help=SERVICES_FILE_HELP,
     )
-    amb.add_argument(
+    run_p.add_argument(
         "--output-file",
         default="ambitions.jsonl",
         help=OUTPUT_FILE_HELP,
     )
-    amb.add_argument("--transcripts-dir", help=TRANSCRIPTS_HELP)
-    amb.add_argument(
-        "--validate-only",
-        action="store_true",
-        help="Validate an existing output file and exit",
-    )
-    amb.set_defaults(func=_cmd_generate_ambitions)
+    run_p.add_argument("--transcripts-dir", help=TRANSCRIPTS_HELP)
+    run_p.set_defaults(func=_cmd_run)
 
-    evo = subparsers.add_parser(
-        "generate-evolution",
+    diag_p = subparsers.add_parser(
+        "diagnose",
         parents=[common],
-        help="Generate service evolution",
+        help="Run with diagnostics enabled",
     )
-    evo.add_argument(
+    diag_p.add_argument(
         "--input-file",
         default="sample-services.jsonl",
         help=SERVICES_FILE_HELP,
     )
-    evo.add_argument(
+    diag_p.add_argument(
         "--output-file",
-        default="evolution.jsonl",
+        default="ambitions.jsonl",
         help=OUTPUT_FILE_HELP,
     )
-    evo.add_argument("--transcripts-dir", help=TRANSCRIPTS_HELP)
-    evo.add_argument(
-        "--roles-file",
-        default="data/roles.json",
-        help="Path to the roles definition JSON file",
-    )
-    evo.set_defaults(func=_cmd_generate_evolution)
+    diag_p.add_argument("--transcripts-dir", help=TRANSCRIPTS_HELP)
+    diag_p.set_defaults(func=_cmd_diagnose)
 
-    map_p = subparsers.add_parser(
-        "generate-mapping",
+    val_p = subparsers.add_parser(
+        "validate",
         parents=[common],
-        help="Generate feature mappings",
+        help="Validate inputs without calling the API",
     )
-    map_p.add_argument(
-        "--input",
-        default="evolution.jsonl",
-        help="Path to the evolution JSONL file",
+    val_p.add_argument(
+        "--input-file",
+        default="sample-services.jsonl",
+        help=SERVICES_FILE_HELP,
     )
-    map_p.add_argument(
-        "--output",
-        default="mapped.jsonl",
+    val_p.add_argument(
+        "--output-file",
+        default="ambitions.jsonl",
         help=OUTPUT_FILE_HELP,
     )
-    map_p.set_defaults(func=_cmd_generate_mapping)
-
-    mig = subparsers.add_parser(
-        "migrate-jsonl",
-        help="Migrate JSONL records between schema versions",
-    )
-    mig.add_argument("--input", required=True, help="Path to the input JSONL file")
-    mig.add_argument(
-        "--output", required=True, help="File to write the migrated records"
-    )
-    mig.add_argument(
-        "--from", dest="from_version", required=True, help="Source schema version"
-    )
-    mig.add_argument(
-        "--to", dest="to_version", required=True, help="Target schema version"
-    )
-    mig.set_defaults(func=_cmd_migrate_jsonl)
+    val_p.set_defaults(func=_cmd_validate)
 
     args = parser.parse_args()
 

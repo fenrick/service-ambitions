@@ -117,19 +117,17 @@ Run the CLI through Poetry to ensure it uses the managed environment. Use
 subcommands to select the desired operation:
 
 ```bash
-poetry run service-ambitions generate-ambitions --input-file sample-services.jsonl --output-file ambitions.jsonl --no-logs
-poetry run service-ambitions generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl --no-logs
-poetry run service-ambitions generate-mapping --input evolution.jsonl --output remapped.jsonl --no-logs
-poetry run service-ambitions migrate-jsonl --input ambitions.jsonl --output upgraded.jsonl --from 1.0 --to 1.1 --no-logs
+poetry run service-ambitions run --input-file sample-services.jsonl --output-file ambitions.jsonl --no-logs
+poetry run service-ambitions diagnose --input-file sample-services.jsonl --output-file ambitions.jsonl --no-logs
+poetry run service-ambitions validate --input-file sample-services.jsonl --no-logs
 ```
 
 Alternatively, use the provided shell script which forwards all arguments to the CLI:
 
 ```bash
-./run.sh generate-ambitions --input-file sample-services.jsonl --output-file ambitions.jsonl --no-logs
-./run.sh generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl --no-logs
-./run.sh generate-mapping --input evolution.jsonl --output remapped.jsonl --no-logs
-./run.sh migrate-jsonl --input ambitions.jsonl --output upgraded.jsonl --from 1.0 --to 1.1 --no-logs
+./run.sh run --input-file sample-services.jsonl --output-file ambitions.jsonl --no-logs
+./run.sh diagnose --input-file sample-services.jsonl --output-file ambitions.jsonl --no-logs
+./run.sh validate --input-file sample-services.jsonl --no-logs
 ```
 
 ## Usage
@@ -144,41 +142,6 @@ to display a progress bar during long runs; it is suppressed automatically in
 CI environments or when stdout is not a TTY. Provide `--seed` to make
 stochastic behaviour such as backoff jitter deterministic during tests and
 demos.
-
-### Remapping mode
-
-Use `generate-mapping` to refresh feature mappings for existing evolution
-results. It reads an evolution JSON Lines file and writes an updated file with
-new mapping data. Adjust mapping behaviour with:
-
-- `--mapping-data-dir` – directory containing mapping reference data.
-- `--strict-mapping/--no-strict-mapping` – fail when mappings are missing or
-  contain unknown identifiers.
-- `--diagnostics/--no-diagnostics` – enable verbose diagnostics output and
-  instrumentation.
-- `--use-local-cache` – reuse cached mapping responses under `.cache/mapping`.
-
-Example invocation:
-
-```bash
-./run.sh generate-mapping --input evolution.jsonl --output remapped.jsonl \
-  --strict-mapping --no-logs
-```
-
-See [generate-mapping](docs/generate-mapping.md) for detailed behaviour and
-troubleshooting.
-
-### Schema migration
-
-Use `migrate-jsonl` to upgrade records between supported schema versions. Each
-line of the input JSON Lines file is parsed, migrated and written to the
-output file.
-
-Example:
-
-```bash
-./run.sh migrate-jsonl --input ambitions.jsonl --output upgraded.jsonl --from 1.0 --to 1.1 --no-logs
-```
 
 ## Concurrency control
 
@@ -204,36 +167,6 @@ Plateau names and descriptions are sourced entirely from
 `data/service_feature_plateaus.json`, allowing the progression to be
 reconfigured without code changes. The CLI processes all entries from this
 file.
-
-### Generating service evolutions
-
-Use the `generate-evolution` subcommand to score each service against all
-configured plateau features and customer segments. It reads services from an
-input JSON Lines file and writes a `ServiceEvolution` record for each line in
-the output file. Logs are written to `service.log` in the current working
-directory. Enable verbose logs with `-v` or `-vv`, or pass `--no-logs` to skip
-writing this file.
-
-Basic invocation:
-
-```bash
-./run.sh generate-evolution --input-file sample-services.jsonl --output-file evolution.jsonl --no-logs
-```
-
-Processing happens concurrently; control parallel workers with `--concurrency`
-which defaults to the `concurrency` value in your settings.
-
-Mapping requests default to a per-set strategy. Use `--mapping-data-dir` to
-point to alternative reference datasets. Enable `--strict-mapping` to fail when
-features return no mappings or when the agent invents identifiers. Pass
-`--diagnostics` to enable verbose mode and telemetry instrumentation.
-
-Example invocation tuning mapping behaviour:
-
-```bash
-./run.sh generate-evolution --input-file sample-services.jsonl \
-  --output-file evolution.jsonl --strict-mapping --no-logs
-```
 
 ### Conversation seed
 
