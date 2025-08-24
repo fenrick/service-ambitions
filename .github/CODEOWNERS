@@ -1,0 +1,8 @@
+# This CODEOWNERS file designates reviewers for key repository paths.
+# Learn more: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+* @repo-maintainers
+
+/src/ @engineering-team
+/tests/ @qa-team
+/docs/ @documentation-team
