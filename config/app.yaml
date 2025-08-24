@@ -3,11 +3,11 @@ model: openai:gpt-5
 
 models:
   # Model used for plateau descriptions.
-  descriptions: openai:o4-mini
+  descriptions: openai:gpt-5
   # Model used for feature generation.
   features: openai:gpt-5
   # Model used for mapping tasks.
-  mapping: openai:o4-mini
+  mapping: openai:gpt-5-mini
   # Model used for search operations.
   search: openai:gpt-4o-search-preview
 
