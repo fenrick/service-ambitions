@@ -320,6 +320,13 @@ Opening the workspace in VS Code enables format-on-save with Black, import
 sorting and linting via Ruff, plus Mypy and Bandit checks. Editors that support
 EditorConfig will automatically apply the same indentation and newline rules.
 
+Recommended extensions are declared in `.vscode/extensions.json`. Install them
+to enable Python language features, Black formatting, Ruff linting, Mypy type
+checking and GitHub integration. Debug configurations in `.vscode/launch.json`
+run `main.py` or invoke `pytest` directly from the Run and Debug panel.
+
+PyCharm users can rely on the checked-in `.idea` directory. It supplies run configurations for the application and tests. Activate the Poetry interpreter and install the Black and Ruff plugins to match the project's formatting and linting setup.
+
 ## Testing
 
 Run the following checks before committing:
