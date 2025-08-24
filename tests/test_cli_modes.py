@@ -76,3 +76,5 @@ def test_validate_sets_dry_run(monkeypatch):
     cli.main()
 
     assert called["args"].dry_run is True
+    assert hasattr(called["args"], "transcripts_dir")
+    assert called["args"].transcripts_dir is None
