@@ -1,0 +1,42 @@
+[
+  {
+    "id": "tech1",
+    "name": "Technology 1",
+    "description": "Tech 1"
+  },
+  {
+    "id": "tech2",
+    "name": "Technology 2",
+    "description": "Tech 2"
+  },
+  {
+    "id": "tech3",
+    "name": "Technology 3",
+    "description": "Tech 3"
+  },
+  {
+    "id": "tech4",
+    "name": "Technology 4",
+    "description": "Tech 4"
+  },
+  {
+    "id": "tech5",
+    "name": "Technology 5",
+    "description": "Tech 5"
+  },
+  {
+    "id": "tech6",
+    "name": "Technology 6",
+    "description": "Tech 6"
+  },
+  {
+    "id": "tech7",
+    "name": "Technology 7",
+    "description": "Tech 7"
+  },
+  {
+    "id": "tech8",
+    "name": "Technology 8",
+    "description": "Tech 8"
+  }
+]
