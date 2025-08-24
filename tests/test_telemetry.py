@@ -25,7 +25,6 @@ def test_summary_and_quarantine(monkeypatch) -> None:
         retries=1,
         latency=0.5,
         tokens=100,
-        cost=0.02,
     )
     record_quarantine(Path("q/unknown.json"))
     buf = StringIO()

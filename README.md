@@ -100,12 +100,6 @@ tool and then install the project's dependencies with:
 poetry install
 ```
 
-For more accurate token estimation, include the optional `tiktoken` extra:
-
-```bash
-poetry install -E tiktoken
-```
-
 Enable OpenTelemetry instrumentation with the `observability` extra:
 
 ```bash

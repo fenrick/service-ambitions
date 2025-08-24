@@ -34,10 +34,9 @@ def test_process_service_async(monkeypatch):
         jobs_to_be_done=[{"name": "job"}],
     )
     gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
-    result, tokens, cost, retries = asyncio.run(gen.process_service(service, "prompt"))
+    result, tokens, retries = asyncio.run(gen.process_service(service, "prompt"))
     assert json.loads(result["service"]) == service.model_dump()
     assert tokens == 1
-    assert cost >= 0
     assert retries == 0
 
 
@@ -69,12 +68,11 @@ def test_process_service_retries(monkeypatch):
         jobs_to_be_done=[{"name": "job"}],
     )
     gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
-    result, tokens, cost, retries = asyncio.run(gen.process_service(service, "prompt"))
+    result, tokens, retries = asyncio.run(gen.process_service(service, "prompt"))
 
     assert attempts["count"] == 3
     assert json.loads(result["service"]) == service.model_dump()
     assert tokens == 1
-    assert cost >= 0
     assert retries == 2
 
 
@@ -256,7 +254,7 @@ async def test_process_all_fsyncs(tmp_path, monkeypatch):
     monkeypatch.setattr(generator.os, "fsync", fake_fsync)
 
     async def fake_process_service(self, service, prompt=None):
-        return {"id": service.service_id}, 1, 0.0, 0
+        return {"id": service.service_id}, 1, 0
 
     monkeypatch.setattr(
         generator.ServiceAmbitionGenerator, "process_service", fake_process_service
@@ -280,7 +278,7 @@ async def test_run_one_counters_success(tmp_path, monkeypatch):
     """Successful runs update processed and token counters."""
 
     async def ok(self, service):
-        return ({"line": service.service_id}, service.service_id, 1, 0.0, 0, "success")
+        return ({"line": service.service_id}, service.service_id, 1, 0, "success")
 
     class DummyCounter:
         def __init__(self) -> None:
@@ -332,7 +330,7 @@ async def test_run_one_counters_failure(tmp_path, monkeypatch):
     """Failures increment the failed counter and release tokens."""
 
     async def bad(self, service):
-        return (None, service.service_id, 0, 0.0, 0, "error")
+        return (None, service.service_id, 0, 0, "error")
 
     class DummyCounter:
         def __init__(self) -> None:

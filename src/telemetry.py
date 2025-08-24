@@ -17,7 +17,6 @@ class SetMetrics:
     retries: int = 0
     latencies: List[float] = field(default_factory=list)
     tokens: int = 0
-    cost: float = 0.0
 
     def add(
         self,
@@ -28,7 +27,6 @@ class SetMetrics:
         retries: int,
         latency: float,
         tokens: int,
-        cost: float,
     ) -> None:
         """Update metrics with a new mapping result."""
 
@@ -38,7 +36,6 @@ class SetMetrics:
         self.retries += retries
         self.latencies.append(latency)
         self.tokens += tokens
-        self.cost += cost
 
     @property
     def average_latency(self) -> float:
@@ -62,7 +59,6 @@ def record_mapping_set(
     retries: int,
     latency: float,
     tokens: int,
-    cost: float,
 ) -> None:
     """Record metrics for a mapping ``set_name``."""
 
@@ -73,7 +69,6 @@ def record_mapping_set(
         retries=retries,
         latency=latency,
         tokens=tokens,
-        cost=cost,
     )
 
 
@@ -106,12 +101,10 @@ def print_summary() -> None:
         print(
             f"{set_name}: features={data.features} mapped_ids={data.mapped_ids} "
             f"unknown_ids={data.unknown_ids} retries={data.retries} "
-            f"avg_latency={avg_latency:.2f}s tokens={data.tokens} "
-            f"cost=${data.cost:.4f}"
+            f"avg_latency={avg_latency:.2f}s tokens={data.tokens}"
         )
     total_tokens = sum(d.tokens for d in _metrics.values())
-    total_cost = sum(d.cost for d in _metrics.values())
-    print(f"Totals: tokens={total_tokens} cost=${total_cost:.4f}")
+    print(f"Totals: tokens={total_tokens}")
 
 
 __all__ = [

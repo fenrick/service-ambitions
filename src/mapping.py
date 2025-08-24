@@ -161,13 +161,11 @@ async def map_set(
     start = time.monotonic()
     retries = 0
     tokens = 0
-    cost = 0.0
     if payload is None:
         # Cache miss triggers a network request.
         try:
             raw = await session.ask_async(prompt, output_type=model_type)
             tokens += getattr(session, "last_tokens", 0)
-            cost += getattr(session, "last_cost", 0.0)
             payload = (
                 raw
                 if isinstance(raw, StrictModel)
@@ -178,7 +176,6 @@ async def map_set(
             hint_prompt = f"{prompt}\nReturn valid JSON only."
             raw = await session.ask_async(hint_prompt, output_type=model_type)
             tokens += getattr(session, "last_tokens", 0)
-            cost += getattr(session, "last_cost", 0.0)
             try:
                 payload = (
                     raw
@@ -201,7 +198,6 @@ async def map_set(
                     retries=retries,
                     latency=time.monotonic() - start,
                     tokens=tokens,
-                    cost=cost,
                 )
                 return [
                     feat.model_copy(update={"mappings": feat.mappings | {set_name: []}})
@@ -248,7 +244,6 @@ async def map_set(
         retries=retries,
         latency=latency,
         tokens=tokens,
-        cost=cost,
     )
     return merged
 
