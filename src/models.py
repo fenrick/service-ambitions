@@ -278,6 +278,27 @@ class MappingTypeConfig(StrictModel):
     ]
 
 
+class MappingSet(StrictModel):
+    """Configuration for a mapping dataset.
+
+    Each set links a feature mapping field to a JSON file on disk that
+    provides the corresponding :class:`MappingItem` catalogue.
+    """
+
+    name: Annotated[
+        str,
+        Field(min_length=1, description="Human readable mapping set name."),
+    ]
+    file: Annotated[
+        str,
+        Field(min_length=1, description="Filename containing mapping items."),
+    ]
+    field: Annotated[
+        str,
+        Field(min_length=1, description="Feature mapping field name."),
+    ]
+
+
 class ReasoningConfig(StrictModel):
     """Optional reasoning parameters for OpenAI models.
 
@@ -384,6 +405,10 @@ class AppConfig(StrictModel):
         int,
         Field(ge=1, description="Required number of features per role."),
     ] = 5
+    mapping_sets: list[MappingSet] = Field(
+        default_factory=list,
+        description="Mapping dataset configurations.",
+    )
     mapping_types: dict[str, MappingTypeConfig] = Field(
         default_factory=dict,
         description="Mapping type definitions keyed by field name.",

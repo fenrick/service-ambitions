@@ -41,6 +41,7 @@ from models import (
     ServiceMeta,
 )
 from redaction import redact_pii
+from settings import load_settings
 
 # Settings and token scheduling are no longer required after simplification.
 
@@ -121,26 +122,26 @@ class PlateauGenerator:
         session: ConversationSession,
         features: Sequence[PlateauFeature],
     ) -> list[PlateauFeature]:
-        """Return ``features`` mapped across standard datasets in order.
+        """Return ``features`` mapped across configured datasets in order.
 
-        Each mapping set receives the full ``features`` list to avoid any
-        filtering or batching. Results are merged sequentially for
-        ``applications``, ``technologies`` and ``information`` so requests remain
+        Each mapping set defined in the application settings receives the full
+        ``features`` list. Results are merged sequentially so requests remain
         deterministic and partial writes are avoided.
         """
 
-        items = load_mapping_items(MAPPING_DATA_DIR)
+        settings = load_settings()
+        items = load_mapping_items(MAPPING_DATA_DIR, settings.mapping_sets)
         service_name = self._service.name if self._service else "unknown"
 
         base = list(features)
         mapped_sets: list[list[PlateauFeature]] = []
-        for key in ("applications", "technologies", "information"):
+        for cfg in settings.mapping_sets:
             set_session = session.derive()
-            set_session.stage = f"mapping_{key}"
+            set_session.stage = f"mapping_{cfg.field}"
             result = await map_set(
                 set_session,
-                key,
-                items[key],
+                cfg.field,
+                items[cfg.field],
                 base,
                 service=service_name,
                 strict=self.strict,

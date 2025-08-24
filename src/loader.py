@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Sequence, TypeVar
+from typing import Sequence, Tuple, TypeVar
 
 import logfire
 from pydantic import TypeAdapter
@@ -19,6 +19,7 @@ from models import (
     AppConfig,
     DefinitionBlock,
     MappingItem,
+    MappingSet,
     MappingTypeConfig,
     Role,
     ServiceFeaturePlateau,
@@ -69,7 +70,7 @@ def configure_mapping_data_dir(path: Path | str) -> None:
 
     global MAPPING_DATA_DIR
     MAPPING_DATA_DIR = Path(path)
-    load_mapping_items.cache_clear()
+    _load_mapping_items.cache_clear()
 
 
 def _read_file(path: Path) -> str:
@@ -146,40 +147,34 @@ def load_prompt_text(prompt_name: str, base_dir: Path | None = None) -> str:
     return _read_file(directory / filename)
 
 
+def load_mapping_items(
+    data_dir: Path, sets: Sequence[MappingSet]
+) -> dict[str, list[MappingItem]]:
+    """Return mapping reference data for ``sets`` sourced from ``data_dir``."""
+
+    key = tuple((s.file, s.field) for s in sets)
+    return _load_mapping_items(data_dir, key)
+
+
 @lru_cache(maxsize=None)
-def load_mapping_items(data_dir: Path) -> dict[str, list[MappingItem]]:
-    """Return mapping reference data sourced from ``data_dir``.
-
-    Each ``*.json`` file within ``data_dir`` is treated as a catalogue of
-    :class:`MappingItem` entries. Files that cannot be parsed as a list of
-    ``MappingItem`` objects are ignored, allowing the directory to contain
-    unrelated JSON documents. Items are stably sorted by their ``id`` so the
-    original order of entries with duplicate identifiers is preserved.
-
-    Args:
-        data_dir: Directory containing mapping set files.
-
-    Returns:
-        Mapping of dataset name (derived from filename stem) to sorted
-        ``MappingItem`` lists.
-
-    Raises:
-        FileNotFoundError: If ``data_dir`` does not exist.
-    """
+def _load_mapping_items(
+    data_dir: Path, key: Tuple[Tuple[str, str], ...]
+) -> dict[str, list[MappingItem]]:
+    """Load mapping items using a hashable key for caching."""
 
     if not data_dir.is_dir():
         raise FileNotFoundError(f"Mapping data directory not found: {data_dir}")
 
     data: dict[str, list[MappingItem]] = {}
-    for path in sorted(data_dir.glob("*.json")):
+    for file, field in key:
+        path = data_dir / file
         try:
             items = _read_json_file(path, list[MappingItem])
         except FileNotFoundError:
             raise
         except Exception:
-            # Skip files that do not contain ``MappingItem`` records.
             continue
-        data[path.stem] = sorted(items, key=lambda item: item.id)
+        data[field] = sorted(items, key=lambda item: item.id)
     return data
 
 

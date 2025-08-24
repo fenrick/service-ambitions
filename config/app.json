@@ -14,6 +14,11 @@
         "applications": {"dataset": "applications", "label": "Applications"},
         "technology": {"dataset": "technologies", "label": "Technologies"}
     },
+    "mapping_sets": [
+        {"name": "Applications", "file": "applications.json", "field": "applications"},
+        {"name": "Technologies", "file": "technologies.json", "field": "technology"},
+        {"name": "Data", "file": "information.json", "field": "data"}
+    ],
     "prompt_dir": "prompts",
     "context_id": "university",
     "inspiration": "general",

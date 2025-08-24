@@ -14,7 +14,7 @@ from pydantic import Field, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from loader import load_app_config
-from models import ReasoningConfig, StageModels
+from models import MappingSet, ReasoningConfig, StageModels
 
 
 class Settings(BaseSettings):
@@ -52,6 +52,10 @@ class Settings(BaseSettings):
 
     mapping_data_dir: Path = Field(
         Path("data"), description="Directory containing mapping reference data."
+    )
+    mapping_sets: list[MappingSet] = Field(
+        default_factory=list,
+        description="Mapping dataset configurations.",
     )
     diagnostics: bool = Field(
         False, description="Enable verbose diagnostics and tracing."
@@ -100,6 +104,7 @@ def load_settings() -> Settings:
             features_per_role=config.features_per_role,
             web_search=config.web_search,
             mapping_data_dir=getattr(config, "mapping_data_dir", Path("data")),
+            mapping_sets=getattr(config, "mapping_sets", []),
             diagnostics=getattr(config, "diagnostics", False),
             strict_mapping=getattr(config, "strict_mapping", False),
             mapping_mode=getattr(config, "mapping_mode", "per_set"),
