@@ -1,7 +1,7 @@
 [project]
 name = "service-ambitions"
 version = "0.1.0"
-description = "Command-line tool for generating service ambitions using a chat model."
+description = "Command-line tool for generating service evolutions using a chat model."
 readme = "README.md"
 authors = [
     { name = "Jolyon Suthers", email = "201621+fenrick@users.noreply.github.com" }

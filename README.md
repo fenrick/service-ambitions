@@ -109,16 +109,16 @@ Run the CLI through Poetry to ensure it uses the managed environment. Use
 subcommands to select the desired operation:
 
 ```bash
-poetry run service-ambitions run --input-file sample-services.jsonl --output-file ambitions.jsonl --no-logs
-poetry run service-ambitions diagnose --input-file sample-services.jsonl --output-file ambitions.jsonl --no-logs
+poetry run service-ambitions run --input-file sample-services.jsonl --output-file evolutions.jsonl --no-logs
+poetry run service-ambitions diagnose --input-file sample-services.jsonl --output-file evolutions.jsonl --no-logs
 poetry run service-ambitions validate --input-file sample-services.jsonl --no-logs
 ```
 
 Alternatively, use the provided shell script which forwards all arguments to the CLI:
 
 ```bash
-./run.sh run --input-file sample-services.jsonl --output-file ambitions.jsonl --no-logs
-./run.sh diagnose --input-file sample-services.jsonl --output-file ambitions.jsonl --no-logs
+./run.sh run --input-file sample-services.jsonl --output-file evolutions.jsonl --no-logs
+./run.sh diagnose --input-file sample-services.jsonl --output-file evolutions.jsonl --no-logs
 ./run.sh validate --input-file sample-services.jsonl --no-logs
 ```
 

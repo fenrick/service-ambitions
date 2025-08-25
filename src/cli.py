@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Command-line interface for generating service ambitions and evolutions."""
+"""Command-line interface for generating service evolutions."""
 
 from __future__ import annotations
 
@@ -25,24 +25,20 @@ from tqdm import tqdm
 import telemetry
 from canonical import canonicalise_record
 from conversation import ConversationSession
-from diagnostics import validate_jsonl
-from generator import AmbitionModel, ServiceAmbitionGenerator
 from loader import (
     MAPPING_DATA_DIR,
     configure_mapping_data_dir,
     configure_prompt_dir,
-    load_ambition_prompt,
     load_evolution_prompt,
     load_mapping_items,
     load_role_ids,
 )
 from model_factory import ModelFactory
-from models import ServiceEvolution, ServiceInput, ServiceMeta
+from models import ServiceInput, ServiceMeta
 from monitoring import LOG_FILE_NAME, init_logfire
 from persistence import atomic_write, read_lines
 from plateau_generator import PlateauGenerator
 from quarantine import QuarantineWriter
-from schema_migration import migrate_record
 from service_loader import load_services
 from settings import load_settings
 
@@ -294,124 +290,12 @@ async def _generate_evolution_for_service(
             )
 
 
-async def _cmd_generate_ambitions(
-    args: argparse.Namespace, settings, transcripts_dir: Path | None
-) -> None:
-    """Generate service ambitions and write them to disk."""
-    output_path = Path(args.output_file)
-    attrs = {"output_path": str(output_path), "resume": args.resume}
-    with logfire.span("cmd_generate_ambitions", attributes=attrs) as span:
-        try:
-            if getattr(args, "validate_only", False):
-                count = validate_jsonl(output_path, AmbitionModel)
-                logfire.info(
-                    "Validated output",
-                    lines=count,
-                    output_path=str(output_path),
-                )
-                return
-
-            # Load prompt components from the configured directory
-            configure_prompt_dir(settings.prompt_dir)
-            system_prompt = load_ambition_prompt(
-                settings.context_id, settings.inspiration
-            )
-
-            use_web_search = (
-                args.web_search if args.web_search is not None else settings.web_search
-            )
-            factory = ModelFactory(
-                settings.model,
-                settings.openai_api_key,
-                stage_models=getattr(settings, "models", None),
-                reasoning=settings.reasoning,
-                seed=args.seed,
-                web_search=use_web_search,
-            )
-
-            model_name = factory.model_name(
-                "features", args.features_model or args.model
-            )
-            span.set_attribute("model_name", model_name)
-            logfire.info("Generating ambitions", model=model_name)
-            model = factory.get("features", args.features_model or args.model)
-            concurrency = args.concurrency or settings.concurrency
-            generator = ServiceAmbitionGenerator(
-                model,
-                concurrency=concurrency,
-                request_timeout=settings.request_timeout,
-                retries=settings.retries,
-                retry_base_delay=settings.retry_base_delay,
-            )
-
-            part_path, processed_path = _prepare_paths(output_path, args.resume)
-            processed_ids, existing_lines = _load_resume_state(
-                processed_path, output_path, args.resume
-            )
-            if transcripts_dir is None and not args.no_logs:
-                transcripts_dir = _ensure_transcripts_dir(
-                    args.transcripts_dir, output_path
-                )
-            services = _load_services_list(
-                args.input_file,
-                args.max_services,
-                processed_ids if args.resume else set(),
-            )
-
-            if args.dry_run:
-                logfire.info(
-                    "Validated services",
-                    count=len(services),
-                    resume=args.resume,
-                )
-                return
-
-            show_progress = args.progress and sys.stdout.isatty()
-            progress = tqdm(total=len(services)) if show_progress else None
-            new_ids = await generator.generate_async(
-                services,
-                system_prompt,
-                str(part_path),
-                progress=progress,
-                transcripts_dir=transcripts_dir,
-            )
-            if progress:
-                progress.close()
-
-            SERVICES_PROCESSED.add(len(new_ids))
-            LINES_WRITTEN.add(len(new_ids))
-
-            processed_ids = _save_results(
-                resume=args.resume,
-                part_path=part_path,
-                output_path=output_path,
-                existing_lines=existing_lines,
-                processed_ids=processed_ids,
-                new_ids=new_ids,
-                processed_path=processed_path,
-            )
-            logfire.info(
-                "Results written",
-                output_path=str(output_path),
-                lines_written=len(new_ids),
-                resume=args.resume,
-            )
-        except Exception as exc:  # noqa: BLE001
-            logfire.exception(
-                "Ambition generation failed",
-                output_path=str(output_path),
-                resume=args.resume,
-                error=str(exc),
-            )
-            raise
-
-
 async def _cmd_run(
     args: argparse.Namespace, settings, transcripts_dir: Path | None
 ) -> None:
-    """Execute the default generation workflow."""
+    """Execute the default evolution generation workflow."""
 
-    await _cmd_generate_ambitions(args, settings, transcripts_dir)
+    await _cmd_generate_evolution(args, settings, transcripts_dir)
 
 
 async def _cmd_diagnose(
@@ -421,7 +305,7 @@ async def _cmd_diagnose(
 
     settings.diagnostics = True
     args.no_logs = False
-    await _cmd_generate_ambitions(args, settings, transcripts_dir)
+    await _cmd_generate_evolution(args, settings, transcripts_dir)
 
 
 async def _cmd_validate(
@@ -430,7 +314,7 @@ async def _cmd_validate(
     """Validate inputs without invoking the language model."""
 
     args.dry_run = True
-    await _cmd_generate_ambitions(args, settings, transcripts_dir)
+    await _cmd_generate_evolution(args, settings, transcripts_dir)
 
 
 async def _cmd_generate_evolution(
@@ -520,104 +404,13 @@ async def _cmd_generate_evolution(
     )
 
 
-async def _cmd_generate_mapping(args: argparse.Namespace, settings) -> None:
-    """Augment evolution features with mapping results."""
-
-    use_web_search = (
-        args.web_search if args.web_search is not None else settings.web_search
-    )
-    factory = ModelFactory(
-        settings.model,
-        settings.openai_api_key,
-        stage_models=getattr(settings, "models", None),
-        reasoning=settings.reasoning,
-        seed=args.seed,
-        web_search=use_web_search,
-    )
-
-    map_model = factory.get("mapping", args.mapping_model or args.model)
-    map_agent = Agent(map_model, instructions="")
-    session = ConversationSession(
-        map_agent,
-        stage="mapping",
-        diagnostics=settings.diagnostics,
-        log_prompts=args.allow_prompt_logging,
-        redact_prompts=True,
-    )
-
-    if args.mapping_data_dir is None and not settings.diagnostics:
-        raise RuntimeError("--mapping-data-dir is required in production mode")
-    configure_mapping_data_dir(args.mapping_data_dir or settings.mapping_data_dir)
-
-    input_path = Path(args.input)
-    lines = await asyncio.to_thread(input_path.read_text, encoding="utf-8")
-    evolutions = [
-        ServiceEvolution.model_validate_json(line)
-        for line in lines.splitlines()
-        if line.strip()
-    ]
-
-    features = [
-        feat
-        for evo in evolutions
-        for plateau in evo.plateaus
-        for feat in plateau.features
-    ]
-    strict_mapping = (
-        args.strict_mapping
-        if getattr(args, "strict_mapping", None) is not None
-        else settings.strict_mapping
-    )
-    generator = PlateauGenerator(
-        session,
-        strict=strict_mapping,
-        use_local_cache=args.use_local_cache,
-    )
-    mapped = await generator._map_features(session, features)
-    mapped_by_id = {f.feature_id: f for f in mapped}
-    for evo in evolutions:
-        for plateau in evo.plateaus:
-            plateau.features = [mapped_by_id[f.feature_id] for f in plateau.features]
-
-    output_path = Path(args.output)
-    out = await asyncio.to_thread(output_path.open, "w", encoding="utf-8")
-    try:
-        for evo in evolutions:
-            record = canonicalise_record(evo.model_dump(mode="python"))
-            line = json.dumps(
-                record, separators=(",", ":"), ensure_ascii=False, sort_keys=True
-            )
-            await asyncio.to_thread(out.write, f"{line}\n")
-    finally:
-        await asyncio.to_thread(out.close)
-
-
-def _cmd_migrate_jsonl(args: argparse.Namespace, _settings) -> None:
-    """Migrate records in a JSONL file between schema versions."""
-
-    input_path = Path(args.input)
-    output_path = Path(args.output)
-
-    with (
-        input_path.open("r", encoding="utf-8") as src,
-        output_path.open("w", encoding="utf-8") as dst,
-    ):
-        for line in src:
-            if not line.strip():
-                # Skip empty lines to avoid json parser errors
-                continue
-            record = json.loads(line)
-            migrated = migrate_record(args.from_version, args.to_version, record)
-            dst.write(f"{json.dumps(migrated)}\n")
-
-
 def main() -> None:
     """Parse arguments and dispatch to the requested subcommand."""
 
     settings = load_settings()
 
     parser = argparse.ArgumentParser(
-        description="Service ambitions utilities",
+        description="Service evolution utilities",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     common = argparse.ArgumentParser(add_help=False)
@@ -682,6 +475,11 @@ def main() -> None:
         help="Directory containing mapping reference data",
     )
     common.add_argument(
+        "--roles-file",
+        default="data/roles.json",
+        help="Path to JSON file containing role identifiers",
+    )
+    common.add_argument(
         "--seed",
         type=int,
         default=0,
@@ -739,8 +537,8 @@ def main() -> None:
     run_p = subparsers.add_parser(
         "run",
         parents=[common],
-        help="Generate service ambitions",
-        description="Generate service ambitions",
+        help="Generate service evolutions",
+        description="Generate service evolutions",
     )
     run_p.add_argument(
         "--input-file",
@@ -749,7 +547,7 @@ def main() -> None:
     )
     run_p.add_argument(
         "--output-file",
-        default="ambitions.jsonl",
+        default="evolutions.jsonl",
         help=OUTPUT_FILE_HELP,
     )
     run_p.add_argument("--transcripts-dir", help=TRANSCRIPTS_HELP)
@@ -758,7 +556,8 @@ def main() -> None:
     diag_p = subparsers.add_parser(
         "diagnose",
         parents=[common],
-        help="Run with diagnostics enabled",
+        help="Generate service evolutions",
+        description="Generate service evolutions with diagnostics enabled",
     )
     diag_p.add_argument(
         "--input-file",
@@ -767,7 +566,7 @@ def main() -> None:
     )
     diag_p.add_argument(
         "--output-file",
-        default="ambitions.jsonl",
+        default="evolutions.jsonl",
         help=OUTPUT_FILE_HELP,
     )
     diag_p.add_argument("--transcripts-dir", help=TRANSCRIPTS_HELP)
@@ -776,7 +575,10 @@ def main() -> None:
     val_p = subparsers.add_parser(
         "validate",
         parents=[common],
-        help="Validate inputs without calling the API",
+        help="Generate service evolutions",
+        description=(
+            "Validate inputs without calling the API and generate service evolutions"
+        ),
     )
     val_p.add_argument(
         "--input-file",
@@ -785,7 +587,7 @@ def main() -> None:
     )
     val_p.add_argument(
         "--output-file",
-        default="ambitions.jsonl",
+        default="evolutions.jsonl",
         help=OUTPUT_FILE_HELP,
     )
     val_p.add_argument("--transcripts-dir", help=TRANSCRIPTS_HELP)

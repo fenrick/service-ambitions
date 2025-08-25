@@ -27,7 +27,7 @@ def test_run_invokes_generator(monkeypatch):
         called["args"] = args
         called["settings"] = settings
 
-    monkeypatch.setattr(cli, "_cmd_generate_ambitions", fake_generate)
+    monkeypatch.setattr(cli, "_cmd_generate_evolution", fake_generate)
     monkeypatch.setattr(cli, "load_settings", _prepare_settings)
     monkeypatch.setattr(cli, "_configure_logging", lambda *a, **k: None)
     monkeypatch.setattr(sys, "argv", ["main", "run", "--dry-run", "--no-logs"])
@@ -47,7 +47,7 @@ def test_diagnose_enables_diagnostics(monkeypatch):
         called["args"] = args
         called["settings"] = settings
 
-    monkeypatch.setattr(cli, "_cmd_generate_ambitions", fake_generate)
+    monkeypatch.setattr(cli, "_cmd_generate_evolution", fake_generate)
     monkeypatch.setattr(cli, "load_settings", _prepare_settings)
     monkeypatch.setattr(cli, "_configure_logging", lambda *a, **k: None)
     monkeypatch.setattr(sys, "argv", ["main", "diagnose", "--dry-run", "--no-logs"])
@@ -68,7 +68,7 @@ def test_validate_sets_dry_run(monkeypatch):
         called["args"] = args
         called["settings"] = settings
 
-    monkeypatch.setattr(cli, "_cmd_generate_ambitions", fake_generate)
+    monkeypatch.setattr(cli, "_cmd_generate_evolution", fake_generate)
     monkeypatch.setattr(cli, "load_settings", _prepare_settings)
     monkeypatch.setattr(cli, "_configure_logging", lambda *a, **k: None)
     monkeypatch.setattr(sys, "argv", ["main", "validate", "--no-logs"])
