@@ -1,12 +1,12 @@
 ## Service feature plateaus
 
 1. **Foundational**
-   - Core idea: Services are reliable, secure, and efficient, representing today's gold standard of operational excellence.
+   - Core idea: The service masters the fundamentals, providing a consistently reliable and secure experience that users can depend on without a second thought.
    - Key characteristics:
-     - Built on cloud-native, API-first platforms.
-     - Outcomes are measured against clear Service Level Objectives (SLOs).
-     - Security is paramount (e.g., zero-trust, passwordless access).
-     - Data is well-governed, and standard AI tools are used to reduce manual work.
+     - Predictable Performance: The service is consistently available and performs well, scaling effortlessly to meet demand.
+     - Clear Promises: Commitments on performance and uptime are clearly defined, actively measured, and always met.
+     - Safe by Default: Security and privacy are built-in from the start, protecting users without requiring them to be experts.
+     - Transparent Operations: The service is highly observable and accountable, with proof of compliance and performance always on hand.
    - What it feels like: Things just work. Failures are rare, brief, and transparently handled. Audits are simple because the evidence is always ready.
 2. **Enhanced**
    - Core idea: Services become proactive and predictive, often fixing problems before they impact users.
