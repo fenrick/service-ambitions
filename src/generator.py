@@ -281,7 +281,7 @@ class ServiceAmbitionGenerator:
 
         if payload is not None:
             record = canonicalise_record(
-                AmbitionModel.model_validate(payload).model_dump(mode="python")
+                AmbitionModel.model_validate(payload).model_dump(mode="json")
             )
             line = json.dumps(
                 record, separators=(",", ":"), ensure_ascii=False, sort_keys=True

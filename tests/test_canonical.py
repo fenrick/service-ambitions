@@ -1,7 +1,11 @@
 # SPDX-License-Identifier: MIT
 """Tests for canonicalise_record helper."""
 
+import json
+from datetime import datetime, timezone
+
 from canonical import canonicalise_record
+from models import ServiceMeta
 
 
 def test_canonicalise_record_sorts_features_and_mappings() -> None:
@@ -49,3 +53,11 @@ def test_canonicalise_record_sorts_features_and_mappings() -> None:
     assert result["meta"]["context_window"] == 0
     assert result["meta"]["diagnostics"] is False
     assert result["meta"]["catalogue_hash"] == ""
+
+
+def test_canonicalise_record_handles_datetime() -> None:
+    meta = ServiceMeta(run_id="r1", created=datetime(2024, 1, 1, tzinfo=timezone.utc))
+    record = {"meta": meta.model_dump(mode="json")}
+    canonical = canonicalise_record(record)
+    assert isinstance(canonical["meta"]["created"], str)
+    json.dumps(canonical, separators=(",", ":"), sort_keys=True)

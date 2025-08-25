@@ -260,7 +260,7 @@ async def _generate_evolution_for_service(
             evolution = await generator.generate_service_evolution_async(
                 service, transcripts_dir=transcripts_dir, meta=_RUN_META
             )
-            record = canonicalise_record(evolution.model_dump(mode="python"))
+            record = canonicalise_record(evolution.model_dump(mode="json"))
             line = json.dumps(
                 record, separators=(",", ":"), ensure_ascii=False, sort_keys=True
             )
