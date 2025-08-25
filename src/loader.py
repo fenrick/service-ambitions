@@ -360,7 +360,14 @@ def load_plateau_text(
     plateaus = load_plateau_definitions(base_dir, filename)
     lines = ["## Service feature plateaus", ""]
     for idx, plateau in enumerate(plateaus, start=1):
-        lines.append(f"{idx}. **{plateau.name}**: {plateau.description}")
+        lines.append(f"{idx}. **{plateau.name}**")
+        lines.append(f"   - Core idea: {plateau.description.core_idea}")
+        lines.append("   - Key characteristics:")
+        for characteristic in plateau.description.key_characteristics:
+            lines.append(f"     - {characteristic}")
+        lines.append(
+            f"   - What it feels like: {plateau.description.what_it_feels_like}"
+        )
     return "\n".join(lines)
 
 
