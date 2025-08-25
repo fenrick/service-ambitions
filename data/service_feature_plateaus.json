@@ -2,26 +2,72 @@
   {
     "id": "PLAT001",
     "name": "Foundational",
-    "description": "The gold standard of today. Services are reliable, observable, secure and accessible by default, with outcomes delivered against clear SLOs and error budgets. Operations run on cloud-native, API-first platforms with zero-trust controls, passwordless access (passkeys), pervasive monitoring, automated testing, and well-drilled incident response. Data is treated as a product with owners and SLAs; privacy-by-design governs clean rooms and MDM; models are shipped with model cards and human-in-the-loop policies. Standard tools (gen-AI copilots, on-device inference, decision-intelligence dashboards) are used to remove toil, not to bend rules. Estates are cost- and carbon-managed (FinOps, carbon-aware workloads, PV+storage at parity, heat-pump retrofits). Contracts, audits and resilience (BCP/DR) are unambiguous and regularly proved in exercises. A service catalogue, event standards, and golden paths let teams change quickly without chaos.\n\nPut simply: if a customer experiences a failure, it’s rare, brief, and transparently handled; if a regulator asks for evidence, it’s instant and accurate; if demand spikes, services scale without drama."
+    "description": {
+      "core_idea": "Services are reliable, secure, and efficient, representing today's gold standard of operational excellence.",
+      "key_characteristics": [
+        "Built on cloud-native, API-first platforms.",
+        "Outcomes are measured against clear Service Level Objectives (SLOs).",
+        "Security is paramount (e.g., zero-trust, passwordless access).",
+        "Data is well-governed, and standard AI tools are used to reduce manual work."
+      ],
+      "what_it_feels_like": "Things just work. Failures are rare, brief, and transparently handled. Audits are simple because the evidence is always ready."
+    }
   },
   {
     "id": "PLAT002",
     "name": "Enhanced",
-    "description": "Ground-breaking within today’s rules. Services are instrumented and semi-autonomous: control towers fuse ERP/IoT/market data to detect issues early and trigger self-healing; agentic workflows draft, decide and act under guardrails; AR remote-experts and edge-AI shrink field time; twins of campuses/factories guide planning and training before changes land. CX shifts from reactive to proactive: real-time translation, consent-rich data exchange, and proactive service recovery are normal; pricing starts to include usage/outcome options; API monetisation exposes selected capabilities to partners. Digital product passports, verifiable credentials and continuous assurance streamline onboarding and audits. Expect material, provable deltas—cycle times down 30–50%, MTTR down 40%+, first-time-right up, cost-to-serve and emissions per transaction trending down—delivered without stretching social licence or compliance.\n\nIn practice: customers get fixes before they complain, agents resolve more with less handover, and leaders can trust the dashboard because it is wired to the truth, not to spreadsheets."
+    "description": {
+      "core_idea": "Services become proactive and predictive, often fixing problems before they impact users.",
+      "key_characteristics": [
+        "Systems can detect issues early and trigger self-healing actions.",
+        "Customer experience shifts from reactive to proactive (e.g., fixing an issue before a complaint is filed).",
+        "Data from multiple sources (IoT, market, ERP) is fused to provide a complete operational picture.",
+        "Verifiable metrics show significant improvements in speed, reliability, and efficiency (e.g., 40%+ faster recovery time)."
+      ],
+      "what_it_feels_like": "We solve problems before the customer knows they exist. Our dashboards predict the future, not just report the past."
+    }
   },
   {
     "id": "PLAT003",
-    "name": "Experimental",
-    "description": "Beyond the knife’s edge—live learning in bounded reality. Teams run tightly-scoped, high-velocity pilots with frontier tech where the upside is large and the blast radius is controlled. Examples include emotion/affect sensing with explicit consent, tele-operations with haptics for complex sites, AI agents with tool-use for back-office cells, federated learning and secure multiparty computation for cross-party modelling, computable contracts for event-driven fulfilment, micro-mobility robots in geofenced CBDs, and community micro-grids trading flexibility. Safety is engineered in: red-team and model risk reviews, kill-switches, rollback in minutes, synthetic data where real data is sensitive, and regulatory sandboxes where applicable. Each pilot declares a value hypothesis, guardrails and stop/go criteria (e.g., 25% throughput improvement at equal or lower risk), and either scales fast into Enhanced or is retired without drama.\n\nOutcome: you learn faster than competitors, retire dead ends early, and bank wins that are hard to copy."
+    "name": "Autonomous",
+    "description": {
+      "core_idea": "Core business processes are automated end-to-end, operating with minimal human intervention.",
+      "key_characteristics": [
+        "AI agents and automated workflows handle complex tasks like claims processing, invoicing, or logistics.",
+        "The organization operates as a platform, exposing its capabilities as monetised APIs to partners.",
+        "Smart contracts and real-time compliance are embedded directly into transactions.",
+        "Work is routed automatically across a network of internal teams, partners, and even machines."
+      ],
+      "what_it_feels_like": "Entire value chains run themselves. Our business operates 24/7 with auditable, machine-led decisions."
+    }
   },
   {
     "id": "PLAT004",
-    "name": "Disruptive",
-    "description": "A rethink of the operational landscape—services are redesigned around **outcomes, automation and ecosystems**, not channels and tickets. Work is routed by a policy-aware business service mesh across internal teams, partners and machine customers; smart terms (computable contracts) make entitlements and penalties execute at runtime; pricing is usage- or outcome-based (pay for uptime, energy saved, defects avoided); autonomous back-office cells handle claims/billing with auditable agents; real-time compliance and tax are embedded in transactions. Capabilities are productised as APIs and bundled via curated marketplaces; reverse logistics and circular flows are default; customers and partners hold verifiable credentials and can self-provision access. Examples that show the disruption: a manufacturer sells “guaranteed uptime” not spare parts; a utility pays customers for flexibility, not just bills for consumption; a hospital-at-home model outcompetes bed days using digital biomarkers and remote experts; a bank’s core is an embedded finance platform others build on.\n\nThe signal is unmistakable: revenue mixes shift, cost-to-serve collapses in target journeys, competitors are forced to copy your model (not your features), and regulators engage because the compliance evidence is better than legacy operators can produce."
+    "name": "Outcome-Driven",
+    "description": {
+      "core_idea": "The business model fundamentally shifts from selling products or services to selling guaranteed outcomes.",
+      "key_characteristics": [
+        "Pricing is based on results delivered (e.g., pay for guaranteed uptime, energy saved, or defects avoided).",
+        "The entire service is redesigned around achieving a specific customer outcome, not just delivering a feature.",
+        "The business model is difficult for competitors to copy because it requires a complete operational and financial rethink.",
+        "Revenue streams are directly linked to demonstrated customer success."
+      ],
+      "what_it_feels_like": "Customers don't buy our products; they buy our results. Our revenue is tied directly to their success."
+    }
   },
   {
     "id": "PLAT005",
     "name": "Transformative",
-    "description": "An outsider play that rewires the market to deliver needs with beyond-modern techniques, often collapsing whole layers of the value chain. Services become **ambient and outcome-guaranteed**: machine-to-machine commerce clears capacity, energy and logistics in real time; value-exchange wallets let customers trade data/attention for tangible micro-benefits; computational regulation and trust marks verify behaviour at runtime; ecosystems pool risk and reward (outcome pooling for emissions, health or mobility); low-latency global networks and edge intelligence make geography almost irrelevant. Organisations act as platforms and convenors—coordinating precincts (lighting, waste, mobility), orchestrating tele-presence work with haptics, and turning assets into programmable markets. The experience is ‘no app, no queue, no form’: services arrive just-in-time, are priced by value delivered, and are verifiably fair, safe, private and resilient.\n\nThink Uber vs taxis in its essence—not an app, but a new operating logic. The test: you set the category narrative, spawn new standards, attract third-party innovators, and create measurable public-good spillovers while growing faster than incumbents tethered to yesterday’s structure."
+    "description": {
+      "core_idea": "The organization rewires the entire market, creating a new operating logic that others are forced to adopt.",
+      "key_characteristics": [
+        "Services become ambient and invisible, delivered just-in-time without user requests.",
+        "The organization acts as a market convenor, orchestrating ecosystems of partners, customers, and machines.",
+        "It sets new industry standards for technology, trust, and value exchange.",
+        "The business creates measurable public good (e.g., reduced emissions, improved public health) as a byproduct of its core operation."
+      ],
+      "what_it_feels_like": "We no longer compete in the market; we *are* the market. Our platform is the foundation on which new businesses and value are built."
+    }
   }
 ]
+

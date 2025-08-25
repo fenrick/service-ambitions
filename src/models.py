@@ -233,6 +233,25 @@ class ServiceInput(StrictModel):
         return objects
 
 
+class ServiceFeaturePlateauDescription(StrictModel):
+    """Structured description for a service feature plateau."""
+
+    core_idea: Annotated[
+        str, Field(min_length=1, description="Fundamental principle of the plateau.")
+    ]
+    key_characteristics: Annotated[
+        list[str],
+        Field(min_length=1, description="Distinctive traits defining the plateau."),
+    ]
+    what_it_feels_like: Annotated[
+        str,
+        Field(
+            min_length=1,
+            description="Typical experience when operating at this plateau.",
+        ),
+    ]
+
+
 class ServiceFeaturePlateau(StrictModel):
     """Definition of a service feature plateau.
 
@@ -244,7 +263,9 @@ class ServiceFeaturePlateau(StrictModel):
     name: Annotated[
         str, Field(min_length=1, description="Human readable plateau name.")
     ]
-    description: str = Field(..., description="Explanation of plateau characteristics.")
+    description: ServiceFeaturePlateauDescription = Field(
+        ..., description="Explanation of plateau characteristics."
+    )
 
 
 class MappingItem(StrictModel):

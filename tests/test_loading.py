@@ -37,7 +37,8 @@ def test_load_prompt_assembles_components(tmp_path):
         encoding="utf-8",
     )
     (data_dir / "service_feature_plateaus.json").write_text(
-        '[{"id": "P1", "name": "Alpha", "description": "plat"}]',
+        '[{"id": "P1", "name": "Alpha", "description": {"core_idea": "core",'
+        ' "key_characteristics": ["kc1"], "what_it_feels_like": "feel"}}]',
         encoding="utf-8",
     )
     prompt = load_prompt(
@@ -50,9 +51,9 @@ def test_load_prompt_assembles_components(tmp_path):
     expected = (
         "You are the world's leading service designer and enterprise architect; your"
         " job is to produce strictly-valid JSON structured outputs aligned to the"
-        " schema."
-        "\n\nctx\n\n## Service feature plateaus\n\n1. **Alpha**: plat\n\n## Defs\n\n1."
-        " **d1**: defs\n2. **d2**: extra\n\ninsp\n\ntask\n\nresp"
+        " schema.\n\nctx\n\n## Service feature plateaus\n\n1. **Alpha**\n   - Core"
+        " idea: core\n   - Key characteristics:\n     - kc1\n   - What it feels like:"
+        " feel\n\n## Defs\n\n1. **d1**: defs\n2. **d2**: extra\n\ninsp\n\ntask\n\nresp"
     )
     assert prompt == expected
 
@@ -63,7 +64,8 @@ def test_load_prompt_missing_component(tmp_path):
     prompts_dir.mkdir()
     data_dir.mkdir()
     (data_dir / "service_feature_plateaus.json").write_text(
-        '[{"id": "P1", "name": "Alpha", "description": "plat"}]',
+        '[{"id": "P1", "name": "Alpha", "description": {"core_idea": "core",'
+        ' "key_characteristics": ["kc1"], "what_it_feels_like": "feel"}}]',
         encoding="utf-8",
     )
     with pytest.raises(FileNotFoundError):
@@ -92,7 +94,8 @@ def test_load_prompt_with_definition_keys(tmp_path):
         encoding="utf-8",
     )
     (data_dir / "service_feature_plateaus.json").write_text(
-        '[{"id": "P1", "name": "Alpha", "description": "plat"}]',
+        '[{"id": "P1", "name": "Alpha", "description": {"core_idea": "core",'
+        ' "key_characteristics": ["kc1"], "what_it_feels_like": "feel"}}]',
         encoding="utf-8",
     )
     prompt = load_prompt(
@@ -106,9 +109,9 @@ def test_load_prompt_with_definition_keys(tmp_path):
     expected = (
         "You are the world's leading service designer and enterprise architect; your"
         " job is to produce strictly-valid JSON structured outputs aligned to the"
-        " schema."
-        "\n\nctx\n\n## Service feature plateaus\n\n"
-        "1. **Alpha**: plat\n\n## Defs\n\n1. **d2**: defs2\n\ninsp\n\ntask\n\nresp"
+        " schema.\n\nctx\n\n## Service feature plateaus\n\n1. **Alpha**\n   - Core"
+        " idea: core\n   - Key characteristics:\n     - kc1\n   - What it feels like:"
+        " feel\n\n## Defs\n\n1. **d2**: defs2\n\ninsp\n\ntask\n\nresp"
     )
     assert prompt == expected
 
@@ -128,7 +131,8 @@ def test_load_ambition_prompt_includes_north_star(tmp_path):
         encoding="utf-8",
     )
     (data_dir / "service_feature_plateaus.json").write_text(
-        '[{"id": "P1", "name": "Alpha", "description": "plat"}]',
+        '[{"id": "P1", "name": "Alpha", "description": {"core_idea": "core",'
+        ' "key_characteristics": ["kc1"], "what_it_feels_like": "feel"}}]',
         encoding="utf-8",
     )
     prompt = load_ambition_prompt(
@@ -166,11 +170,13 @@ def test_load_plateau_definitions(tmp_path):
     base = tmp_path / "data"
     base.mkdir()
     (base / "service_feature_plateaus.json").write_text(
-        '[{"id": "P1", "name": "Alpha", "description": "d"}]',
+        '[{"id": "P1", "name": "Alpha", "description": {"core_idea": "d",'
+        ' "key_characteristics": ["k"], "what_it_feels_like": "f"}}]',
         encoding="utf-8",
     )
     plateaus = load_plateau_definitions(str(base))
     assert plateaus[0].name == "Alpha"
+    assert plateaus[0].description.core_idea == "d"
 
 
 def test_load_roles_accepts_file_path(tmp_path):

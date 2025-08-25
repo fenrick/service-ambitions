@@ -1,30 +1,43 @@
 ## Service feature plateaus
 
-1. **Foundational**: This plateau represents the standard practices and technologies widely
-   adopted by organisations as of 2025. Emphasising reliability and efficiency, organisations at this level maintain
-   stable operations using proven methods and technologies. They adhere to established best practices and industry
-   standards, delivering consistent and dependable service. By balancing operational stability with adopting current
-   innovations, they form a solid base for incremental improvements without venturing into untested territories.
-2. **Enhanced**: Positioned between foundational practices and experimental approaches, the
-   enhanced level focuses on pushing the boundaries of existing technologies and methodologies. Organisations at this
-   stage adopt advanced tools and practices that are leading-edge but have demonstrated effectiveness. They proactively
-   implement improvements and optimisations, positioning themselves as industry leaders in efficiency and effectiveness
-   while carefully managing risks associated with early adoption. This level reflects a commitment to continuous
-   improvement and staying ahead of industry standards without engaging in high-risk experimentation.
-3. **Experimental**: At the experimental stage, organisations explore and pilot cutting-edge
-   technologies and methodologies that are not yet mainstream. Emphasising agility and adaptability, they experiment
-   with new solutions, accepting higher risks for potentially high rewards. The focus is on learning, iteration, staying
-   ahead of industry trends, and seeking significant competitive advantages through innovation. Organisations here are
-   willing to challenge the status quo to discover breakthrough opportunities.
-4. **Disruptive**: Organisations operating at the disruptive level develop and implement
-   innovative solutions with the potential to upend existing markets or create entirely new ones. They introduce
-   breakthrough ideas that challenge conventional models and practices involving high-risk and high-reward scenarios.
-   The aim is to position the organisation as a leader in innovation and market transformation, driving significant
-   changes in how services are delivered and consumed. This level is characterised by bold moves that can redefine
-   industry landscapes.
-5. **Transformative**: The transformative plateau leads systemic change by redefining the entire
-   ecosystem in which the organisation operates. Organisations create new paradigms and business models by integrating
-   disruptive innovations with broader societal trends. The focus is on large-scale transformation impacting industries
-   or society as a whole, driving evolution in service delivery and consumption patterns, and establishing new standards
-   and frameworks for the industry. Organisations at this level don’t just adapt to change—they drive it on a
-   fundamental level.
+1. **Foundational**
+   - Core idea: Services are reliable, secure, and efficient, representing today's gold standard of operational excellence.
+   - Key characteristics:
+     - Built on cloud-native, API-first platforms.
+     - Outcomes are measured against clear Service Level Objectives (SLOs).
+     - Security is paramount (e.g., zero-trust, passwordless access).
+     - Data is well-governed, and standard AI tools are used to reduce manual work.
+   - What it feels like: Things just work. Failures are rare, brief, and transparently handled. Audits are simple because the evidence is always ready.
+2. **Enhanced**
+   - Core idea: Services become proactive and predictive, often fixing problems before they impact users.
+   - Key characteristics:
+     - Systems can detect issues early and trigger self-healing actions.
+     - Customer experience shifts from reactive to proactive (e.g., fixing an issue before a complaint is filed).
+     - Data from multiple sources (IoT, market, ERP) is fused to provide a complete operational picture.
+     - Verifiable metrics show significant improvements in speed, reliability, and efficiency (e.g., 40%+ faster recovery time).
+   - What it feels like: We solve problems before the customer knows they exist. Our dashboards predict the future, not just report the past.
+3. **Autonomous**
+   - Core idea: Core business processes are automated end-to-end, operating with minimal human intervention.
+   - Key characteristics:
+     - AI agents and automated workflows handle complex tasks like claims processing, invoicing, or logistics.
+     - The organization operates as a platform, exposing its capabilities as monetised APIs to partners.
+     - Smart contracts and real-time compliance are embedded directly into transactions.
+     - Work is routed automatically across a network of internal teams, partners, and even machines.
+   - What it feels like: Entire value chains run themselves. Our business operates 24/7 with auditable, machine-led decisions.
+4. **Outcome-Driven**
+   - Core idea: The business model fundamentally shifts from selling products or services to selling guaranteed outcomes.
+   - Key characteristics:
+     - Pricing is based on results delivered (e.g., pay for guaranteed uptime, energy saved, or defects avoided).
+     - The entire service is redesigned around achieving a specific customer outcome, not just delivering a feature.
+     - The business model is difficult for competitors to copy because it requires a complete operational and financial rethink.
+     - Revenue streams are directly linked to demonstrated customer success.
+   - What it feels like: Customers don't buy our products; they buy our results. Our revenue is tied directly to their success.
+5. **Transformative**
+   - Core idea: The organization rewires the entire market, creating a new operating logic that others are forced to adopt.
+   - Key characteristics:
+     - Services become ambient and invisible, delivered just-in-time without user requests.
+     - The organization acts as a market convenor, orchestrating ecosystems of partners, customers, and machines.
+     - It sets new industry standards for technology, trust, and value exchange.
+     - The business creates measurable public good (e.g., reduced emissions, improved public health) as a byproduct of its core operation.
+   - What it feels like: We no longer compete in the market; we *are* the market. Our platform is the foundation on which new businesses and value are built.
+
