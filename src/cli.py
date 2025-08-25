@@ -542,7 +542,7 @@ def main() -> None:
     )
     run_p.add_argument(
         "--input-file",
-        default="sample-services.jsonl",
+        default="services.jsonl",
         help=SERVICES_FILE_HELP,
     )
     run_p.add_argument(
@@ -561,7 +561,7 @@ def main() -> None:
     )
     diag_p.add_argument(
         "--input-file",
-        default="sample-services.jsonl",
+        default="services.jsonl",
         help=SERVICES_FILE_HELP,
     )
     diag_p.add_argument(
@@ -582,7 +582,7 @@ def main() -> None:
     )
     val_p.add_argument(
         "--input-file",
-        default="sample-services.jsonl",
+        default="services.jsonl",
         help=SERVICES_FILE_HELP,
     )
     val_p.add_argument(
