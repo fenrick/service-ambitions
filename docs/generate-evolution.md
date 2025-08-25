@@ -101,7 +101,7 @@ Each line in the output file is a JSON object with:
       "service_description": "string",
       "features": [
         {
-          "feature_id": "string",
+          "feature_id": "ABC123",
           "name": "string",
           "description": "string",
           "score": {

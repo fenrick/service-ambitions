@@ -2,7 +2,6 @@
 """Tests for plateau feature generation."""
 
 import asyncio
-import hashlib
 import json
 import sys
 import time
@@ -177,8 +176,7 @@ def test_to_feature_hashes_name_role_and_plateau() -> None:
         score=MaturityScore(level=3, label="Defined", justification="j"),
     )
     feature = generator._to_feature(item, "learners", "Foundational")
-    expected = hashlib.sha1("Example|learners|Foundational".encode()).hexdigest()
-    assert feature.feature_id == expected
+    assert feature.feature_id == "P545N4"
 
 
 def test_generate_plateau_returns_results(monkeypatch) -> None:
@@ -912,8 +910,7 @@ def test_generate_service_evolution_deduplicates_features(monkeypatch) -> None:
 
     features = evo.plateaus[0].features
     assert len(features) == 1
-    expected = hashlib.sha1("A|learners|Foundational".encode()).hexdigest()
-    assert features[0].feature_id == expected
+    assert features[0].feature_id == "H4R765"
 
 
 def test_validate_plateau_results_strict_checks() -> None:

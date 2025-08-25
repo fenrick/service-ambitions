@@ -246,7 +246,8 @@ Fields in the schema:
     - `plateau_name`: descriptive plateau label.
     - `service_description`: narrative for the service at that plateau.
     - `features`: list of `PlateauFeature` entries with:
-      - `feature_id`, `name`, and `description`.
+      - `feature_id` – deterministic six-character code, plus `name` and
+        `description`.
       - `score`: object with CMMI maturity `level`, `label` and `justification`.
       - `customer_type`: audience benefiting from the feature.
       - `mappings`: object with `information`, `applications` and
