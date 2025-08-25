@@ -28,7 +28,6 @@ from tqdm import tqdm
 
 from canonical import canonicalise_record
 from models import ReasoningConfig, ServiceInput
-from redaction import redact_pii
 
 SERVICES_PROCESSED = logfire.metric_counter("services_processed")
 SERVICES_FAILED = logfire.metric_counter("services_failed")
@@ -291,13 +290,11 @@ class ServiceAmbitionGenerator:
                     "request": service.model_dump(),
                     "response": record,
                 }
-                data = redact_pii(
-                    json.dumps(
-                        transcript,
-                        separators=(",", ":"),
-                        ensure_ascii=False,
-                        sort_keys=True,
-                    )
+                data = json.dumps(
+                    transcript,
+                    separators=(",", ":"),
+                    ensure_ascii=False,
+                    sort_keys=True,
                 )
                 path = transcripts_dir / f"{svc_id}.json"
                 await asyncio.to_thread(path.write_text, data, encoding="utf-8")

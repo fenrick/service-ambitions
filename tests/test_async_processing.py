@@ -238,9 +238,8 @@ def test_generate_async_saves_transcripts(tmp_path, monkeypatch):
     transcript_path = transcripts / "svc-123.json"
     assert transcript_path.exists()
     data = transcript_path.read_text(encoding="utf-8")
-    assert "j.doe@example.com" not in data
-    assert "svc-123" not in data
-    assert "<redacted>" in data
+    assert "j.doe@example.com" in data
+    assert "svc-123" in data
 
 
 @pytest.mark.asyncio()

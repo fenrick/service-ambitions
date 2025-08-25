@@ -40,7 +40,6 @@ from models import (
     ServiceInput,
     ServiceMeta,
 )
-from redaction import redact_pii
 from settings import load_settings
 from shortcode import ShortCodeRegistry
 
@@ -529,7 +528,7 @@ class PlateauGenerator:
             "request": service_input.model_dump(mode="json"),
             "response": evolution.model_dump(mode="json"),
         }
-        data = redact_pii(json.dumps(payload, ensure_ascii=False))
+        data = json.dumps(payload, ensure_ascii=False)
         path = transcripts_dir / f"{service_input.service_id}.json"
         await asyncio.to_thread(
             path.write_text,
