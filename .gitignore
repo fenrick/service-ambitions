@@ -209,3 +209,5 @@ processed_ids.txt
 evolution.jsonl
 /_transcripts
 /quarantine
+ambitions.jsonl.tmp
+evolutions.jsonl
