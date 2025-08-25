@@ -169,7 +169,7 @@ Map each feature to relevant Information, Applications and Technologies from the
 
 #### Instructions
 - Return a JSON object with a top-level "features" array.
-- Each element must include "feature_id" and a "mappings" object containing "information", "applications" and "technologies" arrays.
+- Each element must include a 6 character ``feature_id`` and a "mappings" object containing "information", "applications" and "technologies" arrays.
 - Each mapping entry must include an "item" field. When diagnostics are enabled, also return a single-line "rationale" for the match.
 - Do not invent IDs; only use those provided.
 - Maintain terminology consistent with the situational context, definitions and inspirations.
@@ -186,7 +186,7 @@ Map each feature to relevant Information, Applications and Technologies from the
       "items": {
         "type": "object",
         "properties": {
-          "feature_id": {"type": "string"},
+          "feature_id": {"type": "string", "minLength": 6, "maxLength": 6},
             "mappings": {"type": "object", "properties": {
               "information": {"type": "array", "items": {"type": "object", "properties": {"item": {"type": "string"}, "rationale": {"type": "string"}}, "required": ["item"]}},
               "applications": {"type": "array", "items": {"type": "object", "properties": {"item": {"type": "string"}, "rationale": {"type": "string"}}, "required": ["item"]}},

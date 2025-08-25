@@ -11,7 +11,6 @@ history into another while still reusing the same underlying agent.
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import re
 from pathlib import Path
@@ -43,6 +42,7 @@ from models import (
 )
 from redaction import redact_pii
 from settings import load_settings
+from shortcode import ShortCodeRegistry
 
 # Settings and token scheduling are no longer required after simplification.
 
@@ -105,6 +105,8 @@ class PlateauGenerator:
         self._service: ServiceInput | None = None
         # Track quarantine file paths for invalid plateau descriptions.
         self.quarantined_descriptions: list[Path] = []
+        # Registry used for deterministic feature codes.
+        self.code_registry = ShortCodeRegistry()
 
     def _quarantine_description(self, plateau_name: str, raw: str) -> Path:
         """Persist ``raw`` text for ``plateau_name`` and record its path."""
@@ -295,8 +297,8 @@ class PlateauGenerator:
             Plateau feature populated with the provided metadata.
         """
 
-        raw = f"{item.name}|{role}|{plateau_name}".encode()
-        feature_id = hashlib.sha1(raw, usedforsecurity=False).hexdigest()
+        canonical = f"{item.name}|{role}|{plateau_name}"
+        feature_id = self.code_registry.generate(canonical)
         return PlateauFeature(
             feature_id=feature_id,
             name=item.name,
