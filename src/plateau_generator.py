@@ -232,15 +232,15 @@ class PlateauGenerator:
         """Parse ``raw`` description payload for ``plateau_names``."""
 
         try:
-            data = json.loads(raw)
-            items = data.get("descriptions", [])
+            payload = PlateauDescriptionsResponse.model_validate_json(raw)
+            items = payload.descriptions
         except Exception as exc:  # noqa: BLE001
             # If the overall payload is invalid JSON, quarantine each plateau.
             logfire.error(f"Invalid plateau descriptions: {exc}")
             items = []
 
         results: dict[str, str] = {}
-        item_map = {i.get("plateau_name"): i for i in items if isinstance(i, dict)}
+        item_map = {item.plateau_name: item for item in items}
         for name in plateau_names:
             item = item_map.get(name)
             if item is None:
@@ -249,10 +249,7 @@ class PlateauGenerator:
                 results[name] = ""
                 continue
             try:
-                resp = DescriptionResponse.model_validate_json(json.dumps(item))
-                if not resp.description:
-                    raise ValueError(A_NON_EMPTY_STRING)
-                cleaned = self._sanitize_description(resp.description)
+                cleaned = self._sanitize_description(item.description)
                 if not cleaned:
                     raise ValueError(A_NON_EMPTY_STRING)
                 results[name] = cleaned
