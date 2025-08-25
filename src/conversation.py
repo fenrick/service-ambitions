@@ -21,7 +21,6 @@ import logfire
 from pydantic_ai import Agent, messages
 
 from models import ServiceInput
-from redaction import redact_pii
 
 
 class ConversationSession:
@@ -39,7 +38,6 @@ class ConversationSession:
         stage: str | None = None,
         diagnostics: bool = False,
         log_prompts: bool = False,
-        redact_prompts: bool = False,
         transcripts_dir: Path | None = None,
     ) -> None:
         """Initialise the session with a configured LLM client.
@@ -49,7 +47,6 @@ class ConversationSession:
             stage: Optional name of the generation stage for observability.
             diagnostics: Enable detailed logging and span creation.
             log_prompts: Debug log prompt text when ``diagnostics`` is ``True``.
-            redact_prompts: Redact prompt text before logging when ``log_prompts``.
             transcripts_dir: Directory used to store prompt/response transcripts
                 when diagnostics mode is enabled.
         """
@@ -58,7 +55,6 @@ class ConversationSession:
         self.stage = stage
         self.diagnostics = diagnostics
         self.log_prompts = log_prompts
-        self.redact_prompts = redact_prompts
         self._history: list[messages.ModelMessage] = []
         self.transcripts_dir = (
             transcripts_dir
@@ -80,11 +76,10 @@ class ConversationSession:
             history.
         """
         ctx = "SERVICE_CONTEXT:\n" + service_input.model_dump_json()
-        stored_ctx = redact_pii(ctx) if self.redact_prompts else ctx
         if self.diagnostics and self.log_prompts:
-            logfire.debug(f"Adding service material to history: {stored_ctx}")
+            logfire.debug(f"Adding service material to history: {ctx}")
         self._history.append(
-            messages.ModelRequest(parts=[messages.UserPromptPart(stored_ctx)])
+            messages.ModelRequest(parts=[messages.UserPromptPart(ctx)])
         )
         self._service_id = service_input.service_id
 
@@ -96,7 +91,6 @@ class ConversationSession:
             stage=self.stage,
             diagnostics=self.diagnostics,
             log_prompts=self.log_prompts,
-            redact_prompts=self.redact_prompts,
             transcripts_dir=self.transcripts_dir,
         )
         clone._history = list(self._history)
@@ -104,25 +98,9 @@ class ConversationSession:
         return clone
 
     def _record_new_messages(self, msgs: list[messages.ModelMessage]) -> None:
-        """Append ``msgs`` to history, redacting user prompts when enabled."""
+        """Append ``msgs`` to history."""
 
-        if not self.redact_prompts:
-            self._history.extend(msgs)
-            return
-        sanitised: list[messages.ModelMessage] = []
-        for msg in msgs:
-            if isinstance(msg, messages.ModelRequest):
-                parts: list[Any] = []
-                for part in msg.parts:
-                    if isinstance(part, messages.UserPromptPart):
-                        content = redact_pii(str(part.content))
-                        parts.append(messages.UserPromptPart(content))
-                    else:
-                        parts.append(part)
-                sanitised.append(messages.ModelRequest(parts=parts))
-            else:
-                sanitised.append(msg)
-        self._history.extend(sanitised)
+        self._history.extend(msgs)
 
     @contextmanager
     def _prepare_span(
@@ -145,9 +123,7 @@ class ConversationSession:
         """Optionally log the prompt text for debugging."""
 
         if self.diagnostics and self.log_prompts:
-            # redact prompt if requested before logging
-            logged_prompt = redact_pii(prompt) if self.redact_prompts else prompt
-            logfire.debug(f"Sending prompt: {logged_prompt}")
+            logfire.debug(f"Sending prompt: {prompt}")
 
     async def _write_transcript(self, prompt: str, response: Any) -> None:
         """Persist ``prompt`` and ``response`` when diagnostics are enabled."""
@@ -162,9 +138,7 @@ class ConversationSession:
         except Exception:  # pragma: no cover - defensive
             return
         stage_name = self.stage or "unknown"
-        prompt_txt = redact_pii(prompt) if self.redact_prompts else prompt
-        resp_txt = redact_pii(str(response)) if self.redact_prompts else str(response)
-        payload = {"prompt": prompt_txt, "response": resp_txt}
+        payload = {"prompt": prompt, "response": str(response)}
         data = json.dumps(payload, ensure_ascii=False)
         path = svc_dir / f"{stage_name}.json"
         await asyncio.to_thread(path.write_text, data, encoding="utf-8")

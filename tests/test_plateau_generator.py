@@ -960,8 +960,8 @@ def test_validate_plateau_results_strict_checks() -> None:
     )
 
 
-def test_write_transcript_writes_payload(tmp_path, monkeypatch) -> None:
-    """Transcript writing should persist redacted payloads."""
+def test_write_transcript_writes_payload(tmp_path) -> None:
+    """Transcript writing should persist payloads without modification."""
 
     session = DummySession([])
     generator = PlateauGenerator(cast(ConversationSession, session))
@@ -973,7 +973,6 @@ def test_write_transcript_writes_payload(tmp_path, monkeypatch) -> None:
         jobs_to_be_done=[{"name": "job"}],
     )
     evolution = ServiceEvolution(meta=_meta(), service=service, plateaus=[])
-    monkeypatch.setattr("plateau_generator.redact_pii", lambda x: x)
 
     asyncio.run(generator._write_transcript(tmp_path, service, evolution))
 
