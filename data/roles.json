@@ -2,16 +2,16 @@
   {
     "role_id": "learners",
     "name": "Learners",
-    "description": "People engaged in learning activities."
+    "description": "Individuals involved in formal education and lifelong learning, ranging from prospective students to alumni."
   },
   {
     "role_id": "academics",
     "name": "Academics",
-    "description": "Academic staff involved in teaching and research."
+    "description": "Educators and researchers responsible for designing curricula, delivering instruction, and advancing scholarly knowledge."
   },
   {
     "role_id": "professional_staff",
     "name": "Professional staff",
-    "description": "Non-academic staff supporting operations."
+    "description": "Staff managing daily operations, finances, human resources, and strategic planning."
   }
 ]
