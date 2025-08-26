@@ -11,9 +11,11 @@ from mapping import MappingError, map_set
 from models import (
     Contribution,
     FeatureMappingRef,
+    MappingFeature,
     MappingFeatureGroup,
     MappingItem,
     MappingResponse,
+    MappingTypeConfig,
     MaturityScore,
     PlateauFeature,
 )
@@ -200,6 +202,66 @@ async def test_map_set_strict_unknown_ids(monkeypatch, tmp_path) -> None:
     qfile = tmp_path / "quarantine" / "svc" / "applications" / "unknown_ids_1.json"
     assert json.loads(qfile.read_text()) == ["x"]
     assert paths == [qfile.resolve()]
+
+
+def test_merge_mapping_missing_feature(monkeypatch, tmp_path) -> None:
+    """Missing features result in empty mappings and a warning."""
+
+    monkeypatch.chdir(tmp_path)
+    features = [_feature("f1"), _feature("f2")]
+    payload = MappingResponse(
+        features=[
+            MappingFeature(
+                feature_id="f1", mappings={"applications": [Contribution(item="a")]}
+            )
+        ]
+    )
+    mapping_types = {
+        "applications": MappingTypeConfig(dataset="applications", label="Applications")
+    }
+    warnings: list[tuple[str, dict[str, Any]]] = []
+    monkeypatch.setattr(
+        mapping.logfire, "warning", lambda msg, **kw: warnings.append((msg, kw))
+    )
+    merged, unknown = mapping._merge_mapping_results(
+        features,
+        payload,
+        mapping_types,
+        catalogue_items={"applications": [_item()]},
+        service="svc",
+    )
+    assert unknown == 0
+    assert merged[1].mappings["applications"] == []
+    assert (
+        "missing mapping",
+        {"feature_id": "f2"},
+    ) in warnings
+
+
+def test_merge_mapping_missing_feature_strict(monkeypatch, tmp_path) -> None:
+    """Strict mode raises when features are missing from the response."""
+
+    monkeypatch.chdir(tmp_path)
+    features = [_feature("f1"), _feature("f2")]
+    payload = MappingResponse(
+        features=[
+            MappingFeature(
+                feature_id="f1", mappings={"applications": [Contribution(item="a")]}
+            )
+        ]
+    )
+    mapping_types = {
+        "applications": MappingTypeConfig(dataset="applications", label="Applications")
+    }
+    with pytest.raises(MappingError):
+        mapping._merge_mapping_results(
+            features,
+            payload,
+            mapping_types,
+            catalogue_items={"applications": [_item()]},
+            service="svc",
+            strict=True,
+        )
 
 
 @pytest.mark.asyncio()
