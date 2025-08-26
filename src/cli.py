@@ -518,7 +518,7 @@ def main() -> None:
     common.add_argument(
         "--use-local-cache",
         action=argparse.BooleanOptionalAction,
-        default=False,
+        default=True,
         help=(
             "Enable reading/writing the cache directory for mapping results. "
             "When disabled, cache options are ignored"
@@ -527,7 +527,7 @@ def main() -> None:
     common.add_argument(
         "--cache-mode",
         choices=("off", "read", "refresh", "write"),
-        default="off",
+        default="write",
         help=(
             "Caching behaviour: 'off' disables caching, 'read' uses existing "
             "entries without writing, 'refresh' refetches and overwrites "
