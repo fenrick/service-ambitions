@@ -191,6 +191,15 @@ class ServiceInput(StrictModel):
     name: Annotated[
         str, Field(min_length=1, description="Human readable service name.")
     ]
+    parent_id: (
+        Annotated[
+            str,
+            Field(
+                min_length=1, description="Unique identifier for the parent service."
+            ),
+        ]
+        | None
+    ) = None
     customer_type: (
         Annotated[
             str,
