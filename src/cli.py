@@ -525,9 +525,30 @@ def main() -> None:
     )
     common.add_argument(
         "--use-local-cache",
-        default=True,
-        action="store_true",
-        help="Cache mapping responses under .cache/mapping for offline runs",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Enable reading/writing the cache directory for mapping results. "
+            "When disabled, cache options are ignored"
+        ),
+    )
+    common.add_argument(
+        "--cache-mode",
+        choices=("off", "read", "refresh", "write"),
+        default="off",
+        help=(
+            "Caching behaviour: 'off' disables caching, 'read' uses existing "
+            "entries without writing, 'refresh' refetches and overwrites "
+            "cache entries, and 'write' reads and writes to the cache"
+        ),
+    )
+    common.add_argument(
+        "--cache-dir",
+        default=".cache",
+        help=(
+            "Directory to store cache files; defaults to '.cache' in the "
+            "current working directory"
+        ),
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
