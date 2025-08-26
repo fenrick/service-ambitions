@@ -2,6 +2,7 @@
 """Integration tests for CLI subcommands."""
 
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import cli
@@ -15,6 +16,9 @@ def _prepare_settings():
         logfire_token=None,
         diagnostics=False,
         strict_mapping=False,
+        use_local_cache=True,
+        cache_mode="read",
+        cache_dir=Path(".cache"),
     )
 
 
@@ -87,6 +91,7 @@ def test_cache_args_defaults(monkeypatch):
 
     async def fake_generate(args, settings, transcripts_dir):
         called["args"] = args
+        called["settings"] = settings
 
     monkeypatch.setattr(cli, "_cmd_generate_evolution", fake_generate)
     monkeypatch.setattr(cli, "load_settings", _prepare_settings)
@@ -96,9 +101,13 @@ def test_cache_args_defaults(monkeypatch):
     cli.main()
 
     args = called["args"]
+    settings = called["settings"]
     assert args.use_local_cache is True
     assert args.cache_mode == "read"
     assert args.cache_dir == ".cache"
+    assert settings.use_local_cache is True
+    assert settings.cache_mode == "read"
+    assert settings.cache_dir == Path(".cache")
 
 
 def test_cache_args_custom(monkeypatch):
