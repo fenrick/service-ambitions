@@ -80,8 +80,8 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
     responses: list[str] = [desc_payload]
     responses += [_feature_payload(5) for _ in range(4)]
     agent = DummyAgent(responses)
-    session = ConversationSession(cast(Agent[None, str], agent))
-    generator = PlateauGenerator(session, required_count=5)
+    session = ConversationSession(cast(Agent[None, str], agent), use_local_cache=False)
+    generator = PlateauGenerator(session, required_count=5, use_local_cache=False)
 
     map_calls = {"n": 0}
 

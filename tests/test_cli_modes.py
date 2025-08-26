@@ -81,7 +81,7 @@ def test_validate_sets_dry_run(monkeypatch):
 
 
 def test_cache_args_defaults(monkeypatch):
-    """Cache CLI options default to read-only caching."""
+    """Cache CLI options enable read-only caching by default."""
 
     called = {}
 

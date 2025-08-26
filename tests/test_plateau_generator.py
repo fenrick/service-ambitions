@@ -683,8 +683,10 @@ def test_generate_service_evolution_filters(monkeypatch) -> None:
         def run_sync(self, prompt, message_history):
             return type("R", (), {"output": "", "new_messages": lambda: []})()
 
-    session = ConversationSession(cast(Agent[None, str], DummyAgent()))
-    generator = PlateauGenerator(session)
+    session = ConversationSession(
+        cast(Agent[None, str], DummyAgent()), use_local_cache=False
+    )
+    generator = PlateauGenerator(session, use_local_cache=False)
 
     called: list[int] = []
     sessions: set[int] = set()
@@ -758,8 +760,10 @@ def test_generate_service_evolution_invalid_role_raises(monkeypatch) -> None:
         def run_sync(self, prompt, message_history):
             return type("R", (), {"output": "", "new_messages": lambda: []})()
 
-    session = ConversationSession(cast(Agent[None, str], DummyAgent()))
-    generator = PlateauGenerator(session)
+    session = ConversationSession(
+        cast(Agent[None, str], DummyAgent()), use_local_cache=False
+    )
+    generator = PlateauGenerator(session, use_local_cache=False)
 
     async def fake_generate_plateau_async(
         self, level, plateau_name, *, session=None, description
@@ -814,8 +818,10 @@ def test_generate_service_evolution_unknown_plateau_raises(monkeypatch) -> None:
         def run_sync(self, prompt, message_history):
             return type("R", (), {"output": "", "new_messages": lambda: []})()
 
-    session = ConversationSession(cast(Agent[None, str], DummyAgent()))
-    generator = PlateauGenerator(session)
+    session = ConversationSession(
+        cast(Agent[None, str], DummyAgent()), use_local_cache=False
+    )
+    generator = PlateauGenerator(session, use_local_cache=False)
 
     async def fake_generate_plateau_async(
         self, level, plateau_name, *, session=None, description
@@ -870,8 +876,10 @@ def test_generate_service_evolution_deduplicates_features(monkeypatch) -> None:
         def run_sync(self, prompt, message_history):
             return type("R", (), {"output": "", "new_messages": lambda: []})()
 
-    session = ConversationSession(cast(Agent[None, str], DummyAgent()))
-    generator = PlateauGenerator(session)
+    session = ConversationSession(
+        cast(Agent[None, str], DummyAgent()), use_local_cache=False
+    )
+    generator = PlateauGenerator(session, use_local_cache=False)
 
     async def fake_generate_plateau_async(
         self, level, plateau_name, *, session=None, description
