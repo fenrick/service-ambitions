@@ -1,4 +1,4 @@
-name: CI Quick
+name: CI — Quick
 
 on:
   pull_request:
