@@ -34,7 +34,11 @@ class DummyAgent:
 def test_add_parent_materials_records_history() -> None:
     """``add_parent_materials`` should append service info to history."""
 
-    session = ConversationSession(cast(Agent[None, str], DummyAgent()))
+    session = ConversationSession(
+        cast(Agent[None, str], DummyAgent()),
+        use_local_cache=False,
+        cache_mode="off",
+    )
     service = ServiceInput(
         service_id="svc-1",
         name="svc",
@@ -61,7 +65,11 @@ def test_add_parent_materials_records_history() -> None:
 def test_add_parent_materials_includes_features() -> None:
     """Seed materials should list existing service features when provided."""
 
-    session = ConversationSession(cast(Agent[None, str], DummyAgent()))
+    session = ConversationSession(
+        cast(Agent[None, str], DummyAgent()),
+        use_local_cache=False,
+        cache_mode="off",
+    )
     service = ServiceInput(
         service_id="svc-1",
         name="svc",
@@ -93,7 +101,11 @@ def test_add_parent_materials_includes_features() -> None:
 def test_ask_adds_responses_to_history() -> None:
     """``ask`` should forward prompts and store new messages."""
 
-    session = ConversationSession(cast(Agent[None, str], DummyAgent()))
+    session = ConversationSession(
+        cast(Agent[None, str], DummyAgent()),
+        use_local_cache=False,
+        cache_mode="off",
+    )
     reply = session.ask("ping")
 
     assert reply == "pong"
@@ -103,7 +115,11 @@ def test_ask_adds_responses_to_history() -> None:
 def test_ask_forwards_prompt_to_agent() -> None:
     """``ask`` should delegate to the underlying agent."""
     agent = DummyAgent()
-    session = ConversationSession(cast(Agent[None, str], agent))
+    session = ConversationSession(
+        cast(Agent[None, str], agent),
+        use_local_cache=False,
+        cache_mode="off",
+    )
     session.ask("hello")
     assert agent.called_with == ["hello"]
 
@@ -117,6 +133,8 @@ def test_ask_omits_prompt_logging_when_disabled(tmp_path, monkeypatch) -> None:
         diagnostics=True,
         log_prompts=False,
         transcripts_dir=tmp_path,
+        use_local_cache=False,
+        cache_mode="off",
     )
     calls: list[str] = []
     monkeypatch.setattr(conversation.logfire, "debug", lambda msg: calls.append(msg))
@@ -134,6 +152,8 @@ def test_catalogue_strings_not_logged_by_default(monkeypatch) -> None:
         cast(Agent[None, str], agent),
         diagnostics=True,
         log_prompts=False,
+        use_local_cache=False,
+        cache_mode="off",
     )
     logged: list[str] = []
     monkeypatch.setattr(conversation.logfire, "debug", lambda msg: logged.append(msg))
@@ -153,6 +173,8 @@ def test_diagnostics_writes_transcript(tmp_path) -> None:
         stage="stage",
         diagnostics=True,
         transcripts_dir=tmp_path,
+        use_local_cache=False,
+        cache_mode="off",
     )
     service = ServiceInput(
         service_id="svc-1",

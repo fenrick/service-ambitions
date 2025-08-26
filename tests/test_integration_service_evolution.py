@@ -31,9 +31,22 @@ class DummyAgent:
         self._responses = responses
         self.prompts: list[str] = []
 
-    def run_sync(self, prompt: str, message_history):
+    def run_sync(self, prompt: str, message_history, output_type=None):
         self.prompts.append(prompt)
-        return SimpleNamespace(output=self._responses.pop(0), new_messages=lambda: [])
+        if output_type is not None and output_type.__name__ == "RoleFeaturesResponse":
+            payload = json.dumps({"features": []})
+        else:
+            payload = self._responses.pop(0)
+        if output_type is not None:
+            payload = output_type.model_validate_json(payload)
+        return SimpleNamespace(
+            output=payload,
+            new_messages=lambda: [],
+            usage=lambda: SimpleNamespace(total_tokens=0),
+        )
+
+    async def run(self, prompt: str, message_history, output_type=None):
+        return self.run_sync(prompt, message_history, output_type)
 
 
 def _feature_payload(count: int) -> str:
@@ -68,20 +81,25 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
             "descriptions": [
                 {"plateau": 1, "plateau_name": "Foundational", "description": "desc"},
                 {"plateau": 2, "plateau_name": "Enhanced", "description": "desc"},
-                {
-                    "plateau": 3,
-                    "plateau_name": "Experimental",
-                    "description": "desc",
-                },
-                {"plateau": 4, "plateau_name": "Disruptive", "description": "desc"},
+                {"plateau": 3, "plateau_name": "Autonomous", "description": "desc"},
+                {"plateau": 4, "plateau_name": "Outcome-Driven", "description": "desc"},
             ]
         }
     )
     responses: list[str] = [desc_payload]
     responses += [_feature_payload(5) for _ in range(4)]
     agent = DummyAgent(responses)
-    session = ConversationSession(cast(Agent[None, str], agent))
-    generator = PlateauGenerator(session, required_count=5)
+    session = ConversationSession(
+        cast(Agent[None, str], agent),
+        use_local_cache=False,
+        cache_mode="off",
+    )
+    generator = PlateauGenerator(
+        session,
+        required_count=5,
+        use_local_cache=False,
+        cache_mode="off",
+    )
 
     map_calls = {"n": 0}
 
@@ -126,7 +144,7 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
     )
     evolution = generator.generate_service_evolution(
         service,
-        ["Foundational", "Enhanced", "Experimental", "Disruptive"],
+        ["Foundational", "Enhanced", "Autonomous", "Outcome-Driven"],
         ["learners", "academics", "professional_staff"],
         meta=meta,
     )

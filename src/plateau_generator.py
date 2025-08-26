@@ -68,7 +68,11 @@ DEFAULT_ROLE_IDS: list[str] = load_role_ids()
 
 
 class PlateauGenerator:
-    """Generate plateau features and service evolution summaries."""
+    """Generate plateau features and service evolution summaries.
+
+    Local caching is enabled by default in read-only mode to reuse mapping
+    results between runs.
+    """
 
     def __init__(
         self,
@@ -79,8 +83,8 @@ class PlateauGenerator:
         description_session: ConversationSession | None = None,
         mapping_session: ConversationSession | None = None,
         strict: bool = False,
-        use_local_cache: bool = False,
-        cache_mode: Literal["off", "read", "refresh", "write"] = "off",
+        use_local_cache: bool = True,
+        cache_mode: Literal["off", "read", "refresh", "write"] = "read",
     ) -> None:
         """Initialise the generator.
 
@@ -92,8 +96,9 @@ class PlateauGenerator:
             mapping_session: Session used for feature mapping.
             strict: Enforce feature and mapping completeness when ``True``.
             use_local_cache: Read and write mapping results from ``.cache`` when
-                ``True``.
+                ``True``. Caching is enabled by default.
             cache_mode: Caching strategy controlling read/write behaviour.
+                Defaults to ``"read"`` for read-only access.
         """
         if required_count < 1:
             raise ValueError("required_count must be positive")

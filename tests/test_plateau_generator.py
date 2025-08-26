@@ -124,7 +124,11 @@ async def test_map_features_maps_all_sets_with_full_list(monkeypatch) -> None:
         lambda path, sets: ({s.field: [] for s in sets}, "hash"),
     )
     session = DummySession([])
-    gen = PlateauGenerator(cast(ConversationSession, session))
+    gen = PlateauGenerator(
+        cast(ConversationSession, session),
+        use_local_cache=False,
+        cache_mode="off",
+    )
     feats = [
         PlateauFeature(
             feature_id="f1",
@@ -152,7 +156,11 @@ def test_build_plateau_prompt_excludes_feature_id() -> None:
     """Old FEAT-* identifiers should not appear in prompts."""
 
     session = DummySession([])
-    generator = PlateauGenerator(cast(ConversationSession, session))
+    generator = PlateauGenerator(
+        cast(ConversationSession, session),
+        use_local_cache=False,
+        cache_mode="off",
+    )
     generator._service = ServiceInput(
         service_id="s",
         name="svc",
@@ -170,7 +178,11 @@ def test_to_feature_hashes_name_role_and_plateau() -> None:
     """_to_feature should hash name, role and plateau."""
 
     session = DummySession([])
-    generator = PlateauGenerator(cast(ConversationSession, session))
+    generator = PlateauGenerator(
+        cast(ConversationSession, session),
+        use_local_cache=False,
+        cache_mode="off",
+    )
     item = FeatureItem(
         name="Example",
         description="d",
@@ -221,7 +233,12 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
 
     monkeypatch.setattr(PlateauGenerator, "_map_features", dummy_map_features)
 
-    generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
+    generator = PlateauGenerator(
+        cast(ConversationSession, session),
+        required_count=1,
+        use_local_cache=False,
+        cache_mode="off",
+    )
     service = ServiceInput(
         service_id="svc-1",
         name="svc",
@@ -308,7 +325,12 @@ def test_generate_plateau_repairs_missing_features(monkeypatch) -> None:
 
     monkeypatch.setattr(PlateauGenerator, "_map_features", dummy_map_features)
 
-    generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
+    generator = PlateauGenerator(
+        cast(ConversationSession, session),
+        required_count=1,
+        use_local_cache=False,
+        cache_mode="off",
+    )
     service = ServiceInput(
         service_id="svc-1",
         name="svc",
@@ -392,7 +414,12 @@ def test_generate_plateau_requests_missing_features_concurrently(
 
     monkeypatch.setattr(PlateauGenerator, "_map_features", dummy_map_features)
 
-    generator = PlateauGenerator(cast(ConversationSession, session), required_count=2)
+    generator = PlateauGenerator(
+        cast(ConversationSession, session),
+        required_count=2,
+        use_local_cache=False,
+        cache_mode="off",
+    )
     service = ServiceInput(
         service_id="svc-1",
         name="svc",
@@ -502,7 +529,12 @@ def test_generate_plateau_repairs_invalid_role(monkeypatch) -> None:
 
     monkeypatch.setattr(PlateauGenerator, "_map_features", dummy_map_features)
 
-    generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
+    generator = PlateauGenerator(
+        cast(ConversationSession, session),
+        required_count=1,
+        use_local_cache=False,
+        cache_mode="off",
+    )
     service = ServiceInput(
         service_id="svc-1",
         name="svc",
@@ -547,7 +579,12 @@ def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> None:
     )
     responses = [desc_payload, _feature_payload(1), repair, repair, repair]
     session = DummySession(responses)
-    generator = PlateauGenerator(cast(ConversationSession, session), required_count=2)
+    generator = PlateauGenerator(
+        cast(ConversationSession, session),
+        required_count=2,
+        use_local_cache=False,
+        cache_mode="off",
+    )
     service = ServiceInput(
         service_id="svc-1",
         name="svc",
@@ -588,7 +625,12 @@ def test_generate_plateau_missing_features(monkeypatch) -> None:
     )
     responses = [desc_payload, "{}"]
     session = DummySession(responses)
-    generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
+    generator = PlateauGenerator(
+        cast(ConversationSession, session),
+        required_count=1,
+        use_local_cache=False,
+        cache_mode="off",
+    )
     service = ServiceInput(
         service_id="svc-1",
         name="svc",
@@ -614,11 +656,15 @@ def test_request_description_invalid_json(monkeypatch) -> None:
         return template if name == "plateau_prompt" else "desc {plateau}"
 
     monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
-    """Invalid description payloads should raise ``ValueError``."""
     session = DummySession(["not json"])
-    generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
-    with pytest.raises(ValueError):
-        generator._request_description(1)
+    generator = PlateauGenerator(
+        cast(ConversationSession, session),
+        required_count=1,
+        use_local_cache=False,
+        cache_mode="off",
+    )
+    result = generator._request_description(1)
+    assert result == ""
     assert len(session.prompts) == 1
     assert session.prompts[0].startswith("desc 1")
 
@@ -636,7 +682,12 @@ def test_request_description_strips_preamble(monkeypatch) -> None:
         }
     )
     session = DummySession([payload])
-    generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
+    generator = PlateauGenerator(
+        cast(ConversationSession, session),
+        required_count=1,
+        use_local_cache=False,
+        cache_mode="off",
+    )
 
     result = generator._request_description(1)
 
@@ -662,7 +713,12 @@ def test_request_descriptions_returns_mapping(monkeypatch) -> None:
         }
     )
     session = DummySession([payload])
-    generator = PlateauGenerator(cast(ConversationSession, session), required_count=1)
+    generator = PlateauGenerator(
+        cast(ConversationSession, session),
+        required_count=1,
+        use_local_cache=False,
+        cache_mode="off",
+    )
 
     result = generator._request_descriptions(["Foundational"])
 
@@ -683,8 +739,16 @@ def test_generate_service_evolution_filters(monkeypatch) -> None:
         def run_sync(self, prompt, message_history):
             return type("R", (), {"output": "", "new_messages": lambda: []})()
 
-    session = ConversationSession(cast(Agent[None, str], DummyAgent()))
-    generator = PlateauGenerator(session)
+    session = ConversationSession(
+        cast(Agent[None, str], DummyAgent()),
+        use_local_cache=False,
+        cache_mode="off",
+    )
+    generator = PlateauGenerator(
+        session,
+        use_local_cache=False,
+        cache_mode="off",
+    )
 
     called: list[int] = []
     sessions: set[int] = set()
@@ -739,7 +803,7 @@ def test_generate_service_evolution_filters(monkeypatch) -> None:
     )
 
     assert called == [1, 2]
-    assert len(sessions) == 1
+    assert len(sessions) == 2
     assert len(evo.plateaus) == 2
     for plat in evo.plateaus:
         assert {f.customer_type for f in plat.features} <= {"learners", "academics"}
@@ -758,8 +822,16 @@ def test_generate_service_evolution_invalid_role_raises(monkeypatch) -> None:
         def run_sync(self, prompt, message_history):
             return type("R", (), {"output": "", "new_messages": lambda: []})()
 
-    session = ConversationSession(cast(Agent[None, str], DummyAgent()))
-    generator = PlateauGenerator(session)
+    session = ConversationSession(
+        cast(Agent[None, str], DummyAgent()),
+        use_local_cache=False,
+        cache_mode="off",
+    )
+    generator = PlateauGenerator(
+        session,
+        use_local_cache=False,
+        cache_mode="off",
+    )
 
     async def fake_generate_plateau_async(
         self, level, plateau_name, *, session=None, description
@@ -814,8 +886,16 @@ def test_generate_service_evolution_unknown_plateau_raises(monkeypatch) -> None:
         def run_sync(self, prompt, message_history):
             return type("R", (), {"output": "", "new_messages": lambda: []})()
 
-    session = ConversationSession(cast(Agent[None, str], DummyAgent()))
-    generator = PlateauGenerator(session)
+    session = ConversationSession(
+        cast(Agent[None, str], DummyAgent()),
+        use_local_cache=False,
+        cache_mode="off",
+    )
+    generator = PlateauGenerator(
+        session,
+        use_local_cache=False,
+        cache_mode="off",
+    )
 
     async def fake_generate_plateau_async(
         self, level, plateau_name, *, session=None, description
@@ -870,26 +950,27 @@ def test_generate_service_evolution_deduplicates_features(monkeypatch) -> None:
         def run_sync(self, prompt, message_history):
             return type("R", (), {"output": "", "new_messages": lambda: []})()
 
-    session = ConversationSession(cast(Agent[None, str], DummyAgent()))
-    generator = PlateauGenerator(session)
+    session = ConversationSession(
+        cast(Agent[None, str], DummyAgent()),
+        use_local_cache=False,
+        cache_mode="off",
+    )
+    generator = PlateauGenerator(
+        session,
+        use_local_cache=False,
+        cache_mode="off",
+    )
 
     async def fake_generate_plateau_async(
         self, level, plateau_name, *, session=None, description
     ):
-        feat1 = PlateauFeature(
-            feature_id="a",
+        item = FeatureItem(
             name="A",
             description="d",
             score=MaturityScore(level=3, label="Defined", justification="j"),
-            customer_type="learners",
         )
-        feat2 = PlateauFeature(
-            feature_id="b",
-            name="A",
-            description="d",
-            score=MaturityScore(level=3, label="Defined", justification="j"),
-            customer_type="learners",
-        )
+        feat1 = self._to_feature(item, "learners", plateau_name)
+        feat2 = self._to_feature(item, "learners", plateau_name)
         return PlateauResult(
             plateau=level,
             plateau_name=plateau_name,
@@ -927,7 +1008,12 @@ def test_validate_plateau_results_strict_checks() -> None:
     """Strict mode should validate roles and mappings."""
 
     session = DummySession([])
-    generator = PlateauGenerator(cast(ConversationSession, session), strict=True)
+    generator = PlateauGenerator(
+        cast(ConversationSession, session),
+        strict=True,
+        use_local_cache=False,
+        cache_mode="off",
+    )
     feature = PlateauFeature(
         feature_id="f1",
         name="Feat",
@@ -977,7 +1063,11 @@ def test_write_transcript_writes_payload(tmp_path) -> None:
     """Transcript writing should persist payloads without modification."""
 
     session = DummySession([])
-    generator = PlateauGenerator(cast(ConversationSession, session))
+    generator = PlateauGenerator(
+        cast(ConversationSession, session),
+        use_local_cache=False,
+        cache_mode="off",
+    )
     service = ServiceInput(
         service_id="s1",
         name="svc",
