@@ -53,21 +53,6 @@ def _sanitize(value: str) -> str:
     return value.replace("\n", " ").replace("\t", " ")
 
 
-def _hash_catalogue(items: Sequence[MappingItem]) -> str:
-    """Return a SHA256 hash of ``items``."""
-
-    data = [
-        {
-            "id": _sanitize(item.id),
-            "name": _sanitize(item.name),
-            "description": _sanitize(item.description),
-        }
-        for item in sorted(items, key=lambda i: i.id)
-    ]
-    serialised = json.dumps(data, separators=(",", ":"), sort_keys=True)
-    return hashlib.sha256(serialised.encode("utf-8")).hexdigest()
-
-
 def _features_hash(features: Sequence[PlateauFeature]) -> str:
     """Return a SHA256 hash summarising ``features``."""
 
@@ -90,13 +75,13 @@ def _features_hash(features: Sequence[PlateauFeature]) -> str:
 def _build_cache_key(
     model_name: str,
     set_name: str,
-    items: Sequence[MappingItem],
+    catalogue_hash: str,
     features: Sequence[PlateauFeature],
     diagnostics: bool,
 ) -> str:
     """Return a deterministic cache key for mapping responses.
 
-    The key incorporates the model, mapping catalogue, prompt template version,
+    The key incorporates the model, catalogue hash, prompt template version,
     diagnostics flag and a hash of the feature definitions.
     """
 
@@ -109,7 +94,7 @@ def _build_cache_key(
     parts = [
         model_name,
         set_name,
-        _hash_catalogue(items),
+        catalogue_hash,
         template_hash,
         str(int(diagnostics)),
         _features_hash(features),
@@ -166,8 +151,9 @@ def _merge_mapping_results(
     presence of unknown or missing identifiers raises :class:`MappingError`.
     """
 
-    catalogues = catalogue_items or load_mapping_items(
-        MAPPING_DATA_DIR, load_settings().mapping_sets
+    catalogues = (
+        catalogue_items
+        or load_mapping_items(MAPPING_DATA_DIR, load_settings().mapping_sets)[0]
     )
     valid_ids: dict[str, set[str]] = {
         key: {item.id for item in catalogues[cfg.dataset]}
@@ -232,6 +218,7 @@ async def map_set(
     strict: bool = False,
     diagnostics: bool | None = None,
     cache_mode: Literal["off", "read", "refresh", "write"] = "off",
+    catalogue_hash: str = "",
 ) -> list[PlateauFeature]:
     """Return ``features`` with ``set_name`` mappings populated.
 
@@ -241,13 +228,17 @@ async def map_set(
     ``quarantine/mapping/<service>/<set>.txt`` and an empty mapping list is
     returned. When ``strict`` is ``True`` a :class:`MappingError` is raised
     instead of returning partial results. ``cache_mode`` controls local caching
-    behaviour:
+    behaviour. ``catalogue_hash`` should be the SHA256 digest returned by
+    :func:`loader.load_mapping_items` so cache keys vary when catalogue data
+    changes:
 
     - ``"off"``: bypass the cache entirely.
-    - ``"read"``: use cached content when available, otherwise fetch and write.
-    - ``"refresh"``: ignore any existing cache and always overwrite.
-    - ``"write"``: avoid reading and only write responses when the file is
-      absent.
+        - ``"read"``: use cached content when available, otherwise fetch and write.
+        - ``"refresh"``: ignore any existing cache and always overwrite.
+        - ``"write"``: avoid reading and only write responses when the file is
+          absent.
+        catalogue_hash: SHA256 digest representing the loaded mapping
+            catalogues.
     """
 
     cfg = MappingTypeConfig(dataset=set_name, label=set_name)
@@ -258,7 +249,7 @@ async def map_set(
     )
     model_obj = getattr(session, "client", None)
     model_name = getattr(getattr(model_obj, "model", None), "model_name", "")
-    key = _build_cache_key(model_name, set_name, items, features, use_diag)
+    key = _build_cache_key(model_name, set_name, catalogue_hash, features, use_diag)
     model_type: type[StrictModel] = (
         MappingDiagnosticsResponse if use_diag else MappingResponse
     )

@@ -9,6 +9,8 @@ callers receive concise exceptions.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from functools import lru_cache
 from pathlib import Path
 from typing import Sequence, Tuple, TypeVar
@@ -124,6 +126,36 @@ def _read_json_file(path: Path, schema: type[T]) -> T:
         ) from exc
 
 
+def _sanitize(value: str) -> str:
+    """Return ``value`` with newlines and tabs replaced by spaces."""
+
+    return value.replace("\n", " ").replace("\t", " ")
+
+
+def compile_catalogue_for_set(
+    items: Sequence[MappingItem],
+) -> tuple[list[MappingItem], str]:
+    """Return ``items`` sorted by ID and their SHA256 digest.
+
+    The digest is derived from a deterministic JSON serialisation of the
+    catalogue items, ensuring consistent hashes across runs regardless of input
+    order or whitespace variations.
+    """
+
+    ordered = sorted(items, key=lambda item: item.id)
+    canonical = [
+        {
+            "id": _sanitize(item.id),
+            "name": _sanitize(item.name),
+            "description": _sanitize(item.description),
+        }
+        for item in ordered
+    ]
+    serialised = json.dumps(canonical, separators=(",", ":"), sort_keys=True)
+    digest = hashlib.sha256(serialised.encode("utf-8")).hexdigest()
+    return ordered, digest
+
+
 def _read_yaml_file(path: Path, schema: type[T]) -> T:
     """Return YAML data loaded from ``path`` validated against ``schema``."""
 
@@ -166,8 +198,12 @@ def load_prompt_text(prompt_name: str, base_dir: Path | None = None) -> str:
 
 def load_mapping_items(
     data_dir: Path, sets: Sequence[MappingSet]
-) -> dict[str, list[MappingItem]]:
-    """Return mapping reference data for ``sets`` sourced from ``data_dir``."""
+) -> tuple[dict[str, list[MappingItem]], str]:
+    """Return mapping reference data and a combined catalogue hash.
+
+    The hash summarises all requested catalogues and changes whenever any
+    underlying dataset is modified.
+    """
 
     key = tuple((s.file, s.field) for s in sets)
     return _load_mapping_items(data_dir, key)
@@ -176,23 +212,32 @@ def load_mapping_items(
 @lru_cache(maxsize=None)
 def _load_mapping_items(
     data_dir: Path, key: Tuple[Tuple[str, str], ...]
-) -> dict[str, list[MappingItem]]:
-    """Load mapping items using a hashable key for caching."""
+) -> tuple[dict[str, list[MappingItem]], str]:
+    """Load mapping items using a hashable key for caching.
+
+    Returns a mapping of catalogue names to sorted items along with a SHA256
+    digest covering all catalogues. The digest changes when any catalogue
+    content is modified.
+    """
 
     if not data_dir.is_dir():
         raise FileNotFoundError(f"Mapping data directory not found: {data_dir}")
 
     data: dict[str, list[MappingItem]] = {}
+    digests: list[str] = []
     for file, field in key:
         path = data_dir / file
         try:
-            items = _read_json_file(path, list[MappingItem])
+            raw_items = _read_json_file(path, list[MappingItem])
         except FileNotFoundError:
             raise
         except Exception:
             continue
-        data[field] = sorted(items, key=lambda item: item.id)
-    return data
+        ordered, digest = compile_catalogue_for_set(raw_items)
+        data[field] = ordered
+        digests.append(f"{field}:{digest}")
+    combined = "|".join(sorted(digests))
+    return data, hashlib.sha256(combined.encode("utf-8")).hexdigest()
 
 
 @lru_cache(maxsize=None)
