@@ -525,6 +525,7 @@ def main() -> None:
     )
     common.add_argument(
         "--use-local-cache",
+        default=True,
         action="store_true",
         help="Cache mapping responses under .cache/mapping for offline runs",
     )
