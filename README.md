@@ -27,6 +27,15 @@ OPENAI_API_KEY=your_api_key_here
 For production deployments, inject the variable using your platform's secret
 manager instead of committing keys to source control.
 
+Caching of mapping responses is disabled by default. Configure caching in
+`config/app.yaml` or via environment variables:
+
+```yaml
+use_local_cache: false  # Enable reading/writing the cache directory
+cache_mode: "off"       # off, read, refresh or write
+cache_dir: .cache       # Directory to store cache files
+```
+
 The chat model can be set with the `--model` flag or the `MODEL` environment
 variable. Model identifiers must include a provider prefix, in the form
 `<provider>:<model>`. The default is `openai:gpt-5` with medium reasoning effort.

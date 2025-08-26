@@ -9,7 +9,9 @@ the merged configuration is validated before use.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -42,6 +44,15 @@ class Settings(BaseSettings):
     )
     features_per_role: int = Field(
         5, ge=1, description="Required number of features per role."
+    )
+    use_local_cache: bool = Field(
+        False, description="Enable reading and writing the cache directory."
+    )
+    cache_mode: Literal["off", "read", "refresh", "write"] = Field(
+        "off", description="Caching strategy for local cache entries."
+    )
+    cache_dir: Path = Field(
+        Path(".cache"), description="Directory to store cache files."
     )
     openai_api_key: str = Field(..., description="OpenAI API access token.")
     logfire_token: str | None = Field(
@@ -88,6 +99,9 @@ def load_settings() -> Settings:
     config = load_app_config()
     env_file_path = Path(".env")
     env_file = env_file_path if env_file_path.exists() else None
+    env_use_local_cache = os.getenv("USE_LOCAL_CACHE")
+    env_cache_mode = os.getenv("CACHE_MODE")
+    env_cache_dir = os.getenv("CACHE_DIR")
     try:
         # Validate and merge configuration from file, env file and environment.
         return Settings(
@@ -103,6 +117,17 @@ def load_settings() -> Settings:
             retries=config.retries,
             retry_base_delay=config.retry_base_delay,
             features_per_role=config.features_per_role,
+            use_local_cache=(
+                env_use_local_cache.lower() in {"1", "true", "yes"}
+                if env_use_local_cache is not None
+                else getattr(config, "use_local_cache", False)
+            ),
+            cache_mode=env_cache_mode or getattr(config, "cache_mode", "off"),
+            cache_dir=(
+                Path(env_cache_dir)
+                if env_cache_dir
+                else getattr(config, "cache_dir", Path(".cache"))
+            ),
             web_search=config.web_search,
             mapping_data_dir=getattr(config, "mapping_data_dir", Path("data")),
             mapping_sets=getattr(config, "mapping_sets", []),

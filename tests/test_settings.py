@@ -15,6 +15,9 @@ def test_load_settings_reads_env(monkeypatch) -> None:
     """Environment variables should populate the settings model."""
 
     monkeypatch.setenv("OPENAI_API_KEY", "token")
+    monkeypatch.setenv("USE_LOCAL_CACHE", "1")
+    monkeypatch.setenv("CACHE_MODE", "write")
+    monkeypatch.setenv("CACHE_DIR", "/tmp/cache")
     settings = load_settings()
     assert settings.openai_api_key == "token"
     assert settings.model == "openai:gpt-5"
@@ -25,6 +28,9 @@ def test_load_settings_reads_env(monkeypatch) -> None:
     assert settings.retries == 5
     assert settings.retry_base_delay == 0.5
     assert settings.features_per_role == 5
+    assert settings.use_local_cache is True
+    assert settings.cache_mode == "write"
+    assert settings.cache_dir == Path("/tmp/cache")
     assert settings.mapping_data_dir == Path("data")
     assert settings.diagnostics is False
     assert settings.strict_mapping is False
@@ -36,5 +42,8 @@ def test_load_settings_requires_key(monkeypatch) -> None:
     """Missing API key should raise ``RuntimeError``."""
 
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("USE_LOCAL_CACHE", raising=False)
+    monkeypatch.delenv("CACHE_MODE", raising=False)
+    monkeypatch.delenv("CACHE_DIR", raising=False)
     with pytest.raises(RuntimeError):
         load_settings()
