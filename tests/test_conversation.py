@@ -168,3 +168,26 @@ def test_diagnostics_writes_transcript(tmp_path) -> None:
     assert path.exists()
     data = json.loads(path.read_text(encoding="utf-8"))
     assert data == {"prompt": "ping", "response": "pong"}
+
+
+def test_ask_uses_cache_when_available(tmp_path, monkeypatch) -> None:
+    """Existing cache entries should bypass agent invocation."""
+
+    agent = DummyAgent()
+    session = ConversationSession(
+        cast(Agent[None, str], agent),
+        stage="stage",
+        use_local_cache=True,
+        cache_mode="read",
+    )
+    monkeypatch.setattr(
+        conversation, "load_settings", lambda: SimpleNamespace(cache_dir=tmp_path)
+    )
+    key = conversation._prompt_cache_key("hello", "", "stage")
+    path = conversation._prompt_cache_path(key)
+    path.write_text(json.dumps("cached"), encoding="utf-8")
+
+    reply = session.ask("hello")
+
+    assert reply == "cached"
+    assert agent.called_with == []

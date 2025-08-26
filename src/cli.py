@@ -197,6 +197,8 @@ async def _generate_evolution_for_service(
                 diagnostics=settings.diagnostics,
                 log_prompts=args.allow_prompt_logging,
                 transcripts_dir=transcripts_dir,
+                use_local_cache=args.use_local_cache,
+                cache_mode=args.cache_mode,
             )
             feat_session = ConversationSession(
                 feat_agent,
@@ -204,6 +206,8 @@ async def _generate_evolution_for_service(
                 diagnostics=settings.diagnostics,
                 log_prompts=args.allow_prompt_logging,
                 transcripts_dir=transcripts_dir,
+                use_local_cache=args.use_local_cache,
+                cache_mode=args.cache_mode,
             )
             map_session = ConversationSession(
                 map_agent,
@@ -211,6 +215,8 @@ async def _generate_evolution_for_service(
                 diagnostics=settings.diagnostics,
                 log_prompts=args.allow_prompt_logging,
                 transcripts_dir=transcripts_dir,
+                use_local_cache=args.use_local_cache,
+                cache_mode=args.cache_mode,
             )
             generator = PlateauGenerator(
                 feat_session,
@@ -220,6 +226,7 @@ async def _generate_evolution_for_service(
                 mapping_session=map_session,
                 strict=args.strict,
                 use_local_cache=args.use_local_cache,
+                cache_mode=args.cache_mode,
             )
             global _RUN_META
             if _RUN_META is None:

@@ -11,16 +11,38 @@ agent without relying on asynchronous execution.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import time
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
-from typing import Any, Awaitable, Callable, TypeVar, overload
+from typing import Any, Awaitable, Callable, Literal, TypeVar, cast, overload
 
 import logfire
 from pydantic_ai import Agent, messages
 
+from mapping import cache_write_json_atomic
 from models import ServiceInput
+from settings import load_settings
+
+
+def _prompt_cache_key(prompt: str, model: str, stage: str) -> str:
+    """Return a stable cache key for ``prompt`` and ``model``."""
+
+    data = json.dumps([prompt, model, stage], ensure_ascii=False)
+    return hashlib.sha256(data.encode("utf-8")).hexdigest()[:32]
+
+
+def _prompt_cache_path(key: str) -> Path:
+    """Return the cache file path for ``key`` within the prompts namespace."""
+
+    try:
+        cache_root = load_settings().cache_dir
+    except Exception:  # pragma: no cover - fallback when settings unavailable
+        cache_root = Path(".cache")
+    path = cache_root / "prompts" / f"{key}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 class ConversationSession:
@@ -39,6 +61,8 @@ class ConversationSession:
         diagnostics: bool = False,
         log_prompts: bool = False,
         transcripts_dir: Path | None = None,
+        use_local_cache: bool = False,
+        cache_mode: Literal["off", "read", "refresh", "write"] = "off",
     ) -> None:
         """Initialise the session with a configured LLM client.
 
@@ -49,6 +73,8 @@ class ConversationSession:
             log_prompts: Debug log prompt text when ``diagnostics`` is ``True``.
             transcripts_dir: Directory used to store prompt/response transcripts
                 when diagnostics mode is enabled.
+            use_local_cache: Read from and write to the local cache when ``True``.
+            cache_mode: Behaviour when interacting with the cache.
         """
 
         self.client = client
@@ -64,6 +90,8 @@ class ConversationSession:
         self._service_id: str | None = None
         # Token usage for the most recent request
         self.last_tokens: int = 0
+        self.use_local_cache = use_local_cache
+        self.cache_mode: Literal["off", "read", "refresh", "write"] = cache_mode
 
     def add_parent_materials(self, service_input: ServiceInput) -> None:
         """Seed the conversation with details about the target service.
@@ -92,6 +120,8 @@ class ConversationSession:
             diagnostics=self.diagnostics,
             log_prompts=self.log_prompts,
             transcripts_dir=self.transcripts_dir,
+            use_local_cache=self.use_local_cache,
+            cache_mode=self.cache_mode,
         )
         clone._history = list(self._history)
         clone._service_id = self._service_id
@@ -205,6 +235,31 @@ class ConversationSession:
     ) -> T | str:
         stage = self.stage or "unknown"
         model_name = getattr(getattr(self.client, "model", None), "model_name", "")
+        cache_file: Path | None = None
+        write_after_call = False
+        if self.use_local_cache and self.cache_mode != "off":
+            key = _prompt_cache_key(prompt, model_name, stage)
+            cache_file = _prompt_cache_path(key)
+            exists_before = cache_file.exists()
+            if self.cache_mode == "read" and exists_before:
+                try:
+                    data = cache_file.read_text(encoding="utf-8")
+                    if output_type and hasattr(output_type, "model_validate_json"):
+                        payload = cast(Any, output_type).model_validate_json(data)
+                    else:
+                        payload = json.loads(data)
+                    self.last_tokens = 0
+                    return payload
+                except Exception:  # pragma: no cover - invalid cache content
+                    cache_file.replace(cache_file.with_suffix(".bad.json"))
+                    exists_before = False
+            if self.cache_mode == "refresh":
+                write_after_call = True
+            elif self.cache_mode == "write" and not exists_before:
+                write_after_call = True
+            elif self.cache_mode == "read" and not exists_before:
+                write_after_call = True
+
         tokens = 0
         start = time.monotonic()
         with self._prepare_span(span_name, stage, model_name) as span:
@@ -212,6 +267,13 @@ class ConversationSession:
                 self._log_prompt(prompt)
                 result = await runner(prompt, self._history, output_type)
                 output, tokens = self._handle_success(result, stage, model_name)
+                if cache_file and write_after_call:
+                    content = (
+                        output.model_dump_json()
+                        if hasattr(output, "model_dump_json")
+                        else json.dumps(output, ensure_ascii=False)
+                    )
+                    cache_write_json_atomic(cache_file, content)
                 self.last_tokens = tokens
                 await self._write_transcript(prompt, output)
                 return output
