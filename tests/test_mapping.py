@@ -8,7 +8,14 @@ import pytest
 import mapping
 from conversation import ConversationSession
 from mapping import MappingError, map_set
-from models import MappingItem, MaturityScore, PlateauFeature
+from models import (
+    Contribution,
+    FeatureMappingRef,
+    MappingFeatureGroup,
+    MappingItem,
+    MaturityScore,
+    PlateauFeature,
+)
 
 
 class DummySession:
@@ -255,3 +262,24 @@ async def test_map_set_reads_cache(monkeypatch, tmp_path) -> None:
     )
     assert session.prompts == []
     assert mapped[0].mappings["applications"][0].item == "a"
+
+
+def test_group_features_by_mapping() -> None:
+    """Features are grouped under mapping items."""
+
+    feat1 = _feature("f1")
+    feat2 = _feature("f2")
+    feat1.mappings["applications"] = [Contribution(item="a")]
+    feat2.mappings["applications"] = [Contribution(item="a")]
+    feat3 = _feature("f3")  # Unmapped feature
+
+    groups = mapping.group_features_by_mapping([feat1, feat2, feat3], "applications")
+    assert groups == [
+        MappingFeatureGroup(
+            id="a",
+            mappings=[
+                FeatureMappingRef(feature_id="f1", description="d"),
+                FeatureMappingRef(feature_id="f2", description="d"),
+            ],
+        )
+    ]

@@ -39,16 +39,12 @@ present, is replaced.
 
 ## Output format
 
-The output mirrors the input structure with refreshed mappings under each
-feature. Mapping lists include an `item` identifier only. Pass `--diagnostics`
-to also receive a `rationale` explaining each match.
+The output lists mapping catalogue entries and the features associated with
+each. Every record contains an `id` for the mapping item and a `mappings` array
+of feature references. Features without matching entries are simply omitted.
 
 ```json
-"mappings": {
-  "applications": [{"item": "APP001"}],
-  "technologies": [{"item": "TECH002"}],
-  "information": [{"item": "INFO003"}]
-}
+{"id": "AC007", "mappings": [{"feature_id": "FEAT001", "description": "Student portal"}]}
 ```
 
 ## Troubleshooting

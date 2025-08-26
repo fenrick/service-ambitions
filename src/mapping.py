@@ -20,8 +20,10 @@ from loader import MAPPING_DATA_DIR, load_mapping_items
 from mapping_prompt import render_set_prompt
 from models import (
     Contribution,
+    FeatureMappingRef,
     MappingDiagnosticsResponse,
     MappingFeature,
+    MappingFeatureGroup,
     MappingItem,
     MappingResponse,
     MappingTypeConfig,
@@ -249,6 +251,44 @@ async def map_set(
     return merged
 
 
+def group_features_by_mapping(
+    features: Sequence[PlateauFeature],
+    mapping_type: str,
+) -> list[MappingFeatureGroup]:
+    """Return mapping items keyed to features referencing them.
+
+    Args:
+        features: Plateau features potentially containing mappings.
+        mapping_type: Mapping category to group by, such as ``"applications"``.
+
+    Returns:
+        List of :class:`MappingFeatureGroup` entries sorted by mapping ID.
+        Features without mappings for ``mapping_type`` are ignored.
+    """
+
+    groups: dict[str, list[FeatureMappingRef]] = {}
+    for feat in features:
+        items = feat.mappings.get(mapping_type, [])
+        if not items:
+            continue  # Skip features lacking mappings for this type.
+        for contrib in items:
+            groups.setdefault(contrib.item, []).append(
+                FeatureMappingRef(
+                    feature_id=feat.feature_id,
+                    description=feat.description,
+                )
+            )
+
+    result = [
+        MappingFeatureGroup(
+            id=item_id,
+            mappings=sorted(refs, key=lambda r: r.feature_id),
+        )
+        for item_id, refs in sorted(groups.items())
+    ]
+    return result
+
+
 class MappingError(RuntimeError):
     """Raised when a mapping response is missing required data."""
 
@@ -258,5 +298,6 @@ class MappingError(RuntimeError):
 
 __all__ = [
     "map_set",
+    "group_features_by_mapping",
     "MappingError",
 ]
