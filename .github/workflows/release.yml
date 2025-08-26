@@ -1,8 +1,9 @@
 name: Release
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - 'v*'
 
 jobs:
   build:
@@ -16,13 +17,14 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install build tools
-        run: pip install poetry build
+        run: pip install poetry build twine
       - name: Build wheel
         run: poetry build -f wheel
-      - name: Upload wheel
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
-        with:
-          files: dist/*.whl
+      - name: Publish wheel to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: twine upload --skip-existing dist/*.whl
       - name: Log in to GHCR
         uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
         with:
@@ -34,3 +36,5 @@ jobs:
         with:
           push: true
           tags: ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+      - name: Smoke test container
+        run: docker run --rm ghcr.io/${{ github.repository }}:${{ github.ref_name }} --help
