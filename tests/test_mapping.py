@@ -224,6 +224,7 @@ async def test_map_set_writes_cache(monkeypatch, tmp_path) -> None:
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
     response = json.dumps(
         {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
     )
@@ -233,9 +234,9 @@ async def test_map_set_writes_cache(monkeypatch, tmp_path) -> None:
         "applications",
         [_item()],
         [_feature()],
-        use_local_cache=True,
+        cache_mode="read",
     )
-    cache_file = Path(".cache") / "mapping" / "applications" / f"{hash('PROMPT')}.json"
+    cache_file = Path(".cache") / "mapping" / "applications" / "key.json"
     assert cache_file.exists()
     assert json.loads(cache_file.read_text()) == json.loads(response)
 
@@ -246,22 +247,51 @@ async def test_map_set_reads_cache(monkeypatch, tmp_path) -> None:
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
     cached = json.dumps(
         {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
     )
     cache_dir = Path(".cache") / "mapping" / "applications"
     cache_dir.mkdir(parents=True, exist_ok=True)
-    (cache_dir / f"{hash('PROMPT')}.json").write_text(cached)
+    (cache_dir / "key.json").write_text(cached)
     session = DummySession([cached])
     mapped = await map_set(
         cast(ConversationSession, session),
         "applications",
         [_item()],
         [_feature()],
-        use_local_cache=True,
+        cache_mode="read",
     )
     assert session.prompts == []
     assert mapped[0].mappings["applications"][0].item == "a"
+
+
+@pytest.mark.asyncio()
+async def test_map_set_bad_cache_renamed(monkeypatch, tmp_path) -> None:
+    """Invalid cached JSON is renamed and a live call is performed."""
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
+    cache_dir = Path(".cache") / "mapping" / "applications"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    bad_file = cache_dir / "key.json"
+    bad_file.write_text("not json", encoding="utf-8")
+    valid = json.dumps(
+        {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
+    )
+    session = DummySession([valid])
+    mapped = await map_set(
+        cast(ConversationSession, session),
+        "applications",
+        [_item()],
+        [_feature()],
+        cache_mode="read",
+    )
+    assert mapped[0].mappings["applications"][0].item == "a"
+    assert bad_file.exists()
+    assert (cache_dir / "key.bad.json").exists()
+    assert session.prompts == ["PROMPT"]
 
 
 def test_group_features_by_mapping() -> None:

@@ -11,9 +11,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Mapping, Sequence, cast
+from typing import TYPE_CHECKING, Literal, Mapping, Sequence, cast
 
 import logfire
 from pydantic import ValidationError
@@ -116,6 +117,38 @@ def _build_cache_key(
     return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:32]
 
 
+def _cache_path(set_name: str, key: str) -> Path:
+    """Return the cache file path for ``set_name`` and ``key``.
+
+    The cache directory is derived from application settings and created on
+    demand. Paths are namespaced by mapping set to avoid collisions.
+    """
+
+    try:
+        cache_root = load_settings().cache_dir
+    except Exception:
+        cache_root = Path(".cache")
+    path = cache_root / "mapping" / set_name / f"{key}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def cache_write_json_atomic(path: Path, content: str) -> None:
+    """Atomically write ``content`` to ``path`` with ``0o600`` permissions."""
+
+    tmp_path = path.with_suffix(".tmp")
+    fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(content)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp_path, path)
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+
 def _merge_mapping_results(
     features: Sequence[PlateauFeature],
     payload: MappingResponse,
@@ -198,7 +231,7 @@ async def map_set(
     service: str | None = None,
     strict: bool = False,
     diagnostics: bool | None = None,
-    use_local_cache: bool = False,
+    cache_mode: Literal["off", "read", "refresh", "write"] = "off",
 ) -> list[PlateauFeature]:
     """Return ``features`` with ``set_name`` mappings populated.
 
@@ -207,9 +240,14 @@ async def map_set(
     both attempts fail, the raw response is written to
     ``quarantine/mapping/<service>/<set>.txt`` and an empty mapping list is
     returned. When ``strict`` is ``True`` a :class:`MappingError` is raised
-    instead of returning partial results. When ``use_local_cache`` is ``True``
-    responses are cached under ``.cache/mapping`` using a deterministic key so
-    repeated requests can bypass network calls.
+    instead of returning partial results. ``cache_mode`` controls local caching
+    behaviour:
+
+    - ``"off"``: bypass the cache entirely.
+    - ``"read"``: use cached content when available, otherwise fetch and write.
+    - ``"refresh"``: ignore any existing cache and always overwrite.
+    - ``"write"``: avoid reading and only write responses when the file is
+      absent.
     """
 
     cfg = MappingTypeConfig(dataset=set_name, label=set_name)
@@ -226,20 +264,29 @@ async def map_set(
     )
     cache_file: Path | None = None
     payload: StrictModel | None = None
-    if use_local_cache:
-        cache_dir = Path(".cache") / "mapping" / set_name
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        cache_file = cache_dir / f"{key}.json"
-        if cache_file.exists():
-            # Cache hit, parse payload from disk and skip the network.
-            cached = cache_file.read_text(encoding="utf-8")
-            payload = model_type.model_validate_json(cached)
+    write_after_call = False
+    if cache_mode != "off":
+        cache_file = _cache_path(set_name, key)
+        exists_before = cache_file.exists()
+        if cache_mode == "read" and exists_before:
+            try:
+                data = json.loads(cache_file.read_text(encoding="utf-8"))
+                payload = model_type.model_validate(data)
+            except (ValidationError, json.JSONDecodeError):
+                cache_file.replace(cache_file.with_suffix(".bad.json"))
+                exists_before = False
+        if cache_mode == "refresh":
+            write_after_call = True
+        elif cache_mode == "write" and not exists_before:
+            write_after_call = True
+        elif cache_mode == "read" and not exists_before:
+            write_after_call = True
 
     start = time.monotonic()
     retries = 0
     tokens = 0
     if payload is None:
-        # Cache miss triggers a network request.
+        # Cache miss or refresh triggers a network request.
         prompt = render_set_prompt(
             set_name, list(items), features, diagnostics=use_diag
         )
@@ -283,11 +330,11 @@ async def map_set(
                     feat.model_copy(update={"mappings": feat.mappings | {set_name: []}})
                     for feat in features
                 ]
-        if cache_file:
+        if cache_file and write_after_call:
             # Persist successful responses for future runs.
-            cache_file.write_text(
+            cache_write_json_atomic(
+                cache_file,
                 raw if isinstance(raw, str) else raw.model_dump_json(),
-                encoding="utf-8",
             )
 
     if use_diag:
