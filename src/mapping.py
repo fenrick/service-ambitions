@@ -9,6 +9,8 @@ contributions back into :class:`PlateauFeature` objects.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Mapping, Sequence, cast
@@ -16,7 +18,7 @@ from typing import TYPE_CHECKING, Mapping, Sequence, cast
 import logfire
 from pydantic import ValidationError
 
-from loader import MAPPING_DATA_DIR, load_mapping_items
+from loader import MAPPING_DATA_DIR, load_mapping_items, load_prompt_text
 from mapping_prompt import render_set_prompt
 from models import (
     Contribution,
@@ -42,6 +44,76 @@ _writer = QuarantineWriter()
 
 UNKNOWN_ID_LOG_LIMIT = 5
 """Maximum number of unknown IDs to include in warning logs."""
+
+
+def _sanitize(value: str) -> str:
+    """Return ``value`` with newlines and tabs replaced by spaces."""
+
+    return value.replace("\n", " ").replace("\t", " ")
+
+
+def _hash_catalogue(items: Sequence[MappingItem]) -> str:
+    """Return a SHA256 hash of ``items``."""
+
+    data = [
+        {
+            "id": _sanitize(item.id),
+            "name": _sanitize(item.name),
+            "description": _sanitize(item.description),
+        }
+        for item in sorted(items, key=lambda i: i.id)
+    ]
+    serialised = json.dumps(data, separators=(",", ":"), sort_keys=True)
+    return hashlib.sha256(serialised.encode("utf-8")).hexdigest()
+
+
+def _features_hash(features: Sequence[PlateauFeature]) -> str:
+    """Return a SHA256 hash summarising ``features``."""
+
+    digests = []
+    for feat in features:
+        canonical = json.dumps(
+            {
+                "ref": _sanitize(feat.feature_id),
+                "name": _sanitize(feat.name),
+                "description": _sanitize(feat.description),
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        digests.append(hashlib.sha256(canonical.encode("utf-8")).hexdigest())
+    combined = "".join(sorted(digests))
+    return hashlib.sha256(combined.encode("utf-8")).hexdigest()
+
+
+def _build_cache_key(
+    model_name: str,
+    set_name: str,
+    items: Sequence[MappingItem],
+    features: Sequence[PlateauFeature],
+    diagnostics: bool,
+) -> str:
+    """Return a deterministic cache key for mapping responses.
+
+    The key incorporates the model, mapping catalogue, prompt template version,
+    diagnostics flag and a hash of the feature definitions.
+    """
+
+    template_name = "mapping_prompt_diagnostics" if diagnostics else "mapping_prompt"
+    try:
+        template_text = load_prompt_text(template_name)
+    except FileNotFoundError:
+        template_text = ""
+    template_hash = hashlib.sha256(template_text.encode("utf-8")).hexdigest()
+    parts = [
+        model_name,
+        set_name,
+        _hash_catalogue(items),
+        template_hash,
+        str(int(diagnostics)),
+        _features_hash(features),
+    ]
+    return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:32]
 
 
 def _merge_mapping_results(
@@ -136,7 +208,7 @@ async def map_set(
     ``quarantine/mapping/<service>/<set>.txt`` and an empty mapping list is
     returned. When ``strict`` is ``True`` a :class:`MappingError` is raised
     instead of returning partial results. When ``use_local_cache`` is ``True``
-    responses are cached under ``.cache/mapping`` using ``hash(prompt)`` so
+    responses are cached under ``.cache/mapping`` using a deterministic key so
     repeated requests can bypass network calls.
     """
 
@@ -146,7 +218,9 @@ async def map_set(
         if diagnostics is not None
         else getattr(session, "diagnostics", False)
     )
-    prompt = render_set_prompt(set_name, list(items), features, diagnostics=use_diag)
+    model_obj = getattr(session, "client", None)
+    model_name = getattr(getattr(model_obj, "model", None), "model_name", "")
+    key = _build_cache_key(model_name, set_name, items, features, use_diag)
     model_type: type[StrictModel] = (
         MappingDiagnosticsResponse if use_diag else MappingResponse
     )
@@ -155,7 +229,7 @@ async def map_set(
     if use_local_cache:
         cache_dir = Path(".cache") / "mapping" / set_name
         cache_dir.mkdir(parents=True, exist_ok=True)
-        cache_file = cache_dir / f"{hash(prompt)}.json"
+        cache_file = cache_dir / f"{key}.json"
         if cache_file.exists():
             # Cache hit, parse payload from disk and skip the network.
             cached = cache_file.read_text(encoding="utf-8")
@@ -166,6 +240,9 @@ async def map_set(
     tokens = 0
     if payload is None:
         # Cache miss triggers a network request.
+        prompt = render_set_prompt(
+            set_name, list(items), features, diagnostics=use_diag
+        )
         try:
             raw = await session.ask_async(prompt, output_type=model_type)
             tokens += getattr(session, "last_tokens", 0)
