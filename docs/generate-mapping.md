@@ -24,10 +24,11 @@ produces an empty list or contains unknown identifiers. Disable with
 troubleshooting. Instrumentation runs only when this verbose mode is enabled.
 Prompt text is omitted unless `--allow-prompt-logging` is supplied.
 
-`--use-local-cache` reads and writes mapping responses under `.cache/mapping` to
-avoid repeated network requests during development. `--cache-mode` controls
-how the cache is used (`off`, `read`, `refresh`, `write`) and `--cache-dir`
-sets the cache storage location.
+`--use-local-cache` reads mapping responses under `.cache/mapping` and
+optionally writes new entries to avoid repeated network requests during
+development. `--cache-mode` controls
+how the cache is used (`off`, `read`, `refresh`, `write`) with `read` as the
+default, and `--cache-dir` sets the cache storage location.
 
 Mapping runs once per configured set. Each prompt receives the relevant
 reference list—`applications`, `technologies` and `information` by default—and

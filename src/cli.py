@@ -534,11 +534,12 @@ def main() -> None:
     common.add_argument(
         "--cache-mode",
         choices=("off", "read", "refresh", "write"),
-        default="write",
+        default="read",
         help=(
-            "Caching behaviour: 'off' disables caching, 'read' uses existing "
-            "entries without writing, 'refresh' refetches and overwrites "
-            "cache entries, and 'write' reads and writes to the cache"
+            "Caching behaviour (default 'read'): 'off' disables caching, "
+            "'read' uses existing entries without writing, 'refresh' "
+            "refetches and overwrites cache entries, and 'write' reads and "
+            "writes to the cache"
         ),
     )
     common.add_argument(
