@@ -498,6 +498,10 @@ class PlateauResult(StrictModel):
         default_factory=list,
         description="Features identified for this plateau level.",
     )
+    mappings: dict[str, list[MappingFeatureGroup]] = Field(
+        default_factory=dict,
+        description="Mapping items grouped by mapping type.",
+    )
 
 
 class ServiceEvolution(StrictModel):

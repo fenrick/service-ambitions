@@ -17,8 +17,9 @@ from conversation import (
     ConversationSession,
 )
 from models import (
-    Contribution,
     FeatureItem,
+    FeatureMappingRef,
+    MappingFeatureGroup,
     MappingSet,
     MaturityScore,
     PlateauFeature,
@@ -208,11 +209,15 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
 
     async def dummy_map_features(self, session, feats):
         call["n"] += 1
-        for feat in feats:
-            feat.mappings["data"] = [Contribution(item="d")]
-            feat.mappings["applications"] = [Contribution(item="a")]
-            feat.mappings["technology"] = [Contribution(item="t")]
-        return feats
+        refs = [
+            FeatureMappingRef(feature_id=f.feature_id, description=f.description)
+            for f in feats
+        ]
+        return {
+            "data": [MappingFeatureGroup(id="d", mappings=refs.copy())],
+            "applications": [MappingFeatureGroup(id="a", mappings=refs.copy())],
+            "technology": [MappingFeatureGroup(id="t", mappings=refs.copy())],
+        }
 
     monkeypatch.setattr(PlateauGenerator, "_map_features", dummy_map_features)
 
@@ -233,6 +238,11 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
 
     assert isinstance(plateau, PlateauResult)
     assert len(plateau.features) == 3
+    assert set(plateau.mappings.keys()) == {
+        "data",
+        "applications",
+        "technology",
+    }
     assert call["n"] == 1
     assert len(session.prompts) == 2
 
@@ -294,7 +304,7 @@ def test_generate_plateau_repairs_missing_features(monkeypatch) -> None:
     session = DummySession([desc_payload, initial, repair])
 
     async def dummy_map_features(self, session, feats):
-        return feats
+        return {}
 
     monkeypatch.setattr(PlateauGenerator, "_map_features", dummy_map_features)
 
@@ -378,7 +388,7 @@ def test_generate_plateau_requests_missing_features_concurrently(
     session = DummySession([desc_payload, initial])
 
     async def dummy_map_features(self, session, feats):
-        return feats
+        return {}
 
     monkeypatch.setattr(PlateauGenerator, "_map_features", dummy_map_features)
 
@@ -488,7 +498,7 @@ def test_generate_plateau_repairs_invalid_role(monkeypatch) -> None:
     session = DummySession([desc_payload, initial, repair])
 
     async def dummy_map_features(self, session, feats):
-        return feats
+        return {}
 
     monkeypatch.setattr(PlateauGenerator, "_map_features", dummy_map_features)
 
@@ -924,13 +934,17 @@ def test_validate_plateau_results_strict_checks() -> None:
         description="d",
         score=MaturityScore(level=1, label="Initial", justification="j"),
         customer_type="learners",
-        mappings={"apps": [Contribution(item="a")]},
+    )
+    group = MappingFeatureGroup(
+        id="a",
+        mappings=[FeatureMappingRef(feature_id="f1", description="d")],
     )
     result = PlateauResult(
         plateau=1,
         plateau_name="Foundational",
         service_description="d",
         features=[feature],
+        mappings={"apps": [group]},
     )
     plateaus, roles_seen = generator._validate_plateau_results(
         [result],
@@ -939,10 +953,9 @@ def test_validate_plateau_results_strict_checks() -> None:
         strict=True,
     )
     assert roles_seen == {"learners": True, "academics": False}
-    assert plateaus[0].features == [feature]
-
+    assert plateaus[0].mappings == {"apps": [group]}
     # Missing mappings should raise when strict
-    feature.mappings = {}
+    result.mappings = {}
     with pytest.raises(ValueError):
         generator._validate_plateau_results(
             [result],
