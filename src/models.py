@@ -436,6 +436,18 @@ class AppConfig(StrictModel):
         int,
         Field(ge=1, description="Required number of features per role."),
     ] = 5
+    use_local_cache: bool = Field(
+        False,
+        description="Enable reading and writing the cache directory.",
+    )
+    cache_mode: Literal["off", "read", "refresh", "write"] = Field(
+        "off",
+        description="Caching strategy applied to local cache entries.",
+    )
+    cache_dir: Annotated[
+        Path,
+        Field(description="Directory to store cache files."),
+    ] = Path(".cache")
     mapping_sets: list[MappingSet] = Field(
         default_factory=list,
         description="Mapping dataset configurations.",

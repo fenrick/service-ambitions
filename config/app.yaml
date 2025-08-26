@@ -3,7 +3,7 @@ model: openai:gpt-5
 
 models:
   # Model used for plateau descriptions.
-  descriptions: openai:gpt-5
+  descriptions: openai:o4-mini
   # Model used for feature generation.
   features: openai:gpt-5
   # Model used for mapping tasks.
@@ -58,3 +58,6 @@ request_timeout: 60         # Per-request timeout in seconds.
 retries: 5                  # Number of retry attempts.
 retry_base_delay: 0.5       # Initial backoff delay in seconds.
 features_per_role: 5        # Required number of features per role.
+use_local_cache: false      # Enable reading/writing the cache directory.
+cache_mode: "off"           # Cache behaviour: off, read, refresh or write.
+cache_dir: .cache           # Directory to store cache files.
