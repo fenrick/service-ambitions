@@ -81,7 +81,7 @@ def test_validate_sets_dry_run(monkeypatch):
 
 
 def test_cache_args_defaults(monkeypatch):
-    """Cache CLI options default to disabled caching."""
+    """Cache CLI options default to read-only caching."""
 
     called = {}
 
@@ -96,8 +96,8 @@ def test_cache_args_defaults(monkeypatch):
     cli.main()
 
     args = called["args"]
-    assert args.use_local_cache is False
-    assert args.cache_mode == "off"
+    assert args.use_local_cache is True
+    assert args.cache_mode == "read"
     assert args.cache_dir == ".cache"
 
 
