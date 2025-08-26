@@ -46,10 +46,10 @@ class Settings(BaseSettings):
         5, ge=1, description="Required number of features per role."
     )
     use_local_cache: bool = Field(
-        False, description="Enable reading and writing the cache directory."
+        True, description="Enable reading and writing the cache directory."
     )
     cache_mode: Literal["off", "read", "refresh", "write"] = Field(
-        "off", description="Caching strategy for local cache entries."
+        "read", description="Caching strategy for local cache entries."
     )
     cache_dir: Path = Field(
         Path(".cache"), description="Directory to store cache files."
@@ -120,9 +120,9 @@ def load_settings() -> Settings:
             use_local_cache=(
                 env_use_local_cache.lower() in {"1", "true", "yes"}
                 if env_use_local_cache is not None
-                else getattr(config, "use_local_cache", False)
+                else getattr(config, "use_local_cache", True)
             ),
-            cache_mode=env_cache_mode or getattr(config, "cache_mode", "off"),
+            cache_mode=env_cache_mode or getattr(config, "cache_mode", "read"),
             cache_dir=(
                 Path(env_cache_dir)
                 if env_cache_dir

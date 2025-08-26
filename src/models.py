@@ -437,11 +437,11 @@ class AppConfig(StrictModel):
         Field(ge=1, description="Required number of features per role."),
     ] = 5
     use_local_cache: bool = Field(
-        False,
+        True,
         description="Enable reading and writing the cache directory.",
     )
     cache_mode: Literal["off", "read", "refresh", "write"] = Field(
-        "off",
+        "read",
         description="Caching strategy applied to local cache entries.",
     )
     cache_dir: Annotated[
