@@ -256,6 +256,7 @@ async def map_set(
     cache_file: Path | None = None
     payload: StrictModel | None = None
     write_after_call = False
+    cache_hit = False
     if cache_mode != "off":
         cache_file = _cache_path(set_name, key)
         exists_before = cache_file.exists()
@@ -263,6 +264,7 @@ async def map_set(
             try:
                 data = json.loads(cache_file.read_text(encoding="utf-8"))
                 payload = model_type.model_validate(data)
+                cache_hit = True
             except (ValidationError, json.JSONDecodeError):
                 cache_file.replace(cache_file.with_suffix(".bad.json"))
                 exists_before = False
@@ -273,6 +275,17 @@ async def map_set(
         elif cache_mode == "read" and not exists_before:
             write_after_call = True
 
+    cache_state = (
+        "refresh" if cache_mode == "refresh" else ("hit" if cache_hit else "miss")
+    )
+    logfire.info(
+        "mapping_set",
+        set_name=set_name,
+        cache=cache_state,
+        cache_key=key,
+        features=len(features),
+    )
+
     start = time.monotonic()
     retries = 0
     tokens = 0
@@ -281,6 +294,26 @@ async def map_set(
         prompt = render_set_prompt(
             set_name, list(items), features, diagnostics=use_diag
         )
+        should_log_prompt = use_diag and getattr(session, "log_prompts", False)
+        if should_log_prompt:
+            features_json = json.dumps(
+                [
+                    {
+                        "id": f.feature_id,
+                        "name": f.name,
+                        "description": f.description,
+                    }
+                    for f in sorted(features, key=lambda fe: fe.feature_id)
+                ],
+                indent=2,
+            )
+            logfire.debug(
+                "mapping_prompt",
+                set_name=set_name,
+                features=features_json,
+            )
+            session_log_prompts = getattr(session, "log_prompts", False)
+            session.log_prompts = False
         try:
             raw = await session.ask_async(prompt, output_type=model_type)
             tokens += getattr(session, "last_tokens", 0)
@@ -317,6 +350,8 @@ async def map_set(
                     latency=time.monotonic() - start,
                     tokens=tokens,
                 )
+                if should_log_prompt:
+                    session.log_prompts = session_log_prompts
                 return [
                     feat.model_copy(update={"mappings": feat.mappings | {set_name: []}})
                     for feat in features
@@ -327,6 +362,8 @@ async def map_set(
                 cache_file,
                 raw if isinstance(raw, str) else raw.model_dump_json(),
             )
+        if should_log_prompt:
+            session.log_prompts = session_log_prompts
 
     if use_diag:
         diag_payload = cast(MappingDiagnosticsResponse, payload)
