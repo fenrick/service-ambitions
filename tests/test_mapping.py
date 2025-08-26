@@ -13,6 +13,7 @@ from models import (
     FeatureMappingRef,
     MappingFeatureGroup,
     MappingItem,
+    MappingResponse,
     MaturityScore,
     PlateauFeature,
 )
@@ -23,7 +24,7 @@ class DummySession:
 
     def __init__(
         self,
-        responses: Sequence[str],
+        responses: Sequence[Any],
         *,
         diagnostics: bool = False,
         log_prompts: bool = False,
@@ -229,12 +230,12 @@ async def test_map_set_diagnostics_includes_rationale(monkeypatch) -> None:
 
 @pytest.mark.asyncio()
 async def test_map_set_writes_cache(monkeypatch, tmp_path) -> None:
-    """Cache miss writes the model response to the filesystem."""
+    """Cache miss writes compact JSON to the filesystem."""
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
     monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
-    response = json.dumps(
+    response = MappingResponse.model_validate(
         {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
     )
     session = DummySession([response])
@@ -247,7 +248,9 @@ async def test_map_set_writes_cache(monkeypatch, tmp_path) -> None:
     )
     cache_file = Path(".cache") / "mapping" / "applications" / "key.json"
     assert cache_file.exists()
-    assert json.loads(cache_file.read_text()) == json.loads(response)
+    content = cache_file.read_text()
+    assert content == response.model_dump_json()
+    assert ": " not in content and ", " not in content
 
 
 @pytest.mark.asyncio()
@@ -263,7 +266,12 @@ async def test_map_set_reads_cache(monkeypatch, tmp_path) -> None:
     cache_dir = Path(".cache") / "mapping" / "applications"
     cache_dir.mkdir(parents=True, exist_ok=True)
     (cache_dir / "key.json").write_text(cached)
-    session = DummySession([cached])
+
+    class NoCallSession(DummySession):
+        async def ask_async(self, prompt: str, output_type=None) -> str:
+            raise AssertionError("ask_async should not be called")
+
+    session = NoCallSession([])
     mapped = await map_set(
         cast(ConversationSession, session),
         "applications",
@@ -277,7 +285,7 @@ async def test_map_set_reads_cache(monkeypatch, tmp_path) -> None:
 
 @pytest.mark.asyncio()
 async def test_map_set_bad_cache_renamed(monkeypatch, tmp_path) -> None:
-    """Invalid cached JSON is renamed and a live call is performed."""
+    """Corrupt cache files are renamed and the request retried."""
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
@@ -301,6 +309,52 @@ async def test_map_set_bad_cache_renamed(monkeypatch, tmp_path) -> None:
     assert bad_file.exists()
     assert (cache_dir / "key.bad.json").exists()
     assert session.prompts == ["PROMPT"]
+
+
+@pytest.mark.asyncio()
+@pytest.mark.parametrize("change", ["catalogue", "template", "feature"])
+async def test_map_set_cache_invalidation(monkeypatch, tmp_path, change) -> None:
+    """Cache key changes when inputs differ."""
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    if change == "template":  # Template text changes between calls
+        versions = iter(["v1", "v2"])
+        monkeypatch.setattr(mapping, "load_prompt_text", lambda _: next(versions))
+    else:  # Template remains constant
+        monkeypatch.setattr(mapping, "load_prompt_text", lambda _: "v1")
+    response = json.dumps(
+        {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
+    )
+    session = DummySession([response, response])
+    features1 = [_feature()]
+    features2 = features1
+    cat_hash1 = "h1"
+    cat_hash2 = "h1"
+    if change == "catalogue":  # Different catalogue content
+        cat_hash2 = "h2"
+    elif change == "feature":  # Feature description changed
+        feat = features1[0].model_copy(update={"description": "d2"})
+        features2 = [feat]
+    await map_set(
+        cast(ConversationSession, session),
+        "applications",
+        [_item()],
+        features1,
+        cache_mode="read",
+        catalogue_hash=cat_hash1,
+    )
+    await map_set(
+        cast(ConversationSession, session),
+        "applications",
+        [_item()],
+        features2,
+        cache_mode="read",
+        catalogue_hash=cat_hash2,
+    )
+    cache_dir = Path(".cache") / "mapping" / "applications"
+    assert len(list(cache_dir.glob("*.json"))) == 2
+    assert len(session.prompts) == 2
 
 
 @pytest.mark.asyncio()
@@ -342,6 +396,48 @@ async def test_map_set_logs_cache_status(
     assert logs[0][1]["cache"] == expected
     assert logs[0][1]["cache_key"] == "key"
     assert logs[0][1]["features"] == 1
+
+
+@pytest.mark.asyncio()
+@pytest.mark.parametrize(
+    "mode,prepopulate,expected_prompts,expected_content",
+    [
+        ("off", False, 1, None),
+        ("read", False, 1, "response"),
+        ("refresh", True, 1, "response"),
+        ("write", True, 1, "cached"),
+    ],
+)
+async def test_map_set_cache_modes(
+    monkeypatch, tmp_path, mode, prepopulate, expected_prompts, expected_content
+) -> None:
+    """Different cache modes control read/write behaviour."""
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
+    response = json.dumps(
+        {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
+    )
+    cache_file = Path(".cache") / "mapping" / "applications" / "key.json"
+    if prepopulate:  # Seed cache file when required
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        cache_file.write_text("cached")
+    session = DummySession([response])
+    await map_set(
+        cast(ConversationSession, session),
+        "applications",
+        [_item()],
+        [_feature()],
+        cache_mode=mode,
+    )
+    assert len(session.prompts) == expected_prompts
+    if expected_content is None:  # off mode does not write cache
+        assert not cache_file.exists()
+    else:  # remaining modes leave an on-disk file
+        assert cache_file.read_text() == (
+            response if expected_content == "response" else "cached"
+        )
 
 
 @pytest.mark.asyncio()
