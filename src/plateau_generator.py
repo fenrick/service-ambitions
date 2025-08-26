@@ -147,7 +147,7 @@ class PlateauGenerator:
                 base,
                 service=service_name,
                 strict=self.strict,
-                use_local_cache=self.use_local_cache,
+                cache_mode=(settings.cache_mode if self.use_local_cache else "off"),
             )
             mapped_sets.append(result)
 
