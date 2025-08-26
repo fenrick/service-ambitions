@@ -3,17 +3,25 @@
 
 from __future__ import annotations
 
+import importlib
+import json
+import re
 import sys
 import types
 from typing import Sequence
 
 import pytest
 
+# Replace ``loader`` with a stub during ``mapping_prompt`` import to avoid
+# reading actual prompt files. The real module is restored immediately so other
+# tests see the genuine implementation during collection.
+_real_loader = importlib.import_module("loader")
 stub_loader = types.ModuleType("loader")
 stub_loader.load_prompt_text = lambda name: ""  # type: ignore[attr-defined]
 sys.modules["loader"] = stub_loader
-
 import mapping_prompt  # noqa: E402
+
+sys.modules["loader"] = _real_loader
 from mapping_prompt import render_set_prompt  # noqa: E402
 from models import MappingItem, MaturityScore, PlateauFeature  # noqa: E402
 
@@ -51,13 +59,11 @@ def test_render_set_prompt_orders_content(shuffle: bool, monkeypatch) -> None:
         features = list(reversed(features))
 
     prompt = render_set_prompt("test", items, features)
-    lines = prompt.splitlines()
-    idx_a = lines.index("A\tItem A\tdesc")
-    idx_b = lines.index("B\tItem B\tdesc")
-    idx_1 = lines.index("1\tFirst\td")
-    idx_2 = lines.index("2\tSecond\td")
-    assert idx_a < idx_b
-    assert idx_1 < idx_2
+    blocks = re.findall(r"```json\n(.*?)\n```", prompt, re.DOTALL)
+    items_json = json.loads(blocks[0])
+    features_json = json.loads(blocks[1])
+    assert [i["id"] for i in items_json] == ["A", "B"]
+    assert [f["id"] for f in features_json] == ["1", "2"]
 
     if shuffle:
         prompt_again = render_set_prompt(
@@ -77,7 +83,8 @@ def test_render_items_normalizes_whitespace() -> None:
         )
     ]
     result = mapping_prompt._render_items(items)
-    assert result == "A B\tItem Name\tdesc more"
+    data = json.loads(result)
+    assert data == [{"id": "A B", "name": "Item Name", "description": "desc more"}]
 
 
 def test_render_features_normalizes_whitespace() -> None:
@@ -93,7 +100,8 @@ def test_render_features_normalizes_whitespace() -> None:
         )
     ]
     result = mapping_prompt._render_features(features)
-    assert result == "1 2\tFirst Feature\tdesc more"
+    data = json.loads(result)
+    assert data == [{"id": "1 2", "name": "First Feature", "description": "desc more"}]
 
 
 def test_render_set_prompt_normalizes_whitespace(monkeypatch) -> None:
@@ -116,8 +124,13 @@ def test_render_set_prompt_normalizes_whitespace(monkeypatch) -> None:
     ]
 
     prompt = render_set_prompt("test", items, features)
-    assert "A B\tItem Name\tdesc" in prompt
-    assert "1 2\tFirst Feature\tdesc more" in prompt
+    blocks = re.findall(r"```json\n(.*?)\n```", prompt, re.DOTALL)
+    items_json = json.loads(blocks[0])
+    features_json = json.loads(blocks[1])
+    assert items_json == [{"id": "A B", "name": "Item Name", "description": "desc"}]
+    assert features_json == [
+        {"id": "1 2", "name": "First Feature", "description": "desc more"}
+    ]
 
 
 def test_render_set_prompt_uses_diagnostics_template(monkeypatch) -> None:

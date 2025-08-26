@@ -30,32 +30,41 @@ def _sanitize(value: str) -> str:
 
 
 def _render_items(items: Sequence[MappingItem]) -> str:
-    """Return tab-separated ``items`` sorted by identifier.
+    """Return JSON formatted ``items`` sorted by identifier.
 
-    The compact format ``ID\tname\tdescription`` is used for each line. Any
-    embedded newline or tab characters are replaced with spaces to ensure
-    deterministic rendering for the language model.
+    Each catalogue entry is rendered as an object containing ``id``, ``name``
+    and ``description`` fields. Newline and tab characters are normalised to
+    spaces to provide deterministic prompts for the language model.
     """
 
-    return "\n".join(
-        "\t".join(_sanitize(part) for part in (entry.id, entry.name, entry.description))
+    data = [
+        {
+            "id": _sanitize(entry.id),
+            "name": _sanitize(entry.name),
+            "description": _sanitize(entry.description),
+        }
         for entry in sorted(items, key=lambda i: i.id)
-    )
+    ]
+    return json.dumps(data, indent=2)
 
 
 def _render_features(features: Sequence[PlateauFeature]) -> str:
-    """Return tab-separated ``features`` sorted by feature ID.
+    """Return JSON formatted ``features`` sorted by feature ID.
 
-    Lines are formatted as ``ID\tname\tdescription`` and sanitised to replace
-    any internal newlines or tabs with spaces.
+    Feature identifiers, names and descriptions are normalised to remove
+    embedded newlines or tabs before serialisation to ensure deterministic
+    prompts.
     """
 
-    return "\n".join(
-        "\t".join(
-            _sanitize(part) for part in (feat.feature_id, feat.name, feat.description)
-        )
+    data = [
+        {
+            "id": _sanitize(feat.feature_id),
+            "name": _sanitize(feat.name),
+            "description": _sanitize(feat.description),
+        }
         for feat in sorted(features, key=lambda f: f.feature_id)
-    )
+    ]
+    return json.dumps(data, indent=2)
 
 
 def render_set_prompt(
@@ -82,12 +91,12 @@ def render_set_prompt(
     )
     catalogue_lines = _render_items(items)
     feature_lines = _render_features(features)
-    mapping_section = f"## Available {set_name}\n\n{catalogue_lines}\n"
+    mapping_section = f"## Available {set_name}\n\n```json\n{catalogue_lines}\n```"
     return instruction.format(
         mapping_labels=set_name,
         mapping_sections=mapping_section,
         mapping_fields=set_name,
-        features=feature_lines,
+        features=f"```json\n{feature_lines}\n```",
         schema=MAPPING_DIAGNOSTICS_SCHEMA if diagnostics else MAPPING_SCHEMA,
     )
 
