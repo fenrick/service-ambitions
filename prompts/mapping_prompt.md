@@ -2,8 +2,8 @@
 
 Map each feature to relevant {mapping_labels} from the lists below.
 
-Lists use a compact tab-separated layout:
-`ID\tname\tdescription`.
+Lists are provided as JSON arrays in code blocks.
+Each object contains `id`, `name`, and `description` fields.
 
 {mapping_sections}
 
