@@ -21,9 +21,18 @@ from models import (
 class DummySession:
     """Session returning queued responses for ``ask_async``."""
 
-    def __init__(self, responses: Sequence[str]) -> None:
+    def __init__(
+        self,
+        responses: Sequence[str],
+        *,
+        diagnostics: bool = False,
+        log_prompts: bool = False,
+    ) -> None:
         self._responses = list(responses)
         self.prompts: list[str] = []
+        self.diagnostics = diagnostics
+        self.log_prompts = log_prompts
+        self.last_tokens = 0
 
     async def ask_async(self, prompt: str, output_type=None) -> str:
         self.prompts.append(prompt)
@@ -292,6 +301,108 @@ async def test_map_set_bad_cache_renamed(monkeypatch, tmp_path) -> None:
     assert bad_file.exists()
     assert (cache_dir / "key.bad.json").exists()
     assert session.prompts == ["PROMPT"]
+
+
+@pytest.mark.asyncio()
+@pytest.mark.parametrize(
+    "mode,prepopulate,expected",
+    [
+        ("read", False, "miss"),
+        ("read", True, "hit"),
+        ("refresh", False, "refresh"),
+    ],
+)
+async def test_map_set_logs_cache_status(
+    monkeypatch, tmp_path, mode, prepopulate, expected
+) -> None:
+    """Cache operations emit a single status log line."""
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
+    response = json.dumps(
+        {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
+    )
+    if prepopulate:
+        cache_dir = Path(".cache") / "mapping" / "applications"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        (cache_dir / "key.json").write_text(response)
+    session = DummySession([response])
+    logs: list[tuple[str, dict[str, Any]]] = []
+    monkeypatch.setattr(
+        mapping.logfire, "info", lambda msg, **kw: logs.append((msg, kw))
+    )
+    await map_set(
+        cast(ConversationSession, session),
+        "applications",
+        [_item()],
+        [_feature()],
+        cache_mode=mode,
+    )
+    assert logs[0][1]["cache"] == expected
+    assert logs[0][1]["cache_key"] == "key"
+    assert logs[0][1]["features"] == 1
+
+
+@pytest.mark.asyncio()
+async def test_map_set_prompt_logging_respects_flags(monkeypatch) -> None:
+    """Prompt logging only occurs when permitted and excludes catalogue items."""
+
+    monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    response = json.dumps(
+        {
+            "features": [
+                {
+                    "feature_id": "f1",
+                    "applications": [{"item": "a", "rationale": "match"}],
+                }
+            ]
+        }
+    )
+    logs: list[tuple[str, dict[str, Any]]] = []
+    monkeypatch.setattr(
+        mapping.logfire, "debug", lambda msg, **kw: logs.append((msg, kw))
+    )
+    session = DummySession([response], diagnostics=True, log_prompts=True)
+    await map_set(
+        cast(ConversationSession, session),
+        "applications",
+        [_item()],
+        [_feature()],
+    )
+    assert logs
+    features_json = logs[0][1]["features"]
+    assert "Feat" in features_json  # feature name present
+    assert "A" not in features_json  # catalogue item excluded
+
+
+@pytest.mark.asyncio()
+async def test_map_set_prompt_logging_skipped(monkeypatch) -> None:
+    """Prompt logging is skipped when not explicitly allowed."""
+
+    monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    response = json.dumps(
+        {
+            "features": [
+                {
+                    "feature_id": "f1",
+                    "applications": [{"item": "a", "rationale": "match"}],
+                }
+            ]
+        }
+    )
+    logs: list[tuple[str, dict[str, Any]]] = []
+    monkeypatch.setattr(
+        mapping.logfire, "debug", lambda msg, **kw: logs.append((msg, kw))
+    )
+    session = DummySession([response], diagnostics=True, log_prompts=False)
+    await map_set(
+        cast(ConversationSession, session),
+        "applications",
+        [_item()],
+        [_feature()],
+    )
+    assert logs == []
 
 
 def test_group_features_by_mapping() -> None:
