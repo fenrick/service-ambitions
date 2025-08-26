@@ -26,11 +26,12 @@ from loader import (
     load_prompt_text,
     load_role_ids,
 )
-from mapping import map_set
+from mapping import group_features_by_mapping, map_set
 from models import (
     DescriptionResponse,
     FeatureItem,
     FeaturesBlock,
+    MappingFeatureGroup,
     PlateauDescriptionsResponse,
     PlateauFeature,
     PlateauFeaturesResponse,
@@ -126,12 +127,12 @@ class PlateauGenerator:
         self,
         session: ConversationSession,
         features: Sequence[PlateauFeature],
-    ) -> list[PlateauFeature]:
-        """Return ``features`` mapped across configured datasets in order.
+    ) -> dict[str, list[MappingFeatureGroup]]:
+        """Return mapping groups keyed by mapping type for ``features``.
 
         Each mapping set defined in the application settings receives the full
-        ``features`` list. Results are merged sequentially so requests remain
-        deterministic and partial writes are avoided.
+        ``features`` list. Results are grouped by mapping item so that each item
+        lists its contributing features.
         """
 
         settings = load_settings()
@@ -140,8 +141,7 @@ class PlateauGenerator:
         )
         service_name = self._service.name if self._service else "unknown"
 
-        base = list(features)
-        mapped_sets: list[list[PlateauFeature]] = []
+        groups: dict[str, list[MappingFeatureGroup]] = {}
         for cfg in settings.mapping_sets:
             set_session = session.derive()
             set_session.stage = f"mapping_{cfg.field}"
@@ -149,23 +149,15 @@ class PlateauGenerator:
                 set_session,
                 cfg.field,
                 items[cfg.field],
-                base,
+                list(features),
                 service=service_name,
                 strict=self.strict,
                 cache_mode=(self.cache_mode if self.use_local_cache else "off"),
                 catalogue_hash=catalogue_hash,
             )
-            mapped_sets.append(result)
+            groups[cfg.field] = group_features_by_mapping(result, cfg.field)
 
-        merged: dict[str, PlateauFeature] = {feat.feature_id: feat for feat in base}
-        for result in mapped_sets:
-            for feat in result:
-                existing = merged[feat.feature_id]
-                merged[feat.feature_id] = existing.model_copy(
-                    update={"mappings": existing.mappings | feat.mappings}
-                )
-
-        return list(merged.values())
+        return groups
 
     def _request_description(
         self, level: int, session: ConversationSession | None = None
@@ -497,13 +489,6 @@ class PlateauGenerator:
                 if feat.customer_type not in role_ids:
                     raise ValueError(f"Unknown customer_type: {feat.customer_type}")
                 roles_seen[feat.customer_type] = True
-                if strict and (
-                    not feat.mappings
-                    or any(len(v) == 0 for v in feat.mappings.values())
-                ):
-                    raise ValueError(
-                        f"Feature {feat.feature_id} has incomplete mappings"
-                    )
                 if feat.feature_id in seen:
                     logfire.warning(
                         "Duplicate feature removed",
@@ -514,12 +499,20 @@ class PlateauGenerator:
                     continue
                 seen.add(feat.feature_id)
                 valid.append(feat)
+            if strict and (
+                not result.mappings
+                or any(len(v) == 0 for v in result.mappings.values())
+            ):
+                raise ValueError(
+                    f"Plateau {result.plateau_name} has incomplete mappings"
+                )
             plateaus.append(
                 PlateauResult(
                     plateau=result.plateau,
                     plateau_name=result.plateau_name,
                     service_description=result.service_description,
                     features=valid,
+                    mappings=result.mappings,
                 )
             )
         return plateaus, roles_seen
@@ -692,12 +685,13 @@ class PlateauGenerator:
             )
             if self._service is not None:
                 map_session.add_parent_materials(self._service)
-            mapped = await self._map_features(map_session, features)
+            mappings = await self._map_features(map_session, features)
             return PlateauResult(
                 plateau=level,
                 plateau_name=plateau_name,
                 service_description=description,
-                features=mapped,
+                features=list(features),
+                mappings=mappings,
             )
 
     def generate_plateau(

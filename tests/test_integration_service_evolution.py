@@ -13,8 +13,8 @@ from pydantic_ai import Agent
 from conversation import ConversationSession
 from models import (
     SCHEMA_VERSION,
-    Contribution,
-    PlateauFeature,
+    FeatureMappingRef,
+    MappingFeatureGroup,
     ServiceEvolution,
     ServiceInput,
     ServiceMeta,
@@ -87,16 +87,15 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
 
     async def _fake_map_features(self, session, features):
         map_calls["n"] += 1
-        results = []
-        for feature in features:
-            payload = feature.model_dump()
-            payload["mappings"] = {
-                "data": [Contribution(item="d")],
-                "applications": [Contribution(item="a")],
-                "technology": [Contribution(item="t")],
-            }
-            results.append(PlateauFeature(**payload))
-        return results
+        refs = [
+            FeatureMappingRef(feature_id=f.feature_id, description=f.description)
+            for f in features
+        ]
+        return {
+            "data": [MappingFeatureGroup(id="d", mappings=refs.copy())],
+            "applications": [MappingFeatureGroup(id="a", mappings=refs.copy())],
+            "technology": [MappingFeatureGroup(id="t", mappings=refs.copy())],
+        }
 
     monkeypatch.setattr(PlateauGenerator, "_map_features", _fake_map_features)
     template = "{required_count} {service_name} {service_description} {plateau} {roles}"
@@ -140,7 +139,6 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
     assert map_calls["n"] == 4
     assert len(agent.prompts) + map_calls["n"] == 9
     for plateau in evolution.plateaus:
-        for feature in plateau.features:
-            assert feature.mappings["data"]
-            assert feature.mappings["applications"]
-            assert feature.mappings["technology"]
+        assert plateau.mappings["data"]
+        assert plateau.mappings["applications"]
+        assert plateau.mappings["technology"]

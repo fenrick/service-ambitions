@@ -92,7 +92,15 @@ def test_mapping_run_matches_golden(tmp_path) -> None:
     by_id = {f.feature_id: f for f in mapped}
     for evo in evolutions:
         for plateau in evo.plateaus:
-            plateau.features = [by_id[f.feature_id] for f in plateau.features]
+            mapped_feats = [by_id[f.feature_id] for f in plateau.features]
+            plateau.mappings = {
+                "applications": mapping.group_features_by_mapping(
+                    mapped_feats, "applications"
+                ),
+                "technologies": mapping.group_features_by_mapping(
+                    mapped_feats, "technologies"
+                ),
+            }
     out = tmp_path / "out.jsonl"
     with out.open("w", encoding="utf-8") as fh:
         for evo in evolutions:
