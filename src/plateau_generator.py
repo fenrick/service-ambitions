@@ -14,7 +14,7 @@ import asyncio
 import json
 import re
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Literal, Mapping, Sequence
 
 import logfire
 
@@ -79,6 +79,7 @@ class PlateauGenerator:
         mapping_session: ConversationSession | None = None,
         strict: bool = False,
         use_local_cache: bool = False,
+        cache_mode: Literal["off", "read", "refresh", "write"] = "off",
     ) -> None:
         """Initialise the generator.
 
@@ -91,6 +92,7 @@ class PlateauGenerator:
             strict: Enforce feature and mapping completeness when ``True``.
             use_local_cache: Read and write mapping results from ``.cache`` when
                 ``True``.
+            cache_mode: Caching strategy controlling read/write behaviour.
         """
         if required_count < 1:
             raise ValueError("required_count must be positive")
@@ -101,6 +103,7 @@ class PlateauGenerator:
         self.roles = list(roles or DEFAULT_ROLE_IDS)
         self.strict = strict
         self.use_local_cache = use_local_cache
+        self.cache_mode: Literal["off", "read", "refresh", "write"] = cache_mode
         self._service: ServiceInput | None = None
         # Track quarantine file paths for invalid plateau descriptions.
         self.quarantined_descriptions: list[Path] = []
@@ -149,7 +152,7 @@ class PlateauGenerator:
                 base,
                 service=service_name,
                 strict=self.strict,
-                cache_mode=(settings.cache_mode if self.use_local_cache else "off"),
+                cache_mode=(self.cache_mode if self.use_local_cache else "off"),
                 catalogue_hash=catalogue_hash,
             )
             mapped_sets.append(result)
@@ -451,6 +454,8 @@ class PlateauGenerator:
             plateau_session = ConversationSession(
                 self.session.client,
                 stage=self.session.stage,
+                use_local_cache=self.use_local_cache,
+                cache_mode=self.cache_mode,
             )
             plateau_session.add_parent_materials(service_input)
             result = await self.generate_plateau_async(
@@ -682,6 +687,8 @@ class PlateauGenerator:
             map_session = ConversationSession(
                 self.mapping_session.client,
                 stage=self.mapping_session.stage,
+                use_local_cache=self.use_local_cache,
+                cache_mode=self.cache_mode,
             )
             if self._service is not None:
                 map_session.add_parent_materials(self._service)
