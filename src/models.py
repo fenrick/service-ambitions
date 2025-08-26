@@ -671,6 +671,27 @@ class MappingDiagnosticsResponse(StrictModel):
     )
 
 
+class FeatureMappingRef(StrictModel):
+    """Reference to a feature associated with a mapping item."""
+
+    feature_id: Annotated[str, Field(min_length=1, description="Feature identifier.")]
+    description: Annotated[
+        str, Field(min_length=1, description="Explanation of the feature.")
+    ]
+
+
+class MappingFeatureGroup(StrictModel):
+    """Grouping of features keyed by mapping item identifier."""
+
+    id: Annotated[
+        str, Field(min_length=1, description="Identifier of the mapping item.")
+    ]
+    mappings: list[FeatureMappingRef] = Field(
+        default_factory=list,
+        description="Features linked to the mapping item.",
+    )
+
+
 __all__ = [
     "AppConfig",
     "Contribution",
@@ -688,6 +709,8 @@ __all__ = [
     "MappingResponse",
     "MappingDiagnosticsFeature",
     "MappingDiagnosticsResponse",
+    "FeatureMappingRef",
+    "MappingFeatureGroup",
     "MappingTypeConfig",
     "MaturityScore",
     "PlateauFeature",
