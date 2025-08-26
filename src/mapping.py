@@ -164,10 +164,21 @@ def _merge_mapping_results(
     results: list[PlateauFeature] = []
     dropped: dict[str, list[str]] = {}
     missing: dict[str, int] = {}
+    missing_features: dict[str, list[str]] = {}
     for feature in features:
+        update_data: dict[str, list[Contribution]]
         mapped = mapped_lookup.get(feature.feature_id)
         if mapped is None:
-            raise MappingError(f"Missing mappings for feature {feature.feature_id}")
+            # Record and warn when the response omits a feature entirely.
+            logfire.warning("missing mapping", feature_id=feature.feature_id)
+            for key in mapping_types.keys():
+                missing_features.setdefault(key, []).append(feature.feature_id)
+            update_data = {key: [] for key in mapping_types.keys()}
+            merged = feature.model_copy(
+                update={"mappings": feature.mappings | update_data}
+            )
+            results.append(merged)
+            continue
         update_data = {}
         for key in mapping_types.keys():
             original = mapped.get(key, [])
@@ -200,6 +211,16 @@ def _merge_mapping_results(
             _writer.write(key, service or "unknown", "unknown_ids", sorted(ids))
         if strict:
             raise MappingError("Unknown mapping identifiers returned")
+    if missing_features:
+        for key, ids in missing_features.items():
+            logfire.warning(
+                "Missing mapping features",
+                set_name=key,
+                count=len(ids),
+                examples=ids[:UNKNOWN_ID_LOG_LIMIT],
+            )
+        if strict:
+            raise MappingError("Mappings missing for one or more features")
     if missing:
         for key, count in missing.items():
             logfire.warning(f"{key}.missing={count}")
