@@ -27,14 +27,18 @@ OPENAI_API_KEY=your_api_key_here
 For production deployments, inject the variable using your platform's secret
 manager instead of committing keys to source control.
 
-Caching of mapping responses is disabled by default. Configure caching in
-`config/app.yaml` or via environment variables:
+Caching of mapping responses is enabled by default to speed up repeated runs.
+Disable or change cache behaviour in `config/app.yaml` or via environment
+variables:
 
 ```yaml
-use_local_cache: false  # Enable reading/writing the cache directory
-cache_mode: "off"       # off, read, refresh or write
-cache_dir: .cache       # Directory to store cache files
+use_local_cache: true       # Enable reading/writing the cache directory.
+cache_mode: "read"          # Cache behaviour: off, read, refresh or write.
+cache_dir: .cache           # Directory to store cache files.
 ```
+
+Set `use_local_cache: false` or `cache_mode: "off"` to bypass the cache, or use
+`write` to record new entries and `refresh` to rewrite existing ones.
 
 The chat model can be set with the `--model` flag or the `MODEL` environment
 variable. Model identifiers must include a provider prefix, in the form
