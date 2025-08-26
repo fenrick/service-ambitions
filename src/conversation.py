@@ -50,7 +50,8 @@ class ConversationSession:
 
     The session stores message history so that subsequent prompts include
     previous context. Additional materials about the service under discussion
-    may be seeded using :meth:`add_parent_materials`.
+    may be seeded using :meth:`add_parent_materials`. Local caching is enabled
+    by default in read-only mode.
     """
 
     def __init__(
@@ -61,8 +62,8 @@ class ConversationSession:
         diagnostics: bool = False,
         log_prompts: bool = False,
         transcripts_dir: Path | None = None,
-        use_local_cache: bool = False,
-        cache_mode: Literal["off", "read", "refresh", "write"] = "off",
+        use_local_cache: bool = True,
+        cache_mode: Literal["off", "read", "refresh", "write"] = "read",
     ) -> None:
         """Initialise the session with a configured LLM client.
 
@@ -74,7 +75,9 @@ class ConversationSession:
             transcripts_dir: Directory used to store prompt/response transcripts
                 when diagnostics mode is enabled.
             use_local_cache: Read from and write to the local cache when ``True``.
-            cache_mode: Behaviour when interacting with the cache.
+                Caching is enabled by default.
+            cache_mode: Behaviour when interacting with the cache. Defaults to
+                ``"read"`` for read-only access.
         """
 
         self.client = client
