@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import hashlib
 import inspect
 import json
 import logging
@@ -232,16 +231,9 @@ async def _generate_evolution_for_service(
                         "search", args.search_model or args.model
                     ),
                 }
-                items = load_mapping_items(MAPPING_DATA_DIR, settings.mapping_sets)
-                serialised = json.dumps(
-                    {
-                        k: [i.model_dump(mode="json") for i in v]
-                        for k, v in items.items()
-                    },
-                    separators=(",", ":"),
-                    sort_keys=True,
+                _, catalogue_hash = load_mapping_items(
+                    MAPPING_DATA_DIR, settings.mapping_sets
                 )
-                catalogue_hash = hashlib.sha256(serialised.encode("utf-8")).hexdigest()
                 context_window = getattr(feat_model, "max_input_tokens", 0)
                 _RUN_META = ServiceMeta(
                     run_id=str(uuid4()),

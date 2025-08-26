@@ -120,7 +120,7 @@ async def test_map_features_maps_all_sets_with_full_list(monkeypatch) -> None:
     )
     monkeypatch.setattr(
         "plateau_generator.load_mapping_items",
-        lambda path, sets: {s.field: [] for s in sets},
+        lambda path, sets: ({s.field: [] for s in sets}, "hash"),
     )
     session = DummySession([])
     gen = PlateauGenerator(cast(ConversationSession, session))

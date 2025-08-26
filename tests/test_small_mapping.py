@@ -44,7 +44,7 @@ def test_mapping_run_matches_golden(tmp_path) -> None:
         MappingSet(name="Applications", file="applications.json", field="applications"),
         MappingSet(name="Technologies", file="technologies.json", field="technologies"),
     ]
-    items = loader.load_mapping_items(loader.MAPPING_DATA_DIR, sets)
+    items, catalogue_hash = loader.load_mapping_items(loader.MAPPING_DATA_DIR, sets)
     evolutions = _load_evolutions()
     features = [f for evo in evolutions for p in evo.plateaus for f in p.features]
     session_apps = DummySession(
@@ -65,6 +65,7 @@ def test_mapping_run_matches_golden(tmp_path) -> None:
             "applications",
             items["applications"],
             features,
+            catalogue_hash=catalogue_hash,
         )
     )
     session_tech = DummySession(
@@ -85,6 +86,7 @@ def test_mapping_run_matches_golden(tmp_path) -> None:
             "technologies",
             items["technologies"],
             mapped,
+            catalogue_hash=catalogue_hash,
         )
     )
     by_id = {f.feature_id: f for f in mapped}
@@ -108,7 +110,7 @@ def test_default_mode_quarantines_unknown_ids(monkeypatch, tmp_path) -> None:
     sets = [
         MappingSet(name="Applications", file="applications.json", field="applications")
     ]
-    items = loader.load_mapping_items(loader.MAPPING_DATA_DIR, sets)
+    items, catalogue_hash = loader.load_mapping_items(loader.MAPPING_DATA_DIR, sets)
     evolutions = _load_evolutions()
     features = [f for evo in evolutions for p in evo.plateaus for f in p.features]
     session = DummySession(
@@ -134,6 +136,7 @@ def test_default_mode_quarantines_unknown_ids(monkeypatch, tmp_path) -> None:
             "applications",
             items["applications"],
             features,
+            catalogue_hash=catalogue_hash,
         )
     )
     assert mapped[0].mappings["applications"][0].item == "app1"
@@ -151,7 +154,7 @@ def test_strict_mapping_raises_on_unknown_ids(monkeypatch, tmp_path) -> None:
     sets = [
         MappingSet(name="Applications", file="applications.json", field="applications")
     ]
-    items = loader.load_mapping_items(loader.MAPPING_DATA_DIR, sets)
+    items, catalogue_hash = loader.load_mapping_items(loader.MAPPING_DATA_DIR, sets)
     evolutions = _load_evolutions()
     features = [f for evo in evolutions for p in evo.plateaus for f in p.features]
     session = DummySession(
@@ -175,6 +178,7 @@ def test_strict_mapping_raises_on_unknown_ids(monkeypatch, tmp_path) -> None:
                 items["applications"],
                 features,
                 strict=True,
+                catalogue_hash=catalogue_hash,
             )
         )
     qfile = Path("quarantine/unknown/applications/unknown_ids_1.json")

@@ -132,7 +132,9 @@ class PlateauGenerator:
         """
 
         settings = load_settings()
-        items = load_mapping_items(MAPPING_DATA_DIR, settings.mapping_sets)
+        items, catalogue_hash = load_mapping_items(
+            MAPPING_DATA_DIR, settings.mapping_sets
+        )
         service_name = self._service.name if self._service else "unknown"
 
         base = list(features)
@@ -148,6 +150,7 @@ class PlateauGenerator:
                 service=service_name,
                 strict=self.strict,
                 cache_mode=(settings.cache_mode if self.use_local_cache else "off"),
+                catalogue_hash=catalogue_hash,
             )
             mapped_sets.append(result)
 
