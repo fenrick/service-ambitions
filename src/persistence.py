@@ -36,14 +36,20 @@ def atomic_write(path: Path, lines: Iterable[str]) -> None:
         path: Destination file to replace.
         lines: Iterable of lines to write without trailing newlines.
 
-    The function writes to ``path`` with a ``.tmp`` suffix then performs
-    :func:`os.replace` to ensure the final file is updated atomically.
+    The function writes to ``path`` with a ``.tmp`` suffix, flushes and
+    syncs the temporary file to disk, then performs :func:`os.replace` to
+    ensure the final file is updated atomically.
     """
 
     tmp_path = Path(f"{path}.tmp")
+    # Ensure the destination directory exists before attempting the write.
+    tmp_path.parent.mkdir(parents=True, exist_ok=True)
     with open(tmp_path, "w", encoding="utf-8") as handle:
         for line in lines:
             handle.write(f"{line}\n")
+        # Ensure data is written to disk before the atomic replace
+        handle.flush()
+        os.fsync(handle.fileno())
     os.replace(tmp_path, path)
 
 
