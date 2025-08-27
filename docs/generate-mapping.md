@@ -24,7 +24,7 @@ produces an empty list or contains unknown identifiers. Disable with
 troubleshooting. Instrumentation runs only when this verbose mode is enabled.
 Prompt text is omitted unless `--allow-prompt-logging` is supplied.
 
-`--use-local-cache` reads mapping responses under `.cache/mapping` and
+`--use-local-cache` reads mapping responses under `.cache/<service>/mappings` and
 optionally writes new entries to avoid repeated network requests during
 development. `--cache-mode` controls
 how the cache is used (`off`, `read`, `refresh`, `write`) with `read` as the

@@ -102,18 +102,18 @@ def _build_cache_key(
     return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:32]
 
 
-def _cache_path(set_name: str, key: str) -> Path:
-    """Return the cache file path for ``set_name`` and ``key``.
+def _cache_path(service: str, set_name: str, key: str) -> Path:
+    """Return the cache file path for ``set_name`` and ``key`` under ``service``.
 
-    The cache directory is derived from application settings and created on
-    demand. Paths are namespaced by mapping set to avoid collisions.
+    Entries are grouped by service identifier with mapping results stored under
+    ``mappings/<set_name>`` to keep different datasets isolated.
     """
 
     try:
         cache_root = load_settings().cache_dir
     except Exception:
         cache_root = Path(".cache")
-    path = cache_root / "mapping" / set_name / f"{key}.json"
+    path = cache_root / service / "mappings" / set_name / f"{key}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -279,7 +279,8 @@ async def map_set(
     write_after_call = False
     cache_hit = False
     if cache_mode != "off":
-        cache_file = _cache_path(set_name, key)
+        svc = service or "unknown"
+        cache_file = _cache_path(svc, set_name, key)
         exists_before = cache_file.exists()
         if cache_mode == "read" and exists_before:
             try:
