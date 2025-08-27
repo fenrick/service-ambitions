@@ -28,6 +28,7 @@ from tqdm import tqdm
 
 from canonical import canonicalise_record
 from models import ReasoningConfig, ServiceInput
+from persistence import atomic_write
 
 SERVICES_PROCESSED = logfire.metric_counter("services_processed")
 SERVICES_FAILED = logfire.metric_counter("services_failed")
@@ -231,6 +232,7 @@ class ServiceAmbitionGenerator:
         processed: set[str],
         progress: tqdm[Any] | None,
         transcripts_dir: Path | None,
+        temp_output_dir: Path | None,
     ) -> None:
         """Process a single service and write its result to ``handle``.
 
@@ -250,6 +252,7 @@ class ServiceAmbitionGenerator:
                 lock,
                 processed,
                 progress,
+                temp_output_dir,
             )
             span.set_attribute("tokens.total", tokens)
             span.set_attribute("retries", retries)
@@ -264,6 +267,7 @@ class ServiceAmbitionGenerator:
         lock: asyncio.Lock,
         processed: set[str],
         progress: tqdm[Any] | None,
+        temp_output_dir: Path | None,
     ) -> tuple[int, int, str]:
         """Process ``service`` and append its result to ``handle``.
 
@@ -282,10 +286,24 @@ class ServiceAmbitionGenerator:
             record = canonicalise_record(
                 AmbitionModel.model_validate(payload).model_dump(mode="json")
             )
+            if temp_output_dir is not None:
+                temp_output_dir.mkdir(parents=True, exist_ok=True)
+                atomic_write(
+                    temp_output_dir / f"{svc_id}.json",
+                    [
+                        json.dumps(
+                            record,
+                            separators=(",", ":"),
+                            ensure_ascii=False,
+                            sort_keys=True,
+                        )
+                    ],
+                )
             line = json.dumps(
                 record, separators=(",", ":"), ensure_ascii=False, sort_keys=True
             )
             if transcripts_dir is not None:
+                transcripts_dir.mkdir(parents=True, exist_ok=True)
                 transcript = {
                     "request": service.model_dump(),
                     "response": record,
@@ -306,9 +324,14 @@ class ServiceAmbitionGenerator:
                     progress.update(1)
                 await asyncio.to_thread(handle.flush)
                 await asyncio.to_thread(os.fsync, handle.fileno())
-
+            metric = getattr(self, "_metrics", None)
+            if metric is not None:
+                metric.record_tokens(tokens)
             SERVICES_PROCESSED.add(1)
         else:
+            metric = getattr(self, "_metrics", None)
+            if metric is not None:
+                metric.record_tokens(tokens)
             SERVICES_FAILED.add(1)
         return tokens, retries, status
 
@@ -359,6 +382,7 @@ class ServiceAmbitionGenerator:
         out_path: str,
         progress: tqdm[Any] | None = None,
         transcripts_dir: Path | None = None,
+        temp_output_dir: Path | None = None,
     ) -> set[str]:
         """Process ``services`` and stream results to ``out_path``.
 
@@ -386,6 +410,7 @@ class ServiceAmbitionGenerator:
                                 processed,
                                 progress,
                                 transcripts_dir,
+                                temp_output_dir,
                             )
                         )
                 await asyncio.to_thread(handle.flush)
@@ -401,6 +426,7 @@ class ServiceAmbitionGenerator:
         output_path: str,
         progress: tqdm[Any] | None = None,
         transcripts_dir: Path | None = None,
+        temp_output_dir: Path | None = None,
     ) -> set[str]:
         """Process ``services`` lazily and write ambitions to ``output_path``.
 
@@ -426,7 +452,11 @@ class ServiceAmbitionGenerator:
             try:
                 self._limiter = Semaphore(self.concurrency)
                 processed = await self._process_all(
-                    services, output_path, progress, transcripts_dir=transcripts_dir
+                    services,
+                    output_path,
+                    progress,
+                    transcripts_dir=transcripts_dir,
+                    temp_output_dir=temp_output_dir,
                 )
                 span.set_attribute("service_ids", list(processed))
                 return processed
