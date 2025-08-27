@@ -235,6 +235,9 @@ async def map_set(
     items: Sequence[MappingItem],
     features: Sequence[PlateauFeature],
     *,
+    service_name: str,
+    service_description: str,
+    plateau: int,
     service: str | None = None,
     strict: bool = False,
     diagnostics: bool | None = None,
@@ -243,23 +246,35 @@ async def map_set(
 ) -> list[PlateauFeature]:
     """Return ``features`` with ``set_name`` mappings populated.
 
+    Args:
+        session: Conversation with the language model.
+        set_name: Mapping dataset to populate.
+        items: Catalogue items available for mapping.
+        features: Features requiring enrichment.
+        service_name: Human readable name of the service.
+        service_description: Description of the service at ``plateau``.
+        plateau: Numeric plateau level being mapped.
+        service: Optional service identifier used for caching.
+        strict: Raise :class:`MappingError` instead of returning partial results.
+        diagnostics: Enable diagnostics mode to request rationales.
+        cache_mode: Local cache behaviour.
+        catalogue_hash: SHA256 digest representing the loaded mapping catalogues.
+
     The agent is queried twice to obtain a valid :class:`MappingResponse`. The
     second attempt appends a hint instructing the model to return JSON only. If
     both attempts fail, the raw response is written to
     ``quarantine/mapping/<service>/<set>.txt`` and an empty mapping list is
-    returned. When ``strict`` is ``True`` a :class:`MappingError` is raised
+    returned. When ``strict`` is ``True`` a :class:`MappingError`` is raised
     instead of returning partial results. ``cache_mode`` controls local caching
     behaviour. ``catalogue_hash`` should be the SHA256 digest returned by
     :func:`loader.load_mapping_items` so cache keys vary when catalogue data
     changes:
 
     - ``"off"``: bypass the cache entirely.
-        - ``"read"``: use cached content when available, otherwise fetch and write.
-        - ``"refresh"``: ignore any existing cache and always overwrite.
-        - ``"write"``: avoid reading and only write responses when the file is
-          absent.
-        catalogue_hash: SHA256 digest representing the loaded mapping
-            catalogues.
+    - ``"read"``: use cached content when available, otherwise fetch and write.
+    - ``"refresh"``: ignore any existing cache and always overwrite.
+    - ``"write"``: avoid reading and only write responses when the file is
+      absent.
     """
 
     cfg = MappingTypeConfig(dataset=set_name, label=set_name)
@@ -314,7 +329,13 @@ async def map_set(
     if payload is None:
         # Cache miss or refresh triggers a network request.
         prompt = render_set_prompt(
-            set_name, list(items), features, diagnostics=use_diag
+            set_name,
+            list(items),
+            features,
+            service_name=service_name,
+            service_description=service_description,
+            plateau=plateau,
+            diagnostics=use_diag,
         )
         should_log_prompt = use_diag and getattr(session, "log_prompts", False)
         if should_log_prompt:

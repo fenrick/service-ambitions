@@ -70,6 +70,9 @@ async def test_map_set_successful_mapping(monkeypatch) -> None:
         "applications",
         [_item()],
         [_feature()],
+        service_name="svc",
+        service_description="desc",
+        plateau=1,
         service="svc",
     )
     assert session.prompts == ["PROMPT", "PROMPT\nReturn valid JSON only."]
@@ -107,6 +110,9 @@ async def test_map_set_quarantines_unknown_ids(monkeypatch, tmp_path) -> None:
         "applications",
         [_item()],
         [_feature()],
+        service_name="svc",
+        service_description="desc",
+        plateau=1,
         service="svc",
     )
     assert [c.item for c in mapped[0].mappings["applications"]] == ["a"]
@@ -138,6 +144,9 @@ async def test_quarantine_separates_unknown_ids_by_service(
         "applications",
         [_item()],
         [_feature()],
+        service_name="svc1",
+        service_description="desc",
+        plateau=1,
         service="svc1",
     )
     await map_set(
@@ -145,6 +154,9 @@ async def test_quarantine_separates_unknown_ids_by_service(
         "applications",
         [_item()],
         [_feature()],
+        service_name="svc2",
+        service_description="desc",
+        plateau=1,
         service="svc2",
     )
     qfile1 = tmp_path / "quarantine" / "svc1" / "applications" / "unknown_ids_1.json"
@@ -168,6 +180,9 @@ async def test_map_set_strict_raises(monkeypatch, tmp_path) -> None:
             "applications",
             [_item()],
             [_feature()],
+            service_name="svc",
+            service_description="desc",
+            plateau=1,
             service="svc",
             strict=True,
         )
@@ -196,6 +211,9 @@ async def test_map_set_strict_unknown_ids(monkeypatch, tmp_path) -> None:
             "applications",
             [_item()],
             [_feature()],
+            service_name="svc",
+            service_description="desc",
+            plateau=1,
             service="svc",
             strict=True,
         )
@@ -285,6 +303,9 @@ async def test_map_set_diagnostics_includes_rationale(monkeypatch) -> None:
         "applications",
         [_item()],
         [_feature()],
+        service_name="svc",
+        service_description="desc",
+        plateau=1,
         diagnostics=True,
     )
     assert mapped[0].mappings["applications"][0].item == "a"
@@ -306,6 +327,9 @@ async def test_map_set_writes_cache(monkeypatch, tmp_path) -> None:
         "applications",
         [_item()],
         [_feature()],
+        service_name="svc",
+        service_description="desc",
+        plateau=1,
         cache_mode="read",
     )
     cache_file = Path(".cache") / "unknown" / "mappings" / "applications" / "key.json"
@@ -339,6 +363,9 @@ async def test_map_set_reads_cache(monkeypatch, tmp_path) -> None:
         "applications",
         [_item()],
         [_feature()],
+        service_name="svc",
+        service_description="desc",
+        plateau=1,
         cache_mode="read",
     )
     assert session.prompts == []
@@ -365,6 +392,9 @@ async def test_map_set_bad_cache_renamed(monkeypatch, tmp_path) -> None:
         "applications",
         [_item()],
         [_feature()],
+        service_name="svc",
+        service_description="desc",
+        plateau=1,
         cache_mode="read",
     )
     assert mapped[0].mappings["applications"][0].item == "a"
@@ -403,6 +433,9 @@ async def test_map_set_cache_invalidation(monkeypatch, tmp_path, change) -> None
         "applications",
         [_item()],
         features1,
+        service_name="svc",
+        service_description="desc",
+        plateau=1,
         cache_mode="read",
         catalogue_hash=cat_hash1,
     )
@@ -411,6 +444,9 @@ async def test_map_set_cache_invalidation(monkeypatch, tmp_path, change) -> None
         "applications",
         [_item()],
         features2,
+        service_name="svc",
+        service_description="desc",
+        plateau=1,
         cache_mode="read",
         catalogue_hash=cat_hash2,
     )
@@ -453,6 +489,9 @@ async def test_map_set_logs_cache_status(
         "applications",
         [_item()],
         [_feature()],
+        service_name="svc",
+        service_description="desc",
+        plateau=1,
         cache_mode=mode,
     )
     assert logs[0][1]["cache"] == expected
@@ -491,6 +530,9 @@ async def test_map_set_cache_modes(
         "applications",
         [_item()],
         [_feature()],
+        service_name="svc",
+        service_description="desc",
+        plateau=1,
         cache_mode=mode,
     )
     assert len(session.prompts) == expected_prompts
@@ -527,6 +569,9 @@ async def test_map_set_prompt_logging_respects_flags(monkeypatch) -> None:
         "applications",
         [_item()],
         [_feature()],
+        service_name="svc",
+        service_description="desc",
+        plateau=1,
     )
     assert logs
     features_json = logs[0][1]["features"]
@@ -559,6 +604,9 @@ async def test_map_set_prompt_logging_skipped(monkeypatch) -> None:
         "applications",
         [_item()],
         [_feature()],
+        service_name="svc",
+        service_description="desc",
+        plateau=1,
     )
     assert logs == []
 

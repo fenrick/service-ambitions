@@ -132,8 +132,19 @@ class PlateauGenerator:
         self,
         session: ConversationSession,
         features: Sequence[PlateauFeature],
+        *,
+        plateau: int,
+        service_name: str,
+        service_description: str,
     ) -> dict[str, list[MappingFeatureGroup]]:
         """Return mapping groups keyed by mapping type for ``features``.
+
+        Args:
+            session: Conversation session for API calls.
+            features: Plateau features to map.
+            plateau: Numeric plateau level being mapped.
+            service_name: Human readable name of the service.
+            service_description: Description of the service at ``plateau``.
 
         Each mapping set defined in the application settings receives the full
         ``features`` list. Results are grouped by mapping item so that each item
@@ -155,6 +166,9 @@ class PlateauGenerator:
                 cfg.field,
                 items[cfg.field],
                 list(features),
+                service_name=service_name,
+                service_description=service_description,
+                plateau=plateau,
                 service=service_id,
                 strict=self.strict,
                 cache_mode=(self.cache_mode if self.use_local_cache else "off"),
@@ -690,7 +704,13 @@ class PlateauGenerator:
             )
             if self._service is not None:
                 map_session.add_parent_materials(self._service)
-            mappings = await self._map_features(map_session, features)
+            mappings = await self._map_features(
+                map_session,
+                features,
+                plateau=level,
+                service_name=self._service.name,
+                service_description=description,
+            )
             return PlateauResult(
                 plateau=level,
                 plateau_name=plateau_name,

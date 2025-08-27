@@ -65,6 +65,9 @@ def test_mapping_run_matches_golden(tmp_path) -> None:
             "applications",
             items["applications"],
             features,
+            service_name="svc",
+            service_description="desc",
+            plateau=1,
             catalogue_hash=catalogue_hash,
         )
     )
@@ -86,6 +89,9 @@ def test_mapping_run_matches_golden(tmp_path) -> None:
             "technologies",
             items["technologies"],
             mapped,
+            service_name="svc",
+            service_description="desc",
+            plateau=1,
             catalogue_hash=catalogue_hash,
         )
     )
@@ -144,6 +150,9 @@ def test_default_mode_quarantines_unknown_ids(monkeypatch, tmp_path) -> None:
             "applications",
             items["applications"],
             features,
+            service_name="svc",
+            service_description="desc",
+            plateau=1,
             catalogue_hash=catalogue_hash,
         )
     )
@@ -185,6 +194,9 @@ def test_strict_mapping_raises_on_unknown_ids(monkeypatch, tmp_path) -> None:
                 "applications",
                 items["applications"],
                 features,
+                service_name="svc",
+                service_description="desc",
+                plateau=1,
                 strict=True,
                 catalogue_hash=catalogue_hash,
             )
