@@ -1,6 +1,6 @@
 # Feature mapping
 
-Map each feature to relevant {mapping_labels} from the lists below.
+Map each feature for the {service_name} service at plateau {plateau} to relevant {mapping_labels} from the lists below.
 
 Lists are provided as JSON arrays in code blocks. Each object contains `id`, `name`, and `description` fields. Use these lists only; do not invent or transform IDs.
 
@@ -12,7 +12,7 @@ Lists are provided as JSON arrays in code blocks. Each object contains `id`, `na
 
 ## Matching approach
 
-- Review all supplied materials to inform the mapping (situational context, definitions, inspirations, and the feature details).
+- Review all supplied materials (situational context, definitions, inspirations, service description, jobs to be done, customer types, and sample features) to understand how each feature supports the {service_name} service at this plateau.
 - Use these inputs to select relevant IDs, but do not mention or cite any inputs in the output.
 - Match on meaning, not just keywords. Prefer exact or closely aligned concepts over loose associations.
 - If unsure, select fewer but accurate IDs rather than speculative matches.
@@ -38,6 +38,7 @@ Lists are provided as JSON arrays in code blocks. Each object contains `id`, `na
 - If you are about to include any text outside JSON, stop and return JSON only.
 - The response must adhere strictly to the JSON schema provided below.
 
+
 ## Example output (illustrative structure; IDs here are placeholders)
 
 ```json
@@ -45,28 +46,20 @@ Lists are provided as JSON arrays in code blocks. Each object contains `id`, `na
   "features": [
     {
       "feature_id": "feat-001",
-      "capabilities": [
-        { "item": "cap-23" },
-        { "item": "cap-07" }
-      ],
-      "channels": [],
-      "compliance_controls": [
-        { "item": "ctrl-ISO27001-A.12.4" }
+      "technology": [
+        { "item": "tech-001" },
+        { "item": "tech-004" }
       ]
     },
     {
       "feature_id": "feat-002",
-      "capabilities": [
-        { "item": "cap-03" }
-      ],
-      "channels": [
-        { "item": "chn-web" },
-        { "item": "chn-mobile" }
-      ],
-      "compliance_controls": []
+      "technology": [
+        { "item": "tech-010" }
+      ]
     }
   ]
 }
+```
 
 ## Response structure
 

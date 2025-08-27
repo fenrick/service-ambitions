@@ -1,6 +1,6 @@
 # Feature mapping (diagnostics)
 
-Map each feature to relevant {mapping_labels} from the lists below.
+Map each feature for the {service_name} service at plateau {plateau} to relevant {mapping_labels} from the lists below.
 
 Lists are provided as JSON arrays in code blocks. Each object contains `id`, `name`, and `description` fields. Use these lists only; do not invent or transform IDs.
 
@@ -12,7 +12,7 @@ Lists are provided as JSON arrays in code blocks. Each object contains `id`, `na
 
 ## Matching approach
 
-- Review all supplied materials to inform the mapping (situational context, definitions, inspirations, and the feature details).
+- Review all supplied materials (situational context, definitions, inspirations, service description, jobs to be done, customer types, and sample features) to understand how each feature supports the {service_name} service at this plateau.
 - Use these inputs to select relevant IDs, but do not mention or cite any inputs in the output.
 - Match on meaning, not just keywords. Prefer exact or closely aligned concepts over loose associations.
 - If unsure, select fewer but accurate IDs rather than speculative matches.
@@ -45,27 +45,20 @@ Lists are provided as JSON arrays in code blocks. Each object contains `id`, `na
   "features": [
     {
       "feature_id": "feat-001",
-      "capabilities": [
-        { "item": "cap-23", "rationale": "Enables automated identity checks aligned to capability scope." },
-        { "item": "cap-07", "rationale": "Delivers self-service updates that match profile management." }
-      ],
-      "channels": [
-        { "item": "chn-web", "rationale": "Accessible via browser for primary user flow." }
-      ],
-      "compliance_controls": [
-        { "item": "ctrl-ISO27001-A.12.4", "rationale": "Implements logging required for audit and incident review." }
+      "technology": [
+        { "item": "tech-001", "rationale": "Enables automated identity checks aligned to capability scope." },
+        { "item": "tech-004", "rationale": "Delivers self-service updates that match profile management." }
       ]
     },
     {
       "feature_id": "feat-002",
-      "capabilities": [],
-      "channels": [
-        { "item": "chn-mobile", "rationale": "Supports on-the-go tasks through the mobile app." }
-      ],
-      "compliance_controls": []
+      "technology": [
+        { "item": "tech-010", "rationale": "Supports on-the-go tasks through the mobile app." }
+      ]
     }
   ]
 }
+```
 
 ## Response structure
 

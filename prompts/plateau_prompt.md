@@ -1,14 +1,14 @@
 # Plateau feature generation
 
-Generate service features for the {service_name} service at plateau {plateau} using the previously supplied description.
+Generate service features for the {service_name} service at plateau {plateau} using the supplied plateau service description.
 
-## Service description (for review only; do not quote or cite in output)
+## Plateau Service description (for review only; do not quote or cite in output)
 
 {service_description}
 
 ## How to work with the inputs
 
-- Review all supplied materials to inform the features (situational context, definitions, inspirations, existing description, jobs to be done, customer types, and sample features).
+- Review all supplied materials to inform the features (situational context, definitions, inspirations, overall service description and plateau description, jobs to be done, and customer types).
 - Use these inputs to synthesise accurate, useful features. Do not reference or cite the inputs in the output.
 - If information conflicts, prefer the most recent or most specific details. Keep assumptions to a minimum.
 
