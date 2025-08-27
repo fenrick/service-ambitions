@@ -35,6 +35,8 @@ def test_process_service_async(monkeypatch):
         jobs_to_be_done=[{"name": "job"}],
     )
     gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
+    gen._limiter = asyncio.Semaphore(1)
+    gen._limiter = asyncio.Semaphore(1)
     result, tokens, retries = asyncio.run(gen.process_service(service, "prompt"))
     assert json.loads(result["service"]) == service.model_dump()
     assert tokens == 1
@@ -315,7 +317,7 @@ async def test_run_one_counters_success(tmp_path, monkeypatch):
         service_id="s1", name="n", description="d", jobs_to_be_done=[]
     )
 
-    await gen._run_one(service, handle, lock, processed_set, None, None)
+    await gen._run_one(service, handle, lock, processed_set, None, None, None)
     await asyncio.to_thread(handle.close)
 
     assert processed.value == 1
@@ -369,7 +371,7 @@ async def test_run_one_counters_failure(tmp_path, monkeypatch):
         service_id="s2", name="n", description="d", jobs_to_be_done=[]
     )
 
-    await gen._run_one(service, handle, lock, processed_set, None, None)
+    await gen._run_one(service, handle, lock, processed_set, None, None, None)
     await asyncio.to_thread(handle.close)
 
     assert processed.value == 0
@@ -377,3 +379,64 @@ async def test_run_one_counters_failure(tmp_path, monkeypatch):
     assert processed_set == set()
     assert outfile.read_text() == ""
     assert gen._metrics.tokens == [0]
+
+
+def test_temp_output_dir_writes_progress(tmp_path, monkeypatch):
+    """Intermediate records are persisted after each prompt."""
+
+    records = [
+        {"stage": 1},
+        {"stage": 2},
+    ]
+
+    async def fake_process_service_line(self, service):
+        payload = records.pop(0)
+        return payload, service.service_id, 0, 0, "success"
+
+    monkeypatch.setattr(
+        generator.ServiceAmbitionGenerator,
+        "_process_service_line",
+        fake_process_service_line,
+    )
+
+    service = ServiceInput(
+        service_id="svc-temp",
+        name="alpha",
+        description="desc",
+        jobs_to_be_done=[],
+    )
+    gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
+    gen._limiter = asyncio.Semaphore(1)
+
+    async def run():
+        handle_path = tmp_path / "out.jsonl"
+        handle = handle_path.open("a", encoding="utf-8")
+        try:
+            lock = asyncio.Lock()
+            processed: set[str] = set()
+            await gen._run_one(
+                service,
+                handle,
+                lock,
+                processed,
+                None,
+                None,
+                tmp_path,
+            )
+            first = json.loads((tmp_path / f"{service.service_id}.json").read_text())
+            assert first == {"stage": 1}
+            await gen._run_one(
+                service,
+                handle,
+                lock,
+                processed,
+                None,
+                None,
+                tmp_path,
+            )
+            second = json.loads((tmp_path / f"{service.service_id}.json").read_text())
+            assert second == {"stage": 2}
+        finally:
+            await asyncio.to_thread(handle.close)
+
+    asyncio.run(run())

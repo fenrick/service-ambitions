@@ -162,6 +162,7 @@ async def _generate_evolution_for_service(
     lock: asyncio.Lock,
     output,
     new_ids: set[str],
+    temp_output_dir: Path | None,
 ) -> None:
     """Generate evolution for ``service`` and record results."""
 
@@ -254,9 +255,24 @@ async def _generate_evolution_for_service(
                     created=datetime.now(timezone.utc),
                 )
             evolution = await generator.generate_service_evolution_async(
-                service, transcripts_dir=transcripts_dir, meta=_RUN_META
+                service,
+                transcripts_dir=transcripts_dir,
+                meta=_RUN_META,
             )
             record = canonicalise_record(evolution.model_dump(mode="json"))
+            if temp_output_dir is not None:
+                temp_output_dir.mkdir(parents=True, exist_ok=True)
+                atomic_write(
+                    temp_output_dir / f"{service.service_id}.json",
+                    [
+                        json.dumps(
+                            record,
+                            separators=(",", ":"),
+                            ensure_ascii=False,
+                            sort_keys=True,
+                        )
+                    ],
+                )
             line = json.dumps(
                 record, separators=(",", ":"), ensure_ascii=False, sort_keys=True
             )
@@ -375,10 +391,14 @@ async def _cmd_generate_evolution(
                 lock=lock,
                 output=output,
                 new_ids=new_ids,
+                temp_output_dir=temp_output_dir,
             )
             if progress:
                 progress.update(1)
 
+    temp_output_dir = (
+        Path(args.temp_output_dir) if args.temp_output_dir is not None else None
+    )
     output = await asyncio.to_thread(part_path.open, "w", encoding="utf-8")
     try:
         async with asyncio.TaskGroup() as tg:
@@ -549,6 +569,10 @@ def main() -> None:
             "Directory to store cache files; defaults to '.cache' in the "
             "current working directory"
         ),
+    )
+    common.add_argument(
+        "--temp-output-dir",
+        help="Directory for intermediate JSON records",
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
