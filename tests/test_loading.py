@@ -127,7 +127,8 @@ def test_load_ambition_prompt_includes_north_star(tmp_path):
     (prompts_dir / "response_structure.md").write_text("resp", encoding="utf-8")
     data_dir.mkdir()
     (data_dir / "definitions.json").write_text(
-        '{"title": "Defs", "bullets": [{"id": "d1", "name": "d1", "definition": "defs"}]}',
+        '{"title": "Defs", "bullets": [{"id": "d1", "name": "d1", "definition":'
+        ' "defs"}]}',
         encoding="utf-8",
     )
     (data_dir / "service_feature_plateaus.json").write_text(

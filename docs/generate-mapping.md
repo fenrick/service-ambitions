@@ -31,7 +31,7 @@ how the cache is used (`off`, `read`, `refresh`, `write`) with `read` as the
 default, and `--cache-dir` sets the cache storage location.
 
 Mapping runs once per configured set. Each prompt receives the relevant
-reference list—`applications`, `digital_levers` and `information` by default—and
+reference list—`applications`, `technologies` and `information` by default—and
 returns items matched to the feature.
 
 ## Input format

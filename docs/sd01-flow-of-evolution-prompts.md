@@ -56,9 +56,9 @@ The university of tomorrow functions as a border-free commons where learning, re
 
 The concept of "Jobs to be Done" (JTBD) is a customer-centric framework used to understand the underlying needs and goals that drive customer behaviour. At its core, the JTBD theory suggests that customers "hire" products or services to accomplish specific tasks or achieve desired outcomes. These "jobs" go beyond the essential functional use of a product and include emotional and social dimensions that are important to the customer. The relationship between services and customers is crucial in JTBD because it focuses on why customers seek solutions, underscoring the importance of understanding and meeting customer needs. It allows businesses to design services that meet these broader needs and create meaningful, lasting customer relationships.
 A service represents an externally facing function that an organisation provides to deliver value to its clients or customers. It directly relates to the concept of JTBD, which defines the the specific tasks or outcomes customers expect to achieve when using the service. Organisations design business services with features directly supporting these jobs, offering solutions that address customer needs or problems. The success of a business service depends on its ability to efficiently and effectively fulfil these jobs, tailoring its features to enhance the customer experience, ensure usability, and drive business outcomes such as customer satisfaction and profitability. By aligning service features with customer jobs, organisations can ensure that their services deliver tangible benefits critical for achieving strategic goals and ensuring long-term success.
-A service feature is a specific functionality or characteristic within a broader service that supports executing tasks, activities, or processes critical to delivering value. These features are integral components that enhance or enable a service to meet business requirements, often directly impacting the service's efficiency, reliability, or customer satisfaction. In a digital context, service features leverage digital levers—such as automation, integration, and data-driven insights—to improve scalability, responsiveness, and operational efficiency. These digital enablers adapt the service to business needs and customer expectations, ensuring alignment with strategic goals and maximising delivered value.
+A service feature is a specific functionality or characteristic within a broader service that supports executing tasks, activities, or processes critical to delivering value. These features are integral components that enhance or enable a service to meet business requirements, often directly impacting the service's efficiency, reliability, or customer satisfaction. In a digital context, service features leverage technologies—such as automation, integration, and data-driven insights—to improve scalability, responsiveness, and operational efficiency. These digital enablers adapt the service to business needs and customer expectations, ensuring alignment with strategic goals and maximising delivered value.
 Service features often form the building blocks for enhancing service portfolios by embedding critical digital tools and processes that allow the service to evolve and effectively respond to market and operational demands.
-A digital lever refers to a technological tool or capability that significantly amplifies the impact or efficiency of a process, system, or business model. Just as a physical lever provides a mechanical advantage to move objects with less effort, a digital lever enables organisations to achieve more with fewer resources by leveraging digital technologies. A digital lever could include automation, data analytics, artificial intelligence, or cloud computing, allowing businesses to enhance productivity, decision-making, and scalability. By deploying digital levers, organisations can unlock new value, streamline operations, and respond more effectively to changing market demands.
+A technology refers to a tool or capability that significantly amplifies the impact or efficiency of a process, system, or business model. Just as a physical lever provides a mechanical advantage to move objects with less effort, a technology enables organisations to achieve more with fewer resources by leveraging digital capabilities. Technologies could include automation, data analytics, artificial intelligence, or cloud computing, allowing businesses to enhance productivity, decision-making, and scalability. By deploying technologies, organisations can unlock new value, streamline operations, and respond more effectively to changing market demands.
 
 ---
 
@@ -150,7 +150,7 @@ Generate service features for the Learning & Teaching service at plateau 1.
 ```
 
 ### Mapping Prompt
-Map each feature to relevant Information, Applications and Digital Levers from the lists below.
+Map each feature to relevant Information, Applications and Technologies from the lists below.
 
 #### Available Information
 - INFO001: User Data - Information about the user.
@@ -160,7 +160,7 @@ Map each feature to relevant Information, Applications and Digital Levers from t
 - APP001: Learning Platform - Software used for courses.
 - APP002: Analytics Dashboard - Provides insights into performance.
 
-#### Available Digital Levers
+#### Available Technologies
 - TECH001: AI Engine - Provides intelligent features.
 - TECH002: Cloud Storage - Stores data securely.
 
@@ -169,7 +169,7 @@ Map each feature to relevant Information, Applications and Digital Levers from t
 
 #### Instructions
 - Return a JSON object with a top-level "features" array.
-- Each element must include a 6 character ``feature_id`` and a "mappings" object containing "information", "applications" and "digital_levers" arrays.
+- Each element must include a 6 character ``feature_id`` and a "mappings" object containing "information", "applications" and "technologies" arrays.
 - Each mapping entry must include an "item" field. When diagnostics are enabled, also return a single-line "rationale" for the match.
 - Do not invent IDs; only use those provided.
 - Maintain terminology consistent with the situational context, definitions and inspirations.
@@ -214,7 +214,7 @@ Provide a description of the service at plateau 2 (Enhanced) with the same instr
 Generate service features for the Learning & Teaching service at plateau 2 using the new plateau description. Follow the same instructions and schema as Stage 5.
 
 ### Mapping Prompt
-Map features produced for plateau 2 using the same Data, Applications and Digital Levers lists, instructions and schema as Stage 5.
+Map features produced for plateau 2 using the same Data, Applications and Technologies lists, instructions and schema as Stage 5.
 
 ---
 
@@ -229,7 +229,7 @@ Provide a description of the service at plateau 3 (Experimental) with the same i
 Generate service features for the Learning & Teaching service at plateau 3 using its description. Follow the same instructions and schema as Stage 5.
 
 ### Mapping Prompt
-Map features produced for plateau 3 using the same Data, Applications and Digital Levers lists, instructions and schema as Stage 5.
+Map features produced for plateau 3 using the same Data, Applications and Technologies lists, instructions and schema as Stage 5.
 
 ---
 
@@ -244,7 +244,7 @@ Provide a description of the service at plateau 4 (Disruptive) with the same ins
 Generate service features for the Learning & Teaching service at plateau 4 using its description. Follow the same instructions and schema as Stage 5.
 
 ### Mapping Prompt
-Map features produced for plateau 4 using the same Data, Applications and Digital Levers lists, instructions and schema as Stage 5.
+Map features produced for plateau 4 using the same Data, Applications and Technologies lists, instructions and schema as Stage 5.
 
 
 ---

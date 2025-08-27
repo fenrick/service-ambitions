@@ -40,7 +40,7 @@
         "Claims Processing Team (an org unit, not the service).",
         "Policy Admin System (a system supporting the service)."
       ],
-      "related_terms": ["jtbd", "service_feature", "digital_lever"],
+      "related_terms": ["jtbd", "service_feature", "technology"],
       "tags": ["offering", "cx", "outcomes"],
       "owner": "Service Design",
       "last_updated": "2025-08-27"
@@ -50,10 +50,10 @@
       "name": "Service Feature",
       "aliases": ["feature", "capability (customer-facing)"],
       "short_definition": "A discrete, user-visible capability within a service that helps a customer achieve an outcome.",
-      "definition": "Features change what the customer can do. Each feature should be testable, measurable, and traceable to a JTBD outcome. Features may be enabled by digital levers but are distinct from the levers themselves.",
+      "definition": "Features change what the customer can do. Each feature should be testable, measurable, and traceable to a JTBD outcome. Features may be enabled by technologies but are distinct from the technologies themselves.",
       "decision_rules": [
         "If it affects the customer’s ability to complete a task → likely a feature.",
-        "If it only boosts efficiency or quality under the hood → likely a digital lever."
+        "If it only boosts efficiency or quality under the hood → likely a technology."
       ],
       "examples": [
         "Real-time claim status tracker.",
@@ -61,26 +61,26 @@
         "Saved applications with auto-resume."
       ],
       "non_examples": [
-        "RPA bot that copies data between systems (lever unless exposed to users)."
+        "RPA bot that copies data between systems (technology unless exposed to users)."
       ],
-      "related_terms": ["service", "jtbd", "digital_lever"],
+      "related_terms": ["service", "jtbd", "technology"],
       "tags": ["ux", "capabilities", "measurement"],
       "owner": "Product",
       "last_updated": "2025-08-27"
     },
     {
-      "id": "digital_lever",
-      "name": "Digital Lever",
-      "aliases": ["enabler", "platform capability", "accelerator"],
+      "id": "technology",
+      "name": "Technology",
+      "aliases": ["digital lever", "enabler", "platform capability", "accelerator"],
       "short_definition": "A reusable technology capability that amplifies delivery of value; it requires a service/feature to realise customer impact.",
-      "definition": "Levers improve scalability, speed, cost or quality. Examples include automation, data integration, analytics/AI models, and cloud services. On their own they are not offerings; they enable features and services to deliver outcomes faster and better.",
+      "definition": "Technologies improve scalability, speed, cost or quality. Examples include automation, data integration, analytics/AI models, and cloud services. On their own they are not offerings; they enable features and services to deliver outcomes faster and better.",
       "examples": [
         "Event-driven integration to update status in real time.",
         "Document AI for claim classification.",
         "Self-service CI/CD pipeline for rapid releases."
       ],
       "non_examples": [
-        "‘Track my claim’ UI (a feature using the lever)."
+        "‘Track my claim’ UI (a feature using the technology)."
       ],
       "related_terms": ["service_feature", "service"],
       "tags": ["platform", "automation", "ai", "cloud"],
