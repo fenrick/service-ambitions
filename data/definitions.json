@@ -9,8 +9,15 @@
       "aliases": ["JTBD", "customer job", "job story"],
       "short_definition": "JTBD explains the progress a customer seeks in a situation; customers ‘hire’ a solution to achieve functional, emotional and social outcomes.",
       "definition": "JTBD is a lens for understanding why customers choose solutions. It focuses on the desired outcomes and context, not demographics or product features. Use it to frame services and features around customer outcomes and to prioritise by impact on those outcomes.",
-      "use_when": ["Defining outcomes to guide service scope", "Prioritising features by outcome impact"],
-      "avoid_confusion_with": ["personas", "needs lists", "requirements backlogs"],
+      "use_when": [
+        "Defining outcomes to guide service scope",
+        "Prioritising features by outcome impact"
+      ],
+      "avoid_confusion_with": [
+        "personas",
+        "needs lists",
+        "requirements backlogs"
+      ],
       "examples": [
         "When I lodge a claim, I want a clear status in under 2 minutes so I feel in control.",
         "When comparing plans, I want a simple cost forecast so I can choose confidently."
@@ -30,8 +37,15 @@
       "aliases": ["offering", "customer service", "business service"],
       "short_definition": "An externally facing offering that delivers value to customers and is measured by how well it fulfils relevant JTBD.",
       "definition": "A service bundles policies, processes and features to deliver outcomes customers care about. It is defined from the outside-in (customer view), with success measured by outcome attainment (e.g., time to value, success rate), not internal activities.",
-      "use_when": ["Scoping what we offer to customers", "Setting outcome metrics"],
-      "avoid_confusion_with": ["internal process", "IT system", "organisational team"],
+      "use_when": [
+        "Scoping what we offer to customers",
+        "Setting outcome metrics"
+      ],
+      "avoid_confusion_with": [
+        "internal process",
+        "IT system",
+        "organisational team"
+      ],
       "examples": [
         "‘Lodge and track insurance claims’ service.",
         "‘Onboard a new employee’ self-service portal."
@@ -71,7 +85,12 @@
     {
       "id": "technology",
       "name": "Technology",
-      "aliases": ["digital lever", "enabler", "platform capability", "accelerator"],
+      "aliases": [
+        "digital lever",
+        "enabler",
+        "platform capability",
+        "accelerator"
+      ],
       "short_definition": "A reusable technology capability that amplifies delivery of value; it requires a service/feature to realise customer impact.",
       "definition": "Technologies improve scalability, speed, cost or quality. Examples include automation, data integration, analytics/AI models, and cloud services. On their own they are not offerings; they enable features and services to deliver outcomes faster and better.",
       "examples": [
@@ -79,9 +98,7 @@
         "Document AI for claim classification.",
         "Self-service CI/CD pipeline for rapid releases."
       ],
-      "non_examples": [
-        "‘Track my claim’ UI (a feature using the technology)."
-      ],
+      "non_examples": ["‘Track my claim’ UI (a feature using the technology)."],
       "related_terms": ["service_feature", "service"],
       "tags": ["platform", "automation", "ai", "cloud"],
       "owner": "Technology",
@@ -89,4 +106,3 @@
     }
   ]
 }
-
