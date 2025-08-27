@@ -72,6 +72,9 @@ def render_set_prompt(
     items: Sequence[MappingItem],
     features: Sequence[PlateauFeature],
     *,
+    service_name: str,
+    service_description: str,
+    plateau: int,
     diagnostics: bool = False,
 ) -> str:
     """Return a prompt requesting mappings for ``features`` against ``set_name``.
@@ -80,12 +83,16 @@ def render_set_prompt(
         set_name: Name of the mapping catalogue.
         items: Available catalogue items.
         features: Features requiring mapping enrichment.
+        service_name: Human readable name of the service.
+        service_description: Description of the service at ``plateau``.
+        plateau: Numeric plateau level being evaluated.
 
     Returns:
         Fully rendered prompt string.
     """
-    # Instruction template defines sections for catalogue items and feature
-    # descriptions. Rendering is deterministic as both helpers sort inputs.
+    # Instruction template defines sections for catalogue items, feature
+    # descriptions and service metadata. Rendering is deterministic as both
+    # helpers sort inputs and the plateau description is sanitised.
     instruction = load_prompt_text(
         "mapping_prompt_diagnostics" if diagnostics else "mapping_prompt"
     )
@@ -103,6 +110,9 @@ def render_set_prompt(
         "{mapping_fields}": set_name,
         "{features}": f"```json\n{feature_lines}\n```",
         "{schema}": MAPPING_DIAGNOSTICS_SCHEMA if diagnostics else MAPPING_SCHEMA,
+        "{service_name}": _sanitize(service_name),
+        "{service_description}": _sanitize(service_description),
+        "{plateau}": str(plateau),
     }
 
     for placeholder, value in replacements.items():

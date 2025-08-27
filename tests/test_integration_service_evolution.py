@@ -102,7 +102,7 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
 
     map_calls = {"n": 0}
 
-    async def _fake_map_features(self, session, features):
+    async def _fake_map_features(self, session, features, **kwargs):
         map_calls["n"] += 1
         refs = [
             FeatureMappingRef(feature_id=f.feature_id, description=f.description)
