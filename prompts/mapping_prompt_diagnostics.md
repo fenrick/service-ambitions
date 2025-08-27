@@ -2,28 +2,70 @@
 
 Map each feature to relevant {mapping_labels} from the lists below.
 
-Lists are provided as JSON arrays in code blocks.
-Each object contains `id`, `name`, and `description` fields.
+Lists are provided as JSON arrays in code blocks. Each object contains `id`, `name`, and `description` fields. Use these lists only; do not invent or transform IDs.
 
 {mapping_sections}
 
-## Features
+## Features (for review only; do not quote or cite in output)
 
 {features}
 
+## Matching approach
+
+- Review all supplied materials to inform the mapping (situational context, definitions, inspirations, and the feature details).
+- Use these inputs to select relevant IDs, but do not mention or cite any inputs in the output.
+- Match on meaning, not just keywords. Prefer exact or closely aligned concepts over loose associations.
+- If unsure, select fewer but accurate IDs rather than speculative matches.
+
 ## Instructions
 
-- Return a JSON object with a top-level "features" array.
-- Each element must include "feature_id" and the following arrays: {mapping_fields}.
-- Select all relevant IDs from the lists provided.
-- Each entry in these arrays must be an object containing:
-  - "item" for the selected ID.
-  - "rationale" with a single-line explanation of the match.
-- Do not invent IDs or rationales.
-- No limit on the number of items you can return.
-- Maintain terminology consistent with the situational context, definitions and inspirations.
+- Return a single JSON object with a top-level "features" array.
+- Each element must include:
+  - "feature_id": the ID from the supplied features (use exact value and type).
+  - Arrays for each of: {mapping_fields}.
+- Selection rules for each array:
+  - Include all relevant IDs from the corresponding list(s).
+  - Each array element must be an object with exactly:
+    - "item": the selected ID (preserve original type and formatting, e.g., string vs number, UUID hyphens).
+    - "rationale": a single-line explanation of the match (concise; no line breaks).
+  - Do not include weights, scores, or extra fields.
+  - Do not invent IDs or rationales.
+  - Deduplicate within each array (no repeated IDs per feature).
+  - If a feature has no relevant IDs for a field, include an empty array for that field.
+- Maintain terminology consistent with the situational context, definitions, and inspirations.
 - Do not include any text outside the JSON object.
-- The response must adhere to the JSON schema provided below.
+- Return ONLY valid JSON. No Markdown, no backticks, no commentary, no trailing commas.
+- If you are about to include any text outside JSON, stop and return JSON only.
+- The response must adhere strictly to the JSON schema provided below.
+
+## Example output (illustrative structure; IDs here are placeholders)
+
+```json
+{
+  "features": [
+    {
+      "feature_id": "feat-001",
+      "capabilities": [
+        { "item": "cap-23", "rationale": "Enables automated identity checks aligned to capability scope." },
+        { "item": "cap-07", "rationale": "Delivers self-service updates that match profile management." }
+      ],
+      "channels": [
+        { "item": "chn-web", "rationale": "Accessible via browser for primary user flow." }
+      ],
+      "compliance_controls": [
+        { "item": "ctrl-ISO27001-A.12.4", "rationale": "Implements logging required for audit and incident review." }
+      ]
+    },
+    {
+      "feature_id": "feat-002",
+      "capabilities": [],
+      "channels": [
+        { "item": "chn-mobile", "rationale": "Supports on-the-go tasks through the mobile app." }
+      ],
+      "compliance_controls": []
+    }
+  ]
+}
 
 ## Response structure
 

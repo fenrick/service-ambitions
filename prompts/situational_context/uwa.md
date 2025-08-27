@@ -6,7 +6,7 @@ As a seasoned higher education expert, you are well-versed in Australian univers
 
 UWA will deliver a personalised digital experience that guides and reassures students, so they feel prepared and empowered to succeed throughout their UWA learning journey and career.
 
-What it means for students
+### What it means for students
 
 - Navigate learning and career pathways with confidence — clear course and unit requirements, personalised advice, and support for informed decisions on unit selections, internships and career direction.
 - Self-serve with confidence — simple online onboarding, clarity of next steps, visible progress, reminders and timely confirmation (including printable summaries and short guides/videos).
@@ -14,13 +14,13 @@ What it means for students
 - Make the most of services and connections — timely awareness of support tailored to circumstances and goals; facilitation of social connections, orientation and practical needs (e.g., accessibility, accommodation, work).
 - Get help in moments of need — proactive, data-informed outreach (digital and in-person) for administrative tasks and targeted academic, wellbeing, career or financial assistance.
 
-What it delivers for UWA
+### What it delivers for UWA
 
 - Enhanced student experience and satisfaction.
 - Growing student enrolment and conversion.
 - More sustainable finances and operations through higher self-serve and faster resolution of queries.
 
-How we’ll make it real
+### How we’ll make it real
 
 - Clear roles and ownership for the end-to-end student experience.
 - Fund what matters to learners; shift from projects to a student-centred portfolio.
