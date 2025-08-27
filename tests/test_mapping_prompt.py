@@ -145,3 +145,17 @@ def test_render_set_prompt_uses_diagnostics_template(monkeypatch) -> None:
     monkeypatch.setattr("mapping_prompt.load_prompt_text", fake_load)
     render_set_prompt("test", [], [], diagnostics=True)
     assert called["name"] == "mapping_prompt_diagnostics"
+
+
+def test_render_set_prompt_handles_literal_braces(monkeypatch) -> None:
+    """Unescaped braces in templates are preserved without KeyError."""
+
+    template = (
+        "{mapping_sections}\n"
+        'Each array element must be an object with only one field: { "item": <ID> }\n'
+        "{schema}"
+    )
+    monkeypatch.setattr("mapping_prompt.load_prompt_text", lambda _n: template)
+
+    result = render_set_prompt("test", [], [])
+    assert '{ "item": <ID> }' in result
