@@ -58,7 +58,14 @@ def test_render_set_prompt_orders_content(shuffle: bool, monkeypatch) -> None:
         items = list(reversed(items))
         features = list(reversed(features))
 
-    prompt = render_set_prompt("test", items, features)
+    prompt = render_set_prompt(
+        "test",
+        items,
+        features,
+        service_name="svc",
+        service_description="desc",
+        plateau=1,
+    )
     blocks = re.findall(r"```json\n(.*?)\n```", prompt, re.DOTALL)
     items_json = json.loads(blocks[0])
     features_json = json.loads(blocks[1])
@@ -67,7 +74,12 @@ def test_render_set_prompt_orders_content(shuffle: bool, monkeypatch) -> None:
 
     if shuffle:
         prompt_again = render_set_prompt(
-            "test", list(reversed(items)), list(reversed(features))
+            "test",
+            list(reversed(items)),
+            list(reversed(features)),
+            service_name="svc",
+            service_description="desc",
+            plateau=1,
         )
         assert prompt_again == prompt
 
@@ -123,7 +135,14 @@ def test_render_set_prompt_normalizes_whitespace(monkeypatch) -> None:
         )
     ]
 
-    prompt = render_set_prompt("test", items, features)
+    prompt = render_set_prompt(
+        "test",
+        items,
+        features,
+        service_name="svc",
+        service_description="desc",
+        plateau=1,
+    )
     blocks = re.findall(r"```json\n(.*?)\n```", prompt, re.DOTALL)
     items_json = json.loads(blocks[0])
     features_json = json.loads(blocks[1])
@@ -143,7 +162,15 @@ def test_render_set_prompt_uses_diagnostics_template(monkeypatch) -> None:
         return "{schema}"
 
     monkeypatch.setattr("mapping_prompt.load_prompt_text", fake_load)
-    render_set_prompt("test", [], [], diagnostics=True)
+    render_set_prompt(
+        "test",
+        [],
+        [],
+        service_name="svc",
+        service_description="desc",
+        plateau=1,
+        diagnostics=True,
+    )
     assert called["name"] == "mapping_prompt_diagnostics"
 
 
@@ -157,5 +184,28 @@ def test_render_set_prompt_handles_literal_braces(monkeypatch) -> None:
     )
     monkeypatch.setattr("mapping_prompt.load_prompt_text", lambda _n: template)
 
-    result = render_set_prompt("test", [], [])
+    result = render_set_prompt(
+        "test",
+        [],
+        [],
+        service_name="svc",
+        service_description="desc",
+        plateau=1,
+    )
     assert '{ "item": <ID> }' in result
+
+
+def test_render_set_prompt_inserts_service_metadata(monkeypatch) -> None:
+    """Service placeholders are replaced in the rendered prompt."""
+
+    template = "{service_name}|{service_description}|{plateau}"
+    monkeypatch.setattr("mapping_prompt.load_prompt_text", lambda _n: template)
+    result = render_set_prompt(
+        "test",
+        [],
+        [],
+        service_name="svc",
+        service_description="desc",
+        plateau=2,
+    )
+    assert result == "svc|desc|2"

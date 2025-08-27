@@ -146,7 +146,13 @@ async def test_map_features_maps_all_sets_with_full_list(monkeypatch) -> None:
         ),
     ]
 
-    await gen._map_features(cast(ConversationSession, session), feats)
+    await gen._map_features(
+        cast(ConversationSession, session),
+        feats,
+        plateau=1,
+        service_name="svc",
+        service_description="desc",
+    )
 
     assert called == [s.field for s in mapping_sets]
     assert all(ids == ["f1", "f2"] for ids in received)
@@ -219,7 +225,7 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
 
     call = {"n": 0}
 
-    async def dummy_map_features(self, session, feats):
+    async def dummy_map_features(self, session, feats, **kwargs):
         call["n"] += 1
         refs = [
             FeatureMappingRef(feature_id=f.feature_id, description=f.description)
@@ -320,7 +326,7 @@ def test_generate_plateau_repairs_missing_features(monkeypatch) -> None:
     )
     session = DummySession([desc_payload, initial, repair])
 
-    async def dummy_map_features(self, session, feats):
+    async def dummy_map_features(self, session, feats, **kwargs):
         return {}
 
     monkeypatch.setattr(PlateauGenerator, "_map_features", dummy_map_features)
@@ -409,7 +415,7 @@ def test_generate_plateau_requests_missing_features_concurrently(
     )
     session = DummySession([desc_payload, initial])
 
-    async def dummy_map_features(self, session, feats):
+    async def dummy_map_features(self, session, feats, **kwargs):
         return {}
 
     monkeypatch.setattr(PlateauGenerator, "_map_features", dummy_map_features)
@@ -524,7 +530,7 @@ def test_generate_plateau_repairs_invalid_role(monkeypatch) -> None:
     )
     session = DummySession([desc_payload, initial, repair])
 
-    async def dummy_map_features(self, session, feats):
+    async def dummy_map_features(self, session, feats, **kwargs):
         return {}
 
     monkeypatch.setattr(PlateauGenerator, "_map_features", dummy_map_features)
