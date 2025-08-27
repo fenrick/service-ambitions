@@ -2,32 +2,71 @@
 
 Map each feature to relevant {mapping_labels} from the lists below.
 
-Lists are provided as JSON arrays in code blocks.
-Each object contains `id`, `name`, and `description` fields.
+Lists are provided as JSON arrays in code blocks. Each object contains `id`, `name`, and `description` fields. Use these lists only; do not invent or transform IDs.
 
 {mapping_sections}
 
-## Features
+## Features (for review only; do not quote or cite in output)
 
 {features}
 
+## Matching approach
+
+- Review all supplied materials to inform the mapping (situational context, definitions, inspirations, and the feature details).
+- Use these inputs to select relevant IDs, but do not mention or cite any inputs in the output.
+- Match on meaning, not just keywords. Prefer exact or closely aligned concepts over loose associations.
+- If unsure, select fewer but accurate IDs rather than speculative matches.
+
 ## Instructions
 
-- **Analyse and Compare**: For each feature, first thoroughly analyse its `name` and `description` to understand its core purpose. Then, compare this purpose against the `name` and `description` of every item in the provided lists ({mapping_labels}).
-- **Establish Mappings**: Create a mapping if the feature **directly solves, enables, or significantly contributes** to the outcome, job, or persona described by an item. Think about the underlying user need the feature serves.
-- **Be Comprehensive**: Select all relevant IDs from the lists. A single feature can map to multiple items across different lists. Do not be conservative; if a meaningful relationship exists, create the mapping.
-- **Maintain Consistency**: Use terminology consistent with the provided situational context, definitions, and inspirations.
-- **Strict JSON Formatting**:
-  - Return a JSON object with a top-level "features" array.
-  - Each element in the array must include a "feature_id" and the following mapping arrays: {mapping_fields}.
-  - Select all relevant IDs from the lists provided.
-  - Each entry in the mapping arrays must be an object containing only an "item" field for the selected ID (e.g., `{"item": "jtbd-1"}`).
-  - Do not include weights, confidence scores, or explanations.
-  - Do not invent new IDs that are not present in the provided lists.
-- **Output Integrity**:
-  - Do not include any text, markdown, or commentary outside the main JSON object.
-  - The entire response must be only the valid JSON object.
-  - The response must adhere to the JSON schema provided below.
+- Return a single JSON object with a top-level "features" array.
+- Each element must include:
+  - "feature_id": the ID from the supplied features (use exact value and type).
+  - Arrays for each of: {mapping_fields}.
+- Selection rules for each array:
+  - Include all relevant IDs found in the corresponding list(s).
+  - Each array element must be an object with only one field: { "item": <ID> }.
+  - Do not include weights, explanations, scores, or extra fields.
+  - Do not invent IDs. Only use IDs present in the provided lists.
+  - No limit on the number of returned items.
+  - Deduplicate within each array (no repeated IDs per feature).
+  - Preserve the original ID type (string vs number) and formatting (e.g., UUID hyphens).
+- If a feature has no relevant IDs for a field, include an empty array for that field.
+- Maintain terminology consistent with the situational context, definitions, and inspirations.
+- Do not include any text outside the JSON object.
+- Return ONLY valid JSON. No Markdown, no backticks, no commentary, no trailing commas.
+- If you are about to include any text outside JSON, stop and return JSON only.
+- The response must adhere strictly to the JSON schema provided below.
+
+## Example output (illustrative structure; IDs here are placeholders)
+
+```json
+{
+  "features": [
+    {
+      "feature_id": "feat-001",
+      "capabilities": [
+        { "item": "cap-23" },
+        { "item": "cap-07" }
+      ],
+      "channels": [],
+      "compliance_controls": [
+        { "item": "ctrl-ISO27001-A.12.4" }
+      ]
+    },
+    {
+      "feature_id": "feat-002",
+      "capabilities": [
+        { "item": "cap-03" }
+      ],
+      "channels": [
+        { "item": "chn-web" },
+        { "item": "chn-mobile" }
+      ],
+      "compliance_controls": []
+    }
+  ]
+}
 
 ## Response structure
 
