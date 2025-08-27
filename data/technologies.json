@@ -1,12 +1,597 @@
 [
   {
-    "id": "TECH001",
-    "name": "AI Engine",
-    "description": "Provides intelligent features."
+    "id": "TC021",
+    "name": "Personal Computing",
+    "description": "Personal Computing technologies includes laptops, desktops, and workstations."
   },
   {
-    "id": "TECH002",
-    "name": "Cloud Storage",
-    "description": "Stores data securely."
+    "id": "TC014",
+    "name": "Portable Computing",
+    "description": "Portable Computing technologies provide access to digital information, communication, and other services from easily-transportable endpoints."
+  },
+  {
+    "id": "TC107",
+    "name": "Wearable Computing",
+    "description": "Wearable Computing technologies are computing devices people wear or carry within their bodies."
+  },
+  {
+    "id": "TC117",
+    "name": "Digital Signage",
+    "description": "Digital Signage technologies control and manage display devices that present media and content."
+  },
+  {
+    "id": "TC125",
+    "name": "End-User Manufacturing",
+    "description": "End-User Manufacturing technologies enable individuals to fabricate or produce physical objects from digital models."
+  },
+  {
+    "id": "TC022",
+    "name": "Endpoint Operating System",
+    "description": "Endpoint Operating System technologies manage and control the hardware, resources, and other software on end-user computing devices."
+  },
+  {
+    "id": "TC049",
+    "name": "End-User Utility Software",
+    "description": "End-User Utility Software technologies are computer programs designed for users to perform commodity tasks."
+  },
+  {
+    "id": "TC054",
+    "name": "End-User Remote Access",
+    "description": "End-User Remote Access technologies enable authorised users to establish controlled connections to endpoints."
+  },
+  {
+    "id": "TC024",
+    "name": "Printing & Scanning",
+    "description": "Printing & Scanning technologies transform digital content into hard-copy output and convert physical documents into digital input."
+  },
+  {
+    "id": "TC015",
+    "name": "Collaboration Platform",
+    "description": "Collaboration Platform technologies provide shared-workspace features and functions that enable real-time co-creation and co-authoring."
+  },
+  {
+    "id": "TC047",
+    "name": "Calendar & Meeting",
+    "description": "Calendar & Meeting technologies assist with the management and scheduling of diaries and events for people and resources."
+  },
+  {
+    "id": "TC118",
+    "name": "File Sharing Services",
+    "description": "File Sharing Services technologies provide facilities that synchronise files between devices and enable file-sharing between users."
+  },
+  {
+    "id": "TC048",
+    "name": "Email",
+    "description": "Email technologies enable the asynchronous exchange of electronic messages and attachments."
+  },
+  {
+    "id": "TC064",
+    "name": "Instant Messaging",
+    "description": "Instant Messaging technologies facilitate real-time communication between individuals or groups."
+  },
+  {
+    "id": "TC046",
+    "name": "Telephony",
+    "description": "Telephony technologies enable interactive communication between physically-separated participants by transmitting sound and video."
+  },
+  {
+    "id": "TC124",
+    "name": "Interactive Voice Response",
+    "description": "Interactive Voice Response technologies enable automated telephone-based interactions with contact-centre customers."
+  },
+  {
+    "id": "TC044",
+    "name": "Call Distribution",
+    "description": "Call Distribution technologies facilitate multi-channel interactions between customers and contact centres by routing communications, managing queues, recording interactions, and providing analytics."
+  },
+  {
+    "id": "TC045",
+    "name": "Media Production",
+    "description": "Media Production technologies enable the generation, capture, manipulation, management, and broadcast of sounds and moving images."
+  },
+  {
+    "id": "TC122",
+    "name": "Extended Reality",
+    "description": "Extended Reality technologies enable the creation of simulated environments and digital elements that users can interact with."
+  },
+  {
+    "id": "TC111",
+    "name": "Single Sign-On",
+    "description": "Single Sign-On technologies provide individuals with the capability to authenticate once when accessing multiple protected systems."
+  },
+  {
+    "id": "TC112",
+    "name": "Multi-Factor Authentication",
+    "description": "Multi-Factor Authentication technologies require two or more verification factors to verify the identity of a user, process, or device."
+  },
+  {
+    "id": "TC113",
+    "name": "Biometrics",
+    "description": "Biometrics technologies can recognise individuals based upon biological and behavioural characteristics."
+  },
+  {
+    "id": "TC050",
+    "name": "Access Management",
+    "description": "Access Management technologies ensure resources, data, and functionality are available only to permitted users."
+  },
+  {
+    "id": "TC019",
+    "name": "Privileged Access Management",
+    "description": "Privileged Access Management technologies establish additional security controls over privileged accounts and elevated permissions."
+  },
+  {
+    "id": "TC003",
+    "name": "Directory Services",
+    "description": "Directory Services technologies store and provide services to access information about users and resources."
+  },
+  {
+    "id": "TC114",
+    "name": "Federation Services",
+    "description": "Federation Services technologies enable authorised individuals to access resources across trust domains using attributes asserted by an identity provider."
+  },
+  {
+    "id": "TC053",
+    "name": "Secrets Management",
+    "description": "Secrets Management technologies securely store, manage, and distribute secrets and credentials."
+  },
+  {
+    "id": "TC051",
+    "name": "Certificate Management",
+    "description": "Certificate Management technologies keep inventory of and lifecycle-manage digital certificates."
+  },
+  {
+    "id": "TC115",
+    "name": "Decentralised Identity Services",
+    "description": "Decentralised Identity Services technologies use distributed ledgers and cryptographic techniques that enable individuals to manage their digital identity information."
+  },
+  {
+    "id": "TC025",
+    "name": "Document Management",
+    "description": "Document Management technologies store, manage, and track electronic documents throughout their lifecycle."
+  },
+  {
+    "id": "TC026",
+    "name": "Records Management",
+    "description": "Records Management technologies facilitate the rules-based lifecycle management of digital and physical records."
+  },
+  {
+    "id": "TC027",
+    "name": "Web Content Management",
+    "description": "Web Content Management technologies lifecycle-manage, govern, and surface online content."
+  },
+  {
+    "id": "TC028",
+    "name": "Digital Asset Management",
+    "description": "Digital Asset Management technologies organise and store digital objects to facilitate their retrieval and sharing."
+  },
+  {
+    "id": "TC029",
+    "name": "Knowledge Base",
+    "description": "Knowledge Base technologies are used to collect and structure curated collections of information about a particular subject."
+  },
+  {
+    "id": "TC030",
+    "name": "Enterprise Search",
+    "description": "Enterprise Search technologies identify and enable data and information across multiple repositories to be found by and displayed to authorised users."
+  },
+  {
+    "id": "TC032",
+    "name": "Business Intelligence",
+    "description": "Business Intelligence technologies are used to create information products that communicate data analysis findings."
+  },
+  {
+    "id": "TC031",
+    "name": "Data Analytics",
+    "description": "Data Analytics technologies apply statistical techniques to interrogate, transform, and model raw data."
+  },
+  {
+    "id": "TC119",
+    "name": "Visual Analytics",
+    "description": "Visual Analytics technologies combine advanced analytics and interactive visualisation techniques to facilitate the exploration and communication of data."
+  },
+  {
+    "id": "TC033",
+    "name": "Artificial Intelligence",
+    "description": "Artificial Intelligence technologies are computing systems, algorithms, and logic-based techniques able to perform a variety of advanced functions and solve cognitive problems in ways that imitate the capabilities of the human mind."
+  },
+  {
+    "id": "TC130",
+    "name": "Geographic Information System",
+    "description": "Geographic Information System technologies manage, model, analyse, and display geographically-referenced data."
+  },
+  {
+    "id": "TC035",
+    "name": "Relational Database",
+    "description": "Relational Database technologies manage and provide access to data stored in related tabular structures."
+  },
+  {
+    "id": "TC037",
+    "name": "Non-Relational Database",
+    "description": "Non-Relational Database technologies store data data in non-tablular formats."
+  },
+  {
+    "id": "TC036",
+    "name": "Data Warehouse",
+    "description": "Data Warehouse technologies store and aggregate structured data from disparate sources."
+  },
+  {
+    "id": "TC034",
+    "name": "Data Lake",
+    "description": "Data Lake technologies are unstructured data repositories that store and secure a variety of data assets."
+  },
+  {
+    "id": "TC006",
+    "name": "Messaging",
+    "description": "Messaging technologies exchange data packets between systems."
+  },
+  {
+    "id": "TC007",
+    "name": "Enterprise Service Bus",
+    "description": "Enterprise Service Bus technologies connect and coordinate interactions between systems."
+  },
+  {
+    "id": "TC017",
+    "name": "Data Movement",
+    "description": "Data Movement technologies transport data from one place to another."
+  },
+  {
+    "id": "TC041",
+    "name": "Data Virtualisation",
+    "description": "Data Virtualisation technologies realise abstracted and integrated presentations of data accessed in-place from disparate sources."
+  },
+  {
+    "id": "TC116",
+    "name": "Data Streaming",
+    "description": "Data Streaming technologies transfer events continuously as they occur in data sources."
+  },
+  {
+    "id": "TC081",
+    "name": "Managed File Transfer",
+    "description": "Managed File Transfer technologies automate and orchestrate the migration and replication of file-based data."
+  },
+  {
+    "id": "TC038",
+    "name": "Data Quality Management",
+    "description": "Data Quality Management technologies assist with the identification and correction of data issues."
+  },
+  {
+    "id": "TC039",
+    "name": "Master Data Management",
+    "description": "Master Data Management technologies enable the identification and lifecycle management of an institution's official shared master data assets."
+  },
+  {
+    "id": "TC040",
+    "name": "Metadata Management",
+    "description": "Metadata Management technologies capture, manage, and facilitate the inspection of data that describe other data."
+  },
+  {
+    "id": "TC102",
+    "name": "Reference Data Management",
+    "description": "Reference Data Management technologies provide repositories and functions that enable the management and governance of reference data."
+  },
+  {
+    "id": "TC088",
+    "name": "Data Loss Prevention",
+    "description": "Data Loss Prevention technologies analyse and control the movement of data across networks."
+  },
+  {
+    "id": "TC072",
+    "name": "Programming Language",
+    "description": "Programming Language technologies are notation systems used to create instructions that cause compute environments to perform tasks."
+  },
+  {
+    "id": "TC071",
+    "name": "Development Framework",
+    "description": "Development Framework technologies provide resources and tools that builders and developers use to build and manage digital products."
+  },
+  {
+    "id": "TC076",
+    "name": "Version Control",
+    "description": "Version Control technologies manage changes to computer programs, documents, large web sites, or other collections of information"
+  },
+  {
+    "id": "TC075",
+    "name": "Continuous Integration & Continuous Delivery",
+    "description": "Continuous Integration & Continuous Delivery technologies automate the build and validation of software and subsequently automate the release process."
+  },
+  {
+    "id": "TC129",
+    "name": "Low-Code Application Platform",
+    "description": "Low-Code Application Platform technologies enable software applications to be developed and run with minimal use of programming languages."
+  },
+  {
+    "id": "TC068",
+    "name": "Software Functional Testing",
+    "description": "Software Functional Testing technologies verify end-to-end functional behaviours and integration capabilities."
+  },
+  {
+    "id": "TC069",
+    "name": "Software Non-Functional Testing",
+    "description": "Software Non-Functional Testing technologies verify performance, usability, and compatibility."
+  },
+  {
+    "id": "TC086",
+    "name": "Software Security Testing",
+    "description": "Software Security Testing technologies analyse and test for security vulnerabilities."
+  },
+  {
+    "id": "TC126",
+    "name": "Digital Accessibility",
+    "description": "Digital Accessibility technologies help create, evaluate, and maintain digital content and functionality that can be used by individuals of all abilities."
+  },
+  {
+    "id": "TC127",
+    "name": "Test Management",
+    "description": "Test Management technologies facilitate the planning, execution, and monitoring of software testing activities."
+  },
+  {
+    "id": "TC073",
+    "name": "Runtime Environment",
+    "description": "Runtime Environment technologies provide places where digital solutions can be deployed and run."
+  },
+  {
+    "id": "TC074",
+    "name": "Application Server",
+    "description": "Application Server technologies provide middleware services and resources that enable the execution of business-logic software."
+  },
+  {
+    "id": "TC100",
+    "name": "Web Server",
+    "description": "Web Server technologies store, process, and deliver content using defined transfer protocols."
+  },
+  {
+    "id": "TC066",
+    "name": "Content Delivery Network",
+    "description": "Content Delivery Network technologies facilitate the availability of digital content through geographically-distributed server networks."
+  },
+  {
+    "id": "TC078",
+    "name": "API Gateway",
+    "description": "API Gateway technologies intermediate and protect client interactions with API endpoints."
+  },
+  {
+    "id": "TC079",
+    "name": "API Management",
+    "description": "API Management technologies are used to facilitate the end-to-end lifecycle management of APIs."
+  },
+  {
+    "id": "TC110",
+    "name": "API Portal",
+    "description": "API Portal technologies provide API consumers a place to discover, access, and learn about the API services published and offered by an API provider."
+  },
+  {
+    "id": "TC128",
+    "name": "API Protection",
+    "description": "API Protection technologies safeguard APIs from vulnerabilities, misuse, and unauthorised access."
+  },
+  {
+    "id": "TC106",
+    "name": "Business Process Analysis",
+    "description": "Business Process Analysis technologies model, inspect, and asses the performance of business processes."
+  },
+  {
+    "id": "TC016",
+    "name": "Business Process Management",
+    "description": "Business Process Management technologies support the modelling, monitoring, and optimisation of business processes."
+  },
+  {
+    "id": "TC080",
+    "name": "Robotic Process Automation",
+    "description": "Robotic Process Automation technologies are used to build, deploy, and manage software robots that emulate human interaction with digital systems."
+  },
+  {
+    "id": "TC103",
+    "name": "Workflow Orchestration",
+    "description": "Workflow Orchestration technologies enable the definition and automation of task sequences required to fulfil a business process."
+  },
+  {
+    "id": "TC104",
+    "name": "Process Mining",
+    "description": "Process Mining technologies examine machine-observable traces of business-process instances to analyse their performance."
+  },
+  {
+    "id": "TC105",
+    "name": "Task Mining",
+    "description": "Task Mining technologies observe and analyse the behaviour of users as they fulfil business-process tasks."
+  },
+  {
+    "id": "TC004",
+    "name": "Server Operating System",
+    "description": "Server Operating System technologies run, manage, monitor, and control applications, processes, and client devices."
+  },
+  {
+    "id": "TC098",
+    "name": "Server Virtualisation",
+    "description": "Server Virtualisation technologies create isolated virtual servers on physical infrastructure by abstracting the underlying hardware resources"
+  },
+  {
+    "id": "TC099",
+    "name": "Containerisation",
+    "description": "Containerisation technologies package software applications and their dependencies together as self-contained portable units able to be deployed, executed, and managed in diverse environments."
+  },
+  {
+    "id": "TC083",
+    "name": "File Storage",
+    "description": "File Storage technologies organise data in a hierarchical format with files contained in directories within volumes."
+  },
+  {
+    "id": "TC052",
+    "name": "Block Storage",
+    "description": "Block Storage technologies organise data into fixed-sized blocks that are accessed through block-level protocols."
+  },
+  {
+    "id": "TC082",
+    "name": "Object Storage",
+    "description": "Object Storage technologies manage and organise data as distinct units in an unstructured format."
+  },
+  {
+    "id": "TC011",
+    "name": "Data Backup & Recovery",
+    "description": "Data Backup & Recovery technologies make periodic copies of system, configuration, and application data to facilitate subsequent recovery."
+  },
+  {
+    "id": "TC043",
+    "name": "Data Archive",
+    "description": "Data Archive technologies use rules to identify inactive data and move them to separate non-production storage."
+  },
+  {
+    "id": "TC097",
+    "name": "Storage Virtualisation",
+    "description": "Storage Virtualisation technologies abstract physical storage resources and present them as a centralised addressable endpoint."
+  },
+  {
+    "id": "TC093",
+    "name": "Core Network",
+    "description": "Core Network technologies route and switch network traffic between subnetworks."
+  },
+  {
+    "id": "TC092",
+    "name": "Personal Area Network",
+    "description": "Personal Area Network technologies are short-range networks that connect devices within close proximity."
+  },
+  {
+    "id": "TC120",
+    "name": "Local Area Network",
+    "description": "Local Area Network technologies connect computing devices in a limited geographical area."
+  },
+  {
+    "id": "TC013",
+    "name": "Wide Area Network",
+    "description": "Wide Area Network technologies connect computing devices over geographically-dispersed locations."
+  },
+  {
+    "id": "TC095",
+    "name": "Network Address Services",
+    "description": "Network Address Services technologies enable the assignment, resolution, management, and monitoring of IP addresses."
+  },
+  {
+    "id": "TC009",
+    "name": "Load Balancer",
+    "description": "Load Balancer technologies distribute workloads amongst multiple resources."
+  },
+  {
+    "id": "TC096",
+    "name": "Network Virtualisation",
+    "description": "Network Virtualisation technologies abstract physical network resources into manageable logical representations."
+  },
+  {
+    "id": "TC001",
+    "name": "Network Hardware",
+    "description": "Network Hardware technologies are physical devices used to build and operate wired and wireless communication networks."
+  },
+  {
+    "id": "TC091",
+    "name": "Wireless",
+    "description": "Wireless technologies provide computing devices with network connectivity using radio waves."
+  },
+  {
+    "id": "TC131",
+    "name": "High-Performance Computing",
+    "description": "High-Performance Computing technologies configure resources to maximise computational performance."
+  },
+  {
+    "id": "TC132",
+    "name": "High-Throughput Computing",
+    "description": "High-Throughput Computing technologies configure resources to maximise job-completion rate over extended periods."
+  },
+  {
+    "id": "TC123",
+    "name": "Data Centre Management",
+    "description": "Data Centre Management technologies manage the resource utilisation and control the environmental parameters of data centres"
+  },
+  {
+    "id": "TC108",
+    "name": "Operational Technology",
+    "description": "Operational Technology may be used to represent the things, sensors, and devices of particular significance to an institution."
+  },
+  {
+    "id": "TC109",
+    "name": "Instrumentation",
+    "description": "Instrumentation may be used to represent the instrumentation and equipment of particular significance to an institution."
+  },
+  {
+    "id": "TC090",
+    "name": "Security Information & Event Management",
+    "description": "Security Information & Event Management technologies harvest and analyse security-related data from various sources."
+  },
+  {
+    "id": "TC089",
+    "name": "Threat Detection & Response",
+    "description": "Threat Detection & Response technologies enable the proactive identification and containment of potential cybersecurity threats."
+  },
+  {
+    "id": "TC005",
+    "name": "User & Entity Behaviour Analytics",
+    "description": "User & Entity Behaviour Analytics technologies monitor and analyse the behaviour patterns of users and devices to detect anomalous activities that may indicate security threats."
+  },
+  {
+    "id": "TC085",
+    "name": "Vulnerability Assessment",
+    "description": "Vulnerability Assessment technologies identify and categorise potential security weaknesses in systems and software."
+  },
+  {
+    "id": "TC101",
+    "name": "Physical Security",
+    "description": "Physical Security technologies deter, detect, and mitigate unauthorised access to premises and assets."
+  },
+  {
+    "id": "TC094",
+    "name": "Secure Remote Access",
+    "description": "Secure Remote Access technologies enable connection to endpoints for privileged system-level technology administration and observation."
+  },
+  {
+    "id": "TC056",
+    "name": "Firewall",
+    "description": "Firewall technologies control access to the network."
+  },
+  {
+    "id": "TC087",
+    "name": "Distributed Denial of Service Mitigation",
+    "description": "Distributed Denial of Service Mitigation technologies detect, analyse, and mitigate distributed denial-of-service attacks."
+  },
+  {
+    "id": "TC084",
+    "name": "Antimalware",
+    "description": "Antimalware technologies detect, prevent, and mitigate malicious software from systems."
+  },
+  {
+    "id": "TC134",
+    "name": "Mobile Device Management",
+    "description": "Mobile Device Management technologies enable the administration, monitoring, and securing of mobile devices."
+  },
+  {
+    "id": "TC133",
+    "name": "Endpoint Data Loss Prevention",
+    "description": "Endpoint Data Loss Prevention technologies monitor, detect, and prevent the unauthorised transmission of data from endpoint devices."
+  },
+  {
+    "id": "TC060",
+    "name": "Configuration Management",
+    "description": "Configuration Management technologies assist the process of maintaining systems in a desired state."
+  },
+  {
+    "id": "TC067",
+    "name": "Remote Support",
+    "description": "Remote Support technologies enable connection to endpoints for the administration of technical support."
+  },
+  {
+    "id": "TC065",
+    "name": "Software Asset Management",
+    "description": "Software Asset Management technologies facilitate the full-lifecycle tracking and oversight of an institution's software estate."
+  },
+  {
+    "id": "TC061",
+    "name": "IT Cost Management",
+    "description": "IT Cost Management technologies track and allocate the cost of technology systems and resources."
+  },
+  {
+    "id": "TC002",
+    "name": "Monitoring & Alerting",
+    "description": "Monitoring & Alerting technologies observe systems and generate notifications when pre-defined conditions are detected."
+  },
+  {
+    "id": "TC063",
+    "name": "IT Asset Discovery",
+    "description": "IT Asset Discovery technologies automate the location, identification, and indexing of an institution's technology estate."
   }
 ]

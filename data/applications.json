@@ -1,12 +1,642 @@
 [
   {
-    "id": "APP001",
-    "name": "Learning Platform",
-    "description": "Software used for courses."
+    "id": "AC096",
+    "name": "Curriculum Lifecycle Management",
+    "description": "Curriculum Lifecycle Management applications enable the design, creation, maintenance, and disestablishment of curriculum for educational institutions."
   },
   {
-    "id": "APP002",
-    "name": "Analytics Dashboard",
-    "description": "Provides insights into performance."
+    "id": "AC105",
+    "name": "Curriculum Accreditation",
+    "description": "Curriculum Accreditation applications enable the capture, analysis, and reporting of information required for the application and maintenance of external accreditation of curricula and the schools, colleges, or institutions that deliver accredited curricula."
+  },
+  {
+    "id": "AC001",
+    "name": "Student Recruitment",
+    "description": "Student Recruitment applications enable attracting and engaging with prospective students."
+  },
+  {
+    "id": "AC002",
+    "name": "Agent Management",
+    "description": "Agent Management applications are responsible for managing international and domestic student recruitment agents."
+  },
+  {
+    "id": "AC003",
+    "name": "Student Admission",
+    "description": "Student Admission applications are responsible for managing domestic and international student admissions."
+  },
+  {
+    "id": "AC006",
+    "name": "Student Management",
+    "description": "Student Management applications support the core records, functions, and processes of the student lifecycle."
+  },
+  {
+    "id": "AC089",
+    "name": "Credit & Articulation",
+    "description": "Credit & Articulation applications recognise credits for prior student learning and suggest appropriate coursework and pathways."
+  },
+  {
+    "id": "AC122",
+    "name": "Candidature Management",
+    "description": "Candidature Management applications enable functions of the student lifecycle unique to candidates undertaking study by research."
+  },
+  {
+    "id": "AC116",
+    "name": "Financial Aid",
+    "description": "Financial Aid applications enable the administration of financial support awarded to students."
+  },
+  {
+    "id": "AC123",
+    "name": "Scholarship Management",
+    "description": "Scholarship Management applications enable the lifecycle management of non-repayable support to students."
+  },
+  {
+    "id": "AC087",
+    "name": "Timetable Management",
+    "description": "Timetable Management applications manage the scheduling and allocation of locations and resources to learning and teaching activities."
+  },
+  {
+    "id": "AC088",
+    "name": "Exchange & Transfer Management",
+    "description": "Exchange & Transfer Management applications facilitate student participation in cross-institutional study."
+  },
+  {
+    "id": "AC007",
+    "name": "Student Conduct Management",
+    "description": "Student Conduct Management applications are responsible for managing student conduct and complaints."
+  },
+  {
+    "id": "AC083",
+    "name": "Student Portal",
+    "description": "Student Portal applications present students with integrated access to aggregated views of commonly-needed information, resources, and software applications."
+  },
+  {
+    "id": "AC086",
+    "name": "Credential Platform",
+    "description": "Credential Platform applications enable the issuance, sharing, and verification of digital credentials."
+  },
+  {
+    "id": "AC115",
+    "name": "Graduation Management",
+    "description": "Graduation Management applications enable the planning and delivery of graduation ceremonies."
+  },
+  {
+    "id": "AC093",
+    "name": "eLearning Authoring",
+    "description": "eLearning Authoring applications are used to create digital learning materials."
+  },
+  {
+    "id": "AC095",
+    "name": "Digital Learning Object Management",
+    "description": "Digital Learning Object Management applications enable the lifecycle management and curation of digital learning resources."
+  },
+  {
+    "id": "AC094",
+    "name": "Digital Media Management",
+    "description": "Digital Media Management applications provide the ability to lifecycle-manage digital media content such as lecture recordings and student videos."
+  },
+  {
+    "id": "AC097",
+    "name": "Learning Management System",
+    "description": "Learning Management System applications manage and facilitate curriculum delivery."
+  },
+  {
+    "id": "AC098",
+    "name": "Placement Management",
+    "description": "Placement Management applications plan, facilitate, and track work- and community-integrated learning experiences for students."
+  },
+  {
+    "id": "AC137",
+    "name": "Specialist Learning Tool",
+    "description": "Specialist Learning Tool applications enable technology-enhanced learning and teaching."
+  },
+  {
+    "id": "AC091",
+    "name": "Academic Advisement",
+    "description": "Academic Advisement applications empower advisors and students to navigate their academic journey by evaluating study options and tracking progress towards successful completion."
+  },
+  {
+    "id": "AC092",
+    "name": "Learning Analytics",
+    "description": "Learning Analytics applications provide diagnostic, predictive, and prescriptive insights on student learning."
+  },
+  {
+    "id": "AC090",
+    "name": "Career Support",
+    "description": "Career Support applications support students in their career planning, development, and job placement."
+  },
+  {
+    "id": "AC103",
+    "name": "Academic Integrity",
+    "description": "Academic Integrity applications provide the ability to evaluate the originality and veracity of student and researcher outputs."
+  },
+  {
+    "id": "AC104",
+    "name": "ePortfolio Management",
+    "description": "ePortfolio Management applications enable students to assemble and share selected artefacts and reflections from their learning journey."
+  },
+  {
+    "id": "AC101",
+    "name": "Examination Management",
+    "description": "Examination Management applications facilitate the planning, development, and conduct of examinations."
+  },
+  {
+    "id": "AC132",
+    "name": "Remote Proctoring",
+    "description": "Remote Proctoring applications enable the invigilation of assessment activities."
+  },
+  {
+    "id": "AC102",
+    "name": "Results Management",
+    "description": "Results Management applications enable the capture, validation, and aggregation of learning assessment outcomes."
+  },
+  {
+    "id": "AC067",
+    "name": "Research Fund Sourcing",
+    "description": "Research Fund Sourcing applications assemble and present information about potential funding sources."
+  },
+  {
+    "id": "AC069",
+    "name": "Research Grants Management",
+    "description": "Research Grants Management applications facilitate the activities required to offer, receive, and administer research grants."
+  },
+  {
+    "id": "AC063",
+    "name": "Research Ethics Management",
+    "description": "Research Ethics Management applications are responsible for managing and tracking ethical clearances for research activities."
+  },
+  {
+    "id": "AC068",
+    "name": "Innovation Management",
+    "description": "Innovation Management applications facilitate the ideation process and manage the idea-to-innovation lifecycle."
+  },
+  {
+    "id": "AC065",
+    "name": "Intellectual Property & Commercialisation",
+    "description": "Intellectual Property & Commercialisation applications administer, protect, and monetise intellectual property assets."
+  },
+  {
+    "id": "AC004",
+    "name": "Research Portal",
+    "description": "Research Portal applications expose aggregated information about researchers, research activities, research outputs, and other research facets."
+  },
+  {
+    "id": "AC066",
+    "name": "Research Infrastructure Management",
+    "description": "Research Infrastructure Management applications enable the booking, scheduling, and operational oversight of research infrastructure."
+  },
+  {
+    "id": "AC076",
+    "name": "Virtual Laboratory",
+    "description": "Virtual Laboratory applications simulate real-world laboratories, providing a digital environment where laboratory functions can be conducted without the need for physical resources."
+  },
+  {
+    "id": "AC075",
+    "name": "Laboratory Information Management",
+    "description": "Laboratory Information Management applications enable the capture and management of laboratory data and processes."
+  },
+  {
+    "id": "AC077",
+    "name": "Electronic Laboratory Notebook",
+    "description": "Electronic Laboratory Notebook applications enable researchers to store, organise, and share the protocols, observations, and data generated from experiments."
+  },
+  {
+    "id": "AC117",
+    "name": "Specimen Management",
+    "description": "Specimen Management applications track the storage, use, and movement of parts, samples, or entire physical entities."
+  },
+  {
+    "id": "AC109",
+    "name": "Animal Management",
+    "description": "Animal Management applications enable the lifecycle and welfare management of animals."
+  },
+  {
+    "id": "AC131",
+    "name": "Clinical Trials Management",
+    "description": "Clinical Trials Management applications manage the conduct and administration of interventional research studies."
+  },
+  {
+    "id": "AC078",
+    "name": "Specialist Research Tool",
+    "description": "Specialist Research Tool applications enable specific functions and activities for conducting research."
+  },
+  {
+    "id": "AC072",
+    "name": "Research Data Management Planning",
+    "description": "Research Data Management Planning applications facilitate the specification and tracking of data-management plans for research datasets."
+  },
+  {
+    "id": "AC071",
+    "name": "Research Identifier Management",
+    "description": "Research Identifier Management applications create and manage unique persistent identifiers for research-related things."
+  },
+  {
+    "id": "AC070",
+    "name": "Research Output Repository",
+    "description": "Research Output Repository applications are responsible for storing research outputs, making them discoverable and sharing the research outputs with eligible parties."
+  },
+  {
+    "id": "AC074",
+    "name": "Reference Management",
+    "description": "Reference Management applications assist bibliographic referencing when writing essays, reports, and articles."
+  },
+  {
+    "id": "AC081",
+    "name": "Research Performance Metrics",
+    "description": "Research Performance Metrics applications provide insights on the quantitative performance measures of managing research at an institution."
+  },
+  {
+    "id": "AC082",
+    "name": "Research Dissemination Metrics",
+    "description": "Research Dissemination Metrics applications collect data about the publication, reuse, and impact of research findings."
+  },
+  {
+    "id": "AC099",
+    "name": "Policy Management",
+    "description": "Policy Management applications facilitate the institution-wide lifecycle management of policy artefacts."
+  },
+  {
+    "id": "AC014",
+    "name": "Risk Management",
+    "description": "Risk Management applications facilitate the recording, assessment, and tracking of risks."
+  },
+  {
+    "id": "AC013",
+    "name": "Quality Management",
+    "description": "Quality Management applications enable the monitoring and measurement of the quality of processes, products, and services."
+  },
+  {
+    "id": "AC012",
+    "name": "Audit Management",
+    "description": "Audit Management applications facilitate the scheduling, execution, and reporting of an institution’s audit and formal review activities."
+  },
+  {
+    "id": "AC041",
+    "name": "Contract Management",
+    "description": "Contract Management applications enable all types of contracts to be administered and overseen throughout their lifecycle."
+  },
+  {
+    "id": "AC133",
+    "name": "Legal Matter Management",
+    "description": "Legal Matter Management applications enable the intake and resolution of the institution’s legal affairs."
+  },
+  {
+    "id": "AC129",
+    "name": "Meeting Management",
+    "description": "Meeting Management applications facilitate the entire lifecycle of administering, conducting, and reviewing structured meetings."
+  },
+  {
+    "id": "AC125",
+    "name": "Digital Voting",
+    "description": "Digital Voting applications manage ballots, electoral rolls, online vote capture and counting, and results calculation."
+  },
+  {
+    "id": "AC015",
+    "name": "Strategy Management",
+    "description": "Strategy Management applications model, map, manage, and measure the relationship between an institution's strategic goals and its business outcomes."
+  },
+  {
+    "id": "AC114",
+    "name": "Enterprise Architecture",
+    "description": "Enterprise Architecture applications establish consolidated connected views of an institution’s current- and desirable-state strategy, business, applications, information, and technology."
+  },
+  {
+    "id": "AC009",
+    "name": "Portfolio Management",
+    "description": "Portfolio Management applications arrange information about programmes and projects into collections able to be prioritised and value-managed as coordinated portfolios of work."
+  },
+  {
+    "id": "AC010",
+    "name": "Programme & Project Management",
+    "description": "Programme & Project Management applications manage information about the initiatives an institution considers or undertakes as structured programmes and their component projects."
+  },
+  {
+    "id": "AC008",
+    "name": "Product Management",
+    "description": "Product Management applications curate information and enable workflows related to the ideation, design, build, and full lifecycle of digital and other products."
+  },
+  {
+    "id": "AC025",
+    "name": "Service Management",
+    "description": "Service Management applications enable the design, operation, and lifecycle management of an institution’s services."
+  },
+  {
+    "id": "AC017",
+    "name": "Case Management",
+    "description": "Case Management applications enable capture, assessment, and resolution of individual conduct and welfare incidents."
+  },
+  {
+    "id": "AC016",
+    "name": "Business Continuity",
+    "description": "Business Continuity applications provide functionality that enable institutions to identify and manage information and plans about how the business will continue to function in the event of disruptions to normal business operations."
+  },
+  {
+    "id": "AC018",
+    "name": "Childcare Management",
+    "description": "Childcare Management applications enable the operation of childcare facilities."
+  },
+  {
+    "id": "AC022",
+    "name": "Healthcare Practice Management",
+    "description": "Healthcare Practice Management applications enable appointment scheduling, billing, claims processing, and other related operations for medical practices."
+  },
+  {
+    "id": "AC021",
+    "name": "Health & Safety",
+    "description": "Health & Safety applications enable the data capture and reporting of hazards and incidents with the potential to harm people engaging with an institution."
+  },
+  {
+    "id": "AC124",
+    "name": "Inventory Management",
+    "description": "Inventory Management applications enable the movement, tracking and storage of physical stock throughout institution storage facilities."
+  },
+  {
+    "id": "AC127",
+    "name": "Hazardous Material Management",
+    "description": "Hazardous Material Management applications manage the lifecycle of hazardous and restricted materials used and consumed by an institution."
+  },
+  {
+    "id": "AC019",
+    "name": "Emergency Management",
+    "description": "Emergency Management applications enable the planning, coordination, and facilitation of responses to critical incidents."
+  },
+  {
+    "id": "AC026",
+    "name": "Travel Management",
+    "description": "Travel Management applications enable the booking, management, and tracking of travel and all travel-related expenses."
+  },
+  {
+    "id": "AC020",
+    "name": "Event Management",
+    "description": "Event Management applications enable the registration, coordination, and scheduling of events."
+  },
+  {
+    "id": "AC139",
+    "name": "Equipment Booking",
+    "description": "Equipment Booking applications enable users to discover, reserve, and allocate bookable assets."
+  },
+  {
+    "id": "AC140",
+    "name": "Transportation Management",
+    "description": "Transportation Management applications enable the scheduling, dispatch, routing, and fee collection for transportation services."
+  },
+  {
+    "id": "AC056",
+    "name": "Identity Governance & Administration",
+    "description": "Identity Governance & Administration applications facilitate the governance and delivery of digital-identity lifecycle-management for people and things."
+  },
+  {
+    "id": "AC112",
+    "name": "Notice & Consent",
+    "description": "Notice & Consent applications facilitate the collection, management, and tracking of the permissions granted by customers to institutions relating to how their personal data are used and consumed."
+  },
+  {
+    "id": "AC005",
+    "name": "Entitlement Management",
+    "description": "Entitlement Management applications enable the controlled administration of access to resources."
+  },
+  {
+    "id": "AC110",
+    "name": "Identity Card",
+    "description": "Identity Card applications enable the design, management, printing, encoding, and provisioning of identity cards to eligible constituents of an institution."
+  },
+  {
+    "id": "AC118",
+    "name": "Marketing CRM",
+    "description": "Marketing CRM applications extend core Customer Relationship Management applications to enable the integrated orchestration of marketing campaigns to targeted customer segments."
+  },
+  {
+    "id": "AC119",
+    "name": "Sales CRM",
+    "description": "Sales CRM applications extend core Customer Relationship Management applications to enable the management of customer journeys throughout the sales pipeline."
+  },
+  {
+    "id": "AC120",
+    "name": "Customer Service CRM",
+    "description": "Customer Service CRM applications extend core Customer Relationship Management applications to enable the capture and management of customer requests, service, support, and engagement."
+  },
+  {
+    "id": "AC121",
+    "name": "Digital Commerce CRM",
+    "description": "Digital Commerce CRM applications extend core Customer Relationship Management applications to enable the offer and sale of products and services to customers."
+  },
+  {
+    "id": "AC028",
+    "name": "Community Engagement",
+    "description": "Community Engagement applications enable institutions to plan and activate consultation and dialogue with nominated communities and with the public."
+  },
+  {
+    "id": "AC027",
+    "name": "Alumni Management",
+    "description": "Alumni Management applications enable alumni and donor relations, communications, marketing and fundraising."
+  },
+  {
+    "id": "AC030",
+    "name": "Fundraising",
+    "description": "Fundraising applications manage donor and pledge information associated with fundraising campaigns."
+  },
+  {
+    "id": "AC136",
+    "name": "Mentoring",
+    "description": "Mentoring applications facilitate the offer, matching, and coordination of interactions between mentors and mentees."
+  },
+  {
+    "id": "AC032",
+    "name": "Voice of Customer",
+    "description": "Voice of Customer applications enable the collection, categorisation, and analysis of customer feedback."
+  },
+  {
+    "id": "AC126",
+    "name": "Survey & Evaluation",
+    "description": "Survey & Evaluation applications design, send, and analyse answers or responses to questions from a target audience."
+  },
+  {
+    "id": "AC138",
+    "name": "Brand Management",
+    "description": "Brand Management applications enable the creation, storage, control, and visibility of an institution’s brand assets and how they are used."
+  },
+  {
+    "id": "AC031",
+    "name": "Marketing Tools",
+    "description": "Marketing Tools applications enable the planning, execution, and analysis of marketing activities."
+  },
+  {
+    "id": "AC128",
+    "name": "Social Media Management",
+    "description": "Social Media Management applications facilitate content scheduling, monitoring, and analytics across multiple social media platforms."
+  },
+  {
+    "id": "AC043",
+    "name": "Financial Planning & Analysis",
+    "description": "Financial Planning & Analysis applications facilitate integrated forecasting, modelling, and reporting of an institution’s financial position."
+  },
+  {
+    "id": "AC042",
+    "name": "Expenses",
+    "description": "Expenses applications help individuals and organisations keep track of, manage, and analyse their expenses."
+  },
+  {
+    "id": "AC039",
+    "name": "Billing",
+    "description": "Billing applications enable the creation, tracking, and processing of invoices."
+  },
+  {
+    "id": "AC111",
+    "name": "Royalty Management",
+    "description": "Royalty Management applications track, manage, and audit royalty dues."
+  },
+  {
+    "id": "AC045",
+    "name": "Payment",
+    "description": "Payment applications facilitate the capture and processing of financial transactions."
+  },
+  {
+    "id": "AC044",
+    "name": "Accounting",
+    "description": "Accounting applications manage and record an institution’s finances."
+  },
+  {
+    "id": "AC040",
+    "name": "Budgeting",
+    "description": "Budgeting applications enable an institution to design, manage, monitor, and alter its budgets."
+  },
+  {
+    "id": "AC048",
+    "name": "Tax Management",
+    "description": "Tax Management applications assist institutions to manage tax-related processes and obligations."
+  },
+  {
+    "id": "AC046",
+    "name": "Payroll",
+    "description": "Payroll applications facilitate the calculation and disbursement of employee salaries, wages, and other compensation."
+  },
+  {
+    "id": "AC047",
+    "name": "Procurement",
+    "description": "Procurement applications enable the sourcing and purchasing of goods and services for an institution."
+  },
+  {
+    "id": "AC038",
+    "name": "Asset Management",
+    "description": "Asset Management applications record an institution's physical assets and track them throughout their lifecycle."
+  },
+  {
+    "id": "AC049",
+    "name": "Treasury",
+    "description": "Treasury applications enable automated financial management of an institution’s cash flow, assets, and investments."
+  },
+  {
+    "id": "AC055",
+    "name": "Workforce Planning",
+    "description": "Workforce Planning applications enable institutions to model, forecast, and plan the size, shape, and composition of their workforce."
+  },
+  {
+    "id": "AC050",
+    "name": "Talent Acquisition",
+    "description": "Talent Acquisition applications support the attraction, engagement, screening, interview, and selection of candidates for open positions."
+  },
+  {
+    "id": "AC054",
+    "name": "Workforce Administration",
+    "description": "Workforce Administration applications enable institutions to manage the core data and business processes related to their workers."
+  },
+  {
+    "id": "AC053",
+    "name": "Time & Attendance",
+    "description": "Time & Attendance applications enable the scheduling and tracking of an institution’s workforce."
+  },
+  {
+    "id": "AC130",
+    "name": "Workforce Scheduling",
+    "description": "Workforce Scheduling applications match variable labour requirements to workforce capability and availability."
+  },
+  {
+    "id": "AC051",
+    "name": "Skills Management",
+    "description": "Skills Management applications enable an institution to identify and track the skills of its workforce."
+  },
+  {
+    "id": "AC052",
+    "name": "Workforce Training & Development",
+    "description": "Workforce Training & Development applications manage the training, licensing, and certification of an institution’s staff."
+  },
+  {
+    "id": "AC036",
+    "name": "Environmental Sustainability",
+    "description": "Environmental Sustainability applications enable the monitoring, measurement, and reporting of resource production and use, carbon emissions, and waste production and recycling."
+  },
+  {
+    "id": "AC134",
+    "name": "Space Management",
+    "description": "Space Management applications enable the planning, forecasting, and allocation of the institution’s physical spaces."
+  },
+  {
+    "id": "AC106",
+    "name": "Facilities Management",
+    "description": "Facilities Management applications support the maintenance, operation, and use of physical facilities."
+  },
+  {
+    "id": "AC107",
+    "name": "Maintenance Management",
+    "description": "Maintenance Management applications track and schedule maintenance work and activity for an institution’s facilities and estate."
+  },
+  {
+    "id": "AC037",
+    "name": "Building Management System",
+    "description": "Building Management System applications monitor and control the mechanical, electrical, and electromechanical services in facilities."
+  },
+  {
+    "id": "AC035",
+    "name": "Fixed Asset Management",
+    "description": "Fixed Asset Management applications track the maintenance, repair, and operations lifecycle and maintain depreciation values of fixed assets."
+  },
+  {
+    "id": "AC113",
+    "name": "Wayfinding",
+    "description": "Wayfinding applications enable people to find, plan, and navigate routes to destinations and landmarks throughout an institution’s estate."
+  },
+  {
+    "id": "AC034",
+    "name": "Physical Access Control",
+    "description": "Physical Access Control applications control the ability of individuals to enter protected locations."
+  },
+  {
+    "id": "AC135",
+    "name": "Workspace Booking",
+    "description": "Workspace Booking applications enable individuals to reserve physical spaces within shared environments for designated periods."
+  },
+  {
+    "id": "AC033",
+    "name": "Parking",
+    "description": "Parking applications enable the use and management of vehicle parking services provided by an institution."
+  },
+  {
+    "id": "AC062",
+    "name": "Collection Management",
+    "description": "Collection Management applications assist in the acquisition, cataloguing, administration, and exhibition of items."
+  },
+  {
+    "id": "AC061",
+    "name": "Library Management",
+    "description": "Library Management applications enable circulation history, administration, cataloguing, reporting, and patron records."
+  },
+  {
+    "id": "AC060",
+    "name": "Accommodation",
+    "description": "Accommodation applications enable the management of an institution’s residential facilities."
+  },
+  {
+    "id": "AC059",
+    "name": "Clubs & Societies Management",
+    "description": "Clubs & Societies Management applications facilitate the operation of an institution’s constituent-led communities and organisations."
+  },
+  {
+    "id": "AC057",
+    "name": "Sport & Recreation",
+    "description": "Sport & Recreation applications enable the management of sport and recreation activities, events, and teams."
+  },
+  {
+    "id": "AC058",
+    "name": "Retail",
+    "description": "Retail applications facilitate the operation of shops and businesses."
   }
 ]
