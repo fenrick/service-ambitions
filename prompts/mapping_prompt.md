@@ -38,7 +38,6 @@ Lists are provided as JSON arrays in code blocks. Each object contains `id`, `na
 - If you are about to include any text outside JSON, stop and return JSON only.
 - The response must adhere strictly to the JSON schema provided below.
 
-
 ## Example output (illustrative structure; IDs here are placeholders)
 
 ```json
@@ -46,16 +45,11 @@ Lists are provided as JSON arrays in code blocks. Each object contains `id`, `na
   "features": [
     {
       "feature_id": "feat-001",
-      "technology": [
-        { "item": "tech-001" },
-        { "item": "tech-004" }
-      ]
+      "technology": [{ "item": "tech-001" }, { "item": "tech-004" }]
     },
     {
       "feature_id": "feat-002",
-      "technology": [
-        { "item": "tech-010" }
-      ]
+      "technology": [{ "item": "tech-010" }]
     }
   ]
 }

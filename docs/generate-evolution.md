@@ -51,7 +51,7 @@ deterministic when supported by the provider.
 Defaults come from `config/app.yaml`:
 
 | Stage        | Default model                  | Fast/cheap alternative |
-|--------------|--------------------------------|------------------------|
+| ------------ | ------------------------------ | ---------------------- |
 | Descriptions | `openai:o4-mini`               | Already cost optimised |
 | Features     | `openai:gpt-5`                 | `openai:o4-mini`       |
 | Mapping      | `openai:o4-mini`               | Already cost optimised |

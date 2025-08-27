@@ -89,3 +89,4 @@ Generate service features for the {service_name} service at plateau {plateau} us
 ## Response structure
 
 {schema}
+```
