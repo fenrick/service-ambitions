@@ -7,12 +7,14 @@
 - **Description:** Delivers a holistic educational framework that not only designs modern curricula and dynamic teaching methods but also supports learners’ entire journey. This service enables students to progress confidently from admission through to career readiness, while ensuring quality through defined performance standards and continuous stakeholder reviews.
 
 ### Existing Features
+
 - **FEAT007 – Adaptive Curriculum Innovation:** Integrates emerging industry trends and feedback into regular curriculum updates, ensuring academic content remains relevant and improvements are measurable.
 - **FEAT047 – Comprehensive Stakeholder Collaboration:** Fosters collaboration among cross-functional teams and external partners through structured forums that align educational strategies and track holistic impact with measurable outcomes.
 - **FEAT065 – Continuous Quality Improvement:** Implements regular stakeholder reviews and performance audits to drive ongoing quality enhancements in educational delivery, ensuring improvements are effective and measurable.
 - **FEAT134 – Integrated Delivery Framework:** Provides a unified delivery framework that integrates curriculum design, instruction, admissions, and student support, guided by clearly defined performance targets.
 
 ### Jobs to Be Done
+
 - **JTBD0007 – Access an Engaging Curriculum:** “I want to study a curriculum that captivates me and aligns with my career goals.” Role: Undergraduate (ROL0101 – Bachelor’s students developing foundational academic knowledge and professional skills.)
 - **JTBD0025 – Access Engaging Curriculum:** “I want to access a curriculum that is engaging and directly relevant to my career goals.” Role: Undergraduate (ROL0101 – Bachelor’s students developing foundational academic knowledge and professional skills.)
 - **JTBD0092 – Continually Update Skills:** “I want flexible, accredited modules that allow me to update my skills as my career evolves.” Role: Lifelong (ROL0107 – Individuals pursuing continuous learning for personal and professional development.)
@@ -35,10 +37,10 @@ I will give you set of defined services, including description, example service 
 1. For each services that are supplied ...
 2. For each role for the service defined, establish what the service is doing to meet the needs of the defined jobs to be done, and any other appropriate jobs that you might consider.
 3. Iterate through the plateaus,
-    1. Consider the style of the service that would exist at that plateau.
-       2.Determine a comprehensive digital ambition that would need to exist to support that plateau's operations.
-       3.For each of the customer archetypes, detail between 3 to 5 digital ambition elements that are core to their new experience.
-       4.Describe the core 3 to 5 digital technologies, techniques and levers required to deliver this ambition.
+   1. Consider the style of the service that would exist at that plateau.
+      2.Determine a comprehensive digital ambition that would need to exist to support that plateau's operations.
+      3.For each of the customer archetypes, detail between 3 to 5 digital ambition elements that are core to their new experience.
+      4.Describe the core 3 to 5 digital technologies, techniques and levers required to deliver this ambition.
 
 Please take the time to review your responses and make thoughtful adjustments. Remember that there's no rush and no wrong answers. Keep your language concise and avoid unnecessary jargon. Focus on including relevant details and background to clarify your topics and ideas without making assumptions. Understand that there won't be a strict 1-1-1 mapping across the provided outputs; instead, document and elaborate as needed. These valuable insights will serve as a foundational draft to strategise the transformation of services.
 Avoid using company names, and describe technologies through their underlying nature, e.g., use a distributed ledger rather than blockchain.
@@ -67,18 +69,23 @@ A technology refers to a tool or capability that significantly amplifies the imp
 When considering potential futures, seek inspiration from this list of potential innovations over the coming decades:
 
 ### Currently mainstream or within 1 year
+
 Advanced and open‑source generative‑AI copilots; Responsible‑AI toolkits and audit frameworks; 5G national‑scale coverage and private 5G for industry; Edge‑AI inference on mobile and IoT chips; Citizen‑developer low‑/no‑code workflow platforms; Real‑time speech and document translation in collaboration suites; SaaS master‑data‑management and privacy‑preserving clean rooms; Digital credentials, micro‑credentials and blockchain badges; Battery‑recycling gigafactories for lithium‑ion cells; Rapid CRISPR trait‑stacking for staple crops; Plant‑based and cultivated meat alternatives in mainstream retail; Green‑hydrogen pilot electrolysers at industrial hubs; Vertical‑farming modules in urban groceries and hospitals; Large‑scale photovoltaic plus storage projects hitting grid parity; Circular‑fashion resale and rental platforms; Hybrid‑work hubs with flexible office footprints; Device‑bound passkeys replacing passwords at major tech firms; Community mental‑health apps with AI triage; Low‑carbon shipping fuels (bio‑methanol, ammonia) on first commercial routes.
 
 ### Within 1–3 years
+
 Decision‑intelligence dashboards fusing ERP, IoT and market data; Neuro‑symbolic AI for explainable risk and compliance analytics; Self‑integrating enterprise applications using AI‑driven connectors; Clinically supervised AI mental‑health companions; Energy‑harvesting wearables and solar‑powered IoT sensors; Circular‑economy digital product passports mandated in the EU; Precision‑fermentation dairy and egg proteins scaling to mass market; Low‑carbon cement and geopolymer concrete entering commercial projects; Policy frameworks for algorithmic transparency and bias redress; Grid‑scale long‑duration batteries (iron‑flow, sodium‑ion) hitting cost parity; AR‑enabled remote‑expert headsets for field service and healthcare; Micro‑mobility fleets of robots and drones in dense CBDs; Bio‑degradable plastics from algae feedstocks; Community micro‑grids with peer‑to‑peer energy trading; Automated sorting of e‑waste for critical‑minerals recovery; Synthetic‑data generation for safer AI training; Tele‑rehabilitation platforms with motion‑capture analytics; Smart irrigation systems using edge‑AI weather prediction; Portable point‑of‑care genome sequencing for pathogen control.
 
 ### Within 3–5 years
+
 Sector‑specific cloud platforms embedding regulatory logic; Digital twins of campuses, factories and city precincts for scenario planning; Emotion‑AI and affective sensing woven into customer‑experience channels; Distributed‑ledger credential wallets for lifelong learning and HR; Immersive VR/AR language‑learning and high‑risk skills simulations; Autonomous drone inspection of infrastructure—bridges, power‑lines, pipelines; Advanced knowledge graphs powering enterprise search and generative Q&A; AI‑designed proteins and novel materials for carbon capture and catalysis; Green‑hydrogen–fuelled heavy trucks on key freight corridors; Modular automated‑construction factories for mid‑rise housing; Climate‑resilient gene‑edited crop varieties for drought and salinity; High‑efficiency heat‑pump retrofits for mass‑market housing; Direct‑air‑capture plants feeding e‑fuel synthesis; Ocean‑based carbon‑removal kelp farms with remote monitoring; Integrated agri‑robotics for precision weeding and harvesting; Graphene‑membrane desalination plants lowering water‑treatment energy; AI‑optimised supply‑chain forecasting for just‑in‑time manufacturing; Hybrid‑propulsion short‑haul aircraft with SAF compatibility; Large‑scale urban tree‑canopy digital planning tools.
 
 ### Within 5–10 years
+
 Metaverse‑grade fully immersive collaboration workspaces; Holographic light‑field displays in conference venues and retail; Haptic gloves and full‑body suits enabling tactile remote operations; Quantum‑accelerated optimisation for logistics, materials and pharma pipelines; 3D bioprinting of transplant‑ready kidneys and livers; Nano‑robotic targeted drug‑delivery clinical trials; Ambient intelligence across smart precincts—lighting, waste and mobility orchestration; Swarm robotics for autonomous construction and disaster response; Augmented‑reality contact lenses and gesture‑/thought‑controlled interfaces; Smart‑dust sensor networks for climate, biodiversity and biosecurity monitoring; Fusion pilot‑plant electricity to grid and advanced small modular reactors; Brain–computer‑interface therapeutics restoring movement in spinal‑cord injury; Biocomputing and DNA data‑storage archives for exabyte‑scale cold data; Energy‑positive modular data‑centre blocks using waste‑heat capture; Gigaton‑scale CO₂ mineralisation in mine‑tailing and basalt formations; Circular‑metallurgy hubs extracting critical minerals from e‑waste; Bio‑manufactured structural timber and mycelium building panels; Gravity‑based energy‑storage towers stabilising renewables; Generative‑design algorithms shaping zero‑carbon architecture; Autonomous ocean‑going cargo ships with remote command centres; Carbon‑neutral e‑kerosene production for long‑haul aviation; Global zero‑latency networks via dense LEO satellite constellations.
 
 ### Speculative / unlikely to transform the world within 10 years
+
 Hyperloop mass transit beyond isolated test tracks; Space elevators or lunar mass tourism; Stratospheric aerosol geo‑engineering deployed at scale without robust governance; Whole‑brain emulation, mind uploading or full human–AI “mind melds”; Transhumanist genetic performance enhancement approved for population use; Predictive policing deployed nationally without severe backlash; Ambient time‑accelerated or history‑replay simulations in mainstream education; Deep‑sea mining of polymetallic nodules at commercial scale with full ESG consent; Zero‑point or cold‑fusion energy breakthroughs; Faster‑than‑light propulsion for interstellar probes.
 
 ---
@@ -90,11 +97,13 @@ generation. The stages below show the structure of prompts and responses for
 each plateau individually.
 
 ### Description Prompt
+
 Refer to the situational context, definitions and inspirations provided earlier to maintain consistent terminology across stages.
 
 Provide a description of the service at plateau 1 (Foundational).
 
 #### Instructions
+
 - Base wording on the situational context, definitions and inspirations.
 - Return a JSON object containing only a `description` field.
 - `description` must be a non-empty string explaining the service at plateau 1.
@@ -102,6 +111,7 @@ Provide a description of the service at plateau 1 (Foundational).
 - The response must adhere to the JSON schema provided below.
 
 #### Response structure
+
 ```
 {
   "type": "object",
@@ -113,21 +123,24 @@ Provide a description of the service at plateau 1 (Foundational).
 ```
 
 ### Feature Generation Prompt
+
 Generate service features for the Learning & Teaching service at plateau 1.
 
 #### Instructions
+
 - Use the service description: <Foundational description>.
 - Reference the situational context, definitions and inspirations to maintain consistent terminology.
 - Return a single JSON object with three keys: "learners", "staff" and "community".
 - Each key must map to an array containing at least 5 feature objects.
 - Every feature must provide:
-    - "name": short feature title.
-    - "description": explanation of the feature.
-    - "score": object describing CMMI maturity with "level", "label" and "justification".
+  - "name": short feature title.
+  - "description": explanation of the feature.
+  - "score": object describing CMMI maturity with "level", "label" and "justification".
 - Do not include any text outside the JSON object.
 - The response must adhere to the JSON schema provided below.
 
 #### Response structure
+
 ```
 {
   "type": "object",
@@ -150,26 +163,32 @@ Generate service features for the Learning & Teaching service at plateau 1.
 ```
 
 ### Mapping Prompt
+
 Map each feature to relevant Information, Applications and Technologies from the lists below.
 
 #### Available Information
+
 - INFO001: User Data - Information about the user.
 - INFO002: Course Material - Content used for teaching.
 
 #### Available Applications
+
 - APP001: Learning Platform - Software used for courses.
 - APP002: Analytics Dashboard - Provides insights into performance.
 
 #### Available Technologies
+
 - TECH001: AI Engine - Provides intelligent features.
 - TECH002: Cloud Storage - Stores data securely.
 
 #### Features
+
 - Foundational features
 
 #### Instructions
+
 - Return a JSON object with a top-level "features" array.
-- Each element must include a 6 character ``feature_id`` and a "mappings" object containing "information", "applications" and "technologies" arrays.
+- Each element must include a 6 character `feature_id` and a "mappings" object containing "information", "applications" and "technologies" arrays.
 - Each mapping entry must include an "item" field. When diagnostics are enabled, also return a single-line "rationale" for the match.
 - Do not invent IDs; only use those provided.
 - Maintain terminology consistent with the situational context, definitions and inspirations.
@@ -177,6 +196,7 @@ Map each feature to relevant Information, Applications and Technologies from the
 - The response must adhere to the JSON schema provided below.
 
 #### Response structure
+
 ```
 {
   "type": "object",
@@ -205,47 +225,55 @@ Map each feature to relevant Information, Applications and Technologies from the
 
 ## Stage 6 – Enhanced Plateau (Level 2)
 
-*(Prompts mirror those in Stage 5 with plateau value 2 and "Enhanced" references. The service description from the Foundational stage is replaced with the new description for plateau 2.)*
+_(Prompts mirror those in Stage 5 with plateau value 2 and "Enhanced" references. The service description from the Foundational stage is replaced with the new description for plateau 2.)_
 
 ### Description Prompt
+
 Provide a description of the service at plateau 2 (Enhanced) with the same instructions and schema as in Stage 5.
 
 ### Feature Generation Prompt
+
 Generate service features for the Learning & Teaching service at plateau 2 using the new plateau description. Follow the same instructions and schema as Stage 5.
 
 ### Mapping Prompt
+
 Map features produced for plateau 2 using the same Data, Applications and Technologies lists, instructions and schema as Stage 5.
 
 ---
 
 ## Stage 7 – Experimental Plateau (Level 3)
 
-*(Prompts mirror those in Stage 5 with plateau value 3 and "Experimental" references. Use the description generated for plateau 3.)*
+_(Prompts mirror those in Stage 5 with plateau value 3 and "Experimental" references. Use the description generated for plateau 3.)_
 
 ### Description Prompt
+
 Provide a description of the service at plateau 3 (Experimental) with the same instructions and schema as before.
 
 ### Feature Generation Prompt
+
 Generate service features for the Learning & Teaching service at plateau 3 using its description. Follow the same instructions and schema as Stage 5.
 
 ### Mapping Prompt
+
 Map features produced for plateau 3 using the same Data, Applications and Technologies lists, instructions and schema as Stage 5.
 
 ---
 
 ## Stage 8 – Disruptive Plateau (Level 4)
 
-*(Prompts mirror those in Stage 5 with plateau value 4 and "Disruptive" references. Use the description generated for plateau 4.)*
+_(Prompts mirror those in Stage 5 with plateau value 4 and "Disruptive" references. Use the description generated for plateau 4.)_
 
 ### Description Prompt
+
 Provide a description of the service at plateau 4 (Disruptive) with the same instructions and schema as earlier stages.
 
 ### Feature Generation Prompt
+
 Generate service features for the Learning & Teaching service at plateau 4 using its description. Follow the same instructions and schema as Stage 5.
 
 ### Mapping Prompt
-Map features produced for plateau 4 using the same Data, Applications and Technologies lists, instructions and schema as Stage 5.
 
+Map features produced for plateau 4 using the same Data, Applications and Technologies lists, instructions and schema as Stage 5.
 
 ---
 

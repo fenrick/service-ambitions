@@ -32,9 +32,9 @@ Disable or change cache behaviour in `config/app.yaml` or via environment
 variables:
 
 ```yaml
-use_local_cache: true       # Enable reading/writing the cache directory.
-cache_mode: "read"          # Cache behaviour: off, read, refresh or write.
-cache_dir: .cache           # Directory to store cache files.
+use_local_cache: true # Enable reading/writing the cache directory.
+cache_mode: "read" # Cache behaviour: off, read, refresh or write.
+cache_dir: .cache # Directory to store cache files.
 ```
 
 Set `use_local_cache: false` or `cache_mode: "off"` to bypass the cache, or use
@@ -55,7 +55,7 @@ search: openai:gpt-4o-search-preview
 ```
 
 | Stage        | Default model                  | Fast/cheap alternative |
-|--------------|--------------------------------|------------------------|
+| ------------ | ------------------------------ | ---------------------- |
 | Descriptions | `openai:o4-mini`               | Already cost optimised |
 | Features     | `openai:gpt-5`                 | `openai:o4-mini`       |
 | Mapping      | `openai:o4-mini`               | Already cost optimised |
@@ -68,11 +68,11 @@ for details.
 
 ### Model matrix
 
-| Preset       | Model              | Reasoning effort |
-|--------------|--------------------|------------------|
-| cheap & fast | `openai:o4-mini`   | low              |
-| balanced     | `openai:gpt-5`     | medium           |
-| max quality  | `openai:gpt-5`     | high             |
+| Preset       | Model            | Reasoning effort |
+| ------------ | ---------------- | ---------------- |
+| cheap & fast | `openai:o4-mini` | low              |
+| balanced     | `openai:gpt-5`   | medium           |
+| max quality  | `openai:gpt-5`   | high             |
 
 Select a preset by setting `reasoning.effort` in `config/app.yaml` to
 `low`, `medium` or `high`.

@@ -71,3 +71,4 @@ Lists are provided as JSON arrays in code blocks. Each object contains `id`, `na
 ## Response structure
 
 {schema}
+```

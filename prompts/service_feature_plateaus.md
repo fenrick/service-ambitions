@@ -39,5 +39,4 @@
      - The organization acts as a market convenor, orchestrating ecosystems of partners, customers, and machines.
      - It sets new industry standards for technology, trust, and value exchange.
      - The business creates measurable public good (e.g., reduced emissions, improved public health) as a byproduct of its core operation.
-   - What it feels like: We no longer compete in the market; we *are* the market. Our platform is the foundation on which new businesses and value are built.
-
+   - What it feels like: We no longer compete in the market; we _are_ the market. Our platform is the foundation on which new businesses and value are built.
