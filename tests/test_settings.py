@@ -20,7 +20,7 @@ def test_load_settings_reads_env(monkeypatch) -> None:
     monkeypatch.setenv("CACHE_DIR", "/tmp/cache")
     settings = load_settings()
     assert settings.openai_api_key == "token"
-    assert settings.model == "openai:gpt-5"
+    assert settings.model == "openai:gpt-5-mini"
     assert settings.models is not None
     assert settings.models.descriptions == "openai:o4-mini"
     assert settings.log_level == "INFO"

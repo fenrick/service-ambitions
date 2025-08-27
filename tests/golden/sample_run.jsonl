@@ -1,1 +1,1 @@
-{"service":"{\"service_id\":\"svc\",\"name\":\"alpha\",\"customer_type\":null,\"description\":\"desc\",\"jobs_to_be_done\":[{\"name\":\"job\"}],\"features\":[]}"}
+{"service":"{\"service_id\":\"svc\",\"name\":\"alpha\",\"parent_id\":null,\"customer_type\":null,\"description\":\"desc\",\"jobs_to_be_done\":[{\"name\":\"job\"}],\"features\":[]}"}

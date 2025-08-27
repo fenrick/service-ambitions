@@ -40,7 +40,11 @@ def _process_line(
     path_obj: Path,
     adapter: TypeAdapter[ServiceInput],
 ) -> ServiceInput | None:
-    """Return validated service or ``None`` for invalid entries."""
+    """Return validated service or ``None`` for invalid entries.
+
+    Any ``features`` provided on the service are cleared to ensure the loader
+    only returns baseline service metadata.
+    """
 
     if not line:
         logfire.debug(
@@ -51,6 +55,7 @@ def _process_line(
         return None
     try:
         service = adapter.validate_json(line)
+        service.features.clear()  # Drop feature details after load.
         VALID_SERVICES.add(1)
         return service
     except Exception as exc:
