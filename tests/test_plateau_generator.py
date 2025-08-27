@@ -110,7 +110,7 @@ async def test_map_features_maps_all_sets_with_full_list(monkeypatch) -> None:
 
     mapping_sets = [
         MappingSet(name="Applications", file="applications.json", field="applications"),
-        MappingSet(name="Technologies", file="technologies.json", field="technology"),
+        MappingSet(name="Technologies", file="technologies.json", field="technologies"),
         MappingSet(name="Data", file="information.json", field="data"),
         MappingSet(name="Extra", file="extra.json", field="extra"),
     ]
@@ -228,7 +228,7 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
         return {
             "data": [MappingFeatureGroup(id="d", mappings=refs.copy())],
             "applications": [MappingFeatureGroup(id="a", mappings=refs.copy())],
-            "technology": [MappingFeatureGroup(id="t", mappings=refs.copy())],
+            "technologies": [MappingFeatureGroup(id="t", mappings=refs.copy())],
         }
 
     monkeypatch.setattr(PlateauGenerator, "_map_features", dummy_map_features)
@@ -258,7 +258,7 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
     assert set(plateau.mappings.keys()) == {
         "data",
         "applications",
-        "technology",
+        "technologies",
     }
     assert call["n"] == 1
     assert len(session.prompts) == 2

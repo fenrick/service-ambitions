@@ -124,12 +124,46 @@ class DiagnosticContribution(Contribution):
 
 
 class DefinitionItem(StrictModel):
-    """Named definition entry used when rendering reference sections."""
+    """Detailed definition entry rendered in reference sections."""
 
+    id: Annotated[str, Field(min_length=1, description="Definition identifier.")]
     name: Annotated[str, Field(min_length=1, description="Definition term.")]
-    description: Annotated[
-        str, Field(min_length=1, description="Explanation of the term.")
+    aliases: list[str] = Field(
+        default_factory=list, description="Alternative terms for the definition."
+    )
+    short_definition: str | None = Field(
+        None, description="Concise explanation of the term."
+    )
+    definition: Annotated[
+        str, Field(min_length=1, description="Full explanation of the term.")
     ]
+    decision_rules: list[str] = Field(
+        default_factory=list,
+        description="Heuristics for determining if something fits the term.",
+    )
+    use_when: list[str] = Field(
+        default_factory=list, description="Situations where the term applies."
+    )
+    avoid_confusion_with: list[str] = Field(
+        default_factory=list,
+        description="Terms that are often confused with this one.",
+    )
+    examples: list[str] = Field(
+        default_factory=list, description="Illustrative examples."
+    )
+    non_examples: list[str] = Field(
+        default_factory=list, description="Counterexamples clarifying scope."
+    )
+    related_terms: list[str] = Field(
+        default_factory=list, description="Identifiers of related terms."
+    )
+    tags: list[str] = Field(default_factory=list, description="Categorisation tags.")
+    owner: str | None = Field(
+        None, description="Owning team or role for this definition."
+    )
+    last_updated: str | None = Field(
+        None, description="Last update timestamp for the definition."
+    )
 
 
 class DefinitionBlock(StrictModel):
@@ -138,6 +172,10 @@ class DefinitionBlock(StrictModel):
     title: Annotated[
         str, Field(min_length=1, description="Definitions section heading.")
     ] = "Definitions"
+    version: str | None = Field(None, description="Definition set version.")
+    last_updated: str | None = Field(
+        None, description="Timestamp when definitions were last updated."
+    )
     bullets: list[DefinitionItem] = Field(
         default_factory=list, description="Collection of definition items."
     )

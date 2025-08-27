@@ -29,7 +29,7 @@ mapping_types:
   applications:
     dataset: applications  # Applications catalogue dataset name.
     label: Applications
-  technology:
+  technologies:
     dataset: technologies  # Technologies catalogue dataset name.
     label: Technologies
 
@@ -40,7 +40,7 @@ mapping_sets:
     field: applications  # Field name used in mapping results.
   - name: Technologies
     file: technologies.json
-    field: technology
+    field: technologies
   - name: Data
     file: information.json
     field: data

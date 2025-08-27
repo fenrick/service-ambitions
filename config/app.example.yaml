@@ -31,7 +31,7 @@ mapping_types:
   applications:
     dataset: applications
     label: Applications
-  technology:
+  technologies:
     dataset: technologies
     label: Technologies
 
@@ -42,7 +42,7 @@ mapping_sets:
     field: applications
   - name: Technologies
     file: technologies.json
-    field: technology
+    field: technologies
   - name: Data
     file: information.json
     field: data
