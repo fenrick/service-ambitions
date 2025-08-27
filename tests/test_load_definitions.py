@@ -17,8 +17,8 @@ def test_load_definitions_roundtrip(tmp_path: Path) -> None:
     content = {
         "title": "Key definitions",
         "bullets": [
-            {"name": "Alpha", "description": "First"},
-            {"name": "Beta", "description": "Second"},
+            {"id": "a", "name": "Alpha", "definition": "First"},
+            {"id": "b", "name": "Beta", "definition": "Second"},
         ],
     }
     file = tmp_path / "definitions.json"
@@ -36,7 +36,7 @@ def test_load_definitions_validation_error(tmp_path: Path) -> None:
 
     content = {
         "title": "Key definitions",
-        "bullets": [{"name": "Alpha"}],
+        "bullets": [{"id": "a", "name": "Alpha"}],
     }
     file = tmp_path / "definitions.json"
     file.write_text(json.dumps(content), encoding="utf-8")

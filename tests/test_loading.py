@@ -32,8 +32,8 @@ def test_load_prompt_assembles_components(tmp_path):
     (prompts_dir / "response_structure.md").write_text("resp", encoding="utf-8")
     data_dir.mkdir()
     (data_dir / "definitions.json").write_text(
-        '{"title": "Defs", "bullets": [{"name": "d1", "description": "defs"}, {"name":'
-        ' "d2", "description": "extra"}]}',
+        '{"title": "Defs", "bullets": [{"id": "d1", "name": "d1", "definition":'
+        ' "defs"}, {"id": "d2", "name": "d2", "definition": "extra"}]}',
         encoding="utf-8",
     )
     (data_dir / "service_feature_plateaus.json").write_text(
@@ -89,8 +89,8 @@ def test_load_prompt_with_definition_keys(tmp_path):
     (prompts_dir / "response_structure.md").write_text("resp", encoding="utf-8")
     data_dir.mkdir()
     (data_dir / "definitions.json").write_text(
-        '{"title": "Defs", "bullets": [{"name": "d1", "description": "defs1"}, {"name":'
-        ' "d2", "description": "defs2"}]}',
+        '{"title": "Defs", "bullets": [{"id": "d1", "name": "d1", "definition":'
+        ' "defs1"}, {"id": "d2", "name": "d2", "definition": "defs2"}]}',
         encoding="utf-8",
     )
     (data_dir / "service_feature_plateaus.json").write_text(
@@ -127,7 +127,7 @@ def test_load_ambition_prompt_includes_north_star(tmp_path):
     (prompts_dir / "response_structure.md").write_text("resp", encoding="utf-8")
     data_dir.mkdir()
     (data_dir / "definitions.json").write_text(
-        '{"title": "Defs", "bullets": [{"name": "d1", "description": "defs"}]}',
+        '{"title": "Defs", "bullets": [{"id": "d1", "name": "d1", "definition": "defs"}]}',
         encoding="utf-8",
     )
     (data_dir / "service_feature_plateaus.json").write_text(

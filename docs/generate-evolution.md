@@ -113,7 +113,7 @@ Each line in the output file is a JSON object with:
           "mappings": {
             "information": [{ "item": "string" }],
             "applications": [{ "item": "string" }],
-            "technologies": [{ "item": "string" }]
+            "digital_levers": [{ "item": "string" }]
           }
         }
       ]

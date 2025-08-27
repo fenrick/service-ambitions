@@ -377,10 +377,12 @@ def load_definitions(
 
     bullets = data.bullets
     if keys:
-        bullets = [item for item in bullets if item.name in keys]
+        bullets = [item for item in bullets if item.id in keys]
     lines = [f"## {data.title}", ""]
     for idx, item in enumerate(bullets, start=1):
-        lines.append(f"{idx}. **{item.name}**: {item.description}")
+        alias = f" ({', '.join(item.aliases)})" if item.aliases else ""
+        text = item.short_definition or item.definition
+        lines.append(f"{idx}. **{item.name}**{alias}: {text}")
     return "\n".join(lines)
 
 

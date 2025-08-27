@@ -162,7 +162,7 @@ Each service is evaluated across the plateaus defined in
 1. **Descriptions** – a single request returns narratives for all plateaus.
 2. **Features and Mapping** – for each plateau, generate learner, academic and
    professional staff features and link them to reference Information,
-   Applications and Technologies using the previously collected description.
+   Applications and Digital Levers using the previously collected description.
 
 This workflow issues one call to fetch all descriptions, then queries each
 plateau separately for feature generation. The result is a complete
@@ -234,7 +234,7 @@ Each JSON line in the output file follows the `ServiceEvolution` schema:
           "mappings": {
             "information": [{ "item": "string" }],
             "applications": [{ "item": "string" }],
-            "technologies": [{ "item": "string" }]
+            "digital_levers": [{ "item": "string" }]
           }
         }
       ]
@@ -264,7 +264,7 @@ Fields in the schema:
       - `score`: object with CMMI maturity `level`, `label` and `justification`.
       - `customer_type`: audience benefiting from the feature.
       - `mappings`: object with `information`, `applications` and
-        `technologies` lists of mapping items referencing supporting IDs. Use
+        `digital_levers` lists of mapping items referencing supporting IDs. Use
         `--diagnostics` to include a brief `rationale` for each mapping.
 
 ## Reference Data
@@ -274,7 +274,7 @@ Each of `information.json`, `applications.json`, and `technologies.json`
 contains items with identifiers, names, and descriptions. These lists are
 injected into mapping prompts so that features can be matched against consistent
 options. Mapping prompts run separately for information, applications and
-technologies to keep each decision focused. All application configuration is
+digital levers to keep each decision focused. All application configuration is
 stored in `config/app.yaml`; the chat model and any reasoning parameters live
 at the top level, while mapping types and their associated datasets live under
 the `mapping_types` section, allowing new categories to be added without code
@@ -325,7 +325,7 @@ Map each feature to relevant Applications from the list below.
 - Do not include any text outside the JSON object.
 ```
 
-Repeat this structure for the `technologies` and `information` datasets. Run with `--diagnostics` to additionally request a one-line rationale for each mapping.
+Repeat this structure for the `technologies` and `information` datasets (digital levers and data). Run with `--diagnostics` to additionally request a one-line rationale for each mapping.
 
 ## IDE support
 

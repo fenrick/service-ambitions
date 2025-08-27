@@ -150,7 +150,7 @@ Generate service features for the Learning & Teaching service at plateau 1.
 ```
 
 ### Mapping Prompt
-Map each feature to relevant Information, Applications and Technologies from the lists below.
+Map each feature to relevant Information, Applications and Digital Levers from the lists below.
 
 #### Available Information
 - INFO001: User Data - Information about the user.
@@ -160,7 +160,7 @@ Map each feature to relevant Information, Applications and Technologies from the
 - APP001: Learning Platform - Software used for courses.
 - APP002: Analytics Dashboard - Provides insights into performance.
 
-#### Available Technologies
+#### Available Digital Levers
 - TECH001: AI Engine - Provides intelligent features.
 - TECH002: Cloud Storage - Stores data securely.
 
@@ -169,7 +169,7 @@ Map each feature to relevant Information, Applications and Technologies from the
 
 #### Instructions
 - Return a JSON object with a top-level "features" array.
-- Each element must include a 6 character ``feature_id`` and a "mappings" object containing "information", "applications" and "technologies" arrays.
+- Each element must include a 6 character ``feature_id`` and a "mappings" object containing "information", "applications" and "digital_levers" arrays.
 - Each mapping entry must include an "item" field. When diagnostics are enabled, also return a single-line "rationale" for the match.
 - Do not invent IDs; only use those provided.
 - Maintain terminology consistent with the situational context, definitions and inspirations.
@@ -214,7 +214,7 @@ Provide a description of the service at plateau 2 (Enhanced) with the same instr
 Generate service features for the Learning & Teaching service at plateau 2 using the new plateau description. Follow the same instructions and schema as Stage 5.
 
 ### Mapping Prompt
-Map features produced for plateau 2 using the same Data, Applications and Technologies lists, instructions and schema as Stage 5.
+Map features produced for plateau 2 using the same Data, Applications and Digital Levers lists, instructions and schema as Stage 5.
 
 ---
 
@@ -229,7 +229,7 @@ Provide a description of the service at plateau 3 (Experimental) with the same i
 Generate service features for the Learning & Teaching service at plateau 3 using its description. Follow the same instructions and schema as Stage 5.
 
 ### Mapping Prompt
-Map features produced for plateau 3 using the same Data, Applications and Technologies lists, instructions and schema as Stage 5.
+Map features produced for plateau 3 using the same Data, Applications and Digital Levers lists, instructions and schema as Stage 5.
 
 ---
 
@@ -244,7 +244,7 @@ Provide a description of the service at plateau 4 (Disruptive) with the same ins
 Generate service features for the Learning & Teaching service at plateau 4 using its description. Follow the same instructions and schema as Stage 5.
 
 ### Mapping Prompt
-Map features produced for plateau 4 using the same Data, Applications and Technologies lists, instructions and schema as Stage 5.
+Map features produced for plateau 4 using the same Data, Applications and Digital Levers lists, instructions and schema as Stage 5.
 
 
 ---

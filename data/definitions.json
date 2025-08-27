@@ -1,21 +1,91 @@
 {
   "title": "Key definitions",
+  "version": "1.1",
+  "last_updated": "2025-08-27",
   "bullets": [
     {
+      "id": "jtbd",
       "name": "Jobs to be Done",
-      "description": "The concept of \"Jobs to be Done\" (JTBD) is a customer-centric framework used to understand the underlying needs and goals that drive customer behaviour. At its core, the JTBD theory suggests that customers \"hire\" products or services to accomplish specific tasks or achieve desired outcomes. These \"jobs\" go beyond the essential functional use of a product and include emotional and social dimensions that are important to the customer. The relationship between services and customers is crucial in JTBD because it focuses on why customers seek solutions, underscoring the importance of understanding and meeting customer needs. It allows businesses to design services that meet these broader needs and create meaningful, lasting customer relationships."
+      "aliases": ["JTBD", "customer job", "job story"],
+      "short_definition": "JTBD explains the progress a customer seeks in a situation; customers ‘hire’ a solution to achieve functional, emotional and social outcomes.",
+      "definition": "JTBD is a lens for understanding why customers choose solutions. It focuses on the desired outcomes and context, not demographics or product features. Use it to frame services and features around customer outcomes and to prioritise by impact on those outcomes.",
+      "use_when": ["Defining outcomes to guide service scope", "Prioritising features by outcome impact"],
+      "avoid_confusion_with": ["personas", "needs lists", "requirements backlogs"],
+      "examples": [
+        "When I lodge a claim, I want a clear status in under 2 minutes so I feel in control.",
+        "When comparing plans, I want a simple cost forecast so I can choose confidently."
+      ],
+      "non_examples": [
+        "Our target is 25–34 year-olds in NSW.",
+        "Build an AI chatbot (no outcome stated)."
+      ],
+      "related_terms": ["service", "service_feature"],
+      "tags": ["customer", "outcomes", "prioritisation"],
+      "owner": "Product",
+      "last_updated": "2025-08-27"
     },
     {
+      "id": "service",
       "name": "Service",
-      "description": "A service represents an externally facing function that an organisation provides to deliver value to its clients or customers. It directly relates to the concept of JTBD, which defines the specific tasks or outcomes customers expect to achieve when using the service. Organisations design business services with features directly supporting these jobs, offering solutions that address customer needs or problems. The success of a business service depends on its ability to efficiently and effectively fulfil these jobs, tailoring its features to enhance the customer experience, ensure usability, and drive business outcomes such as customer satisfaction and profitability. By aligning service features with customer jobs, organisations can ensure that their services deliver tangible benefits critical for achieving strategic goals and ensuring long-term success."
+      "aliases": ["offering", "customer service", "business service"],
+      "short_definition": "An externally facing offering that delivers value to customers and is measured by how well it fulfils relevant JTBD.",
+      "definition": "A service bundles policies, processes and features to deliver outcomes customers care about. It is defined from the outside-in (customer view), with success measured by outcome attainment (e.g., time to value, success rate), not internal activities.",
+      "use_when": ["Scoping what we offer to customers", "Setting outcome metrics"],
+      "avoid_confusion_with": ["internal process", "IT system", "organisational team"],
+      "examples": [
+        "‘Lodge and track insurance claims’ service.",
+        "‘Onboard a new employee’ self-service portal."
+      ],
+      "non_examples": [
+        "Claims Processing Team (an org unit, not the service).",
+        "Policy Admin System (a system supporting the service)."
+      ],
+      "related_terms": ["jtbd", "service_feature", "digital_lever"],
+      "tags": ["offering", "cx", "outcomes"],
+      "owner": "Service Design",
+      "last_updated": "2025-08-27"
     },
     {
+      "id": "service_feature",
       "name": "Service Feature",
-      "description": "A service feature is a specific functionality or characteristic within a broader service that supports executing tasks, activities, or processes critical to delivering value. These features are integral components that enhance or enable a service to meet business requirements, often directly impacting the service's efficiency, reliability, or customer satisfaction. In a digital context, service features leverage digital levers—such as automation, integration, and data-driven insights—to improve scalability, responsiveness, and operational efficiency. These digital enablers adapt the service to business needs and customer expectations, ensuring alignment with strategic goals and maximising delivered value. Service features often form the building blocks for enhancing service portfolios by embedding critical digital tools and processes that allow the service to evolve and effectively respond to market and operational demands."
+      "aliases": ["feature", "capability (customer-facing)"],
+      "short_definition": "A discrete, user-visible capability within a service that helps a customer achieve an outcome.",
+      "definition": "Features change what the customer can do. Each feature should be testable, measurable, and traceable to a JTBD outcome. Features may be enabled by digital levers but are distinct from the levers themselves.",
+      "decision_rules": [
+        "If it affects the customer’s ability to complete a task → likely a feature.",
+        "If it only boosts efficiency or quality under the hood → likely a digital lever."
+      ],
+      "examples": [
+        "Real-time claim status tracker.",
+        "‘Compare plans’ with total cost estimate.",
+        "Saved applications with auto-resume."
+      ],
+      "non_examples": [
+        "RPA bot that copies data between systems (lever unless exposed to users)."
+      ],
+      "related_terms": ["service", "jtbd", "digital_lever"],
+      "tags": ["ux", "capabilities", "measurement"],
+      "owner": "Product",
+      "last_updated": "2025-08-27"
     },
     {
+      "id": "digital_lever",
       "name": "Digital Lever",
-      "description": "A digital lever refers to a technological tool or capability that significantly amplifies the impact or efficiency of a process, system, or business model. Just as a physical lever provides a mechanical advantage to move objects with less effort, a digital lever enables organisations to achieve more with fewer resources by leveraging digital technologies. A digital lever could include automation, data analytics, artificial intelligence, or cloud computing, allowing businesses to enhance productivity, decision-making, and scalability. By deploying digital levers, organisations can unlock new value, streamline operations, and respond more effectively to changing market demands."
+      "aliases": ["enabler", "platform capability", "accelerator"],
+      "short_definition": "A reusable technology capability that amplifies delivery of value; it requires a service/feature to realise customer impact.",
+      "definition": "Levers improve scalability, speed, cost or quality. Examples include automation, data integration, analytics/AI models, and cloud services. On their own they are not offerings; they enable features and services to deliver outcomes faster and better.",
+      "examples": [
+        "Event-driven integration to update status in real time.",
+        "Document AI for claim classification.",
+        "Self-service CI/CD pipeline for rapid releases."
+      ],
+      "non_examples": [
+        "‘Track my claim’ UI (a feature using the lever)."
+      ],
+      "related_terms": ["service_feature", "service"],
+      "tags": ["platform", "automation", "ai", "cloud"],
+      "owner": "Technology",
+      "last_updated": "2025-08-27"
     }
   ]
 }

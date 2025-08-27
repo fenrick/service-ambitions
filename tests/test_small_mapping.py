@@ -42,7 +42,9 @@ def test_mapping_run_matches_golden(tmp_path) -> None:
     mapping.render_set_prompt = lambda *a, **k: "PROMPT"
     sets = [
         MappingSet(name="Applications", file="applications.json", field="applications"),
-        MappingSet(name="Technologies", file="technologies.json", field="technologies"),
+        MappingSet(
+            name="Digital Levers", file="technologies.json", field="digital_levers"
+        ),
     ]
     items, catalogue_hash = loader.load_mapping_items(loader.MAPPING_DATA_DIR, sets)
     evolutions = _load_evolutions()
@@ -73,8 +75,8 @@ def test_mapping_run_matches_golden(tmp_path) -> None:
             json.dumps(
                 {
                     "features": [
-                        {"feature_id": "F1", "technologies": [{"item": "tech1"}]},
-                        {"feature_id": "F2", "technologies": [{"item": "tech2"}]},
+                        {"feature_id": "F1", "digital_levers": [{"item": "tech1"}]},
+                        {"feature_id": "F2", "digital_levers": [{"item": "tech2"}]},
                     ]
                 }
             )
@@ -83,8 +85,8 @@ def test_mapping_run_matches_golden(tmp_path) -> None:
     mapped = asyncio.run(
         mapping.map_set(
             cast(ConversationSession, session_tech),
-            "technologies",
-            items["technologies"],
+            "digital_levers",
+            items["digital_levers"],
             mapped,
             catalogue_hash=catalogue_hash,
         )
@@ -97,8 +99,8 @@ def test_mapping_run_matches_golden(tmp_path) -> None:
                 "applications": mapping.group_features_by_mapping(
                     mapped_feats, "applications"
                 ),
-                "technologies": mapping.group_features_by_mapping(
-                    mapped_feats, "technologies"
+                "digital_levers": mapping.group_features_by_mapping(
+                    mapped_feats, "digital_levers"
                 ),
             }
     out = tmp_path / "out.jsonl"

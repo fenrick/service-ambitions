@@ -29,18 +29,18 @@ mapping_types:
   applications:
     dataset: applications  # Applications catalogue dataset name.
     label: Applications
-  technology:
+  digital_levers:
     dataset: technologies  # Technologies catalogue dataset name.
-    label: Technologies
+    label: Digital Levers
 
 # Reference datasets used for mapping features to catalogues.
 mapping_sets:
   - name: Applications  # Human-friendly name.
     file: applications.json  # Data file in the data directory.
     field: applications  # Field name used in mapping results.
-  - name: Technologies
+  - name: Digital Levers
     file: technologies.json
-    field: technology
+    field: digital_levers
   - name: Data
     file: information.json
     field: data
