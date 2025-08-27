@@ -48,7 +48,7 @@ mapping_sets:
 # Directory containing prompt components.
 prompt_dir: prompts
 # Identifier for context-specific prompts.
-context_id: university
+context_id: uwa
 # Optional inspiration list to influence outputs.
 inspiration: general
 
