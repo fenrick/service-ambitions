@@ -7,7 +7,7 @@ import pytest
 
 import mapping
 from conversation import ConversationSession
-from mapping import MappingError, map_set
+from mapping import MappingError, cache_write_json_atomic, map_set
 from models import (
     Contribution,
     FeatureMappingRef,
@@ -54,6 +54,15 @@ def _feature(feature_id: str = "f1") -> PlateauFeature:
 
 def _item() -> MappingItem:
     return MappingItem(id="a", name="A", description="d")
+
+
+def test_cache_write_json_atomic_rejects_invalid_json(tmp_path) -> None:
+    """Invalid JSON content is not persisted to disk."""
+
+    path = tmp_path / "file.json"
+    with pytest.raises(json.JSONDecodeError):
+        cache_write_json_atomic(path, "{bad")
+    assert not path.exists()
 
 
 @pytest.mark.asyncio()
