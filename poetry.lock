@@ -349,18 +349,18 @@ testing = ["pytest (>=6,!=7.0.0)", "pytest-xdist (>=2)"]
 
 [[package]]
 name = "boto3"
-version = "1.40.17"
+version = "1.40.18"
 description = "The AWS SDK for Python"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "boto3-1.40.17-py3-none-any.whl", hash = "sha256:2cacecd689cb51d81fbf54f84b64d0e6e922fbc18ee513c568b9f61caf4221e0"},
-    {file = "boto3-1.40.17.tar.gz", hash = "sha256:e115dc87d5975d32dfa0ebaf19c39e360665317a350004fa94b03200fe853f2e"},
+    {file = "boto3-1.40.18-py3-none-any.whl", hash = "sha256:daa776ba1251a7458c9d6c7627873d0c2460c8e8272d35759065580e9193700a"},
+    {file = "boto3-1.40.18.tar.gz", hash = "sha256:64301d39adecc154e3e595eaf0d4f28998ef0a5551f1d033aeac51a9e1a688e5"},
 ]
 
 [package.dependencies]
-botocore = ">=1.40.17,<1.41.0"
+botocore = ">=1.40.18,<1.41.0"
 jmespath = ">=0.7.1,<2.0.0"
 s3transfer = ">=0.13.0,<0.14.0"
 
@@ -369,14 +369,14 @@ crt = ["botocore[crt] (>=1.21.0,<2.0a0)"]
 
 [[package]]
 name = "botocore"
-version = "1.40.17"
+version = "1.40.18"
 description = "Low-level, data-driven core of boto 3."
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "botocore-1.40.17-py3-none-any.whl", hash = "sha256:603951935c1a741ae70236bf15725c5293074f28503e7029ad0e24ece476a342"},
-    {file = "botocore-1.40.17.tar.gz", hash = "sha256:769cd04a6a612f2d48b5f456c676fd81733fab682870952f7e2887260ea6a2bc"},
+    {file = "botocore-1.40.18-py3-none-any.whl", hash = "sha256:57025c46ca00cf8cec25de07a759521bfbfb3036a0f69b272654a354615dc45f"},
+    {file = "botocore-1.40.18.tar.gz", hash = "sha256:afd69bdadd8c55cc89d69de0799829e555193a352d87867f746e19020271cc0f"},
 ]
 
 [package.dependencies]
@@ -912,14 +912,14 @@ tqdm = ["tqdm"]
 
 [[package]]
 name = "genai-prices"
-version = "0.0.23"
+version = "0.0.24"
 description = "Calculate prices for calling LLM inference APIs."
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "genai_prices-0.0.23-py3-none-any.whl", hash = "sha256:a7de9e6ce9c366bea451da998f61c9cd7bf635fd088ca97cbe57bf48dd51d3b3"},
-    {file = "genai_prices-0.0.23.tar.gz", hash = "sha256:e888f79146dcf2a1032faed420a2f6238fa51973ebfa45bae544c0ee7b3ae0a7"},
+    {file = "genai_prices-0.0.24-py3-none-any.whl", hash = "sha256:620beb35a845b32463201bb2816060181500e15c0a715b3bfa2583ef58e0702d"},
+    {file = "genai_prices-0.0.24.tar.gz", hash = "sha256:faeac6276964bc31ca9a2551219d4642979426bd2c593e884ec5bb40089b298e"},
 ]
 
 [package.dependencies]
@@ -998,14 +998,14 @@ grpc = ["grpcio (>=1.44.0,<2.0.0)"]
 
 [[package]]
 name = "griffe"
-version = "1.12.1"
+version = "1.13.0"
 description = "Signatures for entire Python programs. Extract the structure, the frame, the skeleton of your project, to generate API documentation or find breaking changes in your API."
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "griffe-1.12.1-py3-none-any.whl", hash = "sha256:2d7c12334de00089c31905424a00abcfd931b45b8b516967f224133903d302cc"},
-    {file = "griffe-1.12.1.tar.gz", hash = "sha256:29f5a6114c0aeda7d9c86a570f736883f8a2c5b38b57323d56b3d1c000565567"},
+    {file = "griffe-1.13.0-py3-none-any.whl", hash = "sha256:470fde5b735625ac0a36296cd194617f039e9e83e301fcbd493e2b58382d0559"},
+    {file = "griffe-1.13.0.tar.gz", hash = "sha256:246ea436a5e78f7fbf5f24ca8a727bb4d2a4b442a2959052eea3d0bfe9a076e0"},
 ]
 
 [package.dependencies]
@@ -1169,14 +1169,14 @@ typing = ["types-PyYAML", "types-requests", "types-simplejson", "types-toml", "t
 
 [[package]]
 name = "hypothesis"
-version = "6.138.3"
+version = "6.138.4"
 description = "A library for property-based testing"
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
 files = [
-    {file = "hypothesis-6.138.3-py3-none-any.whl", hash = "sha256:19291d3ba478527155c34704b038a21ba86b2f31d36673446f981a67f705b3f4"},
-    {file = "hypothesis-6.138.3.tar.gz", hash = "sha256:9bffd1382b99e67c46512dac45ec013bae4b39d3d0ef98f0d87535f06d8efc9e"},
+    {file = "hypothesis-6.138.4-py3-none-any.whl", hash = "sha256:b53944dd41f4c9f18f3b9846004ba64b84fdfa716815e6a971b0b568863aa18a"},
+    {file = "hypothesis-6.138.4.tar.gz", hash = "sha256:276a8fe109247b94588dc8a69cbe374a9debbe040f3e4893f43635b1147c0dc1"},
 ]
 
 [package.dependencies]
@@ -1447,14 +1447,14 @@ dev = ["Sphinx (>=5.0.2)", "doc8 (>=0.11.2)", "pytest (>=7.0.1)", "pytest-xdist 
 
 [[package]]
 name = "logfire"
-version = "4.3.5"
+version = "4.3.6"
 description = "The best Python observability tool! 🪵🔥"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "logfire-4.3.5-py3-none-any.whl", hash = "sha256:977631dc98a09ebba4e07ee893375e640dc0681777add6074a0854285f3b9413"},
-    {file = "logfire-4.3.5.tar.gz", hash = "sha256:faaefc1de102fa81ad68b0f4a7465d72c254300b64614a25b71739915af1a273"},
+    {file = "logfire-4.3.6-py3-none-any.whl", hash = "sha256:86002ea7193ee710fddf7481fc497ab2896d13d8266f38a6cf921de4b00219c7"},
+    {file = "logfire-4.3.6.tar.gz", hash = "sha256:419b6d14f797fedc31c8b516a44c377e4e7d344f79e19addcee40d57c3bf8a61"},
 ]
 
 [package.dependencies]
@@ -1493,14 +1493,14 @@ wsgi = ["opentelemetry-instrumentation-wsgi (>=0.42b0)"]
 
 [[package]]
 name = "logfire-api"
-version = "4.3.5"
+version = "4.3.6"
 description = "Shim for the Logfire SDK which does nothing unless Logfire is installed"
 optional = false
 python-versions = ">=3.8"
 groups = ["main"]
 files = [
-    {file = "logfire_api-4.3.5-py3-none-any.whl", hash = "sha256:3b6beb18505730c343b35a5132dfbf842f52094308d23bf7edd75b7f511bb4c8"},
-    {file = "logfire_api-4.3.5.tar.gz", hash = "sha256:f4c1aae454ba248000d65bfe7d60439094056813bd97a48725706417330e222e"},
+    {file = "logfire_api-4.3.6-py3-none-any.whl", hash = "sha256:40c190d4aaca1d223bf1e312adda274288ea9267b6e9c4e6c1a896a14c006eed"},
+    {file = "logfire_api-4.3.6.tar.gz", hash = "sha256:c07e4fa165e15f0b22e5ff39c0253b48dc9a4b42ab574fb0d63eb40050c07ae1"},
 ]
 
 [[package]]
@@ -1571,14 +1571,14 @@ files = [
 
 [[package]]
 name = "mistralai"
-version = "1.9.8"
+version = "1.9.9"
 description = "Python Client SDK for the Mistral AI API."
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "mistralai-1.9.8-py3-none-any.whl", hash = "sha256:f4874d62932245c438c4fce04aaf740a9d6da651dc598bf660978a21fb73f017"},
-    {file = "mistralai-1.9.8.tar.gz", hash = "sha256:74eac8b3aee410dffbd8ef0878adb7f593940fa9592d9eb4428da9b067209b22"},
+    {file = "mistralai-1.9.9-py3-none-any.whl", hash = "sha256:6742fdbf4a277b605287538761e2665b6fb025328676a024868734ffe78ef72f"},
+    {file = "mistralai-1.9.9.tar.gz", hash = "sha256:025ae6f45dba8b7585642bc6fa214316138546a0cac692c6ec8e1187424da54a"},
 ]
 
 [package.dependencies]
@@ -1983,14 +1983,14 @@ numpy = ">=2.3,<2.4"
 
 [[package]]
 name = "openai"
-version = "1.101.0"
+version = "1.102.0"
 description = "The official Python library for the openai API"
 optional = false
 python-versions = ">=3.8"
 groups = ["main"]
 files = [
-    {file = "openai-1.101.0-py3-none-any.whl", hash = "sha256:6539a446cce154f8d9fb42757acdfd3ed9357ab0d34fcac11096c461da87133b"},
-    {file = "openai-1.101.0.tar.gz", hash = "sha256:29f56df2236069686e64aca0e13c24a4ec310545afb25ef7da2ab1a18523f22d"},
+    {file = "openai-1.102.0-py3-none-any.whl", hash = "sha256:d751a7e95e222b5325306362ad02a7aa96e1fab3ed05b5888ce1c7ca63451345"},
+    {file = "openai-1.102.0.tar.gz", hash = "sha256:2e0153bcd64a6523071e90211cbfca1f2bbc5ceedd0993ba932a5869f93b7fc9"},
 ]
 
 [package.dependencies]
@@ -2475,14 +2475,14 @@ testing = ["aboutcode-toolkit (>=6.0.0)", "black", "pytest (>=6,!=7.0.0)", "pyte
 
 [[package]]
 name = "platformdirs"
-version = "4.3.8"
+version = "4.4.0"
 description = "A small Python package for determining appropriate platform-specific dirs, e.g. a `user data dir`."
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
 files = [
-    {file = "platformdirs-4.3.8-py3-none-any.whl", hash = "sha256:ff7059bb7eb1179e2685604f4aaf157cfd9535242bd23742eadc3c13542139b4"},
-    {file = "platformdirs-4.3.8.tar.gz", hash = "sha256:3d512d96e16bcb959a814c9f348431070822a6496326a4be0911c40b5a74c2bc"},
+    {file = "platformdirs-4.4.0-py3-none-any.whl", hash = "sha256:abd01743f24e5287cd7a5db3752faf1a2d65353f38ec26d98e25a6db65958c85"},
+    {file = "platformdirs-4.4.0.tar.gz", hash = "sha256:ca753cf4d81dc309bc67b0ea38fd15dc97bc30ce419a7f58d13eb3bf14c4febf"},
 ]
 
 [package.extras]
@@ -2759,34 +2759,34 @@ timezone = ["tzdata ; python_version >= \"3.9\" and platform_system == \"Windows
 
 [[package]]
 name = "pydantic-ai"
-version = "0.7.5"
+version = "0.8.0"
 description = "Agent Framework / shim to use Pydantic with LLMs"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "pydantic_ai-0.7.5-py3-none-any.whl", hash = "sha256:7fc9ec6e159dfd726a88a643a06d3d33c6e483f0c47a33664e040c8baf650378"},
-    {file = "pydantic_ai-0.7.5.tar.gz", hash = "sha256:44b81fd22cb17533c589fc08d2642cf3b492535f11492ee6e97b886f695a3cc0"},
+    {file = "pydantic_ai-0.8.0-py3-none-any.whl", hash = "sha256:f288508ae3d105c2c10cbdc51829849bdc593fdcd87394baa1e799be4e1f9f6f"},
+    {file = "pydantic_ai-0.8.0.tar.gz", hash = "sha256:4633ed18e5073e0aaa1a78253da781a1b402daa39e9c0f190354315ef74297b4"},
 ]
 
 [package.dependencies]
-pydantic-ai-slim = {version = "0.7.5", extras = ["ag-ui", "anthropic", "bedrock", "cli", "cohere", "evals", "google", "groq", "huggingface", "mcp", "mistral", "openai", "retries", "temporal", "vertexai"]}
+pydantic-ai-slim = {version = "0.8.0", extras = ["ag-ui", "anthropic", "bedrock", "cli", "cohere", "evals", "google", "groq", "huggingface", "mcp", "mistral", "openai", "retries", "temporal", "vertexai"]}
 
 [package.extras]
 a2a = ["fasta2a (>=0.4.1)"]
-examples = ["pydantic-ai-examples (==0.7.5)"]
+examples = ["pydantic-ai-examples (==0.8.0)"]
 logfire = ["logfire (>=3.14.1)"]
 
 [[package]]
 name = "pydantic-ai-slim"
-version = "0.7.5"
+version = "0.8.0"
 description = "Agent Framework / shim to use Pydantic with LLMs, slim package"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "pydantic_ai_slim-0.7.5-py3-none-any.whl", hash = "sha256:2997ad1685bcc7535389b1b2b6fbd5f7a9ef55d6fd35ba810c1b5fae8c6b4724"},
-    {file = "pydantic_ai_slim-0.7.5.tar.gz", hash = "sha256:c8ef6e953ac142374f9580193199b50e8d67b526df7f40bf46d47a13adc3df9e"},
+    {file = "pydantic_ai_slim-0.8.0-py3-none-any.whl", hash = "sha256:0f13bbda31d1ce1ee17368120278659cad176e80b1cb8d96bacf0d9f28764003"},
+    {file = "pydantic_ai_slim-0.8.0.tar.gz", hash = "sha256:ccf8010ac6836d7f5a390c912f7a2259e8582f092b7b5b815cc5d18555f95a93"},
 ]
 
 [package.dependencies]
@@ -2803,14 +2803,14 @@ griffe = ">=1.3.2"
 groq = {version = ">=0.25.0", optional = true, markers = "extra == \"groq\""}
 httpx = ">=0.27"
 huggingface-hub = {version = ">=0.33.5", extras = ["inference"], optional = true, markers = "extra == \"huggingface\""}
-mcp = {version = ">=1.10.0", optional = true, markers = "python_version >= \"3.10\" and extra == \"mcp\""}
+mcp = {version = ">=1.12.3", optional = true, markers = "python_version >= \"3.10\" and extra == \"mcp\""}
 mistralai = {version = ">=1.9.2", optional = true, markers = "extra == \"mistral\""}
 openai = {version = ">=1.99.9", optional = true, markers = "extra == \"openai\""}
 opentelemetry-api = ">=1.28.0"
 prompt-toolkit = {version = ">=3", optional = true, markers = "extra == \"cli\""}
 pydantic = ">=2.10"
-pydantic-evals = {version = "0.7.5", optional = true, markers = "extra == \"evals\""}
-pydantic-graph = "0.7.5"
+pydantic-evals = {version = "0.8.0", optional = true, markers = "extra == \"evals\""}
+pydantic-graph = "0.8.0"
 pyperclip = {version = ">=1.9.0", optional = true, markers = "extra == \"cli\""}
 requests = {version = ">=2.32.2", optional = true, markers = "extra == \"vertexai\""}
 rich = {version = ">=13", optional = true, markers = "extra == \"cli\""}
@@ -2827,12 +2827,12 @@ bedrock = ["boto3 (>=1.39.0)"]
 cli = ["argcomplete (>=3.5.0)", "prompt-toolkit (>=3)", "pyperclip (>=1.9.0)", "rich (>=13)"]
 cohere = ["cohere (>=5.16.0) ; platform_system != \"Emscripten\""]
 duckduckgo = ["ddgs (>=9.0.0)"]
-evals = ["pydantic-evals (==0.7.5)"]
+evals = ["pydantic-evals (==0.8.0)"]
 google = ["google-genai (>=1.31.0)"]
 groq = ["groq (>=0.25.0)"]
 huggingface = ["huggingface-hub[inference] (>=0.33.5)"]
 logfire = ["logfire (>=3.14.1)"]
-mcp = ["mcp (>=1.10.0) ; python_version >= \"3.10\""]
+mcp = ["mcp (>=1.12.3) ; python_version >= \"3.10\""]
 mistral = ["mistralai (>=1.9.2)"]
 openai = ["openai (>=1.99.9)"]
 retries = ["tenacity (>=8.2.3)"]
@@ -2954,21 +2954,21 @@ typing-extensions = ">=4.6.0,<4.7.0 || >4.7.0"
 
 [[package]]
 name = "pydantic-evals"
-version = "0.7.5"
+version = "0.8.0"
 description = "Framework for evaluating stochastic code execution, especially code making use of LLMs"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "pydantic_evals-0.7.5-py3-none-any.whl", hash = "sha256:b4f8acdfe63e767552f253b017d4f5d7f356c07c10a82008354bb6f1bd40c0cd"},
-    {file = "pydantic_evals-0.7.5.tar.gz", hash = "sha256:2557ad5f755669ca005d0a92a2a22ea118e2d10be56146bcae423e694275bbaa"},
+    {file = "pydantic_evals-0.8.0-py3-none-any.whl", hash = "sha256:d09bb4c292db3f8bbaba4be6f805e346ce10c2d2733e7368f9aec7a7d9933172"},
+    {file = "pydantic_evals-0.8.0.tar.gz", hash = "sha256:430d3a51cfa88edbbb7716440540ad222d44c4d7d7ddaebc960af5f542a65ab2"},
 ]
 
 [package.dependencies]
 anyio = ">=0"
 logfire-api = ">=3.14.1"
 pydantic = ">=2.10"
-pydantic-ai-slim = "0.7.5"
+pydantic-ai-slim = "0.8.0"
 pyyaml = ">=6.0.2"
 rich = ">=13.9.4"
 
@@ -2977,14 +2977,14 @@ logfire = ["logfire (>=3.14.1)"]
 
 [[package]]
 name = "pydantic-graph"
-version = "0.7.5"
+version = "0.8.0"
 description = "Graph and state machine library"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "pydantic_graph-0.7.5-py3-none-any.whl", hash = "sha256:38fbb394845374b6b81d92777359df286ac477e954f488fee3ae01de06a5cdd2"},
-    {file = "pydantic_graph-0.7.5.tar.gz", hash = "sha256:92c1058d20cc6b757311921882cdfa71605f7e5ff27070428622ad991c4311bc"},
+    {file = "pydantic_graph-0.8.0-py3-none-any.whl", hash = "sha256:ed8af83c505f7ec49481d155b2c05ee9e01bfb579df3502a6181ee53d95f529d"},
+    {file = "pydantic_graph-0.8.0.tar.gz", hash = "sha256:23621846d98e673e61f38d3774a1d105710279e5847dbe9bec7e3375d9b8981f"},
 ]
 
 [package.dependencies]
