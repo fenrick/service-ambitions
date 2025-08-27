@@ -92,13 +92,23 @@ def render_set_prompt(
     catalogue_lines = _render_items(items)
     feature_lines = _render_features(features)
     mapping_section = f"## Available {set_name}\n\n```json\n{catalogue_lines}\n```"
-    return instruction.format(
-        mapping_labels=set_name,
-        mapping_sections=mapping_section,
-        mapping_fields=set_name,
-        features=f"```json\n{feature_lines}\n```",
-        schema=MAPPING_DIAGNOSTICS_SCHEMA if diagnostics else MAPPING_SCHEMA,
-    )
+
+    # Manual placeholder substitution avoids ``str.format`` interpreting JSON
+    # braces within the template as formatting fields. This ensures the prompt
+    # retains literal brace characters required for example JSON structures and
+    # narrative instructions.
+    replacements = {
+        "{mapping_labels}": set_name,
+        "{mapping_sections}": mapping_section,
+        "{mapping_fields}": set_name,
+        "{features}": f"```json\n{feature_lines}\n```",
+        "{schema}": MAPPING_DIAGNOSTICS_SCHEMA if diagnostics else MAPPING_SCHEMA,
+    }
+
+    for placeholder, value in replacements.items():
+        instruction = instruction.replace(placeholder, value)
+
+    return instruction
 
 
 __all__ = ["render_set_prompt"]
