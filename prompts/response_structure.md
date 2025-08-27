@@ -24,10 +24,10 @@
               ]
             }
           ],
-          "digital_levers": [
+          "technologies": [
             {
-              "lever": "Lever title",
-              "description": "Lever description"
+              "technology": "Technology title",
+              "description": "Technology description"
             }
           ]
         }
