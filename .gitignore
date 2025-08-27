@@ -211,3 +211,4 @@ evolution.jsonl
 /quarantine
 ambitions.jsonl.tmp
 evolutions.jsonl
+*.tmp
