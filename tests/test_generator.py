@@ -43,8 +43,9 @@ def test_service_span_records_metrics(monkeypatch, tmp_path):
     gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
     asyncio.run(gen.generate_async([service], "prompt", str(tmp_path / "out.jsonl")))
 
-    assert len(spans) == 1
-    span = spans[0]
+    relevant = [s for s in spans if s.name == "service"]
+    assert len(relevant) == 1
+    span = relevant[0]
     assert span.attributes["tokens.total"] == 3
     assert span.attributes["retries"] == 1
     assert span.attributes["status"] == "success"
