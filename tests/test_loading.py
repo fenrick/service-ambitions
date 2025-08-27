@@ -53,7 +53,7 @@ def test_load_prompt_assembles_components(tmp_path):
         " job is to produce strictly-valid JSON structured outputs aligned to the"
         " schema.\n\nctx\n\n## Service feature plateaus\n\n1. **Alpha**\n   - Core"
         " idea: core\n   - Key characteristics:\n     - kc1\n   - What it feels like:"
-        " feel\n\n## Defs\n\n1. **d1**: defs\n2. **d2**: extra\n\ninsp\n\ntask\n\nresp"
+        " feel\n\n## Defs\n\n1. **d1**\n   - Definition: defs\n2. **d2**\n   - Definition: extra\n\ninsp\n\ntask\n\nresp"
     )
     assert prompt == expected
 
@@ -111,7 +111,7 @@ def test_load_prompt_with_definition_keys(tmp_path):
         " job is to produce strictly-valid JSON structured outputs aligned to the"
         " schema.\n\nctx\n\n## Service feature plateaus\n\n1. **Alpha**\n   - Core"
         " idea: core\n   - Key characteristics:\n     - kc1\n   - What it feels like:"
-        " feel\n\n## Defs\n\n1. **d2**: defs2\n\ninsp\n\ntask\n\nresp"
+        " feel\n\n## Defs\n\n1. **d2**\n   - Definition: defs2\n\ninsp\n\ntask\n\nresp"
     )
     assert prompt == expected
 

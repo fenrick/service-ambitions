@@ -132,6 +132,23 @@ def _sanitize(value: str) -> str:
     return value.replace("\n", " ").replace("\t", " ")
 
 
+def _append_list(lines: list[str], label: str, values: Sequence[str]) -> None:
+    """Append ``values`` under ``label`` using Markdown bullet rules.
+
+    If ``values`` contains a single entry, it is added inline after the label.
+    Otherwise the values are rendered as an indented sub-list.
+    """
+
+    if not values:  # No values to record
+        return
+    if len(values) == 1:  # Single value rendered inline
+        lines.append(f"   - {label}: {values[0]}")
+        return
+    lines.append(f"   - {label}:")
+    for value in values:
+        lines.append(f"     - {value}")
+
+
 def compile_catalogue_for_set(
     items: Sequence[MappingItem],
 ) -> tuple[list[MappingItem], str]:
@@ -380,9 +397,26 @@ def load_definitions(
         bullets = [item for item in bullets if item.id in keys]
     lines = [f"## {data.title}", ""]
     for idx, item in enumerate(bullets, start=1):
-        alias = f" ({', '.join(item.aliases)})" if item.aliases else ""
-        text = item.short_definition or item.definition
-        lines.append(f"{idx}. **{item.name}**{alias}: {text}")
+        header = f"{idx}. **{item.name}**"
+        if item.aliases:  # Show alternative terms in-line
+            header += f" ({', '.join(item.aliases)})"
+        lines.append(header)
+        if item.short_definition:  # Include concise explanation when present
+            lines.append(f"   - Short definition: {item.short_definition}")
+        lines.append(f"   - Definition: {item.definition}")
+        _append_list(lines, "Decision rules", item.decision_rules)
+        _append_list(lines, "Use when", item.use_when)
+        _append_list(lines, "Avoid confusion with", item.avoid_confusion_with)
+        _append_list(lines, "Examples", item.examples)
+        _append_list(lines, "Non-examples", item.non_examples)
+        if item.related_terms:  # Join identifiers inline
+            lines.append(f"   - Related terms: {', '.join(item.related_terms)}")
+        if item.tags:  # Tag list summarises categorisation
+            lines.append(f"   - Tags: {', '.join(item.tags)}")
+        if item.owner:  # Identify definition steward
+            lines.append(f"   - Owner: {item.owner}")
+        if item.last_updated:  # Track provenance
+            lines.append(f"   - Last updated: {item.last_updated}")
     return "\n".join(lines)
 
 

@@ -137,6 +137,10 @@ class DefinitionItem(StrictModel):
     definition: Annotated[
         str, Field(min_length=1, description="Full explanation of the term.")
     ]
+    decision_rules: list[str] = Field(
+        default_factory=list,
+        description="Heuristics for determining if something fits the term.",
+    )
     use_when: list[str] = Field(
         default_factory=list, description="Situations where the term applies."
     )
