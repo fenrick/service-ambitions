@@ -53,7 +53,8 @@ def test_load_prompt_assembles_components(tmp_path):
         " job is to produce strictly-valid JSON structured outputs aligned to the"
         " schema.\n\nctx\n\n## Service feature plateaus\n\n1. **Alpha**\n   - Core"
         " idea: core\n   - Key characteristics:\n     - kc1\n   - What it feels like:"
-        " feel\n\n## Defs\n\n1. **d1**\n   - Definition: defs\n2. **d2**\n   - Definition: extra\n\ninsp\n\ntask\n\nresp"
+        " feel\n\n## Defs\n\n1. **d1**\n   - Definition: defs\n2. **d2**\n   -"
+        " Definition: extra\n\ninsp\n\ntask\n\nresp"
     )
     assert prompt == expected
 
@@ -214,6 +215,8 @@ def test_load_role_ids_extracts_identifiers(tmp_path):
 
 
 def test_load_services_reads_jsonl(tmp_path):
+    """Services are parsed while dropping any provided features."""
+
     data = tmp_path / "services.jsonl"
     data.write_text(
         '{"service_id": "a1", "name": "alpha", "description": "d", "jobs_to_be_done":'
@@ -225,7 +228,7 @@ def test_load_services_reads_jsonl(tmp_path):
     services = list(load_services(str(data)))
     assert services[0].service_id == "a1"
     assert services[1].name == "beta"
-    assert services[0].features[0].name == "Feat"
+    assert services[0].features == []
 
 
 def test_load_services_missing(tmp_path):
@@ -271,12 +274,14 @@ def test_load_services_with_job_objects(tmp_path):
 
 
 def test_valid_fixture_parses():
+    """Fixtures load successfully with features removed."""
+
     path = Path(__file__).parent / "fixtures" / "services-valid.jsonl"
     services = list(load_services(str(path)))
     assert services[0].service_id == "svc1"
     assert [j.name for j in services[0].jobs_to_be_done] == ["job1"]
     assert services[1].description == "Test"
-    assert services[0].features[0].feature_id == "F1"
+    assert services[0].features == []
 
 
 def test_invalid_fixture_quarantines(tmp_path):
