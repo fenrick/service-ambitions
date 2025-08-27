@@ -206,7 +206,7 @@ def test_ask_uses_cache_when_available(tmp_path, monkeypatch) -> None:
         conversation, "load_settings", lambda: SimpleNamespace(cache_dir=tmp_path)
     )
     key = conversation._prompt_cache_key("hello", "", "stage")
-    path = conversation._prompt_cache_path(key)
+    path = conversation._prompt_cache_path("unknown", "stage", key)
     path.write_text(json.dumps("cached"), encoding="utf-8")
 
     reply = session.ask("hello")

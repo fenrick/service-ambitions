@@ -33,14 +33,32 @@ def _prompt_cache_key(prompt: str, model: str, stage: str) -> str:
     return hashlib.sha256(data.encode("utf-8")).hexdigest()[:32]
 
 
-def _prompt_cache_path(key: str) -> Path:
-    """Return the cache file path for ``key`` within the prompts namespace."""
+def _prompt_cache_path(service: str, stage: str, key: str) -> Path:
+    """Return the cache file path for ``key`` scoped by ``service`` and ``stage``.
+
+    Cache entries are organised by service identifier with separate namespaces
+    for descriptions, features and mapping data types. Any unrecognised stages
+    fall back to using the raw ``stage`` name as the directory.
+    """
 
     try:
         cache_root = load_settings().cache_dir
     except Exception:  # pragma: no cover - fallback when settings unavailable
         cache_root = Path(".cache")
-    path = cache_root / "prompts" / f"{key}.json"
+
+    # Map well-known stages to their directory names.
+    if stage.startswith("mapping_"):
+        # ``mapping_<type>`` → ``mappings/<type>``
+        _, mapping_type = stage.split("_", 1)
+        subdir = Path("mappings") / mapping_type
+    elif stage in {"descriptions", "description"}:
+        subdir = Path("description")
+    elif stage == "features":
+        subdir = Path("features")
+    else:  # Fallback for any other stage names
+        subdir = Path(stage)
+
+    path = cache_root / service / subdir / f"{key}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -242,7 +260,8 @@ class ConversationSession:
         write_after_call = False
         if self.use_local_cache and self.cache_mode != "off":
             key = _prompt_cache_key(prompt, model_name, stage)
-            cache_file = _prompt_cache_path(key)
+            svc = self._service_id or "unknown"
+            cache_file = _prompt_cache_path(svc, stage, key)
             exists_before = cache_file.exists()
             if self.cache_mode == "read" and exists_before:
                 try:

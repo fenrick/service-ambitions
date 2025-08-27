@@ -144,7 +144,7 @@ class PlateauGenerator:
         items, catalogue_hash = load_mapping_items(
             MAPPING_DATA_DIR, settings.mapping_sets
         )
-        service_name = self._service.name if self._service else "unknown"
+        service_id = self._service.service_id if self._service else "unknown"
 
         groups: dict[str, list[MappingFeatureGroup]] = {}
         for cfg in settings.mapping_sets:
@@ -155,7 +155,7 @@ class PlateauGenerator:
                 cfg.field,
                 items[cfg.field],
                 list(features),
-                service=service_name,
+                service=service_id,
                 strict=self.strict,
                 cache_mode=(self.cache_mode if self.use_local_cache else "off"),
                 catalogue_hash=catalogue_hash,
