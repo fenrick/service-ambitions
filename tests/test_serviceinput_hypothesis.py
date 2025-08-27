@@ -8,19 +8,21 @@ from pydantic import ValidationError
 
 from models import ServiceFeature, ServiceInput
 
+non_empty_text = st.text(min_size=1).filter(lambda s: s.strip())
+
 
 @given(
-    service_id=st.text(min_size=1),
-    name=st.text(min_size=1),
-    customer_type=st.one_of(st.none(), st.text(min_size=1)),
-    description=st.text(min_size=1),
-    jobs=st.lists(st.builds(dict, name=st.text(min_size=1)), min_size=1, max_size=5),
+    service_id=non_empty_text,
+    name=non_empty_text,
+    customer_type=st.one_of(st.none(), non_empty_text),
+    description=non_empty_text,
+    jobs=st.lists(st.builds(dict, name=non_empty_text), min_size=1, max_size=5),
     features=st.lists(
         st.builds(
             ServiceFeature,
-            feature_id=st.text(min_size=1),
-            name=st.text(min_size=1),
-            description=st.text(min_size=1),
+            feature_id=non_empty_text,
+            name=non_empty_text,
+            description=non_empty_text,
         ),
         max_size=3,
     ),

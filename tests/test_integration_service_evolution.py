@@ -52,7 +52,6 @@ class DummyAgent:
 def _feature_payload(count: int) -> str:
     items = [
         {
-            "feature_id": f"f{i}",
             "name": f"Feat {i}",
             "description": f"Desc {i}",
             "score": {
