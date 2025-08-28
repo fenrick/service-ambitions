@@ -659,6 +659,74 @@ def test_generate_plateau_missing_features(monkeypatch) -> None:
     assert "invalid JSON" in str(exc.value)
 
 
+@pytest.mark.asyncio()
+async def test_generate_plateau_supports_custom_roles(monkeypatch) -> None:
+    """Generator should handle arbitrary role identifiers."""
+
+    template = "{required_count} {service_name} {service_description} {plateau} {roles}"
+
+    def fake_loader(name, *_, **__):
+        if name == "plateau_prompt":
+            return template
+        if name == "plateau_descriptions_prompt":
+            return "desc {plateaus} {schema}"
+        return ""
+
+    monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
+
+    payload = json.dumps(
+        {
+            "features": {
+                "researchers": [
+                    {
+                        "name": "R1",
+                        "description": "dr",
+                        "score": {"level": 3, "label": "Defined", "justification": "j"},
+                    }
+                ],
+                "students": [
+                    {
+                        "name": "S1",
+                        "description": "ds",
+                        "score": {"level": 3, "label": "Defined", "justification": "j"},
+                    }
+                ],
+            }
+        }
+    )
+
+    session = DummySession([payload])
+    generator = PlateauGenerator(
+        cast(ConversationSession, session),
+        required_count=1,
+        roles=["researchers", "students"],
+        use_local_cache=False,
+        cache_mode="off",
+    )
+    service = ServiceInput(
+        service_id="svc-1",
+        name="svc",
+        customer_type="retail",
+        description="desc",
+        jobs_to_be_done=[{"name": "job"}],
+    )
+    generator._service = service
+
+    async def dummy_map_features(self, session, feats, **kwargs):
+        return {}
+
+    monkeypatch.setattr(PlateauGenerator, "_map_features", dummy_map_features)
+
+    plateau = await generator.generate_plateau_async(
+        1,
+        "Foundational",
+        session=cast(ConversationSession, session),
+        description="desc",
+    )
+
+    assert {f.customer_type for f in plateau.features} == {"researchers", "students"}
+
+
 def test_request_description_invalid_json(monkeypatch) -> None:
     template = "{required_count} {service_name} {service_description} {plateau} {roles}"
 

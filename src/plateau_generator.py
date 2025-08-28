@@ -30,7 +30,6 @@ from mapping import group_features_by_mapping, map_set
 from models import (
     DescriptionResponse,
     FeatureItem,
-    FeaturesBlock,
     MappingFeatureGroup,
     PlateauDescriptionsResponse,
     PlateauFeature,
@@ -348,10 +347,10 @@ class PlateauGenerator:
         features: list[PlateauFeature] = []
         for role in self.roles:
             with logfire.span("collect_features", attributes={"role": role}):
-                # ``PlateauFeaturesResponse.features`` is a ``FeaturesBlock``
-                # model, not a dictionary. Retrieve role-specific items with
-                # ``getattr`` to avoid attribute errors when roles are absent.
-                raw_features = getattr(payload.features, role, [])
+                # ``PlateauFeaturesResponse.features`` is a dictionary mapping
+                # role identifiers to feature lists. Retrieve the list for the
+                # current role or an empty list when absent.
+                raw_features = payload.features.get(role, [])
                 for item in raw_features:
                     # Convert each raw item into a structured plateau feature.
                     features.append(self._to_feature(item, role, plateau_name))
@@ -689,12 +688,12 @@ class PlateauGenerator:
                     valid[role].extend(extras)
 
             self._enforce_min_features(valid)
-
-            block = FeaturesBlock(
-                learners=valid.get("learners", []),
-                academics=valid.get("academics", []),
-                professional_staff=valid.get("professional_staff", []),
-            )
+            # Build a features mapping for the configured roles. Roles absent in
+            # ``valid`` are included with empty lists to simplify downstream
+            # processing.
+            block: dict[str, list[FeatureItem]] = {
+                role: list(valid.get(role, [])) for role in self.roles
+            }
             payload = PlateauFeaturesResponse(features=block)
 
             features = self._collect_features(payload, plateau_name)
