@@ -212,3 +212,4 @@ evolution.jsonl
 ambitions.jsonl.tmp
 evolutions.jsonl
 *.tmp
+/output
