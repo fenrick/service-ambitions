@@ -181,6 +181,7 @@ async def _generate_evolution_for_service(
     }
     with logfire.span("generate_evolution_for_service", attributes=attrs):
         try:
+            logfire.info(f"Processing service {service.service_id}")
             SERVICES_PROCESSED.add(1)
             desc_model = factory.get(
                 "descriptions", args.descriptions_model or args.model

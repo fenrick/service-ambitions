@@ -661,10 +661,10 @@ class PlateauGenerator:
                 data = json.loads(raw)
             except Exception as exc:
                 logfire.error(f"Invalid JSON from feature response: {exc}")
-                raise ValueError("Agent returned invalid JSON") from exc
+                raise ValueError("Agent returned invalid JSON: " + self._service.service_id) from exc
 
             if not isinstance(data, dict) or "features" not in data:
-                raise ValueError("Agent returned invalid JSON")
+                raise ValueError("Agent returned invalid JSON: " + self._service.service_id)
 
             role_data = data.get("features", {})
             valid, invalid_roles, missing = self._validate_roles(role_data)
