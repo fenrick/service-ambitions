@@ -42,7 +42,7 @@ mapping_sets:
     field: applications
   - name: Technologies
     file: technologies.json
-    field: technologies
+    field: technology
   - name: Data
     file: information.json
     field: data
