@@ -119,7 +119,13 @@ def _cache_path(service: str, set_name: str, key: str) -> Path:
 
 
 def cache_write_json_atomic(path: Path, content: str) -> None:
-    """Atomically write ``content`` to ``path`` with ``0o600`` permissions."""
+    """Atomically write ``content`` to ``path`` with ``0o600`` permissions.
+
+    The JSON payload is parsed before writing so malformed responses are never
+    persisted to the cache.
+    """
+
+    json.loads(content)  # Validate JSON before writing
 
     tmp_path = path.with_suffix(".tmp")
     fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -130,7 +136,7 @@ def cache_write_json_atomic(path: Path, content: str) -> None:
             os.fsync(fh.fileno())
         os.replace(tmp_path, path)
     finally:
-        if os.path.exists(tmp_path):
+        if os.path.exists(tmp_path):  # Clean up when replace fails
             os.remove(tmp_path)
 
 
