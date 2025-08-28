@@ -590,12 +590,8 @@ class FeatureItem(BaseModel):
     score: MaturityScore
 
 
-class FeaturesBlock(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    # Feature lists for each role; lists may be empty when responses are partial.
-    learners: Annotated[List[FeatureItem], Field(default_factory=list)]
-    academics: Annotated[List[FeatureItem], Field(default_factory=list)]
-    professional_staff: Annotated[List[FeatureItem], Field(default_factory=list)]
+# Role-to-feature mapping allowing arbitrary role identifiers.
+FeaturesBlock = dict[str, list[FeatureItem]]
 
 
 class PlateauFeaturesResponse(BaseModel):
