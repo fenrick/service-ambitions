@@ -232,9 +232,13 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
             for f in feats
         ]
         return {
-            "data": [MappingFeatureGroup(id="d", mappings=refs.copy())],
-            "applications": [MappingFeatureGroup(id="a", mappings=refs.copy())],
-            "technologies": [MappingFeatureGroup(id="t", mappings=refs.copy())],
+            "data": [MappingFeatureGroup(id="d", name="d", mappings=refs.copy())],
+            "applications": [
+                MappingFeatureGroup(id="a", name="a", mappings=refs.copy())
+            ],
+            "technologies": [
+                MappingFeatureGroup(id="t", name="t", mappings=refs.copy())
+            ],
         }
 
     monkeypatch.setattr(PlateauGenerator, "_map_features", dummy_map_features)
@@ -1029,6 +1033,7 @@ def test_validate_plateau_results_strict_checks() -> None:
     )
     group = MappingFeatureGroup(
         id="a",
+        name="a",
         mappings=[FeatureMappingRef(feature_id="f1", description="d")],
     )
     result = PlateauResult(

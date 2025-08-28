@@ -620,10 +620,13 @@ def test_group_features_by_mapping() -> None:
     feat2.mappings["applications"] = [Contribution(item="a")]
     feat3 = _feature("f3")  # Unmapped feature
 
-    groups = mapping.group_features_by_mapping([feat1, feat2, feat3], "applications")
+    groups = mapping.group_features_by_mapping(
+        [feat1, feat2, feat3], "applications", [_item()]
+    )
     assert groups == [
         MappingFeatureGroup(
             id="a",
+            name="A",
             mappings=[
                 FeatureMappingRef(feature_id="f1", description="d"),
                 FeatureMappingRef(feature_id="f2", description="d"),
