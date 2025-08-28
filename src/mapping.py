@@ -449,12 +449,14 @@ async def map_set(
 def group_features_by_mapping(
     features: Sequence[PlateauFeature],
     mapping_type: str,
+    catalogue: Sequence[MappingItem],
 ) -> list[MappingFeatureGroup]:
     """Return mapping items keyed to features referencing them.
 
     Args:
         features: Plateau features potentially containing mappings.
         mapping_type: Mapping category to group by, such as ``"applications"``.
+        catalogue: Reference data providing mapping item names.
 
     Returns:
         List of :class:`MappingFeatureGroup` entries sorted by mapping ID.
@@ -474,9 +476,11 @@ def group_features_by_mapping(
                 )
             )
 
+    name_lookup = {item.id: item.name for item in catalogue}
     result = [
         MappingFeatureGroup(
             id=item_id,
+            name=name_lookup.get(item_id, item_id),
             mappings=sorted(refs, key=lambda r: r.feature_id),
         )
         for item_id, refs in sorted(groups.items())
