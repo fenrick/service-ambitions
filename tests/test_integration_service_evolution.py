@@ -109,9 +109,13 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
             for f in features
         ]
         return {
-            "data": [MappingFeatureGroup(id="d", mappings=refs.copy())],
-            "applications": [MappingFeatureGroup(id="a", mappings=refs.copy())],
-            "technologies": [MappingFeatureGroup(id="t", mappings=refs.copy())],
+            "data": [MappingFeatureGroup(id="d", name="d", mappings=refs.copy())],
+            "applications": [
+                MappingFeatureGroup(id="a", name="a", mappings=refs.copy())
+            ],
+            "technologies": [
+                MappingFeatureGroup(id="t", name="t", mappings=refs.copy())
+            ],
         }
 
     monkeypatch.setattr(PlateauGenerator, "_map_features", _fake_map_features)

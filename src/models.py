@@ -740,6 +740,10 @@ class MappingFeatureGroup(StrictModel):
     id: Annotated[
         str, Field(min_length=1, description="Identifier of the mapping item.")
     ]
+    name: Annotated[
+        str,
+        Field(min_length=1, description="Human readable name of the mapping item."),
+    ]
     mappings: list[FeatureMappingRef] = Field(
         default_factory=list,
         description="Features linked to the mapping item.",

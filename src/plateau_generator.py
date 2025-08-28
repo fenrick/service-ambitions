@@ -174,7 +174,9 @@ class PlateauGenerator:
                 cache_mode=(self.cache_mode if self.use_local_cache else "off"),
                 catalogue_hash=catalogue_hash,
             )
-            groups[cfg.field] = group_features_by_mapping(result, cfg.field)
+            groups[cfg.field] = group_features_by_mapping(
+                result, cfg.field, items[cfg.field]
+            )
 
         return groups
 

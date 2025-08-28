@@ -43,12 +43,14 @@ present, is replaced.
 ## Output format
 
 The output lists mapping catalogue entries and the features associated with
-each. Every record contains an `id` for the mapping item and a `mappings` array
-of feature references. Features without matching entries are simply omitted.
+each. Every record contains an `id` and `name` for the mapping item and a
+`mappings` array of feature references. Features without matching entries are
+simply omitted.
 
 ```json
 {
   "id": "AC007",
+  "name": "Analytics",
   "mappings": [{ "feature_id": "FEAT001", "description": "Student portal" }]
 }
 ```
