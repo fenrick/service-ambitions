@@ -101,10 +101,10 @@ def test_mapping_run_matches_golden(tmp_path) -> None:
             mapped_feats = [by_id[f.feature_id] for f in plateau.features]
             plateau.mappings = {
                 "applications": mapping.group_features_by_mapping(
-                    mapped_feats, "applications"
+                    mapped_feats, "applications", items["applications"]
                 ),
                 "technologies": mapping.group_features_by_mapping(
-                    mapped_feats, "technologies"
+                    mapped_feats, "technologies", items["technologies"]
                 ),
             }
     out = tmp_path / "out.jsonl"
