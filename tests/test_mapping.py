@@ -430,13 +430,16 @@ async def test_map_set_cache_invalidation(monkeypatch, tmp_path, change) -> None
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    keys = iter(["key1", "key2"])
+    monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: next(keys))
     if change == "template":  # Template text changes between calls
         versions = iter(["v1", "v2"])
         monkeypatch.setattr(mapping, "load_prompt_text", lambda _: next(versions))
     else:  # Template remains constant
         monkeypatch.setattr(mapping, "load_prompt_text", lambda _: "v1")
     response = json.dumps(
-        {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
+        {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]},
+        separators=(",", ":"),
     )
     session = DummySession([response, response])
     features1 = [_feature()]
@@ -470,14 +473,11 @@ async def test_map_set_cache_invalidation(monkeypatch, tmp_path, change) -> None
         cache_mode="read",
         catalogue_hash=cat_hash2,
     )
-    cache_dir1 = (
+    cache_dir = (
         Path(".cache") / "unknown" / "unknown" / "mappings" / "f1" / "applications"
     )
-    cache_dir2 = (
-        Path(".cache") / "unknown" / "unknown" / "mappings" / "f2" / "applications"
-    )
-    assert (cache_dir1 / "key.json").exists()
-    assert (cache_dir2 / "key.json").exists()
+    assert (cache_dir / "key1.json").exists()
+    assert (cache_dir / "key2.json").exists()
     assert len(session.prompts) == 2
 
 
@@ -499,7 +499,8 @@ async def test_map_set_logs_cache_status(
     monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
     monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
     response = json.dumps(
-        {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
+        {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]},
+        separators=(",", ":"),
     )
     if prepopulate:
         cache_dir = (
@@ -547,7 +548,19 @@ async def test_map_set_cache_modes(
     monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
     monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
     response = json.dumps(
-        {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
+        {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]},
+        separators=(",", ":"),
+    )
+    cache_expected = json.dumps(
+        {
+            "features": [
+                {
+                    "feature_id": "f1",
+                    "mappings": {"applications": [{"item": "a"}]},
+                }
+            ]
+        },
+        separators=(",", ":"),
     )
     cache_file = (
         Path(".cache")
@@ -577,7 +590,7 @@ async def test_map_set_cache_modes(
         assert not cache_file.exists()
     else:  # remaining modes leave an on-disk file
         assert cache_file.read_text() == (
-            response if expected_content == "response" else "cached"
+            cache_expected if expected_content == "response" else "cached"
         )
 
 
