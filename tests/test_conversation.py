@@ -203,7 +203,9 @@ def test_ask_uses_cache_when_available(tmp_path, monkeypatch) -> None:
         cache_mode="read",
     )
     monkeypatch.setattr(
-        conversation, "load_settings", lambda: SimpleNamespace(cache_dir=tmp_path)
+        conversation,
+        "load_settings",
+        lambda: SimpleNamespace(cache_dir=tmp_path, context_id="ctx"),
     )
     key = conversation._prompt_cache_key("hello", "", "stage")
     path = conversation._prompt_cache_path("unknown", "stage", key)

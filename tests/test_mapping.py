@@ -341,10 +341,18 @@ async def test_map_set_writes_cache(monkeypatch, tmp_path) -> None:
         plateau=1,
         cache_mode="read",
     )
-    cache_file = Path(".cache") / "unknown" / "mappings" / "applications" / "key.json"
+    cache_file = (
+        Path(".cache")
+        / "unknown"
+        / "unknown"
+        / "mappings"
+        / "f1"
+        / "applications"
+        / "key.json"
+    )
     assert cache_file.exists()
     content = cache_file.read_text()
-    assert content == response.model_dump_json()
+    assert json.loads(content) == response.model_dump()
     assert ": " not in content and ", " not in content
 
 
@@ -355,12 +363,13 @@ async def test_map_set_reads_cache(monkeypatch, tmp_path) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
     monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
-    cached = json.dumps(
-        {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
+    cached = {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
+    cache_dir = (
+        Path(".cache") / "unknown" / "unknown" / "mappings" / "f1" / "applications"
     )
-    cache_dir = Path(".cache") / "unknown" / "mappings" / "applications"
     cache_dir.mkdir(parents=True, exist_ok=True)
-    (cache_dir / "key.json").write_text(cached)
+    with (cache_dir / "key.json").open("w", encoding="utf-8") as fh:
+        json.dump(cached, fh)
 
     class NoCallSession(DummySession):
         async def ask_async(self, prompt: str, output_type=None) -> str:
@@ -388,7 +397,9 @@ async def test_map_set_bad_cache_renamed(monkeypatch, tmp_path) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
     monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
-    cache_dir = Path(".cache") / "unknown" / "mappings" / "applications"
+    cache_dir = (
+        Path(".cache") / "unknown" / "unknown" / "mappings" / "f1" / "applications"
+    )
     cache_dir.mkdir(parents=True, exist_ok=True)
     bad_file = cache_dir / "key.json"
     bad_file.write_text("not json", encoding="utf-8")
@@ -419,13 +430,16 @@ async def test_map_set_cache_invalidation(monkeypatch, tmp_path, change) -> None
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    keys = iter(["key1", "key2"])
+    monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: next(keys))
     if change == "template":  # Template text changes between calls
         versions = iter(["v1", "v2"])
         monkeypatch.setattr(mapping, "load_prompt_text", lambda _: next(versions))
     else:  # Template remains constant
         monkeypatch.setattr(mapping, "load_prompt_text", lambda _: "v1")
     response = json.dumps(
-        {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
+        {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]},
+        separators=(",", ":"),
     )
     session = DummySession([response, response])
     features1 = [_feature()]
@@ -459,8 +473,11 @@ async def test_map_set_cache_invalidation(monkeypatch, tmp_path, change) -> None
         cache_mode="read",
         catalogue_hash=cat_hash2,
     )
-    cache_dir = Path(".cache") / "unknown" / "mappings" / "applications"
-    assert len(list(cache_dir.glob("*.json"))) == 2
+    cache_dir = (
+        Path(".cache") / "unknown" / "unknown" / "mappings" / "f1" / "applications"
+    )
+    assert (cache_dir / "key1.json").exists()
+    assert (cache_dir / "key2.json").exists()
     assert len(session.prompts) == 2
 
 
@@ -482,12 +499,16 @@ async def test_map_set_logs_cache_status(
     monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
     monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
     response = json.dumps(
-        {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
+        {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]},
+        separators=(",", ":"),
     )
     if prepopulate:
-        cache_dir = Path(".cache") / "unknown" / "mappings" / "applications"
+        cache_dir = (
+            Path(".cache") / "unknown" / "unknown" / "mappings" / "f1" / "applications"
+        )
         cache_dir.mkdir(parents=True, exist_ok=True)
-        (cache_dir / "key.json").write_text(response)
+        with (cache_dir / "key.json").open("w", encoding="utf-8") as fh:
+            json.dump(json.loads(response), fh)
     session = DummySession([response])
     logs: list[tuple[str, dict[str, Any]]] = []
     monkeypatch.setattr(
@@ -527,9 +548,29 @@ async def test_map_set_cache_modes(
     monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
     monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
     response = json.dumps(
-        {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
+        {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]},
+        separators=(",", ":"),
     )
-    cache_file = Path(".cache") / "unknown" / "mappings" / "applications" / "key.json"
+    cache_expected = json.dumps(
+        {
+            "features": [
+                {
+                    "feature_id": "f1",
+                    "mappings": {"applications": [{"item": "a"}]},
+                }
+            ]
+        },
+        separators=(",", ":"),
+    )
+    cache_file = (
+        Path(".cache")
+        / "unknown"
+        / "unknown"
+        / "mappings"
+        / "f1"
+        / "applications"
+        / "key.json"
+    )
     if prepopulate:  # Seed cache file when required
         cache_file.parent.mkdir(parents=True, exist_ok=True)
         cache_file.write_text("cached")
@@ -549,7 +590,7 @@ async def test_map_set_cache_modes(
         assert not cache_file.exists()
     else:  # remaining modes leave an on-disk file
         assert cache_file.read_text() == (
-            response if expected_content == "response" else "cached"
+            cache_expected if expected_content == "response" else "cached"
         )
 
 

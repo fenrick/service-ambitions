@@ -14,7 +14,7 @@ import json
 import os
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Mapping, Sequence, cast
+from typing import TYPE_CHECKING, Any, Literal, Mapping, Sequence, cast
 
 import logfire
 from pydantic import ValidationError
@@ -102,36 +102,38 @@ def _build_cache_key(
     return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:32]
 
 
-def _cache_path(service: str, set_name: str, key: str) -> Path:
-    """Return the cache file path for ``set_name`` and ``key`` under ``service``.
-
-    Entries are grouped by service identifier with mapping results stored under
-    ``mappings/<set_name>`` to keep different datasets isolated.
-    """
+def _cache_path(service: str, feature_id: str, set_name: str, key: str) -> Path:
+    """Return cache path for ``feature_id`` in ``service`` and ``set_name``."""
 
     try:
-        cache_root = load_settings().cache_dir
+        settings = load_settings()
+        cache_root = settings.cache_dir
+        context = settings.context_id
     except Exception:
         cache_root = Path(".cache")
-    path = cache_root / service / "mappings" / set_name / f"{key}.json"
+        context = "unknown"
+    path = (
+        cache_root
+        / context
+        / service
+        / "mappings"
+        / feature_id
+        / set_name
+        / f"{key}.json"
+    )
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 
 
-def cache_write_json_atomic(path: Path, content: str) -> None:
-    """Atomically write ``content`` to ``path`` with ``0o600`` permissions.
+def cache_write_json_atomic(path: Path, content: Any) -> None:
+    """Atomically write JSON ``content`` to ``path`` with ``0o600`` permissions."""
 
-    The JSON payload is parsed before writing so malformed responses are never
-    persisted to the cache.
-    """
-
-    json.loads(content)  # Validate JSON before writing
-
+    data = content if not isinstance(content, str) else json.loads(content)
     tmp_path = path.with_suffix(".tmp")
     fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            fh.write(content)
+            json.dump(data, fh, ensure_ascii=False, separators=(",", ":"))
             fh.flush()
             os.fsync(fh.fileno())
         os.replace(tmp_path, path)
@@ -299,13 +301,15 @@ async def map_set(
     payload: StrictModel | None = None
     write_after_call = False
     cache_hit = False
+    first_id = features[0].feature_id if features else "global"
     if cache_mode != "off":
         svc = service or "unknown"
-        cache_file = _cache_path(svc, set_name, key)
+        cache_file = _cache_path(svc, first_id, set_name, key)
         exists_before = cache_file.exists()
         if cache_mode == "read" and exists_before:
             try:
-                data = json.loads(cache_file.read_text(encoding="utf-8"))
+                with cache_file.open("r", encoding="utf-8") as fh:
+                    data = json.load(fh)
                 payload = model_type.model_validate(data)
                 cache_hit = True
             except (ValidationError, json.JSONDecodeError):
@@ -406,11 +410,13 @@ async def map_set(
                     for feat in features
                 ]
         if cache_file and write_after_call:
-            # Persist successful responses for future runs.
-            cache_write_json_atomic(
-                cache_file,
-                raw if isinstance(raw, str) else raw.model_dump_json(),
-            )
+            # Persist successful responses for future runs under each feature.
+            data = payload.model_dump() if hasattr(payload, "model_dump") else payload
+            for feat in features:
+                cache_write_json_atomic(
+                    _cache_path(svc, feat.feature_id, set_name, key),
+                    data,
+                )
         if should_log_prompt:
             session.log_prompts = session_log_prompts
 
