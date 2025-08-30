@@ -33,32 +33,35 @@ def _prompt_cache_key(prompt: str, model: str, stage: str) -> str:
     return hashlib.sha256(data.encode("utf-8")).hexdigest()[:32]
 
 
-def _prompt_cache_path(service: str, stage: str, key: str) -> Path:
-    """Return the cache file path for ``key`` scoped by ``service`` and ``stage``.
-
-    Cache entries are organised by service identifier with separate namespaces
-    for descriptions, features and mapping data types. Any unrecognised stages
-    fall back to using the raw ``stage`` name as the directory.
-    """
+def _prompt_cache_path(
+    service: str, stage: str, key: str, feature_id: str | None = None
+) -> Path:
+    """Return cache path for ``key`` grouped by context and identifiers."""
 
     try:
-        cache_root = load_settings().cache_dir
+        settings = load_settings()
+        cache_root = settings.cache_dir
+        context = settings.context_id
     except Exception:  # pragma: no cover - fallback when settings unavailable
         cache_root = Path(".cache")
+        context = "unknown"
 
-    # Map well-known stages to their directory names.
     if stage.startswith("mapping_"):
-        # ``mapping_<type>`` → ``mappings/<type>``
         _, mapping_type = stage.split("_", 1)
-        subdir = Path("mappings") / mapping_type
+        if feature_id:
+            subdir = Path("mappings") / feature_id / mapping_type
+        else:
+            subdir = Path("mappings") / mapping_type
     elif stage in {"descriptions", "description"}:
         subdir = Path("description")
+    elif stage == "features" and feature_id:
+        subdir = Path("features") / feature_id
     elif stage == "features":
         subdir = Path("features")
-    else:  # Fallback for any other stage names
+    else:
         subdir = Path(stage)
 
-    path = cache_root / service / subdir / f"{key}.json"
+    path = cache_root / context / service / subdir / f"{key}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -253,6 +256,7 @@ class ConversationSession:
             [str, list[messages.ModelMessage], type[T] | None], Awaitable[Any]
         ],
         span_name: str,
+        feature_id: str | None = None,
     ) -> T | str:
         stage = self.stage or "unknown"
         model_name = getattr(getattr(self.client, "model", None), "model_name", "")
@@ -261,15 +265,16 @@ class ConversationSession:
         if self.use_local_cache and self.cache_mode != "off":
             key = _prompt_cache_key(prompt, model_name, stage)
             svc = self._service_id or "unknown"
-            cache_file = _prompt_cache_path(svc, stage, key)
+            cache_file = _prompt_cache_path(svc, stage, key, feature_id)
             exists_before = cache_file.exists()
             if self.cache_mode == "read" and exists_before:
                 try:
-                    data = cache_file.read_text(encoding="utf-8")
-                    if output_type and hasattr(output_type, "model_validate_json"):
-                        payload = cast(Any, output_type).model_validate_json(data)
+                    with cache_file.open("r", encoding="utf-8") as fh:
+                        data = json.load(fh)
+                    if output_type and hasattr(output_type, "model_validate"):
+                        payload = cast(Any, output_type).model_validate(data)
                     else:
-                        payload = json.loads(data)
+                        payload = data
                     self.last_tokens = 0
                     return payload
                 except Exception:  # pragma: no cover - invalid cache content
@@ -291,9 +296,7 @@ class ConversationSession:
                 output, tokens = self._handle_success(result, stage, model_name)
                 if cache_file and write_after_call:
                     content = (
-                        output.model_dump_json()
-                        if hasattr(output, "model_dump_json")
-                        else json.dumps(output, ensure_ascii=False)
+                        output.model_dump() if hasattr(output, "model_dump") else output
                     )
                     cache_write_json_atomic(cache_file, content)
                 self.last_tokens = tokens
@@ -316,7 +319,13 @@ class ConversationSession:
     @overload
     def ask(self, prompt: str, output_type: type[T]) -> T: ...
 
-    def ask(self, prompt: str, output_type: type[T] | None = None) -> T | str:
+    def ask(
+        self,
+        prompt: str,
+        output_type: type[T] | None = None,
+        *,
+        feature_id: str | None = None,
+    ) -> T | str:
         """Return the agent's response to ``prompt``."""
 
         async def runner(
@@ -330,7 +339,11 @@ class ConversationSession:
 
         return asyncio.run(
             self._ask_common(
-                prompt, output_type, runner, self.stage or "ConversationSession.ask"
+                prompt,
+                output_type,
+                runner,
+                self.stage or "ConversationSession.ask",
+                feature_id,
             )
         )
 
@@ -341,7 +354,11 @@ class ConversationSession:
     async def ask_async(self, prompt: str, output_type: type[T]) -> T: ...
 
     async def ask_async(
-        self, prompt: str, output_type: type[T] | None = None
+        self,
+        prompt: str,
+        output_type: type[T] | None = None,
+        *,
+        feature_id: str | None = None,
     ) -> T | str:
         """Asynchronously return the agent's response to ``prompt``."""
 
@@ -359,6 +376,7 @@ class ConversationSession:
             output_type,
             runner,
             self.stage or "ConversationSession.ask_async",
+            feature_id,
         )
 
 
