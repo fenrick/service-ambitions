@@ -28,9 +28,6 @@ jobs:
       - name: Install dependencies
         run: poetry install --no-interaction
       - name: Run E2E tests
-        run: |
-          if [ -d tests/e2e ]; then
-            poetry run pytest tests/e2e
-          else
-            echo "No E2E tests found, skipping."
-          fi
+        env:
+          OPENAI_API_KEY: dummy
+        run: poetry run pytest tests/test_e2e_*.py
