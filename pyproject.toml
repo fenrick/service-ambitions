@@ -51,16 +51,20 @@ requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
-package-mode = false
+# Enable package mode so `poetry build` can create a distributable.
+# Include all modules from the `src` directory.
+packages = [{include = "*", from = "src"}]
 
 [tool.black]
 line-length = 88
 target-version = ["py313"]
+extend-exclude = '\.idea'
 
 [tool.ruff]
 line-length = 88
 target-version = "py313"
 src = ["src", "tests"]
+extend-exclude = [".idea"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B"]
