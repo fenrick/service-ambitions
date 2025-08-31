@@ -1,0 +1,285 @@
+# SPDX-License-Identifier: MIT
+"""End-to-end test for CLI generate subcommand."""
+
+from __future__ import annotations
+
+import sys
+import types
+from contextlib import nullcontext
+from dataclasses import dataclass, field
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
+
+# Provide a lightweight stub for the logfire dependency required by ``cli``.
+dummy_logfire = types.SimpleNamespace(
+    metric_counter=lambda name: types.SimpleNamespace(add=lambda *a, **k: None),
+    span=lambda name, attributes=None: nullcontext(),
+    info=lambda *a, **k: None,
+    warning=lambda *a, **k: None,
+    error=lambda *a, **k: None,
+    debug=lambda *a, **k: None,
+    exception=lambda *a, **k: None,
+    force_flush=lambda: None,
+)
+sys.modules.setdefault("logfire", dummy_logfire)  # type: ignore[arg-type]
+
+# Minimal stub for the ``pydantic_ai`` package required by :mod:`cli` and
+# :mod:`conversation`.
+dummy_pydantic = types.SimpleNamespace(
+    Agent=object,
+    messages=types.SimpleNamespace(ModelMessage=object),
+)
+sys.modules.setdefault("pydantic_ai", dummy_pydantic)  # type: ignore[arg-type]
+sys.modules.setdefault("pydantic_ai.models", types.SimpleNamespace(Model=object))  # type: ignore[arg-type]
+sys.modules.setdefault(
+    "generator", types.SimpleNamespace(build_model=lambda *a, **k: None)
+)  # type: ignore[arg-type]
+
+
+class _DummyTqdm:  # pragma: no cover - simple progress bar stub
+    def __init__(self, *args, **kwargs) -> None:
+        pass
+
+    def update(self, *args, **kwargs) -> None:
+        return None
+
+    def close(self) -> None:
+        return None
+
+
+sys.modules.setdefault("tqdm", types.SimpleNamespace(tqdm=_DummyTqdm))  # type: ignore[arg-type]
+
+# Basic YAML stub used by the loader module during import.
+sys.modules.setdefault("yaml", types.SimpleNamespace(safe_load=lambda *a, **k: {}))  # type: ignore[arg-type]
+
+# Minimal loader stub to satisfy imports in :mod:`cli`.
+dummy_loader = types.SimpleNamespace(
+    configure_mapping_data_dir=lambda *a, **k: None,
+    configure_prompt_dir=lambda *a, **k: None,
+    load_evolution_prompt=lambda *a, **k: "prompt",
+    load_mapping_items=lambda *a, **k: ([], "hash"),
+    load_role_ids=lambda *a, **k: ["role"],
+    load_plateau_definitions=lambda: [],
+    load_prompt_text=lambda *a, **k: "",
+    MAPPING_DATA_DIR=Path("data"),
+)
+sys.modules.setdefault("loader", dummy_loader)  # type: ignore[arg-type]
+
+# Stub mapping and telemetry modules to satisfy CLI imports.
+sys.modules.setdefault(
+    "mapping",
+    types.SimpleNamespace(
+        cache_write_json_atomic=lambda *a, **k: None,
+        group_features_by_mapping=lambda *a, **k: {},
+        map_set=lambda *a, **k: [],
+    ),
+)  # type: ignore[arg-type]
+sys.modules.setdefault(
+    "telemetry",
+    types.SimpleNamespace(
+        reset=lambda: None,
+        print_summary=lambda: None,
+        has_quarantines=lambda: False,
+        record_quarantine=lambda *a, **k: None,
+    ),
+)  # type: ignore[arg-type]
+sys.modules.setdefault(
+    "settings", types.SimpleNamespace(load_settings=lambda: SimpleNamespace())
+)  # type: ignore[arg-type]
+sys.modules.setdefault(
+    "service_loader", types.SimpleNamespace(load_services=lambda *a, **k: [])
+)  # type: ignore[arg-type]
+
+
+# Stub implementations of the ``models`` module required by ``cli``.
+@dataclass
+class ServiceInput:
+    service_id: str
+    name: str
+    description: str
+    jobs_to_be_done: list[dict[str, Any]]
+    features: list[dict[str, Any]] = field(default_factory=list)
+    parent_id: str | None = None
+    customer_type: str | None = None
+
+    def model_dump_json(self) -> str:
+        import json
+
+        return json.dumps(
+            {
+                "service_id": self.service_id,
+                "name": self.name,
+                "parent_id": self.parent_id,
+                "customer_type": self.customer_type,
+                "description": self.description,
+                "jobs_to_be_done": self.jobs_to_be_done,
+                "features": self.features,
+            },
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+
+    def model_dump(self, mode: str | None = None) -> dict[str, Any]:
+        return {
+            "service_id": self.service_id,
+            "name": self.name,
+            "parent_id": self.parent_id,
+            "customer_type": self.customer_type,
+            "description": self.description,
+            "jobs_to_be_done": self.jobs_to_be_done,
+            "features": self.features,
+        }
+
+
+class ServiceMeta:  # pragma: no cover - placeholder container
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+
+
+class ServiceEvolution:  # pragma: no cover - placeholder container
+    pass
+
+
+class FeatureMappingRef:  # pragma: no cover - placeholder container
+    pass
+
+
+class MappingFeatureGroup:  # pragma: no cover - placeholder container
+    pass
+
+
+sys.modules.setdefault(
+    "models",
+    types.SimpleNamespace(
+        ServiceInput=ServiceInput,
+        ServiceMeta=ServiceMeta,
+        ServiceEvolution=ServiceEvolution,
+        FeatureMappingRef=FeatureMappingRef,
+        MappingFeatureGroup=MappingFeatureGroup,
+        ReasoningConfig=object,
+        StageModels=object,
+    ),
+)  # type: ignore[arg-type]
+
+
+class DummySession:
+    """Minimal conversation session stub."""
+
+    def __init__(self, client, **_: object) -> None:
+        self.client = client
+        self.stage = "stage"
+
+    def add_parent_materials(
+        self, service_input: ServiceInput
+    ) -> None:  # pragma: no cover
+        return None
+
+
+class DummyModelFactory:
+    """Factory providing placeholder models."""
+
+    def __init__(self, *args, **kwargs) -> None:  # pragma: no cover
+        pass
+
+    def model_name(self, *args, **kwargs) -> str:
+        return "model"
+
+    def get(self, *args, **kwargs):  # pragma: no cover
+        return None
+
+
+# Expose a placeholder ``PlateauGenerator`` before importing the CLI.
+sys.modules.setdefault(
+    "plateau_generator", types.SimpleNamespace(PlateauGenerator=object)
+)  # type: ignore[arg-type]
+
+import cli  # noqa: E402
+
+
+def _settings() -> SimpleNamespace:
+    """Return minimal settings for the CLI."""
+
+    return SimpleNamespace(
+        model="model",
+        openai_api_key="key",
+        log_level="INFO",
+        prompt_dir=Path("prompts"),
+        context_id="ctx",
+        inspiration="general",
+        concurrency=1,
+        reasoning=None,
+        logfire_token=None,
+        diagnostics=True,
+        strict_mapping=False,
+        use_local_cache=True,
+        cache_mode="read",
+        cache_dir=Path(".cache"),
+        mapping_data_dir=Path("data"),
+        mapping_sets=[],
+        features_per_role=5,
+        web_search=False,
+        mapping_mode="per_set",
+    )
+
+
+def _load_services_stub(*_args, **_kwargs):
+    service = ServiceInput(
+        service_id="svc",
+        name="alpha",
+        description="desc",
+        jobs_to_be_done=[{"name": "job"}],
+    )
+    return [service]
+
+
+def test_cli_generate_matches_golden(monkeypatch, tmp_path, dummy_agent) -> None:
+    """The run subcommand produces the locked golden output."""
+
+    class DummyPlateauGenerator:
+        """Generate an evolution using the ``dummy_agent`` fixture."""
+
+        def __init__(self, *args, **kwargs) -> None:  # pragma: no cover
+            self.agent = dummy_agent()
+
+        async def generate_service_evolution_async(
+            self, service_input: ServiceInput, *_, **__
+        ):
+            resp = await self.agent.run(service_input.model_dump_json(), dict)
+            return SimpleNamespace(
+                model_dump=lambda mode=None: resp.output.model_dump()
+            )
+
+    monkeypatch.setattr(cli, "Agent", dummy_agent)
+    monkeypatch.setattr(cli, "ConversationSession", DummySession)
+    monkeypatch.setattr(cli, "ModelFactory", DummyModelFactory)
+    monkeypatch.setattr(cli, "PlateauGenerator", DummyPlateauGenerator)
+    monkeypatch.setattr(cli, "load_settings", _settings)
+    monkeypatch.setattr(cli, "_configure_logging", lambda *a, **k: None)
+    monkeypatch.setattr(cli, "_load_services_list", _load_services_stub)
+    monkeypatch.setattr(cli, "configure_prompt_dir", lambda *a, **k: None)
+    monkeypatch.setattr(cli, "configure_mapping_data_dir", lambda *a, **k: None)
+    monkeypatch.setattr(cli, "load_evolution_prompt", lambda *a, **k: "prompt")
+    monkeypatch.setattr(cli, "load_role_ids", lambda *a, **k: ["role"])
+    monkeypatch.setattr(cli, "load_mapping_items", lambda *a, **k: ([], "hash"))
+    monkeypatch.setattr(cli, "canonicalise_record", lambda d: d)
+
+    output_file = tmp_path / "out.jsonl"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "main",
+            "run",
+            "--input-file",
+            "sample-services.json",
+            "--output-file",
+            str(output_file),
+            "--no-logs",
+        ],
+    )
+
+    cli.main()
+
+    expected = Path("tests/golden/sample_run.jsonl").read_text(encoding="utf-8")
+    assert output_file.read_text(encoding="utf-8") == expected
