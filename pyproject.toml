@@ -43,6 +43,9 @@ hypothesis = "*"
 types-pyyaml = "^6.0.12.20250822"
 pytest-asyncio = "^1.1.0"
 
+[tool.poetry.group.docs.dependencies]
+mkdocs = "*"
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
