@@ -163,20 +163,6 @@ sys.modules.setdefault(
 )  # type: ignore[arg-type]
 
 
-class DummyAgent:
-    """Agent echoing prompts for deterministic output."""
-
-    def __init__(self, model=None, instructions=None):
-        self.model = model
-        self.instructions = instructions
-
-    async def run(self, user_prompt: str, output_type):
-        return SimpleNamespace(
-            output=SimpleNamespace(model_dump=lambda: {"service": user_prompt}),
-            usage=lambda: SimpleNamespace(total_tokens=1),
-        )
-
-
 class DummySession:
     """Minimal conversation session stub."""
 
@@ -203,22 +189,9 @@ class DummyModelFactory:
         return None
 
 
-class DummyPlateauGenerator:
-    """Generate an evolution using :class:`DummyAgent`."""
-
-    def __init__(self, *args, **kwargs) -> None:  # pragma: no cover
-        self.agent = DummyAgent()
-
-    async def generate_service_evolution_async(
-        self, service_input: ServiceInput, *_, **__
-    ):
-        resp = await self.agent.run(service_input.model_dump_json(), dict)
-        return SimpleNamespace(model_dump=lambda mode=None: resp.output.model_dump())
-
-
-# Expose DummyPlateauGenerator before importing the CLI.
+# Expose a placeholder ``PlateauGenerator`` before importing the CLI.
 sys.modules.setdefault(
-    "plateau_generator", types.SimpleNamespace(PlateauGenerator=DummyPlateauGenerator)
+    "plateau_generator", types.SimpleNamespace(PlateauGenerator=object)
 )  # type: ignore[arg-type]
 
 import cli  # noqa: E402
@@ -260,10 +233,24 @@ def _load_services_stub(*_args, **_kwargs):
     return [service]
 
 
-def test_cli_generate_matches_golden(monkeypatch, tmp_path) -> None:
+def test_cli_generate_matches_golden(monkeypatch, tmp_path, dummy_agent) -> None:
     """The run subcommand produces the locked golden output."""
 
-    monkeypatch.setattr(cli, "Agent", DummyAgent)
+    class DummyPlateauGenerator:
+        """Generate an evolution using the ``dummy_agent`` fixture."""
+
+        def __init__(self, *args, **kwargs) -> None:  # pragma: no cover
+            self.agent = dummy_agent()
+
+        async def generate_service_evolution_async(
+            self, service_input: ServiceInput, *_, **__
+        ):
+            resp = await self.agent.run(service_input.model_dump_json(), dict)
+            return SimpleNamespace(
+                model_dump=lambda mode=None: resp.output.model_dump()
+            )
+
+    monkeypatch.setattr(cli, "Agent", dummy_agent)
     monkeypatch.setattr(cli, "ConversationSession", DummySession)
     monkeypatch.setattr(cli, "ModelFactory", DummyModelFactory)
     monkeypatch.setattr(cli, "PlateauGenerator", DummyPlateauGenerator)
