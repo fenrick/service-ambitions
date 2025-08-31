@@ -21,11 +21,12 @@ import logfire
 from pydantic_ai import Agent
 from tqdm import tqdm
 
+import loader
+import mapping
 import telemetry
 from canonical import canonicalise_record
 from conversation import ConversationSession
 from loader import (
-    MAPPING_DATA_DIR,
     configure_mapping_data_dir,
     configure_prompt_dir,
     load_evolution_prompt,
@@ -33,7 +34,13 @@ from loader import (
     load_role_ids,
 )
 from model_factory import ModelFactory
-from models import ServiceInput, ServiceMeta
+from models import (
+    FeatureMappingRef,
+    MappingFeatureGroup,
+    ServiceEvolution,
+    ServiceInput,
+    ServiceMeta,
+)
 from monitoring import LOG_FILE_NAME, init_logfire
 from persistence import atomic_write, read_lines
 from plateau_generator import PlateauGenerator
@@ -240,7 +247,7 @@ async def _generate_evolution_for_service(
                     ),
                 }
                 _, catalogue_hash = load_mapping_items(
-                    MAPPING_DATA_DIR, settings.mapping_sets
+                    loader.MAPPING_DATA_DIR, settings.mapping_sets
                 )
                 context_window = getattr(feat_model, "max_input_tokens", 0)
                 _RUN_META = ServiceMeta(
@@ -327,6 +334,76 @@ async def _cmd_validate(
 
     args.dry_run = True
     await _cmd_generate_evolution(args, settings, transcripts_dir)
+
+
+async def _cmd_map(
+    args: argparse.Namespace, settings, transcripts_dir: Path | None
+) -> None:
+    """Populate feature mappings for an existing features file."""
+
+    configure_mapping_data_dir(args.mapping_data_dir or settings.mapping_data_dir)
+    items, catalogue_hash = load_mapping_items(
+        loader.MAPPING_DATA_DIR, settings.mapping_sets
+    )
+
+    text = Path(args.input_file).read_text(encoding="utf-8")
+    evolutions = [
+        ServiceEvolution.model_validate_json(line)
+        for line in text.splitlines()
+        if line.strip()
+    ]
+
+    features = [f for evo in evolutions for p in evo.plateaus for f in p.features]
+    mapped = features
+    for cfg in settings.mapping_sets:
+        mapped = await mapping.map_set(
+            cast(ConversationSession, object()),
+            cfg.field,
+            items[cfg.field],
+            mapped,
+            service_name="svc",
+            service_description="desc",
+            plateau=1,
+            strict=settings.strict_mapping,
+            diagnostics=settings.diagnostics,
+            cache_mode=args.cache_mode,
+            catalogue_hash=catalogue_hash,
+        )
+
+    catalogue_lookup = {
+        cfg.field: {item.id: item.name for item in items[cfg.field]}
+        for cfg in settings.mapping_sets
+    }
+    by_id = {f.feature_id: f for f in mapped}
+    for evo in evolutions:
+        for plateau in evo.plateaus:
+            mapped_feats = [by_id[f.feature_id] for f in plateau.features]
+            plateau.mappings = {}
+            for cfg in settings.mapping_sets:
+                groups: dict[str, list[FeatureMappingRef]] = {}
+                for feat in mapped_feats:
+                    for contrib in feat.mappings.get(cfg.field, []):
+                        groups.setdefault(contrib.item, []).append(
+                            FeatureMappingRef(
+                                feature_id=feat.feature_id,
+                                description=feat.description,
+                            )
+                        )
+                catalogue = catalogue_lookup[cfg.field]
+                plateau.mappings[cfg.field] = [
+                    MappingFeatureGroup(
+                        id=item_id,
+                        name=catalogue.get(item_id, item_id),
+                        mappings=sorted(refs, key=lambda r: r.feature_id),
+                    )
+                    for item_id, refs in sorted(groups.items())
+                ]
+
+    output_path = Path(args.output_file)
+    with output_path.open("w", encoding="utf-8") as fh:
+        for evo in evolutions:
+            record = canonicalise_record(evo.model_dump(mode="json"))
+            fh.write(json.dumps(record, separators=(",", ":"), sort_keys=True) + "\n")
 
 
 async def _cmd_generate_evolution(
@@ -576,6 +653,24 @@ def main() -> None:
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    map_p = subparsers.add_parser(
+        "map",
+        parents=[common],
+        help="Populate feature mappings",
+        description="Populate feature mappings for an existing features file",
+    )
+    map_p.add_argument(
+        "--input-file",
+        default="features.jsonl",
+        help="Path to the features JSONL file",
+    )
+    map_p.add_argument(
+        "--output-file",
+        default="mapped.jsonl",
+        help=OUTPUT_FILE_HELP,
+    )
+    map_p.set_defaults(func=_cmd_map)
 
     run_p = subparsers.add_parser(
         "run",
