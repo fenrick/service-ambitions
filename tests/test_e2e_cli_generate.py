@@ -273,17 +273,18 @@ def test_cli_generate_matches_golden(monkeypatch, tmp_path, dummy_agent) -> None
                 model_dump=lambda mode=None: resp.output.model_dump()
             )
 
-    monkeypatch.setattr(cli, "ModelFactory", DummyModelFactory)
     monkeypatch.setattr(cli, "load_settings", _settings)
     monkeypatch.setattr(cli, "_configure_logging", lambda *a, **k: None)
-    monkeypatch.setattr(cli, "_load_services_list", _load_services_stub)
-    monkeypatch.setattr(cli, "configure_prompt_dir", lambda *a, **k: None)
-    monkeypatch.setattr(cli, "configure_mapping_data_dir", lambda *a, **k: None)
-    monkeypatch.setattr(cli, "load_evolution_prompt", lambda *a, **k: "prompt")
-    monkeypatch.setattr(cli, "load_role_ids", lambda *a, **k: ["role"])
-    monkeypatch.setattr(cli, "load_mapping_items", lambda *a, **k: ([], "hash"))
+    import engine.processing_engine as pe
     import engine.service_execution as se
 
+    monkeypatch.setattr(pe, "ModelFactory", DummyModelFactory)
+    monkeypatch.setattr(pe, "_load_services_list", _load_services_stub)
+    monkeypatch.setattr(pe, "configure_prompt_dir", lambda *a, **k: None)
+    monkeypatch.setattr(pe, "configure_mapping_data_dir", lambda *a, **k: None)
+    monkeypatch.setattr(pe, "load_evolution_prompt", lambda *a, **k: "prompt")
+    monkeypatch.setattr(pe, "load_role_ids", lambda *a, **k: ["role"])
+    monkeypatch.setattr(se, "load_mapping_items", lambda *a, **k: ([], "hash"))
     monkeypatch.setattr(se, "Agent", dummy_agent)
     monkeypatch.setattr(se, "ConversationSession", DummySession)
     monkeypatch.setattr(se, "PlateauGenerator", DummyPlateauGenerator)

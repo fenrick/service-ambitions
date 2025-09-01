@@ -7,41 +7,23 @@ import argparse
 import asyncio
 import inspect
 import logging
-import os
 import random
-import sys
-from itertools import islice
 from pathlib import Path
 from typing import Any, Coroutine, cast
 
 import logfire
 from pydantic_core import to_json
-from tqdm import tqdm  # type: ignore[import-untyped]
 
 import loader
 import mapping
 import telemetry
 from canonical import canonicalise_record
 from conversation import ConversationSession
-from engine.service_execution import ServiceExecution
-from loader import (
-    configure_mapping_data_dir,
-    configure_prompt_dir,
-    load_evolution_prompt,
-    load_mapping_items,
-    load_role_ids,
-)
-from model_factory import ModelFactory
-from models import (
-    FeatureMappingRef,
-    MappingFeatureGroup,
-    ServiceEvolution,
-    ServiceInput,
-)
+from engine.processing_engine import ProcessingEngine
+from loader import configure_mapping_data_dir, load_mapping_items
+from models import FeatureMappingRef, MappingFeatureGroup, ServiceEvolution
 from monitoring import LOG_FILE_NAME, init_logfire
-from persistence import atomic_write, read_lines
 from runtime.environment import RuntimeEnv
-from service_loader import load_services
 from settings import load_settings
 
 SERVICES_FILE_HELP = "Path to the services JSONL file"
@@ -81,69 +63,6 @@ def _configure_logging(args: argparse.Namespace, settings) -> None:
     # Initialize logfire regardless of token availability; a missing token
     # keeps logging local without sending telemetry to the cloud.
     init_logfire(settings.logfire_token, diagnostics=settings.diagnostics)
-
-
-def _prepare_paths(output: Path, resume: bool) -> tuple[Path, Path]:
-    """Return paths used for output and resume tracking."""
-
-    part_path = output.with_suffix(
-        output.suffix + ".tmp" if not resume else output.suffix + ".tmp.part"
-    )
-    processed_path = output.with_name("processed_ids.txt")
-    return part_path, processed_path
-
-
-def _load_resume_state(
-    processed_path: Path, output_path: Path, resume: bool
-) -> tuple[set[str], list[str]]:
-    """Return previously processed IDs and existing output lines."""
-
-    processed_ids = set(read_lines(processed_path)) if resume else set()
-    existing_lines = read_lines(output_path) if resume else []
-    return processed_ids, existing_lines
-
-
-def _ensure_transcripts_dir(path: str | None, output: Path) -> Path:
-    """Create and return the directory used to store transcripts."""
-
-    transcripts_dir = Path(path) if path is not None else output.parent / "_transcripts"
-    transcripts_dir.mkdir(parents=True, exist_ok=True)
-    return transcripts_dir
-
-
-def _load_services_list(
-    input_file: str, max_services: int | None, processed_ids: set[str]
-) -> list[ServiceInput]:
-    """Return services filtered for ``processed_ids`` and ``max_services``."""
-
-    with load_services(Path(input_file)) as svc_iter:
-        if max_services is not None:
-            svc_iter = islice(svc_iter, max_services)
-        return [s for s in svc_iter if s.service_id not in processed_ids]
-
-
-def _save_results(
-    *,
-    resume: bool,
-    part_path: Path,
-    output_path: Path,
-    existing_lines: list[str],
-    processed_ids: set[str],
-    new_ids: set[str],
-    processed_path: Path,
-) -> set[str]:
-    """Persist generated lines and update processed IDs."""
-
-    if resume:
-        new_lines = read_lines(part_path)
-        atomic_write(output_path, [*existing_lines, *new_lines])
-        part_path.unlink(missing_ok=True)
-        processed_ids.update(new_ids)
-    else:
-        os.replace(part_path, output_path)
-        processed_ids = new_ids
-    atomic_write(processed_path, sorted(processed_ids))
-    return processed_ids
 
 
 async def _cmd_run(
@@ -246,94 +165,13 @@ async def _cmd_map(
 async def _cmd_generate_evolution(
     args: argparse.Namespace, settings, transcripts_dir: Path | None
 ) -> None:
-    """Generate service evolution summaries."""
+    """Generate service evolution summaries via ``ProcessingEngine``."""
 
-    use_web_search = (
-        args.web_search if args.web_search is not None else settings.web_search
-    )
-    factory = ModelFactory(
-        settings.model,
-        settings.openai_api_key,
-        stage_models=getattr(settings, "models", None),
-        reasoning=settings.reasoning,
-        seed=args.seed,
-        web_search=use_web_search,
-    )
-
-    configure_prompt_dir(settings.prompt_dir)
-    if args.mapping_data_dir is None and not settings.diagnostics:
-        raise RuntimeError("--mapping-data-dir is required in production mode")
-    configure_mapping_data_dir(args.mapping_data_dir or settings.mapping_data_dir)
-    system_prompt = load_evolution_prompt(settings.context_id, settings.inspiration)
-
-    role_ids = load_role_ids(Path(args.roles_file))
-
-    output_path = Path(args.output_file)
-    part_path, processed_path = _prepare_paths(output_path, args.resume)
-    processed_ids, existing_lines = _load_resume_state(
-        processed_path, output_path, args.resume
-    )
-    if transcripts_dir is None and not args.no_logs:
-        transcripts_dir = _ensure_transcripts_dir(args.transcripts_dir, output_path)
-    services = _load_services_list(args.input_file, args.max_services, processed_ids)
-
-    if args.dry_run:
-        logfire.info(f"Validated {len(services)} services")
-        return
-
-    concurrency = (
-        args.concurrency if args.concurrency is not None else settings.concurrency
-    )
-    if concurrency < 1:
-        raise ValueError("concurrency must be a positive integer")
-    sem = asyncio.Semaphore(concurrency)
-    lock = asyncio.Lock()
-    new_ids: set[str] = set()
-    show_progress = args.progress and sys.stdout.isatty()
-    progress = tqdm(total=len(services)) if show_progress else None
-
-    async def run_one(service: ServiceInput) -> None:
-        async with sem:
-            execution = ServiceExecution(
-                service,
-                factory=factory,
-                settings=settings,
-                args=args,
-                system_prompt=system_prompt,
-                transcripts_dir=transcripts_dir,
-                role_ids=role_ids,
-                lock=lock,
-                output=output,
-                new_ids=new_ids,
-                temp_output_dir=temp_output_dir,
-            )
-            if await execution.run():
-                await execution.finalise()
-            if progress:
-                progress.update(1)
-
-    temp_output_dir = (
-        Path(args.temp_output_dir) if args.temp_output_dir is not None else None
-    )
-    output = await asyncio.to_thread(part_path.open, "w", encoding="utf-8")
-    try:
-        async with asyncio.TaskGroup() as tg:
-            for service in services:
-                tg.create_task(run_one(service))
-    finally:
-        await asyncio.to_thread(output.close)
-    if progress:
-        progress.close()
-
-    processed_ids = _save_results(
-        resume=args.resume,
-        part_path=part_path,
-        output_path=output_path,
-        existing_lines=existing_lines,
-        processed_ids=processed_ids,
-        new_ids=new_ids,
-        processed_path=processed_path,
-    )
+    engine = ProcessingEngine(args, settings, transcripts_dir)
+    success = await engine.run()
+    await engine.finalise()
+    if not success:
+        logfire.warning("One or more services failed during processing")
 
 
 def main() -> None:
