@@ -13,7 +13,8 @@ class PromptLoader(ABC):
 
     Implementations should cache aggressively as prompts are immutable and may
     be requested repeatedly. Reads must avoid blocking I/O where possible and
-    complete within a few milliseconds for warm cache hits.
+    complete within a few milliseconds for warm cache hits. Call
+    :meth:`clear_cache` to reset state when templates change.
     """
 
     @abstractmethod
@@ -27,16 +28,29 @@ class PromptLoader(ABC):
             The template text.
         """
 
+    @abstractmethod
+    def clear_cache(self) -> None:
+        """Clear any cached prompt text."""
+
 
 class FilePromptLoader(PromptLoader):
-    """Load prompts from the local file system."""
+    """Load prompts from the local file system with memoisation."""
 
     def __init__(self, base_dir: Path) -> None:
         self._base_dir = base_dir
+        self._cache: dict[str, str] = {}
 
     def load(self, name: str) -> str:  # noqa: D401 - short delegation
         with logfire.span("prompt_loader.load", attributes={"name": name}):
+            if name in self._cache:
+                return self._cache[name]
             path = self._base_dir / (name if name.endswith(".md") else f"{name}.md")
             with path.open("r", encoding="utf-8") as file:
                 text = file.read().strip()
+            self._cache[name] = text
             return text
+
+    def clear_cache(self) -> None:
+        """Reset memoised prompt text."""
+
+        self._cache.clear()
