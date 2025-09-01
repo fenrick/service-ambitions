@@ -111,6 +111,9 @@ instruments Pydantic, Pydantic AI, OpenAI and system metrics when run with the
 avoid writing local log files. Prompts are excluded from logs unless
 `--allow-prompt-logging` is specified.
 
+See [Logging levels](docs/logging-levels.md) for guidance on TRACE through
+EXCEPTION and when to use each level.
+
 ## Installation
 
 Dependencies are managed with [Poetry](https://python-poetry.org/). Install the
