@@ -7,7 +7,6 @@ import argparse
 import asyncio
 import inspect
 import json
-import logging
 import random
 from pathlib import Path
 from typing import Any, Coroutine, cast
@@ -32,7 +31,7 @@ from models import (
     PlateauFeaturesResponse,
     ServiceEvolution,
 )
-from monitoring import LOG_FILE_NAME, init_logfire
+from monitoring import init_logfire
 from plateau_generator import _feature_cache_path
 from runtime.environment import RuntimeEnv
 from settings import load_settings
@@ -45,48 +44,21 @@ TRANSCRIPTS_HELP = (
 )
 
 
+LOG_LEVELS = ["fatal", "error", "warn", "notice", "info", "debug", "trace"]
+
+
 def _configure_logging(args: argparse.Namespace, settings) -> None:
-    """Configure the logging subsystem."""
+    """Configure Logfire based on verbosity flags."""
 
-    # CLI-specified level takes precedence over configured default
-    level_name = settings.log_level
-
-    if args.verbose == 1:
-        # Single -v flag bumps log level to INFO for clearer output
-        level_name = "INFO"
-    elif args.verbose >= 2:
-        # Two or more -v flags enable DEBUG for deep troubleshooting
-        level_name = "DEBUG"
-
-    if args.no_logs:
-        # Disable file logging and telemetry when requested
-        logging.basicConfig(
-            level=getattr(logging, level_name.upper(), logging.INFO),
-            force=True,
-        )
-        return
-
-    logging.basicConfig(
-        filename=LOG_FILE_NAME,
-        level=getattr(logging, level_name.upper(), logging.INFO),
-        force=True,
-    )
-    # Initialize logfire regardless of token availability; a missing token
-    # keeps logging local without sending telemetry to the cloud.
-    init_logfire(settings.logfire_token, diagnostics=settings.diagnostics)
+    index = 2 + args.verbose - args.quiet
+    index = max(0, min(len(LOG_LEVELS) - 1, index))
+    min_log_level = LOG_LEVELS[index]
+    init_logfire(settings.logfire_token, min_log_level)
 
 
 async def _cmd_run(args: argparse.Namespace, transcripts_dir: Path | None) -> None:
     """Execute the default evolution generation workflow."""
 
-    await _cmd_generate_evolution(args, transcripts_dir)
-
-
-async def _cmd_diagnose(args: argparse.Namespace, transcripts_dir: Path | None) -> None:
-    """Run the generator with diagnostics and transcripts enabled."""
-
-    RuntimeEnv.instance().settings.diagnostics = True
-    args.no_logs = False
     await _cmd_generate_evolution(args, transcripts_dir)
 
 
@@ -293,7 +265,16 @@ def main() -> None:
         "--verbose",
         action="count",
         default=0,
-        help="Increase logging verbosity (-v for info, -vv for debug)",
+        help=(
+            "Increase logging verbosity (-v notice, -vv info, -vvv debug, -vvvv trace)"
+        ),
+    )
+    common.add_argument(
+        "-q",
+        "--quiet",
+        action="count",
+        default=0,
+        help="Decrease logging verbosity (-q error, -qq fatal)",
     )
     common.add_argument(
         "--concurrency",
@@ -304,12 +285,6 @@ def main() -> None:
         "--max-services",
         type=int,
         help="Process at most this many services",
-    )
-    common.add_argument(
-        "--diagnostics",
-        action=argparse.BooleanOptionalAction,
-        default=None,
-        help="Enable verbose diagnostics output",
     )
     common.add_argument(
         "--strict-mapping",
@@ -361,12 +336,7 @@ def main() -> None:
     common.add_argument(
         "--allow-prompt-logging",
         action="store_true",
-        help="Include raw prompt text in debug logs when diagnostics are enabled",
-    )
-    common.add_argument(
-        "--no-logs",
-        action="store_true",
-        help="Disable file logging and Logfire telemetry",
+        help="Include raw prompt text in debug logs",
     )
     common.add_argument(
         "--strict",
@@ -470,28 +440,6 @@ def main() -> None:
     run_p.add_argument("--transcripts-dir", help=TRANSCRIPTS_HELP)
     run_p.set_defaults(func=_cmd_run)
 
-    diag_p = subparsers.add_parser(
-        "diagnose",
-        parents=[common],
-        help="Generate service evolutions via ProcessingEngine",
-        description=(
-            "Generate service evolutions with diagnostics enabled using the "
-            "ProcessingEngine runtime"
-        ),
-    )
-    diag_p.add_argument(
-        "--input-file",
-        default="services.jsonl",
-        help=SERVICES_FILE_HELP,
-    )
-    diag_p.add_argument(
-        "--output-file",
-        default="evolutions.jsonl",
-        help=OUTPUT_FILE_HELP,
-    )
-    diag_p.add_argument("--transcripts-dir", help=TRANSCRIPTS_HELP)
-    diag_p.set_defaults(func=_cmd_diagnose)
-
     val_p = subparsers.add_parser(
         "validate",
         parents=[common],
@@ -522,8 +470,6 @@ def main() -> None:
     if args.seed is not None:
         random.seed(args.seed)
 
-    if args.diagnostics is not None:
-        settings.diagnostics = args.diagnostics
     if args.strict_mapping is not None:
         settings.strict_mapping = args.strict_mapping
     if args.mapping_data_dir is not None:

@@ -35,33 +35,12 @@ def test_run_invokes_generator(monkeypatch):
     monkeypatch.setattr(cli, "_cmd_generate_evolution", fake_generate)
     monkeypatch.setattr(cli, "load_settings", _prepare_settings)
     monkeypatch.setattr(cli, "_configure_logging", lambda *a, **k: None)
-    monkeypatch.setattr(sys, "argv", ["main", "run", "--dry-run", "--no-logs"])
+    monkeypatch.setattr(sys, "argv", ["main", "run", "--dry-run"])
 
     cli.main()
 
     assert called["args"].dry_run is True
     assert called["settings"].diagnostics is False
-
-
-def test_diagnose_enables_diagnostics(monkeypatch):
-    """Diagnose subcommand forces diagnostics and transcripts."""
-
-    called = {}
-
-    async def fake_generate(args, transcripts_dir):
-        called["args"] = args
-        called["settings"] = RuntimeEnv.instance().settings
-
-    monkeypatch.setattr(cli, "_cmd_generate_evolution", fake_generate)
-    monkeypatch.setattr(cli, "load_settings", _prepare_settings)
-    monkeypatch.setattr(cli, "_configure_logging", lambda *a, **k: None)
-    monkeypatch.setattr(sys, "argv", ["main", "diagnose", "--dry-run", "--no-logs"])
-
-    cli.main()
-
-    assert called["args"].dry_run is True
-    assert called["settings"].diagnostics is True
-    assert called["args"].no_logs is False
 
 
 def test_validate_sets_dry_run(monkeypatch):
@@ -76,7 +55,7 @@ def test_validate_sets_dry_run(monkeypatch):
     monkeypatch.setattr(cli, "_cmd_generate_evolution", fake_generate)
     monkeypatch.setattr(cli, "load_settings", _prepare_settings)
     monkeypatch.setattr(cli, "_configure_logging", lambda *a, **k: None)
-    monkeypatch.setattr(sys, "argv", ["main", "validate", "--no-logs"])
+    monkeypatch.setattr(sys, "argv", ["main", "validate"])
 
     cli.main()
 
@@ -97,7 +76,7 @@ def test_cache_args_defaults(monkeypatch):
     monkeypatch.setattr(cli, "_cmd_generate_evolution", fake_generate)
     monkeypatch.setattr(cli, "load_settings", _prepare_settings)
     monkeypatch.setattr(cli, "_configure_logging", lambda *a, **k: None)
-    monkeypatch.setattr(sys, "argv", ["main", "run", "--dry-run", "--no-logs"])
+    monkeypatch.setattr(sys, "argv", ["main", "run", "--dry-run"])
 
     cli.main()
 
@@ -129,7 +108,6 @@ def test_cache_args_custom(monkeypatch):
             "main",
             "run",
             "--dry-run",
-            "--no-logs",
             "--use-local-cache",
             "--cache-mode",
             "write",

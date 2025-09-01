@@ -105,11 +105,9 @@ supports swapping sections to suit different industries.
 This project depends on the [Pydantic Logfire](https://logfire.pydantic.dev/)
 libraries for telemetry. The `LOGFIRE_TOKEN` environment variable is optional:
 without it, Logfire still records logs and metrics locally but nothing is sent
-to the cloud. Provide a token to stream traces to Logfire. The CLI only
-instruments Pydantic, Pydantic AI, OpenAI and system metrics when run with the
-`--diagnostics` flag, which enables verbose diagnostics. Use `--no-logs` to
-avoid writing local log files. Prompts are excluded from logs unless
-`--allow-prompt-logging` is specified.
+to the cloud. Provide a token to stream traces to Logfire. The CLI instruments
+Pydantic, Pydantic AI, OpenAI and system metrics by default. Prompts are
+excluded from logs unless `--allow-prompt-logging` is specified.
 
 See [Logging levels](docs/logging-levels.md) for guidance on TRACE through
 EXCEPTION and when to use each level.
@@ -134,19 +132,17 @@ Run the CLI through Poetry to ensure it uses the managed environment. Use
 subcommands to select the desired operation:
 
 ```bash
-poetry run service-ambitions run --input-file sample-services.jsonl --output-file evolutions.jsonl --no-logs
-poetry run service-ambitions diagnose --input-file sample-services.jsonl --output-file evolutions.jsonl --no-logs
-poetry run service-ambitions validate --input-file sample-services.jsonl --no-logs
-poetry run service-ambitions reverse --input-file evolutions.jsonl --output-file features.jsonl --no-logs
+poetry run service-ambitions run --input-file sample-services.jsonl --output-file evolutions.jsonl
+poetry run service-ambitions validate --input-file sample-services.jsonl
+poetry run service-ambitions reverse --input-file evolutions.jsonl --output-file features.jsonl
 ```
 
 Alternatively, use the provided shell script which forwards all arguments to the CLI:
 
 ```bash
-./run.sh run --input-file sample-services.jsonl --output-file evolutions.jsonl --no-logs
-./run.sh diagnose --input-file sample-services.jsonl --output-file evolutions.jsonl --no-logs
-./run.sh validate --input-file sample-services.jsonl --no-logs
-./run.sh reverse --input-file evolutions.jsonl --output-file features.jsonl --no-logs
+./run.sh run --input-file sample-services.jsonl --output-file evolutions.jsonl
+./run.sh validate --input-file sample-services.jsonl
+./run.sh reverse --input-file evolutions.jsonl --output-file features.jsonl
 ```
 
 ## Usage
@@ -278,8 +274,7 @@ Fields in the schema:
       - `score`: object with CMMI maturity `level`, `label` and `justification`.
       - `customer_type`: audience benefiting from the feature.
       - `mappings`: object with `information`, `applications` and
-        `technologies` lists of mapping items referencing supporting IDs. Use
-        `--diagnostics` to include a brief `rationale` for each mapping.
+        `technologies` lists of mapping items referencing supporting IDs.
 
 ## Reference Data
 
@@ -339,7 +334,7 @@ Map each feature to relevant Applications from the list below.
 - Do not include any text outside the JSON object.
 ```
 
-Repeat this structure for the `technologies` and `information` datasets. Run with `--diagnostics` to additionally request a one-line rationale for each mapping.
+Repeat this structure for the `technologies` and `information` datasets.
 
 ## IDE support
 

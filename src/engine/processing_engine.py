@@ -99,7 +99,7 @@ class ProcessingEngine:
         self.processed_ids, self.existing_lines = _load_resume_state(
             self.processed_path, self.output_path, args.resume
         )
-        if self.transcripts_dir is None and not args.no_logs:
+        if self.transcripts_dir is None:
             self.transcripts_dir = _ensure_transcripts_dir(
                 args.transcripts_dir, self.output_path
             )

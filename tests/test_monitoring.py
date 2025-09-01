@@ -1,109 +1,51 @@
-# SPDX-License-Identifier: MIT
-import sys
 from types import SimpleNamespace
 
 import monitoring
 
 
-def test_init_logfire_configures_sdk_with_diagnostics(monkeypatch):
-    """Instrumentation runs when diagnostics are enabled."""
-    called = {}
+def test_init_logfire_configures_and_instruments(monkeypatch):
+    called: dict[str, object] = {}
+    instruments: list[str] = []
 
-    def configure(**kwargs):
-        called.update(kwargs)
-
-    instruments = []
-
-    def instrument_pydantic_ai():
-        instruments.append("ai")
-
-    def instrument_pydantic():
-        instruments.append("pydantic")
-
-    def instrument_openai():
-        instruments.append("openai")
-
-    info_logged = {"msg": None}
-
-    def info(msg):
-        info_logged["msg"] = msg
+    class ConsoleOptions:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
 
     dummy_module = SimpleNamespace(
-        configure=configure,
+        ConsoleOptions=ConsoleOptions,
+        configure=lambda **kwargs: called.update(kwargs),
         instrument_system_metrics=lambda **kw: called.setdefault("metrics", kw),
-        instrument_pydantic_ai=instrument_pydantic_ai,
-        instrument_pydantic=instrument_pydantic,
-        instrument_openai=instrument_openai,
-        info=info,
+        instrument_pydantic_ai=lambda: instruments.append("ai"),
+        instrument_pydantic=lambda: instruments.append("pydantic"),
+        instrument_openai=lambda: instruments.append("openai"),
     )
+    monkeypatch.setattr(monitoring, "logfire", dummy_module)
 
-    monkeypatch.setitem(sys.modules, "logfire", dummy_module)
-
-    monitoring.init_logfire("token", diagnostics=True)
+    monitoring.init_logfire("token", "info")
 
     assert called["token"] == "token"
     assert called["service_name"] == "service-ambition-generator"
+    assert called["console"].min_log_level == "info"
     assert called["metrics"] == {"base": "full"}
     assert instruments == ["ai", "pydantic", "openai"]
-    assert info_logged["msg"] == "Logfire telemetry enabled"
-
-
-def test_init_logfire_without_diagnostics_skips_instrumentation(monkeypatch):
-    """Instrumentation is skipped when diagnostics are disabled."""
-    called = {}
-
-    def configure(**kwargs):
-        called.update(kwargs)
-
-    instruments = []
-
-    def instrument_pydantic_ai():
-        instruments.append("ai")
-
-    def instrument_pydantic():
-        instruments.append("pydantic")
-
-    def instrument_openai():
-        instruments.append("openai")
-
-    info_logged = {"msg": None}
-
-    def info(msg):
-        info_logged["msg"] = msg
-
-    dummy_module = SimpleNamespace(
-        configure=configure,
-        instrument_system_metrics=lambda **kw: called.setdefault("metrics", kw),
-        instrument_pydantic_ai=instrument_pydantic_ai,
-        instrument_pydantic=instrument_pydantic,
-        instrument_openai=instrument_openai,
-        info=info,
-    )
-
-    monkeypatch.setitem(sys.modules, "logfire", dummy_module)
-
-    monitoring.init_logfire("token", diagnostics=False)
-
-    assert called["token"] == "token"
-    assert called["service_name"] == "service-ambition-generator"
-    assert "metrics" not in called
-    assert instruments == []
-    assert info_logged["msg"] is None
 
 
 def test_init_logfire_without_token(monkeypatch):
-    called = {}
+    called: dict[str, object] = {}
 
-    def configure(**kwargs):
-        called.update(kwargs)
+    class ConsoleOptions:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
 
     dummy_module = SimpleNamespace(
-        configure=configure,
+        ConsoleOptions=ConsoleOptions,
+        configure=lambda **kwargs: called.update(kwargs),
         instrument_system_metrics=lambda **kw: None,
-        info=lambda *a, **k: None,
+        instrument_pydantic_ai=lambda: None,
+        instrument_pydantic=lambda: None,
+        instrument_openai=lambda: None,
     )
-
-    monkeypatch.setitem(sys.modules, "logfire", dummy_module)
+    monkeypatch.setattr(monitoring, "logfire", dummy_module)
     monkeypatch.delenv("LOGFIRE_TOKEN", raising=False)
 
     monitoring.init_logfire()

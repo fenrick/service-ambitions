@@ -23,21 +23,19 @@ Example command:
 poetry run service-ambitions generate-evolution \
   --input-file sample-services.jsonl \
   --output-file evolution.jsonl \
-  --strict-mapping --diagnostics --no-logs
+  --strict-mapping
 ```
 
 `--mapping-data-dir` points to a directory of mapping reference data.
 `--strict-mapping/--no-strict-mapping` fails when feature mappings are missing or
 contain unknown identifiers.
-`--diagnostics/--no-diagnostics` enables verbose diagnostics output and
-telemetry instrumentation. Prompt text is hidden from logs unless
+Telemetry via Logfire is always enabled. Prompt text is hidden from logs unless
 `--allow-prompt-logging` is passed.
 Use `--roles-file` to supply an alternative roles definition file when needed.
 
 Logfire is required by the CLI but the `LOGFIRE_TOKEN` environment variable is
 optional for local runs. Set the token to stream traces to Logfire; without it,
-telemetry remains local. Instrumentation only runs when `--diagnostics` is
-supplied.
+telemetry remains local.
 
 Pass `--strict` to abort if any role lacks features or if generated features
 contain empty mapping lists. This turns on a fail-fast mode instead of the

@@ -79,7 +79,6 @@ def test_cli_map_matches_golden(monkeypatch, tmp_path) -> None:
             str(input_file),
             "--output-file",
             str(output_file),
-            "--no-logs",
         ],
     )
 
