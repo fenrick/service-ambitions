@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+from pydantic_core import from_json
 
 import loader
 import mapping
@@ -159,7 +160,7 @@ def test_default_mode_quarantines_unknown_ids(monkeypatch, tmp_path) -> None:
     assert mapped[0].mappings["applications"][0].item == "app1"
     assert mapped[1].mappings["applications"] == []
     qfile = Path("quarantine/unknown/applications/unknown_ids_1.json")
-    assert json.loads(qfile.read_text()) == ["appX"]
+    assert from_json(qfile.read_text()) == ["appX"]
     assert paths == [qfile.resolve()]
 
 
@@ -202,4 +203,4 @@ def test_strict_mapping_raises_on_unknown_ids(monkeypatch, tmp_path) -> None:
             )
         )
     qfile = Path("quarantine/unknown/applications/unknown_ids_1.json")
-    assert json.loads(qfile.read_text()) == ["appX"]
+    assert from_json(qfile.read_text()) == ["appX"]

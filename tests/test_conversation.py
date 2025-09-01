@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from typing import cast
 
 from pydantic_ai import Agent, messages
+from pydantic_core import from_json
 
 import conversation
 from conversation import ConversationSession
@@ -54,7 +55,7 @@ def test_add_parent_materials_records_history() -> None:
     assert isinstance(part, messages.UserPromptPart)
     material = cast(str, part.content)
     assert material.startswith("SERVICE_CONTEXT:\n")
-    data = json.loads(material.split("SERVICE_CONTEXT:\n", 1)[1])
+    data = from_json(material.split("SERVICE_CONTEXT:\n", 1)[1])
     assert data["service_id"] == "svc-1"
     assert data["jobs_to_be_done"] == [
         {"name": "job1"},
@@ -88,7 +89,7 @@ def test_add_parent_materials_includes_features() -> None:
 
     part = cast(messages.UserPromptPart, session._history[0].parts[0])
     material = cast(str, part.content)
-    data = json.loads(material.split("SERVICE_CONTEXT:\n", 1)[1])
+    data = from_json(material.split("SERVICE_CONTEXT:\n", 1)[1])
     assert data["features"] == [
         {
             "feature_id": "F1",
@@ -188,7 +189,7 @@ def test_diagnostics_writes_transcript(tmp_path) -> None:
 
     path = tmp_path / "svc-1" / "stage.json"
     assert path.exists()
-    data = json.loads(path.read_text(encoding="utf-8"))
+    data = from_json(path.read_text(encoding="utf-8"))
     assert data == {"prompt": "ping", "response": "pong"}
 
 
