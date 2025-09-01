@@ -480,9 +480,7 @@ def test_generate_plateau_requests_missing_features_concurrently(
             )
         ]
 
-    monkeypatch.setattr(
-        PlateauRuntime, "_request_missing_features_async", fake_request
-    )
+    monkeypatch.setattr(PlateauRuntime, "_request_missing_features_async", fake_request)
 
     async def run() -> tuple[PlateauRuntime, float]:
         desc_map = await generator._request_descriptions_async(["Foundational"])
@@ -1170,3 +1168,31 @@ async def test_generate_plateau_reads_feature_cache(monkeypatch, tmp_path) -> No
     assert canonical.exists()
     assert not old_file.exists()
     assert session.prompts == []
+
+
+@pytest.mark.asyncio
+async def test_init_runtimes_generates_defaults(monkeypatch) -> None:
+    settings = SimpleNamespace(
+        mapping_sets=[],
+        strict=False,
+        use_local_cache=True,
+        cache_mode="read",
+    )
+    RuntimeEnv.initialize(cast(Any, settings))
+    session = DummySession([])
+    generator = PlateauGenerator(
+        cast(ConversationSession, session),
+        required_count=1,
+        roles=["r"],
+        description_session=cast(ConversationSession, session),
+    )
+    monkeypatch.setattr("plateau_generator.default_plateau_names", lambda: ["p1"])
+    monkeypatch.setattr("plateau_generator.default_plateau_map", lambda: {"p1": 1})
+    monkeypatch.setattr(
+        generator,
+        "_request_descriptions_async",
+        lambda names, session=None: asyncio.sleep(0, result={"p1": "desc"}),
+    )
+    runtimes = await generator._init_runtimes(None)
+    assert len(runtimes) == 1
+    assert runtimes[0].description == "desc"

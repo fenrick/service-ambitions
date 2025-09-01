@@ -291,6 +291,51 @@ class ProcessingEngine:
         error_handler: ErrorHandler = LoggingErrorHandler()
         return sem, progress, temp_output_dir, error_handler
 
+    async def _run_service(
+        self,
+        service: ServiceInput,
+        factory: ModelFactory,
+        system_prompt: str,
+        role_ids: list[str],
+        sem: asyncio.Semaphore,
+        progress: tqdm | None,
+        temp_output_dir: Path | None,
+        error_handler: ErrorHandler,
+    ) -> bool:
+        """Execute ``service`` and update runtime state.
+
+        Args:
+            service: Service to evolve.
+            factory: Shared model factory.
+            system_prompt: System prompt used for all stages.
+            role_ids: Valid role identifiers.
+            sem: Semaphore limiting concurrency.
+            progress: Progress bar to update or ``None``.
+            temp_output_dir: Directory for temporary artefacts.
+            error_handler: Handler for execution errors.
+
+        Returns:
+            ``True`` when the execution succeeds, ``False`` otherwise.
+        """
+
+        async with sem:
+            runtime = ServiceRuntime(service)
+            execution = ServiceExecution(
+                runtime,
+                factory=factory,
+                system_prompt=system_prompt,
+                transcripts_dir=self.transcripts_dir,
+                role_ids=role_ids,
+                temp_output_dir=temp_output_dir,
+                allow_prompt_logging=self.args.allow_prompt_logging,
+                error_handler=error_handler,
+            )
+            success = await execution.run()
+            self.runtimes.append(runtime)
+        if progress:
+            progress.update(1)
+        return success
+
     async def _generate_evolution(
         self,
         services: list[ServiceInput],
@@ -322,33 +367,24 @@ class ProcessingEngine:
             Updates ``self.executions`` and ``self.new_ids``.
         """
 
-        success = True
-
-        async def run_one(service: ServiceInput) -> None:
-            nonlocal success
-            async with sem:
-                runtime = ServiceRuntime(service)
-                execution = ServiceExecution(
-                    runtime,
-                    factory=factory,
-                    system_prompt=system_prompt,
-                    transcripts_dir=self.transcripts_dir,
-                    role_ids=role_ids,
-                    temp_output_dir=temp_output_dir,
-                    allow_prompt_logging=self.args.allow_prompt_logging,
-                    error_handler=error_handler,
-                )
-                if not await execution.run():
-                    success = False
-                self.runtimes.append(runtime)
-            if progress:
-                progress.update(1)
-
+        tasks: list[asyncio.Task[bool]] = []
         async with asyncio.TaskGroup() as tg:
             for svc in services:
-                tg.create_task(run_one(svc))
+                task = tg.create_task(
+                    self._run_service(
+                        svc,
+                        factory,
+                        system_prompt,
+                        role_ids,
+                        sem,
+                        progress,
+                        temp_output_dir,
+                        error_handler,
+                    )
+                )
+                tasks.append(task)
 
-        return success
+        return all(t.result() for t in tasks)
 
     async def run(self) -> bool:
         """Orchestrate the evolution workflow."""

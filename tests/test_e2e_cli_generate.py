@@ -263,6 +263,7 @@ def test_cli_generate_matches_golden(monkeypatch, tmp_path, dummy_agent) -> None
 
         def __init__(self, *args, **kwargs) -> None:  # pragma: no cover
             self.agent = dummy_agent()
+            self.description_session = DummySession([])
 
         async def _request_descriptions_async(self, names, session=None):
             return {name: "desc" for name in names}

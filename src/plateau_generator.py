@@ -487,6 +487,61 @@ class PlateauGenerator:
 
         return asyncio.run(self.generate_plateau_async(runtime, session=session))
 
+    async def _init_runtimes(
+        self, runtimes: Sequence[PlateauRuntime] | None
+    ) -> list[PlateauRuntime]:
+        """Create default plateau runtimes when none are provided."""
+
+        if runtimes is not None:
+            return list(runtimes)
+        names = default_plateau_names()
+        desc_map = await self._request_descriptions_async(
+            names, session=self.description_session
+        )
+        pmap = default_plateau_map()
+        return [
+            PlateauRuntime(
+                plateau=pmap[name],
+                plateau_name=name,
+                description=desc_map[name],
+            )
+            for name in names
+        ]
+
+    def _resolve_role_ids(self, role_ids: Sequence[str] | None) -> list[str]:
+        """Return explicit role identifiers or fall back to defaults."""
+
+        return list(role_ids or self.roles)
+
+    def _collect_results(
+        self, runtimes: Sequence[PlateauRuntime], results: Sequence[PlateauRuntime]
+    ) -> tuple[list[PlateauResult], list[str]]:
+        """Transform plateau runtimes into evolution results."""
+
+        plateau_names = [r.plateau_name for r in runtimes]
+        plateau_results = [
+            PlateauResult(
+                plateau=r.plateau,
+                plateau_name=r.plateau_name,
+                service_description=r.description,
+                features=r.features,
+                mappings=r.mappings,
+            )
+            for r in results
+            if r.status()
+        ]
+        return plateau_results, plateau_names
+
+    def _log_quarantines(self) -> None:
+        """Emit a warning when any plateau descriptions were quarantined."""
+
+        if self.quarantined_descriptions:
+            logfire.warning(
+                f"Quarantined {len(self.quarantined_descriptions)} plateau"
+                " description(s)",
+                paths=[str(p) for p in self.quarantined_descriptions],
+            )
+
     async def generate_service_evolution_async(
         self,
         service_input: ServiceInput,
@@ -514,38 +569,10 @@ class PlateauGenerator:
             span.set_attribute("service.id", service_input.service_id)
             if service_input.customer_type:
                 span.set_attribute("customer_type", service_input.customer_type)
-
-            if runtimes is None:
-                names = default_plateau_names()
-                desc_map = await self._request_descriptions_async(
-                    names, session=self.description_session
-                )
-                pmap = default_plateau_map()
-                runtimes = [
-                    PlateauRuntime(
-                        plateau=pmap[name],
-                        plateau_name=name,
-                        description=desc_map[name],
-                    )
-                    for name in names
-                ]
-            role_ids = list(role_ids or self.roles)
-
+            runtimes = await self._init_runtimes(runtimes)
+            role_ids = self._resolve_role_ids(role_ids)
             results = await self._schedule_plateaus(runtimes, service_input)
-            plateau_names = [r.plateau_name for r in runtimes]
-
-            plateau_results = [
-                PlateauResult(
-                    plateau=r.plateau,
-                    plateau_name=r.plateau_name,
-                    service_description=r.description,
-                    features=r.features,
-                    mappings=r.mappings,
-                )
-                for r in results
-                if r.status()
-            ]
-
+            plateau_results, plateau_names = self._collect_results(runtimes, results)
             evolution = await self._assemble_evolution(
                 service_input,
                 plateau_results,
@@ -555,14 +582,7 @@ class PlateauGenerator:
                 transcripts_dir,
                 strict=self.strict,
             )
-
-            if self.quarantined_descriptions:
-                logfire.warning(
-                    f"Quarantined {len(self.quarantined_descriptions)} plateau"
-                    " description(s)",
-                    paths=[str(p) for p in self.quarantined_descriptions],
-                )
-
+            self._log_quarantines()
             return evolution
 
     def generate_service_evolution(

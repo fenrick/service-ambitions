@@ -123,3 +123,53 @@ async def test_finalise_writes_runtime_lines(tmp_path):
     assert out_path.exists()
     assert out_path.read_text().strip() == runtime.line
     assert engine.new_ids == {"svc"}
+
+
+@pytest.mark.asyncio
+async def test_generate_evolution_aggregates_success(monkeypatch, tmp_path):
+    settings = _make_settings()
+    RuntimeEnv.reset()
+    RuntimeEnv.initialize(settings)
+    args = _make_args(tmp_path)
+    engine = ProcessingEngine(args, None)
+
+    outcomes = {"a": True, "b": False}
+
+    class DummyExecution:
+        def __init__(self, runtime, **kwargs):
+            self.runtime = runtime
+
+        async def run(self) -> bool:  # pragma: no cover - trivial
+            return outcomes[self.runtime.service.service_id]
+
+    monkeypatch.setattr("engine.service_execution.ServiceExecution", DummyExecution)
+    monkeypatch.setattr("engine.processing_engine.ServiceExecution", DummyExecution)
+
+    services = [
+        ServiceInput(
+            service_id="a",
+            name="alpha",
+            description="d",
+            jobs_to_be_done=[],
+        ),
+        ServiceInput(
+            service_id="b",
+            name="beta",
+            description="d",
+            jobs_to_be_done=[],
+        ),
+    ]
+    sem = asyncio.Semaphore(2)
+    handler = SimpleNamespace(handle=lambda *a, **k: None)
+    ok = await engine._generate_evolution(
+        services,
+        SimpleNamespace(),
+        "",
+        [],
+        sem,
+        None,
+        None,
+        handler,
+    )
+    assert ok is False
+    assert [r.service.service_id for r in engine.runtimes] == ["a", "b"]

@@ -130,3 +130,32 @@ def test_cache_args_custom(monkeypatch):
     assert settings.use_local_cache is True
     assert settings.cache_mode == "write"
     assert settings.cache_dir == Path("/tmp/cache")
+
+
+def test_apply_args_to_settings_updates_settings():
+    args = SimpleNamespace(
+        model="m",
+        descriptions_model=None,
+        features_model=None,
+        mapping_model=None,
+        search_model=None,
+        concurrency=3,
+        strict_mapping=True,
+        mapping_data_dir="/tmp/map",
+        web_search=True,
+        use_local_cache=False,
+        cache_mode="off",
+        cache_dir="/tmp/cache",
+        strict=True,
+    )
+    settings = _prepare_settings()
+    cli._apply_args_to_settings(args, settings)
+    assert settings.model == "m"
+    assert settings.concurrency == 3
+    assert settings.strict_mapping is True
+    assert settings.mapping_data_dir == Path("/tmp/map")
+    assert settings.web_search is True
+    assert settings.use_local_cache is False
+    assert settings.cache_mode == "off"
+    assert settings.cache_dir == Path("/tmp/cache")
+    assert settings.strict is True
