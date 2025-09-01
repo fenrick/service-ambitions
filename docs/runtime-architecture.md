@@ -17,18 +17,18 @@ files. Tests or reconfigurations can clear the singleton via
 ## Processing engine
 
 `ProcessingEngine` orchestrates the overall workflow.  It iterates over
-services from the input file, constructs a `ServiceExecution` for each
-and awaits their completion.  The engine only reports whether the batch
-succeeded; individual artefacts remain inside the service objects until
-`finalise()` is invoked.
+services from the input file, builds a `ServiceRuntime` for each and
+invokes a `ServiceExecution` to populate it.  The engine reports whether
+the batch succeeded and later flushes successful runtime artefacts to
+disk.
 
 ## Service execution
 
-A `ServiceExecution` handles one service.  It lazily loads plateau
-information, spawns `PlateauRuntime` objects for each plateau and
-delegates feature generation and mapping.  Results for successful
-plateaus are stored on the execution instance and flushed to disk during
-`finalise()`.
+A `ServiceExecution` handles one service runtime.  It lazily loads
+plateau information, spawns `PlateauRuntime` objects for each plateau
+and delegates feature generation and mapping.  Results for successful
+plateaus are stored on the `ServiceRuntime` instance for later
+persistence.
 
 ## Plateau runtime
 

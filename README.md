@@ -3,11 +3,12 @@
 ## Architecture
 
 The generator runs on a layered engine design.  `ProcessingEngine`
-coordinates work across services, `ServiceExecution` manages per‑service
-state and spawns `PlateauRuntime` instances for each plateau.  A
-thread‑safe `RuntimeEnv` singleton holds configuration and shared state
-such as caches.  See [runtime-architecture](docs/runtime-architecture.md)
-for a detailed walkthrough.
+coordinates work across services while `ServiceRuntime` holds
+per‑service artefacts.  `ServiceExecution` populates each runtime and
+spawns `PlateauRuntime` instances for every plateau.  A thread‑safe
+`RuntimeEnv` singleton holds configuration and shared state such as
+caches.  See [runtime-architecture](docs/runtime-architecture.md) for a
+detailed walkthrough.
 
 ## Configuration
 

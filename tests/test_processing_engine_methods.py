@@ -2,7 +2,10 @@ import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from engine.processing_engine import ProcessingEngine
+from engine.service_runtime import ServiceRuntime
 from models import ServiceInput
 from runtime.environment import RuntimeEnv
 
@@ -85,16 +88,38 @@ def test_init_sessions_uses_runtimeenv(monkeypatch, tmp_path):
 
     def fake_setup_concurrency(s):
         captured["settings"] = s
-        return asyncio.Semaphore(1), asyncio.Lock()
+        return asyncio.Semaphore(1)
 
     monkeypatch.setattr(engine, "_setup_concurrency", fake_setup_concurrency)
     monkeypatch.setattr(engine, "_create_progress", lambda total: "progress")
 
-    sem, lock, progress, temp_dir, handler = engine._init_sessions(5)
+    sem, progress, temp_dir, handler = engine._init_sessions(5)
 
     assert captured["settings"] is settings
     assert isinstance(sem, asyncio.Semaphore)
-    assert isinstance(lock, asyncio.Lock)
     assert progress == "progress"
     assert temp_dir is None
     assert handler is not None
+
+
+@pytest.mark.asyncio
+async def test_finalise_writes_runtime_lines(tmp_path):
+    args = _make_args(tmp_path)
+    engine = ProcessingEngine(args, None)
+
+    svc = ServiceInput(
+        service_id="svc",
+        name="alpha",
+        description="desc",
+        jobs_to_be_done=[],
+    )
+    runtime = ServiceRuntime(svc)
+    runtime.line = '{"ok": true}'
+    engine.runtimes.append(runtime)
+
+    await engine.finalise()
+
+    out_path = Path(args.output_file)
+    assert out_path.exists()
+    assert out_path.read_text().strip() == runtime.line
+    assert engine.new_ids == {"svc"}

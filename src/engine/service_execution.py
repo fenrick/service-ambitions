@@ -16,6 +16,7 @@ import loader
 from canonical import canonicalise_record
 from conversation import ConversationSession
 from engine.plateau_runtime import PlateauRuntime
+from engine.service_runtime import ServiceRuntime
 from loader import load_mapping_items
 from model_factory import ModelFactory
 from models import (
@@ -23,7 +24,6 @@ from models import (
     MappingResponse,
     PlateauDescriptionsResponse,
     PlateauFeaturesResponse,
-    ServiceInput,
     ServiceMeta,
 )
 from persistence import atomic_write
@@ -45,63 +45,42 @@ _writer = QuarantineWriter()
 
 
 class ServiceExecution:
-    """Execute a single service evolution run.
-
-    The :class:`ServiceExecution` class encapsulates the logic required to
-    generate a service evolution and persist the result.  The ``run`` method
-    performs the generation and stores intermediate artefacts on the instance
-    while ``finalise`` writes the persisted output.
-    """
+    """Execute a single service evolution run."""
 
     def __init__(
         self,
-        service: ServiceInput,
+        runtime: ServiceRuntime,
         *,
         factory: ModelFactory,
         system_prompt: str,
         transcripts_dir: Path | None,
         role_ids: Sequence[str],
-        lock: asyncio.Lock,
-        output,
-        new_ids: set[str],
         temp_output_dir: Path | None,
         allow_prompt_logging: bool,
         error_handler: ErrorHandler,
     ) -> None:
-        self.service = service
+        self.runtime = runtime
         self.factory = factory
         self.system_prompt = system_prompt
         self.transcripts_dir = transcripts_dir
         self.role_ids = role_ids
-        self.lock = lock
-        self.output = output
-        self.new_ids = new_ids
         self.temp_output_dir = temp_output_dir
         self.allow_prompt_logging = allow_prompt_logging
         self.error_handler = error_handler
-        self.line: str | None = None
 
     async def run(self) -> bool:
-        """Generate the evolution for ``service`` and store the result.
+        """Populate ``runtime`` with generated evolution data."""
 
-        Returns:
-            ``True`` on success, ``False`` otherwise.
-
-        Side effects:
-            Updates metrics, writes quarantine files on failure and stores the
-            generated line on the instance for later persistence.
-        """
-
+        service = self.runtime.service
         desc_name = self.factory.model_name("descriptions")
         feat_name = self.factory.model_name("features")
         map_name = self.factory.model_name("mapping")
         attrs = {
-            "service_id": self.service.service_id,
-            "service_name": self.service.name,
+            "service_id": service.service_id,
+            "service_name": service.name,
             "descriptions_model": desc_name,
             "features_model": feat_name,
             "mapping_model": map_name,
-            "output_path": getattr(self.output, "name", ""),
         }
         with logfire.span("generate_evolution_for_service", attributes=attrs):
             try:
@@ -206,7 +185,7 @@ class ServiceExecution:
                     for name in plateau_names
                 ]
                 evolution = await generator.generate_service_evolution_async(
-                    self.service,
+                    service,
                     runtimes,
                     transcripts_dir=self.transcripts_dir,
                     meta=_RUN_META,
@@ -215,38 +194,23 @@ class ServiceExecution:
                 if self.temp_output_dir is not None:
                     self.temp_output_dir.mkdir(parents=True, exist_ok=True)
                     atomic_write(
-                        self.temp_output_dir / f"{self.service.service_id}.json",
+                        self.temp_output_dir / f"{service.service_id}.json",
                         [to_json(record).decode()],
                     )
-                self.line = to_json(record).decode()
+                self.runtime.plateaus = runtimes
+                self.runtime.line = to_json(record).decode()
                 return True
             except Exception as exc:  # noqa: BLE001
                 quarantine_file = await asyncio.to_thread(
                     _writer.write,
                     "evolution",
-                    self.service.service_id,
+                    service.service_id,
                     "schema_mismatch",
-                    self.service.model_dump(),
+                    service.model_dump(),
                 )
                 self.error_handler.handle(
                     "Failed to generate evolution for "
-                    f"{self.service.service_id}; quarantined {quarantine_file}",
+                    f"{service.service_id}; quarantined {quarantine_file}",
                     exc,
                 )
                 return False
-
-    async def finalise(self) -> None:
-        """Persist the previously generated line to disk."""
-
-        if self.line is None:
-            return
-        async with self.lock:
-            await asyncio.to_thread(self.output.write, f"{self.line}\n")
-            self.new_ids.add(self.service.service_id)
-            EVOLUTIONS_GENERATED.add(1)
-            LINES_WRITTEN.add(1)
-        logfire.info(
-            "Generated evolution",
-            service_id=self.service.service_id,
-            output_path=getattr(self.output, "name", ""),
-        )
