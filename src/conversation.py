@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import json
 import time
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
@@ -20,6 +19,7 @@ from typing import Any, Awaitable, Callable, Literal, TypeVar, cast, overload
 
 import logfire
 from pydantic_ai import Agent, messages
+from pydantic_core import from_json, to_json
 
 from mapping import cache_write_json_atomic
 from models import ServiceInput
@@ -29,7 +29,7 @@ from settings import load_settings
 def _prompt_cache_key(prompt: str, model: str, stage: str) -> str:
     """Return a stable cache key for ``prompt`` and ``model``."""
 
-    data = json.dumps([prompt, model, stage], ensure_ascii=False)
+    data = to_json([prompt, model, stage]).decode()
     return hashlib.sha256(data.encode("utf-8")).hexdigest()[:32]
 
 
@@ -193,7 +193,7 @@ class ConversationSession:
             return
         stage_name = self.stage or "unknown"
         payload = {"prompt": prompt, "response": str(response)}
-        data = json.dumps(payload, ensure_ascii=False)
+        data = to_json(payload).decode()
         path = svc_dir / f"{stage_name}.json"
         await asyncio.to_thread(path.write_text, data, encoding="utf-8")
 
@@ -269,8 +269,8 @@ class ConversationSession:
             exists_before = cache_file.exists()
             if self.cache_mode == "read" and exists_before:
                 try:
-                    with cache_file.open("r", encoding="utf-8") as fh:
-                        data = json.load(fh)
+                    with cache_file.open("rb") as fh:
+                        data = from_json(fh.read())
                     if output_type and hasattr(output_type, "model_validate"):
                         payload = cast(Any, output_type).model_validate(data)
                     else:
