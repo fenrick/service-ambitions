@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from typing import Iterable
 
+import logfire
 from pydantic_core import from_json
 
 
@@ -17,12 +18,15 @@ def _load_feature_plateaus(files: Iterable[Path]) -> dict[str, dict[str, str]]:
         try:
             lines = file.read_text(encoding="utf-8").splitlines()
         except OSError:
+            logfire.warning("Unable to read plateau output", path=str(file))
             continue
+        logfire.debug("Parsing plateau file", path=str(file))
         for line in lines:
             try:
                 data = from_json(line)
             except ValueError:
                 # Skip invalid JSON lines
+                logfire.warning("Invalid JSON line", path=str(file))
                 continue
             service = data.get("service", {}).get("service_id")
             if not service:
@@ -36,6 +40,12 @@ def _load_feature_plateaus(files: Iterable[Path]) -> dict[str, dict[str, str]]:
                     fid = feat.get("feature_id")
                     if fid:
                         feature_map[fid] = str(level)
+                        logfire.debug(
+                            "Recorded feature plateau",
+                            service=service,
+                            feature=fid,
+                            plateau=str(level),
+                        )
     return service_map
 
 
@@ -52,10 +62,18 @@ def _move_entries(
                 dest = base / kind / plateau / fid
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 src.rename(dest)
+                logfire.debug(
+                    "Moved cache entry",
+                    service=service,
+                    feature=fid,
+                    plateau=plateau,
+                    kind=kind,
+                )
     for kind in ("features", "mappings"):
         unknown_dir = base / kind / "unknown"
         if unknown_dir.exists() and not any(unknown_dir.iterdir()):
             unknown_dir.rmdir()
+            logfire.debug("Removed empty unknown directory", service=service, kind=kind)
 
 
 def migrate(output_root: Path, cache_root: Path) -> None:
@@ -68,8 +86,10 @@ def migrate(output_root: Path, cache_root: Path) -> None:
         outputs = list(context_dir.glob("*.jsonl"))
         if not outputs:
             continue
+        logfire.debug("Processing context", context=context)
         service_map = _load_feature_plateaus(outputs)
         for service, feature_map in service_map.items():
+            logfire.debug("Relocating cache entries", context=context, service=service)
             _move_entries(cache_root, context, service, feature_map)
 
 

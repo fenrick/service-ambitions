@@ -41,6 +41,13 @@ class JSONCacheManager(CacheManager):
             if not isinstance(data, dict):
                 logfire.error("cache content must be a JSON object", path=str(path))
                 raise TypeError("cache content must be a JSON object")
+
+            logfire.debug(
+                "Preparing cache file write",
+                path=str(path),
+                keys=len(data),
+            )
+
             tmp_path = path.with_suffix(".tmp")
             path.parent.mkdir(parents=True, exist_ok=True)
             fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -53,7 +60,12 @@ class JSONCacheManager(CacheManager):
                     fh.flush()
                     os.fsync(fh.fileno())
                 os.replace(tmp_path, path)
-                logfire.debug("Wrote cache file", path=str(path))
+                size = path.stat().st_size
+                logfire.debug(
+                    "Wrote cache file",
+                    path=str(path),
+                    bytes=size,
+                )
             finally:
                 if os.path.exists(tmp_path):
                     os.remove(tmp_path)
