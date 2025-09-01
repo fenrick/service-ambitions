@@ -12,7 +12,6 @@ import logfire
 from pydantic_ai import Agent
 from pydantic_core import to_json
 
-import loader
 from canonical import canonicalise_record
 from conversation import ConversationSession
 from engine.plateau_runtime import PlateauRuntime
@@ -163,9 +162,7 @@ class ServiceExecution:
             "mapping": map_name,
             "search": self.factory.model_name("search"),
         }
-        _, catalogue_hash = load_mapping_items(
-            loader.MAPPING_DATA_DIR, settings.mapping_sets
-        )
+        _, catalogue_hash = load_mapping_items(settings.mapping_sets)
         context_window = getattr(feat_model, "max_input_tokens", 0)
         env.state[RUN_META_KEY] = ServiceMeta(
             run_id=str(uuid4()),

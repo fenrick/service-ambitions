@@ -8,6 +8,13 @@ from typing import TYPE_CHECKING, Any
 
 import logfire
 
+from utils import (
+    FileMappingLoader,
+    FilePromptLoader,
+    MappingLoader,
+    PromptLoader,
+)
+
 if TYPE_CHECKING:  # pragma: no cover - for type checkers only
     from models import ServiceMeta
     from settings import Settings
@@ -41,6 +48,38 @@ class RuntimeEnv:
             self.state.pop("run_meta", None)
         else:
             self.state["run_meta"] = meta
+
+    @property
+    def prompt_loader(self) -> PromptLoader:
+        """Return the active prompt loader, creating a default if needed."""
+
+        loader = self.state.get("prompt_loader")
+        if loader is None:
+            loader = FilePromptLoader(self.settings.prompt_dir)
+            self.state["prompt_loader"] = loader
+        return loader
+
+    @prompt_loader.setter
+    def prompt_loader(self, loader: PromptLoader) -> None:
+        """Persist ``loader`` for later retrieval."""
+
+        self.state["prompt_loader"] = loader
+
+    @property
+    def mapping_loader(self) -> MappingLoader:
+        """Return the active mapping loader, creating a default if needed."""
+
+        loader = self.state.get("mapping_loader")
+        if loader is None:
+            loader = FileMappingLoader(self.settings.mapping_data_dir)
+            self.state["mapping_loader"] = loader
+        return loader
+
+    @mapping_loader.setter
+    def mapping_loader(self, loader: MappingLoader) -> None:
+        """Persist ``loader`` for later retrieval."""
+
+        self.state["mapping_loader"] = loader
 
     @classmethod
     def initialize(cls, settings: "Settings") -> "RuntimeEnv":

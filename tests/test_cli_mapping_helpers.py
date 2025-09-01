@@ -60,7 +60,7 @@ def test_load_catalogue_invokes_loader(monkeypatch) -> None:
     def fake_configure(path):
         calls["configure"] = path
 
-    def fake_load(data_dir, mapping_sets):
+    def fake_load(mapping_sets):
         calls["load"] = mapping_sets
         return {"applications": []}, "hash"
 

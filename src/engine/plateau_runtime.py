@@ -12,11 +12,7 @@ from pydantic import ValidationError
 from pydantic_core import from_json
 
 from conversation import ConversationSession
-from loader import (
-    MAPPING_DATA_DIR,
-    load_mapping_items,
-    load_prompt_text,
-)
+from loader import load_mapping_items, load_prompt_text
 from mapping import cache_write_json_atomic, group_features_by_mapping, map_set
 from models import (
     FeatureItem,
@@ -362,9 +358,7 @@ class PlateauRuntime:
         """Populate ``self.mappings`` for ``self.features``."""
 
         settings = RuntimeEnv.instance().settings
-        items, catalogue_hash = load_mapping_items(
-            MAPPING_DATA_DIR, settings.mapping_sets
-        )
+        items, catalogue_hash = load_mapping_items(settings.mapping_sets)
 
         groups: dict[str, list[MappingFeatureGroup]] = {}
         for cfg in settings.mapping_sets:

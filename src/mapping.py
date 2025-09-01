@@ -18,7 +18,7 @@ import logfire
 from pydantic import ValidationError
 from pydantic_core import from_json, to_json
 
-from loader import MAPPING_DATA_DIR, load_mapping_items, load_prompt_text
+from loader import load_mapping_items, load_prompt_text
 from mapping_prompt import render_set_prompt
 from models import (
     Contribution,
@@ -206,10 +206,7 @@ def _merge_mapping_results(
     """
 
     env = RuntimeEnv.instance()
-    catalogues = (
-        catalogue_items
-        or load_mapping_items(MAPPING_DATA_DIR, env.settings.mapping_sets)[0]
-    )
+    catalogues = catalogue_items or load_mapping_items(env.settings.mapping_sets)[0]
     valid_ids: dict[str, set[str]] = {
         key: {item.id for item in catalogues[cfg.dataset]}
         for key, cfg in mapping_types.items()

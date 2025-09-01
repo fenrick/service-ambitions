@@ -42,9 +42,28 @@ def _clear_prompt_cache():
     """Ensure prompt cache is empty before and after each test."""
     import loader
 
-    loader.clear_prompt_cache()
+    try:
+        loader.clear_prompt_cache()
+    except RuntimeError:
+        pass
     yield
-    loader.clear_prompt_cache()
+    try:
+        loader.clear_prompt_cache()
+    except RuntimeError:
+        pass
+
+
+@pytest.fixture(autouse=True)
+def _init_runtime_env():
+    """Initialise a default runtime environment for tests."""
+
+    from runtime.environment import RuntimeEnv
+    from settings import load_settings
+
+    RuntimeEnv.reset()
+    RuntimeEnv.initialize(load_settings())
+    yield
+    RuntimeEnv.reset()
 
 
 class _DummySpan:
