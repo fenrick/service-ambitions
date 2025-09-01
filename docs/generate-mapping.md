@@ -1,6 +1,9 @@
 # Generate mapping
 
-Remap feature mappings for existing service evolution results.
+Remap feature mappings for existing service evolution results.  The
+command reuses the same runtime environment and caching strategy as the
+evolution workflow, ensuring that relocated cache files and lazy
+loading behave consistently across both commands.
 
 ## Running
 

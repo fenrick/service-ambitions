@@ -178,7 +178,12 @@ def main() -> None:
     """Parse arguments and dispatch to the requested subcommand."""
 
     parser = argparse.ArgumentParser(
-        description="Service evolution utilities",
+        description=(
+            "Service evolution utilities backed by a layered runtime "
+            "architecture. A ProcessingEngine coordinates ServiceExecution "
+            "and PlateauRuntime instances and relies on a global RuntimeEnv "
+            "for configuration."
+        ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     common = argparse.ArgumentParser(add_help=False)
@@ -350,8 +355,11 @@ def main() -> None:
     run_p = subparsers.add_parser(
         "run",
         parents=[common],
-        help="Generate service evolutions",
-        description="Generate service evolutions",
+        help="Generate service evolutions via ProcessingEngine",
+        description=(
+            "Generate service evolutions using the ProcessingEngine and "
+            "RuntimeEnv architecture"
+        ),
     )
     run_p.add_argument(
         "--input-file",
@@ -369,8 +377,11 @@ def main() -> None:
     diag_p = subparsers.add_parser(
         "diagnose",
         parents=[common],
-        help="Generate service evolutions",
-        description="Generate service evolutions with diagnostics enabled",
+        help="Generate service evolutions via ProcessingEngine",
+        description=(
+            "Generate service evolutions with diagnostics enabled using the "
+            "ProcessingEngine runtime"
+        ),
     )
     diag_p.add_argument(
         "--input-file",
@@ -388,9 +399,10 @@ def main() -> None:
     val_p = subparsers.add_parser(
         "validate",
         parents=[common],
-        help="Generate service evolutions",
+        help="Generate service evolutions via ProcessingEngine",
         description=(
-            "Validate inputs without calling the API and generate service evolutions"
+            "Validate inputs without calling the API and generate service "
+            "evolutions using the ProcessingEngine runtime"
         ),
     )
     val_p.add_argument(

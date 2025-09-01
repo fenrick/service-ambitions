@@ -1,11 +1,16 @@
 # Generate evolution
 
 The evolution workflow spans the plateaus defined in
-`data/service_feature_plateaus.json`. It first collects descriptions for all
-plateaus in a single request and then generates and maps features for every plateau. The CLI
-evaluates all plateaus in this file alongside all roles defined in
-`data/roles.json`. Plateau name to level mappings are derived from the order of
-the JSON entries.
+`data/service_feature_plateaus.json`. A `ProcessingEngine` coordinates the
+process: it instantiates a `ServiceExecution` for each service and spawns a
+`PlateauRuntime` per plateau. These engines lazily load data, cache intermediate
+results and only flush output once all stages succeed. The CLI evaluates all
+plateaus in this file alongside all roles defined in `data/roles.json`.
+Plateau name to level mappings are derived from the order of the JSON entries.
+
+Runtime configuration and shared state live in the thread‑safe `RuntimeEnv`
+singleton initialised by the CLI. Modules access settings via
+`RuntimeEnv.instance().settings`, avoiding repeated file reads.
 
 To re-run mapping on an existing evolution output, see
 [generate-mapping](generate-mapping.md).
