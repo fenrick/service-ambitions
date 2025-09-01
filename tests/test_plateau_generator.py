@@ -130,7 +130,7 @@ async def test_map_features_maps_all_sets_with_full_list(monkeypatch) -> None:
         MappingSet(name="Data", file="information.json", field="data"),
         MappingSet(name="Extra", file="extra.json", field="extra"),
     ]
-    monkeypatch.setattr("plateau_generator.map_set", fake_map_set)
+    monkeypatch.setattr("engine.plateau_runtime.map_set", fake_map_set)
     RuntimeEnv.initialize(
         cast(
             Any,
@@ -138,15 +138,11 @@ async def test_map_features_maps_all_sets_with_full_list(monkeypatch) -> None:
         )
     )
     monkeypatch.setattr(
-        "plateau_generator.load_mapping_items",
+        "engine.plateau_runtime.load_mapping_items",
         lambda path, sets: ({s.field: [] for s in sets}, "hash"),
     )
     session = DummySession([])
-    gen = PlateauGenerator(
-        cast(ConversationSession, session),
-        use_local_cache=False,
-        cache_mode="off",
-    )
+    runtime = PlateauRuntime(plateau=1, plateau_name="p1", description="desc")
     feats = [
         PlateauFeature(
             feature_id="f1",
@@ -164,12 +160,16 @@ async def test_map_features_maps_all_sets_with_full_list(monkeypatch) -> None:
         ),
     ]
 
-    await gen._map_features(
+    runtime.features = feats
+
+    await runtime.generate_mappings(
         cast(ConversationSession, session),
-        feats,
-        plateau=1,
         service_name="svc",
+        service_id="svc",
         service_description="desc",
+        strict=False,
+        use_local_cache=False,
+        cache_mode="off",
     )
 
     assert called == [s.field for s in mapping_sets]
@@ -243,13 +243,13 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
 
     call = {"n": 0}
 
-    async def dummy_map_features(self, session, feats, **kwargs):
+    async def dummy_generate_mappings(self, session, **kwargs):
         call["n"] += 1
         refs = [
             FeatureMappingRef(feature_id=f.feature_id, description=f.description)
-            for f in feats
+            for f in self.features
         ]
-        return {
+        self.mappings = {
             "data": [MappingFeatureGroup(id="d", name="d", mappings=refs.copy())],
             "applications": [
                 MappingFeatureGroup(id="a", name="a", mappings=refs.copy())
@@ -258,8 +258,9 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
                 MappingFeatureGroup(id="t", name="t", mappings=refs.copy())
             ],
         }
+        self._success = True
 
-    monkeypatch.setattr(PlateauGenerator, "_map_features", dummy_map_features)
+    monkeypatch.setattr(PlateauRuntime, "generate_mappings", dummy_generate_mappings)
 
     generator = PlateauGenerator(
         cast(ConversationSession, session),
@@ -355,10 +356,11 @@ def test_generate_plateau_repairs_missing_features(monkeypatch) -> None:
     )
     session = DummySession([desc_payload, initial, repair])
 
-    async def dummy_map_features(self, session, feats, **kwargs):
-        return {}
+    async def dummy_generate_mappings(self, session, **kwargs):
+        self.mappings = {}
+        self._success = True
 
-    monkeypatch.setattr(PlateauGenerator, "_map_features", dummy_map_features)
+    monkeypatch.setattr(PlateauRuntime, "generate_mappings", dummy_generate_mappings)
 
     generator = PlateauGenerator(
         cast(ConversationSession, session),
@@ -447,10 +449,11 @@ def test_generate_plateau_requests_missing_features_concurrently(
     )
     session = DummySession([desc_payload, initial])
 
-    async def dummy_map_features(self, session, feats, **kwargs):
-        return {}
+    async def dummy_generate_mappings(self, session, **kwargs):
+        self.mappings = {}
+        self._success = True
 
-    monkeypatch.setattr(PlateauGenerator, "_map_features", dummy_map_features)
+    monkeypatch.setattr(PlateauRuntime, "generate_mappings", dummy_generate_mappings)
 
     generator = PlateauGenerator(
         cast(ConversationSession, session),
@@ -478,7 +481,7 @@ def test_generate_plateau_requests_missing_features_concurrently(
         ]
 
     monkeypatch.setattr(
-        PlateauGenerator, "_request_missing_features_async", fake_request
+        PlateauRuntime, "_request_missing_features_async", fake_request
     )
 
     async def run() -> tuple[PlateauRuntime, float]:
@@ -660,10 +663,11 @@ async def test_generate_plateau_supports_custom_roles(monkeypatch) -> None:
     )
     generator._service = service
 
-    async def dummy_map_features(self, session, feats, **kwargs):
-        return {}
+    async def dummy_generate_mappings(self, session, **kwargs):
+        self.mappings = {}
+        self._success = True
 
-    monkeypatch.setattr(PlateauGenerator, "_map_features", dummy_map_features)
+    monkeypatch.setattr(PlateauRuntime, "generate_mappings", dummy_generate_mappings)
 
     runtime = PlateauRuntime(plateau=1, plateau_name="Foundational", description="desc")
     plateau = await generator.generate_plateau_async(
@@ -1152,10 +1156,11 @@ async def test_generate_plateau_reads_feature_cache(monkeypatch, tmp_path) -> No
         jobs_to_be_done=[],
     )
 
-    async def fake_map_features(*args, **kwargs):
-        return {}
+    async def fake_generate_mappings(self, session, **kwargs):
+        self.mappings = {}
+        self._success = True
 
-    monkeypatch.setattr(generator, "_map_features", fake_map_features)
+    monkeypatch.setattr(PlateauRuntime, "generate_mappings", fake_generate_mappings)
 
     runtime = PlateauRuntime(plateau=1, plateau_name="p1", description="d")
     result = await generator.generate_plateau_async(runtime)
