@@ -33,38 +33,6 @@ Lists are provided as JSON arrays in code blocks. Each object contains `id`, `na
   - If a feature has no relevant IDs for a field, include an empty array for that field.
 - Maintain terminology consistent with the situational context, definitions, and inspirations.
 - The response must adhere strictly to the JSON schema provided below.
-
-## Example output (illustrative structure; IDs here are placeholders)
-
-```json
-{
-  "features": [
-    {
-      "feature_id": "feat-001",
-      "technology": [
-        {
-          "item": "tech-001",
-          "rationale": "Enables automated identity checks aligned to capability scope."
-        },
-        {
-          "item": "tech-004",
-          "rationale": "Delivers self-service updates that match profile management."
-        }
-      ]
-    },
-    {
-      "feature_id": "feat-002",
-      "technology": [
-        {
-          "item": "tech-010",
-          "rationale": "Supports on-the-go tasks through the mobile app."
-        }
-      ]
-    }
-  ]
-}
-```
-
 ## Response structure
 
 {schema}

@@ -60,29 +60,7 @@ Generate service features for the {service_name} service at plateau {plateau} us
     - "label": one of "Initial", "Managed", "Defined", "Quantitatively Managed", "Optimizing".
     - "justification": brief rationale for the level.
 - The response must adhere to the JSON schema provided below.
-
-## Example output
-
-```json
-{{
-  "features": {{
-    "learners": [
-      {{
-        "name": "Smart enrolment",
-        "description": "People complete enrolment online with real-time checks for eligibility and data accuracy.",
-        "score": {{
-          "level": 3,
-          "label": "Defined",
-          "justification": "Standardised workflow and documented rules are applied consistently."
-        }}
-      }}
-    ],
-    "academics": [],
-    "professional_staff": []
-  }}
-}}
-
+ 
 ## Response structure
 
 {schema}
-```
