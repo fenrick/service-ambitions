@@ -37,6 +37,16 @@ def _mock_openai(monkeypatch):
         pass
 
 
+@pytest.fixture(autouse=True)
+def _clear_prompt_cache():
+    """Ensure prompt cache is empty before and after each test."""
+    import loader
+
+    loader.clear_prompt_cache()
+    yield
+    loader.clear_prompt_cache()
+
+
 class _DummySpan:
     def __enter__(self):
         return SimpleNamespace(set_attribute=lambda *a, **k: None)

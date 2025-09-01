@@ -69,6 +69,7 @@ def configure_prompt_dir(path: Path | str) -> None:
     global PROMPT_DIR, _prompt_loader
     PROMPT_DIR = Path(path)
     _prompt_loader = FilePromptLoader(PROMPT_DIR)
+    clear_prompt_cache()
 
 
 def configure_mapping_data_dir(path: Path | str) -> None:
@@ -193,8 +194,14 @@ def _read_yaml_file(path: Path, schema: type[T]) -> T:
         ) from exc
 
 
-def load_prompt_text(prompt_name: str, base_dir: Path | None = None) -> str:
-    """Return the contents of a prompt template."""
+@lru_cache(maxsize=None)
+def load_prompt_text(prompt_name: str, base_dir: Path | str | None = None) -> str:
+    """Return the contents of a prompt template.
+
+    Results are memoised for the lifetime of the process. Use
+    :func:`clear_prompt_cache` to invalidate the cache when template files
+    change.
+    """
 
     loader = _prompt_loader if base_dir is None else FilePromptLoader(Path(base_dir))
     try:
@@ -202,6 +209,12 @@ def load_prompt_text(prompt_name: str, base_dir: Path | None = None) -> str:
     except Exception as exc:
         _error_handler.handle(f"Error loading prompt {prompt_name}", exc)
         raise
+
+
+def clear_prompt_cache() -> None:
+    """Invalidate any cached prompt text."""
+
+    load_prompt_text.cache_clear()
 
 
 def load_mapping_items(
