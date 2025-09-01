@@ -467,7 +467,7 @@ class PlateauGenerator:
                 raise ValueError(f"Unknown plateau name: {name}")
             plateau_session = ConversationSession(
                 self.session.client,
-                stage=self.session.stage,
+                stage=f"features_{level}",
                 use_local_cache=self.use_local_cache,
                 cache_mode=self.cache_mode,
             )
