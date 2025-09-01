@@ -98,12 +98,16 @@ class DummyAgent:
     """Agent echoing prompts for deterministic output."""
 
     def __init__(
-        self, model: object | None = None, instructions: str | None = None
+        self,
+        model: object | None = None,
+        instructions: str | None = None,
+        output_type: type | None = None,
     ) -> None:
         self.model = model
         self.instructions = instructions
+        self.output_type = output_type
 
-    async def run(self, user_prompt: str, output_type: type) -> SimpleNamespace:
+    async def run(self, user_prompt: str) -> SimpleNamespace:
         """Return predictable payload for the supplied prompt."""
 
         return SimpleNamespace(

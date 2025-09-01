@@ -11,17 +11,7 @@ from typing import Sequence
 from pydantic_core import to_json
 
 from loader import load_prompt_text
-from models import (
-    MappingDiagnosticsResponse,
-    MappingItem,
-    MappingResponse,
-    PlateauFeature,
-)
-
-MAPPING_SCHEMA = to_json(MappingResponse.model_json_schema(), indent=2).decode()
-MAPPING_DIAGNOSTICS_SCHEMA = to_json(
-    MappingDiagnosticsResponse.model_json_schema(), indent=2
-).decode()
+from models import MappingItem, PlateauFeature
 
 
 def _sanitize(value: str) -> str:
@@ -112,7 +102,6 @@ def render_set_prompt(
         "{mapping_sections}": mapping_section,
         "{mapping_fields}": set_name,
         "{features}": f"```json\n{feature_lines}\n```",
-        "{schema}": MAPPING_DIAGNOSTICS_SCHEMA if diagnostics else MAPPING_SCHEMA,
         "{service_name}": _sanitize(service_name),
         "{service_description}": _sanitize(service_description),
         "{plateau}": str(plateau),

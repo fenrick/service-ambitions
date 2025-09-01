@@ -349,10 +349,10 @@ class ServiceAmbitionGenerator:
         if instructions is None:
             # Without instructions the agent cannot operate.
             raise ValueError("prompt must be provided")
-        agent = Agent(self.model, instructions=instructions)
+        agent = Agent(self.model, instructions=instructions, output_type=AmbitionModel)
         service_details = service.model_dump_json()
         result, retries = await _with_retry(
-            lambda: agent.run(service_details, output_type=AmbitionModel),
+            lambda: agent.run(service_details),
             request_timeout=self.request_timeout,
             attempts=self.retries,
             base=self.retry_base_delay,

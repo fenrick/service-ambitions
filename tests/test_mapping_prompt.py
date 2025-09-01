@@ -30,7 +30,7 @@ from models import MappingItem, MaturityScore, PlateauFeature  # noqa: E402
 def test_render_set_prompt_orders_content(shuffle: bool, monkeypatch) -> None:
     """Catalogue items and features are sorted deterministically."""
 
-    template = "{mapping_sections}\n{features}\n{schema}"
+    template = "{mapping_sections}\n{features}"
     monkeypatch.setattr("mapping_prompt.load_prompt_text", lambda _n: template)
 
     items: Sequence[MappingItem] = [
@@ -159,7 +159,7 @@ def test_render_set_prompt_uses_diagnostics_template(monkeypatch) -> None:
 
     def fake_load(name: str) -> str:
         called["name"] = name
-        return "{schema}"
+        return ""
 
     monkeypatch.setattr("mapping_prompt.load_prompt_text", fake_load)
     render_set_prompt(
@@ -180,7 +180,6 @@ def test_render_set_prompt_handles_literal_braces(monkeypatch) -> None:
     template = (
         "{mapping_sections}\n"
         'Each array element must be an object with only one field: { "item": <ID> }\n'
-        "{schema}"
     )
     monkeypatch.setattr("mapping_prompt.load_prompt_text", lambda _n: template)
 

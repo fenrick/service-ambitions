@@ -16,6 +16,7 @@ from models import (
     SCHEMA_VERSION,
     FeatureMappingRef,
     MappingFeatureGroup,
+    PlateauFeaturesResponse,
     ServiceEvolution,
     ServiceInput,
     ServiceMeta,
@@ -32,22 +33,18 @@ class DummyAgent:
         self._responses = responses
         self.prompts: list[str] = []
 
-    def run_sync(self, prompt: str, message_history, output_type=None):
+    def run_sync(self, prompt: str, message_history):
         self.prompts.append(prompt)
-        if output_type is not None and output_type.__name__ == "RoleFeaturesResponse":
-            payload = json.dumps({"features": []})
-        else:
-            payload = self._responses.pop(0)
-        if output_type is not None:
-            payload = output_type.model_validate_json(payload)
+        payload_json = self._responses.pop(0)
+        payload = PlateauFeaturesResponse.model_validate_json(payload_json)
         return SimpleNamespace(
             output=payload,
             new_messages=lambda: [],
             usage=lambda: SimpleNamespace(total_tokens=0),
         )
 
-    async def run(self, prompt: str, message_history, output_type=None):
-        return self.run_sync(prompt, message_history, output_type)
+    async def run(self, prompt: str, message_history):
+        return self.run_sync(prompt, message_history)
 
 
 def _feature_payload(count: int) -> str:
@@ -115,7 +112,7 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
         if name == "plateau_prompt":
             return template
         if name == "plateau_descriptions_prompt":
-            return "desc {plateaus} {schema}"
+            return "desc {plateaus}"
         return ""
 
     monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)

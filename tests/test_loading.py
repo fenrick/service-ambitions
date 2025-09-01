@@ -30,7 +30,6 @@ def test_load_prompt_assembles_components(tmp_path):
     (prompts_dir / "situational_context" / "ctx.md").write_text("ctx", encoding="utf-8")
     (prompts_dir / "inspirations" / "insp.md").write_text("insp", encoding="utf-8")
     (prompts_dir / "task_definition.md").write_text("task", encoding="utf-8")
-    (prompts_dir / "response_structure.md").write_text("resp", encoding="utf-8")
     data_dir.mkdir()
     (data_dir / "definitions.json").write_text(
         '{"title": "Defs", "bullets": [{"id": "d1", "name": "d1", "definition":'
@@ -55,7 +54,7 @@ def test_load_prompt_assembles_components(tmp_path):
         " schema.\n\nctx\n\n## Service feature plateaus\n\n1. **Alpha**\n   - Core"
         " idea: core\n   - Key characteristics:\n     - kc1\n   - What it feels like:"
         " feel\n\n## Defs\n\n1. **d1**\n   - Definition: defs\n2. **d2**\n   -"
-        " Definition: extra\n\ninsp\n\ntask\n\nresp"
+        " Definition: extra\n\ninsp\n\ntask"
     )
     assert prompt == expected
 
@@ -88,7 +87,6 @@ def test_load_prompt_with_definition_keys(tmp_path):
     (prompts_dir / "situational_context" / "ctx.md").write_text("ctx", encoding="utf-8")
     (prompts_dir / "inspirations" / "insp.md").write_text("insp", encoding="utf-8")
     (prompts_dir / "task_definition.md").write_text("task", encoding="utf-8")
-    (prompts_dir / "response_structure.md").write_text("resp", encoding="utf-8")
     data_dir.mkdir()
     (data_dir / "definitions.json").write_text(
         '{"title": "Defs", "bullets": [{"id": "d1", "name": "d1", "definition":'
@@ -113,7 +111,7 @@ def test_load_prompt_with_definition_keys(tmp_path):
         " job is to produce strictly-valid JSON structured outputs aligned to the"
         " schema.\n\nctx\n\n## Service feature plateaus\n\n1. **Alpha**\n   - Core"
         " idea: core\n   - Key characteristics:\n     - kc1\n   - What it feels like:"
-        " feel\n\n## Defs\n\n1. **d2**\n   - Definition: defs2\n\ninsp\n\ntask\n\nresp"
+        " feel\n\n## Defs\n\n1. **d2**\n   - Definition: defs2\n\ninsp\n\ntask"
     )
     assert prompt == expected
 
@@ -126,7 +124,6 @@ def test_load_ambition_prompt_includes_north_star(tmp_path):
     (prompts_dir / "situational_context" / "ctx.md").write_text("ctx", encoding="utf-8")
     (prompts_dir / "inspirations" / "insp.md").write_text("insp", encoding="utf-8")
     (prompts_dir / "task_definition.md").write_text("task", encoding="utf-8")
-    (prompts_dir / "response_structure.md").write_text("resp", encoding="utf-8")
     data_dir.mkdir()
     (data_dir / "definitions.json").write_text(
         '{"title": "Defs", "bullets": [{"id": "d1", "name": "d1", "definition":'

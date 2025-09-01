@@ -30,7 +30,6 @@ from loader import (
 )
 from mapping import cache_write_json_atomic, group_features_by_mapping, map_set
 from models import (
-    DescriptionResponse,
     FeatureItem,
     MappingFeatureGroup,
     PlateauDescriptionsResponse,
@@ -216,41 +215,18 @@ class PlateauGenerator:
     ) -> str:
         """Return the service description for ``level``.
 
-        A description template is loaded from disk and rendered with the target
-        ``level``. The prompt is sent to the agent via ``session`` and the JSON
-        response parsed. A :class:`ValueError` is raised if the response cannot
-        be validated or the description field is empty.
+        This helper delegates to :meth:`_request_descriptions` using the
+        plateau's name to keep all description handling in one place. Any
+        parsing or sanitisation errors are handled by the batch method and an
+        empty string is returned when the model cannot provide a valid
+        description.
         """
         session = session or self.description_session
-        template = load_prompt_text("description_prompt")
-        schema = to_json(DescriptionResponse.model_json_schema(), indent=2).decode()
-        prompt = template.format(
-            plateau=level,
-            schema=str(schema),
-        )
-
-        # Query the model to obtain the raw response text.
-        raw = session.ask(prompt)
-
-        # Map the numeric level back to the plateau name for quarantine purposes.
         plateau_name = next(
             (n for n, lvl in DEFAULT_PLATEAU_MAP.items() if lvl == level),
             f"plateau_{level}",
         )
-
-        try:
-            response = DescriptionResponse.model_validate_json(raw)
-            if not response.description:
-                raise ValueError(A_NON_EMPTY_STRING)
-            cleaned = self._sanitize_description(response.description)
-            if not cleaned:
-                raise ValueError(A_NON_EMPTY_STRING)
-            return cleaned
-        except Exception as exc:
-            # Persist the invalid response and continue with a safe placeholder.
-            self._quarantine_description(plateau_name, raw)
-            logfire.error(f"Invalid plateau description for {plateau_name}: {exc}")
-            return ""
+        return self._request_descriptions([plateau_name], session).get(plateau_name, "")
 
     @staticmethod
     def _sanitize_description(text: str) -> str:
@@ -273,27 +249,17 @@ class PlateauGenerator:
                 raise ValueError(f"Unknown plateau name: {name}") from exc
             lines.append(f"{level}. {name}")
         plateaus_str = "\n".join(lines)
-        schema = to_json(
-            PlateauDescriptionsResponse.model_json_schema(), indent=2
-        ).decode()
         template = load_prompt_text("plateau_descriptions_prompt")
-        return template.format(plateaus=plateaus_str, schema=str(schema))
+        return template.format(plateaus=plateaus_str)
 
     def _request_descriptions_common(
-        self, plateau_names: Sequence[str], raw: str
+        self, plateau_names: Sequence[str], payload: PlateauDescriptionsResponse
     ) -> dict[str, str]:
-        """Parse ``raw`` description payload for ``plateau_names``."""
+        """Parse ``payload`` description data for ``plateau_names``."""
 
-        try:
-            payload = PlateauDescriptionsResponse.model_validate_json(raw)
-            items = payload.descriptions
-        except Exception as exc:  # noqa: BLE001
-            # If the overall payload is invalid JSON, quarantine each plateau.
-            logfire.error(f"Invalid plateau descriptions: {exc}")
-            items = []
-
+        raw = payload.model_dump_json()
         results: dict[str, str] = {}
-        item_map = {item.plateau_name: item for item in items}
+        item_map = {item.plateau_name: item for item in payload.descriptions}
         for name in plateau_names:
             item = item_map.get(name)
             if item is None:
@@ -319,8 +285,8 @@ class PlateauGenerator:
     ) -> dict[str, str]:
         session = session or self.description_session
         prompt = self._build_descriptions_prompt(plateau_names)
-        raw = session.ask(prompt)
-        return self._request_descriptions_common(plateau_names, raw)
+        payload = session.ask(prompt)
+        return self._request_descriptions_common(plateau_names, payload)
 
     async def _request_descriptions_async(
         self,
@@ -331,8 +297,8 @@ class PlateauGenerator:
 
         session = session or self.description_session
         prompt = self._build_descriptions_prompt(plateau_names)
-        raw = await session.ask_async(prompt)
-        return self._request_descriptions_common(plateau_names, raw)
+        payload = await session.ask_async(prompt)
+        return self._request_descriptions_common(plateau_names, payload)
 
     def _to_feature(
         self, item: FeatureItem, role: str, plateau_name: str
@@ -361,7 +327,6 @@ class PlateauGenerator:
     def _build_plateau_prompt(self, level: int, description: str) -> str:
         """Return a prompt requesting features for ``level``."""
 
-        schema = to_json(PlateauFeaturesResponse.model_json_schema(), indent=2).decode()
         template = load_prompt_text("plateau_prompt")
         roles_str = ", ".join(f'"{r}"' for r in self.roles)
         return template.format(
@@ -369,7 +334,6 @@ class PlateauGenerator:
             service_name=self._service.name if self._service else "",
             service_description=description,
             plateau=str(level),
-            schema=str(schema),
             roles=str(roles_str),
         )
 
@@ -402,27 +366,12 @@ class PlateauGenerator:
     ) -> list[FeatureItem]:
         """Return ``count`` features for ``role`` when initial parsing fails."""
 
-        example = {
-            "features": [
-                {
-                    "name": "Example feature",
-                    "description": "Example description.",
-                    "score": {
-                        "level": 3,
-                        "label": "Defined",
-                        "justification": "Example justification.",
-                    },
-                }
-            ]
-        }
-        schema = to_json(RoleFeaturesResponse.model_json_schema(), indent=2).decode()
         prompt = (
             f"Previous output returned {reason} for role '{role}'.\nProvide exactly"
             f" {count} unique features for this role at plateau {level}.\n\nService"
-            f" description:\n{description}\n\nExample"
-            f" output:\n{to_json(example, indent=2).decode()}\n\nJSON schema:\n{schema}"
+            f" description:\n{description}"
         )
-        payload = await session.ask_async(prompt, output_type=RoleFeaturesResponse)
+        payload = await session.ask_async(prompt)
         return payload.features
 
     def _validate_roles(
@@ -624,29 +573,13 @@ class PlateauGenerator:
     ) -> list[FeatureItem]:
         """Return additional features for ``role`` to meet the required count."""
 
-        example = {
-            "features": [
-                {
-                    "name": "Example feature",
-                    "description": "Example description.",
-                    "score": {
-                        "level": 3,
-                        "label": "Defined",
-                        "justification": "Example justification.",
-                    },
-                }
-            ]
-        }
-        schema = to_json(RoleFeaturesResponse.model_json_schema(), indent=2).decode()
         prompt = (
             f"Previous output returned insufficient features for role '{role}'.\n"
             f"Provide exactly {missing} additional unique features for this role"
             f" at plateau {level}.\n\n"
-            f"Service description:\n{description}\n\n"
-            f"Example output:\n{to_json(example, indent=2).decode()}\n\n"
-            f"JSON schema:\n{schema}"
+            f"Service description:\n{description}"
         )
-        payload = await session.ask_async(prompt, output_type=RoleFeaturesResponse)
+        payload = await session.ask_async(prompt)
         return payload.features
 
     async def generate_plateau_async(
@@ -690,18 +623,8 @@ class PlateauGenerator:
 
                 prompt = self._build_plateau_prompt(level, description)
                 logfire.info(f"Requesting features for level={level}")
-
-                try:
-                    raw = await session.ask_async(prompt)
-                    data = from_json(raw)
-                except Exception as exc:
-                    logfire.error(f"Invalid JSON from feature response: {exc}")
-                    raise ValueError("Agent returned invalid JSON") from exc
-
-                if not isinstance(data, dict) or "features" not in data:
-                    raise ValueError("Agent returned invalid JSON")
-
-                role_data = data.get("features", {})
+                payload = await session.ask_async(prompt)
+                role_data = payload.features
             valid, invalid_roles, missing = self._validate_roles(role_data)
 
             fixes = await self._recover_invalid_roles(

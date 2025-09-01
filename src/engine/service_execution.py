@@ -19,7 +19,14 @@ from conversation import ConversationSession
 from engine.plateau_runtime import PlateauRuntime
 from loader import load_mapping_items
 from model_factory import ModelFactory
-from models import ServiceInput, ServiceMeta
+from models import (
+    MappingDiagnosticsResponse,
+    MappingResponse,
+    PlateauDescriptionsResponse,
+    PlateauFeaturesResponse,
+    ServiceInput,
+    ServiceMeta,
+)
 from persistence import atomic_write
 from plateau_generator import (
     DEFAULT_PLATEAU_MAP,
@@ -109,11 +116,27 @@ class ServiceExecution:
                     "mapping", self.args.mapping_model or self.args.model
                 )
 
-                desc_agent = Agent(desc_model, instructions=self.system_prompt)
-                feat_agent = Agent(feat_model, instructions=self.system_prompt)
-                map_agent = Agent(map_model, instructions=self.system_prompt)
-
                 settings = RuntimeEnv.instance().settings
+
+                desc_agent = Agent(
+                    desc_model,
+                    instructions=self.system_prompt,
+                    output_type=PlateauDescriptionsResponse,
+                )
+                feat_agent = Agent(
+                    feat_model,
+                    instructions=self.system_prompt,
+                    output_type=PlateauFeaturesResponse,
+                )
+                map_agent = Agent(
+                    map_model,
+                    instructions=self.system_prompt,
+                    output_type=(
+                        MappingDiagnosticsResponse
+                        if settings.diagnostics
+                        else MappingResponse
+                    ),
+                )
                 desc_session = ConversationSession(
                     desc_agent,
                     stage="descriptions",

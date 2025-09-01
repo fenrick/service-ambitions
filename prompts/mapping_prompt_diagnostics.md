@@ -19,7 +19,6 @@ Lists are provided as JSON arrays in code blocks. Each object contains `id`, `na
 
 ## Instructions
 
-- Return a single JSON object with a top-level "features" array.
 - Each element must include:
   - "feature_id": the ID from the supplied features (use exact value and type).
   - Arrays for each of: {mapping_fields}.
@@ -30,45 +29,6 @@ Lists are provided as JSON arrays in code blocks. Each object contains `id`, `na
     - "rationale": a single-line explanation of the match (concise; no line breaks).
   - Do not include weights, scores, or extra fields.
   - Do not invent IDs or rationales.
-  - Deduplicate within each array (no repeated IDs per feature).
-  - If a feature has no relevant IDs for a field, include an empty array for that field.
+- Deduplicate within each array (no repeated IDs per feature).
+- If a feature has no relevant IDs for a field, include an empty array for that field.
 - Maintain terminology consistent with the situational context, definitions, and inspirations.
-- Do not include any text outside the JSON object.
-- Return ONLY valid JSON. No Markdown, no backticks, no commentary, no trailing commas.
-- If you are about to include any text outside JSON, stop and return JSON only.
-- The response must adhere strictly to the JSON schema provided below.
-
-## Example output (illustrative structure; IDs here are placeholders)
-
-```json
-{
-  "features": [
-    {
-      "feature_id": "feat-001",
-      "technology": [
-        {
-          "item": "tech-001",
-          "rationale": "Enables automated identity checks aligned to capability scope."
-        },
-        {
-          "item": "tech-004",
-          "rationale": "Delivers self-service updates that match profile management."
-        }
-      ]
-    },
-    {
-      "feature_id": "feat-002",
-      "technology": [
-        {
-          "item": "tech-010",
-          "rationale": "Supports on-the-go tasks through the mobile app."
-        }
-      ]
-    }
-  ]
-}
-```
-
-## Response structure
-
-{schema}

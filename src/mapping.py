@@ -341,8 +341,13 @@ async def map_set(
     model_obj = getattr(session, "client", None)
     model_name = getattr(getattr(model_obj, "model", None), "model_name", "")
     key = _build_cache_key(model_name, set_name, catalogue_hash, features, use_diag)
-    model_type: type[StrictModel] = (
-        MappingDiagnosticsResponse if use_diag else MappingResponse
+    model_type = cast(
+        type[StrictModel],
+        getattr(
+            model_obj,
+            "output_type",
+            MappingDiagnosticsResponse if use_diag else MappingResponse,
+        ),
     )
     cache_file: Path | None = None
     payload: StrictModel | None = None
@@ -417,48 +422,31 @@ async def map_set(
             session_log_prompts = getattr(session, "log_prompts", False)
             session.log_prompts = False
         try:
-            raw = await session.ask_async(prompt, output_type=model_type)
+            payload = await session.ask_async(prompt)
             tokens += getattr(session, "last_tokens", 0)
-            payload = (
-                raw
-                if isinstance(raw, StrictModel)
-                else model_type.model_validate_json(raw)
+        except Exception as exc:
+            svc = service or "unknown"
+            _writer.write(set_name, svc, "json_parse_error", str(exc))
+            _error_handler.handle("Invalid mapping response", exc)
+            if strict:
+                raise MappingError(
+                    f"Invalid mapping response for {svc}/{set_name}"
+                ) from exc
+            record_mapping_set(
+                set_name,
+                features=len(features),
+                mapped_ids=0,
+                unknown_ids=0,
+                retries=retries,
+                latency=time.monotonic() - start,
+                tokens=tokens,
             )
-        except (ValidationError, ValueError):
-            retries = 1
-            hint_prompt = f"{prompt}\nReturn valid JSON only."
-            raw = await session.ask_async(hint_prompt, output_type=model_type)
-            tokens += getattr(session, "last_tokens", 0)
-            try:
-                payload = (
-                    raw
-                    if isinstance(raw, StrictModel)
-                    else model_type.model_validate_json(raw)
-                )
-            except (ValidationError, ValueError) as exc:
-                svc = service or "unknown"
-                text = raw if isinstance(raw, str) else raw.model_dump()
-                _writer.write(set_name, svc, "json_parse_error", text)
-                _error_handler.handle("Invalid mapping response", exc)
-                if strict:
-                    raise MappingError(
-                        f"Invalid mapping response for {svc}/{set_name}"
-                    ) from exc
-                record_mapping_set(
-                    set_name,
-                    features=len(features),
-                    mapped_ids=0,
-                    unknown_ids=0,
-                    retries=retries,
-                    latency=time.monotonic() - start,
-                    tokens=tokens,
-                )
-                if should_log_prompt:
-                    session.log_prompts = session_log_prompts
-                return [
-                    feat.model_copy(update={"mappings": feat.mappings | {set_name: []}})
-                    for feat in features
-                ]
+            if should_log_prompt:
+                session.log_prompts = session_log_prompts
+            return [
+                feat.model_copy(update={"mappings": feat.mappings | {set_name: []}})
+                for feat in features
+            ]
         if cache_file and write_after_call:
             # Persist successful responses for future runs.
             data = payload.model_dump() if hasattr(payload, "model_dump") else payload

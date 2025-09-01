@@ -11,7 +11,7 @@ import loader
 import mapping
 from canonical import canonicalise_record
 from conversation import ConversationSession
-from models import MappingSet, ServiceEvolution
+from models import MappingResponse, MappingSet, ServiceEvolution
 
 
 class DummySession:
@@ -23,8 +23,9 @@ class DummySession:
     def derive(self) -> "DummySession":
         return self
 
-    async def ask_async(self, prompt: str, output_type=None) -> str:
-        return self._responses.pop(0)
+    async def ask_async(self, prompt: str) -> MappingResponse:
+        resp = self._responses.pop(0)
+        return MappingResponse.model_validate_json(resp)
 
 
 def _load_evolutions() -> list[ServiceEvolution]:

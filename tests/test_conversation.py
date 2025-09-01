@@ -24,7 +24,7 @@ class DummyAgent:
     def __init__(self) -> None:
         self.called_with: list[str] = []
 
-    def run_sync(self, prompt: str, message_history: list[str], output_type=None):
+    def run_sync(self, prompt: str, message_history: list[str]):
         self.called_with.append(prompt)
         return SimpleNamespace(
             output="pong",

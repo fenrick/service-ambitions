@@ -268,7 +268,7 @@ def test_cli_generate_matches_golden(monkeypatch, tmp_path, dummy_agent) -> None
         async def generate_service_evolution_async(
             self, service_input: ServiceInput, runtimes, *_, **__
         ):
-            resp = await self.agent.run(service_input.model_dump_json(), dict)
+            resp = await self.agent.run(service_input.model_dump_json())
             return SimpleNamespace(
                 model_dump=lambda mode=None: resp.output.model_dump()
             )
