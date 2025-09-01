@@ -304,7 +304,7 @@ Generate service features for the {service_name} service at plateau {plateau}.
 ## Instructions
 
 - Use the service description: {service_description}.
-- Return a single JSON object with keys for each role: {roles}.
+- Provide keys for each role: {roles}.
 - Each key must map to an array containing at least {required_count} feature
   objects.
 - Every feature must provide:
@@ -314,7 +314,6 @@ Generate service features for the {service_name} service at plateau {plateau}.
     - "level": integer 1–5.
     - "label": matching CMMI maturity name.
     - "justification": brief rationale for the level.
-- Do not include any text outside the JSON object.
 ```
 
 ### Mapping prompts
@@ -328,10 +327,9 @@ Map each feature to relevant Applications from the list below.
 
 ## Instructions
 
-- Return a JSON object with a top-level "features" array.
+- Include a top-level "features" array.
 - Each element must include "feature_id" and an "applications" array of objects with an "item" field only.
 - Do not invent IDs; only use those provided.
-- Do not include any text outside the JSON object.
 ```
 
 Repeat this structure for the `technologies` and `information` datasets.

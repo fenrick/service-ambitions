@@ -315,9 +315,9 @@ async def map_set(
         cache_mode: Local cache behaviour.
         catalogue_hash: SHA256 digest representing the loaded mapping catalogues.
 
-    The agent is queried twice to obtain a valid :class:`MappingResponse`. The
-    second attempt appends a hint instructing the model to return JSON only. If
-    both attempts fail, the raw response is written to
+    The agent is queried up to twice to obtain a valid :class:`MappingResponse`.
+    The second attempt appends a hint directing the model to stick to the
+    defined fields. If both attempts fail, the raw response is written to
     ``quarantine/mapping/<service>/<set>.txt`` and an empty mapping list is
     returned. When ``strict`` is ``True`` a :class:`MappingError`` is raised
     instead of returning partial results. ``cache_mode`` controls local caching
@@ -424,7 +424,7 @@ async def map_set(
         try:
             payload = await session.ask_async(prompt)
             tokens += getattr(session, "last_tokens", 0)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             svc = service or "unknown"
             _writer.write(set_name, svc, "json_parse_error", str(exc))
             _error_handler.handle("Invalid mapping response", exc)
