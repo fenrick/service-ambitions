@@ -37,4 +37,3 @@
 }
 ```
 
-Return a JSON object.

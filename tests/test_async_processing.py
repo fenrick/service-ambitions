@@ -15,11 +15,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
 class DummyAgent:
-    def __init__(self, model, instructions):
+    def __init__(self, model, instructions, output_type=None):
         self.model = model
         self.instructions = instructions
+        self.output_type = output_type
 
-    async def run(self, user_prompt: str, output_type):
+    async def run(self, user_prompt: str):
         return SimpleNamespace(
             output=SimpleNamespace(model_dump=lambda: {"service": user_prompt}),
             usage=lambda: SimpleNamespace(total_tokens=1),
@@ -49,12 +50,12 @@ def test_process_service_retries(monkeypatch):
     attempts = {"count": 0}
 
     class FlakyAgent(DummyAgent):
-        async def run(self, user_prompt: str, output_type):
+        async def run(self, user_prompt: str):
             attempts["count"] += 1
             if attempts["count"] < 3:
                 # Connection errors are considered transient and should retry.
                 raise ConnectionError("temporary")
-            return await super().run(user_prompt, output_type)
+            return await super().run(user_prompt)
 
     async def fast_sleep(_: float) -> None:
         """Skip real waiting during backoff."""

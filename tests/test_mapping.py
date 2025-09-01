@@ -55,9 +55,14 @@ class DummySession:
         self.log_prompts = log_prompts
         self.last_tokens = 0
 
-    async def ask_async(self, prompt: str, output_type=None) -> str:
+    async def ask_async(self, prompt: str) -> MappingResponse:
         self.prompts.append(prompt)
-        return self._responses.pop(0)
+        resp = self._responses.pop(0)
+        if isinstance(resp, str):
+            return MappingResponse.model_validate_json(resp)
+        if isinstance(resp, Exception):
+            raise resp
+        return resp
 
 
 def _feature(feature_id: str = "f1") -> PlateauFeature:
@@ -111,7 +116,7 @@ async def test_map_set_successful_mapping(monkeypatch) -> None:
         plateau=1,
         service="svc",
     )
-    assert session.prompts == ["PROMPT", "PROMPT\nReturn valid JSON only."]
+    assert session.prompts == ["PROMPT", "PROMPT\nStick to the fields defined."]
     assert mapped[0].mappings["applications"][0].item == "a"
 
 
@@ -398,7 +403,7 @@ async def test_map_set_reads_cache(monkeypatch, tmp_path) -> None:
         json.dump(cached, fh)
 
     class NoCallSession(DummySession):
-        async def ask_async(self, prompt: str, output_type=None) -> str:
+        async def ask_async(self, prompt: str) -> MappingResponse:
             raise AssertionError("ask_async should not be called")
 
     session = NoCallSession([])

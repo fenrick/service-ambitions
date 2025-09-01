@@ -24,9 +24,11 @@ from models import (
     MappingFeatureGroup,
     MappingSet,
     MaturityScore,
+    PlateauDescriptionsResponse,
     PlateauFeature,
     PlateauFeaturesResponse,
     PlateauResult,
+    RoleFeaturesResponse,
     ServiceEvolution,
     ServiceInput,
     ServiceMeta,
@@ -46,15 +48,24 @@ class DummySession:
         self.client = None
         self.stage = "test"
 
-    def ask(self, prompt: str, output_type=None) -> object:
+    def ask(self, prompt: str) -> object:
         self.prompts.append(prompt)
         response = self._responses.pop(0)
-        if output_type is None:
-            return response
-        return output_type.model_validate_json(response)
+        if isinstance(response, str):
+            for model in (
+                PlateauDescriptionsResponse,
+                PlateauFeaturesResponse,
+                RoleFeaturesResponse,
+            ):
+                try:
+                    return model.model_validate_json(response)
+                except Exception:  # noqa: BLE001
+                    continue
+            raise ValueError(response)
+        return response
 
-    async def ask_async(self, prompt: str, output_type=None) -> object:
-        return self.ask(prompt, output_type)
+    async def ask_async(self, prompt: str) -> object:
+        return self.ask(prompt)
 
     def add_parent_materials(self, service_input: ServiceInput) -> None:
         pass

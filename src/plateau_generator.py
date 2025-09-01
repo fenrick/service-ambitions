@@ -280,20 +280,13 @@ class PlateauGenerator:
         return template.format(plateaus=plateaus_str, schema=str(schema))
 
     def _request_descriptions_common(
-        self, plateau_names: Sequence[str], raw: str
+        self, plateau_names: Sequence[str], payload: PlateauDescriptionsResponse
     ) -> dict[str, str]:
-        """Parse ``raw`` description payload for ``plateau_names``."""
+        """Parse ``payload`` description data for ``plateau_names``."""
 
-        try:
-            payload = PlateauDescriptionsResponse.model_validate_json(raw)
-            items = payload.descriptions
-        except Exception as exc:  # noqa: BLE001
-            # If the overall payload is invalid JSON, quarantine each plateau.
-            logfire.error(f"Invalid plateau descriptions: {exc}")
-            items = []
-
+        raw = payload.model_dump_json()
         results: dict[str, str] = {}
-        item_map = {item.plateau_name: item for item in items}
+        item_map = {item.plateau_name: item for item in payload.descriptions}
         for name in plateau_names:
             item = item_map.get(name)
             if item is None:
@@ -319,8 +312,8 @@ class PlateauGenerator:
     ) -> dict[str, str]:
         session = session or self.description_session
         prompt = self._build_descriptions_prompt(plateau_names)
-        raw = session.ask(prompt)
-        return self._request_descriptions_common(plateau_names, raw)
+        payload = session.ask(prompt)
+        return self._request_descriptions_common(plateau_names, payload)
 
     async def _request_descriptions_async(
         self,
@@ -331,8 +324,12 @@ class PlateauGenerator:
 
         session = session or self.description_session
         prompt = self._build_descriptions_prompt(plateau_names)
-        raw = await session.ask_async(prompt)
-        return self._request_descriptions_common(plateau_names, raw)
+        try:
+            payload = await session.ask_async(prompt)
+        except Exception:
+            hint_prompt = f"{prompt}\nStick to the fields defined."
+            payload = await session.ask_async(hint_prompt)
+        return self._request_descriptions_common(plateau_names, payload)
 
     def _to_feature(
         self, item: FeatureItem, role: str, plateau_name: str
@@ -422,7 +419,7 @@ class PlateauGenerator:
             f" description:\n{description}\n\nExample"
             f" output:\n{to_json(example, indent=2).decode()}\n\nJSON schema:\n{schema}"
         )
-        payload = await session.ask_async(prompt, output_type=RoleFeaturesResponse)
+        payload = await session.ask_async(prompt)
         return payload.features
 
     def _validate_roles(
@@ -646,7 +643,7 @@ class PlateauGenerator:
             f"Example output:\n{to_json(example, indent=2).decode()}\n\n"
             f"JSON schema:\n{schema}"
         )
-        payload = await session.ask_async(prompt, output_type=RoleFeaturesResponse)
+        payload = await session.ask_async(prompt)
         return payload.features
 
     async def generate_plateau_async(
@@ -692,16 +689,12 @@ class PlateauGenerator:
                 logfire.info(f"Requesting features for level={level}")
 
                 try:
-                    raw = await session.ask_async(prompt)
-                    data = from_json(raw)
-                except Exception as exc:
-                    logfire.error(f"Invalid JSON from feature response: {exc}")
-                    raise ValueError("Agent returned invalid JSON") from exc
+                    payload = await session.ask_async(prompt)
+                except Exception:
+                    hint_prompt = f"{prompt}\nStick to the fields defined."
+                    payload = await session.ask_async(hint_prompt)
 
-                if not isinstance(data, dict) or "features" not in data:
-                    raise ValueError("Agent returned invalid JSON")
-
-                role_data = data.get("features", {})
+                role_data = payload.features
             valid, invalid_roles, missing = self._validate_roles(role_data)
 
             fixes = await self._recover_invalid_roles(

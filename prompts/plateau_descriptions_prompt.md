@@ -25,9 +25,6 @@ Provide a standalone description for each service maturity plateau below. Each d
 
 ## Output rules
 
-- JSON Output Only: Return a JSON object containing a `descriptions` array with `plateau`, `plateau_name`, and `description` fields.
-- Strict Formatting: Do not include any text, markdown, commentary, or trailing commas outside the valid JSON object. Your entire response must be the JSON object itself.
-- If you are about to include text outside JSON, stop and return JSON only.
 - Schema Adherence: The response must strictly adhere to the JSON schema provided below.
 
 ## Response structure
