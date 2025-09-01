@@ -11,6 +11,7 @@ history into another while still reusing the same underlying agent.
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 from pathlib import Path
 from typing import Any, Literal, Mapping, Sequence
@@ -115,14 +116,15 @@ class PlateauGenerator:
         # Registry used for deterministic feature codes.
         self.code_registry = ShortCodeRegistry()
 
-    def _quarantine_description(self, plateau_name: str, raw: str) -> Path:
+    def _quarantine_description(self, plateau_name: str, raw: Any) -> Path:
         """Persist ``raw`` text for ``plateau_name`` and record its path."""
 
         # Create the quarantine directory if it does not yet exist.
         qdir = Path("quarantine/descriptions")
         qdir.mkdir(parents=True, exist_ok=True)
         file_path = qdir / f"{plateau_name}.txt"
-        file_path.write_text(raw, encoding="utf-8")
+        text = raw if isinstance(raw, str) else json.dumps(raw, indent=2)
+        file_path.write_text(text, encoding="utf-8")
         logfire.warning(f"Quarantined plateau description at {file_path}")
         self.quarantined_descriptions.append(file_path)
         return file_path
@@ -248,12 +250,19 @@ class PlateauGenerator:
         return template.format(plateaus=plateaus_str, schema=str(schema))
 
     def _request_descriptions_common(
-        self, plateau_names: Sequence[str], raw: str
+        self,
+        plateau_names: Sequence[str],
+        raw: PlateauDescriptionsResponse | str | Mapping[str, Any],
     ) -> dict[str, str]:
         """Parse ``raw`` description payload for ``plateau_names``."""
 
         try:
-            payload = PlateauDescriptionsResponse.model_validate_json(raw)
+            if isinstance(raw, PlateauDescriptionsResponse):
+                payload = raw
+            elif isinstance(raw, str):
+                payload = PlateauDescriptionsResponse.model_validate_json(raw)
+            else:
+                payload = PlateauDescriptionsResponse.model_validate(raw)
             items = payload.descriptions
         except Exception as exc:  # noqa: BLE001
             # If the overall payload is invalid JSON, quarantine each plateau.
@@ -287,8 +296,18 @@ class PlateauGenerator:
     ) -> dict[str, str]:
         session = session or self.description_session
         prompt = self._build_descriptions_prompt(plateau_names)
-        raw = session.ask(prompt)
-        return self._request_descriptions_common(plateau_names, raw)
+        try:
+            payload = session.ask(prompt, PlateauDescriptionsResponse)
+        except Exception:  # noqa: BLE001
+            # Fallback to raw string without caching on failure.
+            original_mode = getattr(session, "cache_mode", None)
+            if original_mode is not None:
+                session.cache_mode = "off"
+            raw = session.ask(prompt)
+            if original_mode is not None:
+                session.cache_mode = original_mode
+            return self._request_descriptions_common(plateau_names, raw)
+        return self._request_descriptions_common(plateau_names, payload)
 
     async def _request_descriptions_async(
         self,
@@ -299,8 +318,18 @@ class PlateauGenerator:
 
         session = session or self.description_session
         prompt = self._build_descriptions_prompt(plateau_names)
-        raw = await session.ask_async(prompt)
-        return self._request_descriptions_common(plateau_names, raw)
+        try:
+            payload = await session.ask_async(prompt, PlateauDescriptionsResponse)
+        except Exception:  # noqa: BLE001
+            # Fallback to raw string without caching on failure.
+            original_mode = getattr(session, "cache_mode", None)
+            if original_mode is not None:
+                session.cache_mode = "off"
+            raw = await session.ask_async(prompt)
+            if original_mode is not None:
+                session.cache_mode = original_mode
+            return self._request_descriptions_common(plateau_names, raw)
+        return self._request_descriptions_common(plateau_names, payload)
 
     def _to_feature(
         self, item: FeatureItem, role: str, plateau_name: str
