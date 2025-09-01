@@ -176,8 +176,8 @@ async def _cmd_generate_evolution(
         logfire.warning("One or more services failed during processing")
 
 
-def main() -> None:
-    """Parse arguments and dispatch to the requested subcommand."""
+def _build_parser() -> argparse.ArgumentParser:
+    """Return an argument parser configured with subcommands."""
 
     parser = argparse.ArgumentParser(
         description=(
@@ -417,8 +417,11 @@ def main() -> None:
     val_p.add_argument("--transcripts-dir", help=TRANSCRIPTS_HELP)
     val_p.set_defaults(func=_cmd_validate)
 
-    args = parser.parse_args()
-    settings = load_settings()
+    return parser
+
+
+def _apply_args_to_settings(args: argparse.Namespace, settings) -> None:
+    """Override settings fields based on CLI arguments."""
 
     if args.model is not None:
         settings.model = args.model
@@ -456,23 +459,32 @@ def main() -> None:
     if not hasattr(settings, "mapping_mode"):
         settings.mapping_mode = "per_set"
 
-    RuntimeEnv.initialize(settings)
 
+def _execute_subcommand(args: argparse.Namespace, settings) -> None:
+    """Initialise runtime and dispatch to the chosen subcommand."""
+
+    RuntimeEnv.initialize(settings)
     if args.seed is not None:
         random.seed(args.seed)
-
     _configure_logging(args, settings)
-
     telemetry.reset()
     result = args.func(args, None)
     if inspect.isawaitable(result):
-        # Cast ensures that asyncio.run receives a proper Coroutine
         asyncio.run(cast(Coroutine[Any, Any, Any], result))
-
     telemetry.print_summary()
     logfire.force_flush()
     if settings.strict_mapping and telemetry.has_quarantines():
         raise SystemExit(1)
+
+
+def main() -> None:
+    """Parse arguments and dispatch to the requested subcommand."""
+
+    parser = _build_parser()
+    args = parser.parse_args()
+    settings = load_settings()
+    _apply_args_to_settings(args, settings)
+    _execute_subcommand(args, settings)
 
 
 if __name__ == "__main__":

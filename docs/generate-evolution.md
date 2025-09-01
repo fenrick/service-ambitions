@@ -2,10 +2,11 @@
 
 The evolution workflow spans the plateaus defined in
 `data/service_feature_plateaus.json`. A `ProcessingEngine` coordinates the
-process: it instantiates a `ServiceExecution` for each service and spawns a
-`PlateauRuntime` per plateau. These engines lazily load data, cache intermediate
-results and only flush output once all stages succeed. The CLI evaluates all
-plateaus in this file alongside all roles defined in `data/roles.json`.
+process: it creates a `ServiceRuntime` for each service, invokes a
+`ServiceExecution` to populate it and spawns a `PlateauRuntime` per plateau.
+These engines lazily load data, cache intermediate results and only flush output
+once all stages succeed. The CLI evaluates all plateaus in this file alongside
+all roles defined in `data/roles.json`.
 Plateau name to level mappings are derived from the order of the JSON entries.
 
 Runtime configuration and shared state live in the thread‑safe `RuntimeEnv`

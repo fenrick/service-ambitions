@@ -12,7 +12,12 @@ from pathlib import Path
 import logfire
 from tqdm import tqdm  # type: ignore[import-untyped]
 
-from engine.service_execution import ServiceExecution
+from engine.service_execution import (
+    EVOLUTIONS_GENERATED,
+    LINES_WRITTEN,
+    ServiceExecution,
+)
+from engine.service_runtime import ServiceRuntime
 from loader import (
     configure_mapping_data_dir,
     configure_prompt_dir,
@@ -168,7 +173,7 @@ class ProcessingEngine:
                 args.transcripts_dir, self.output_path
             )
         self.new_ids: set[str] = set()
-        self.executions: list[ServiceExecution] = []
+        self.runtimes: list[ServiceRuntime] = []
         self.success = False
 
     def _create_model_factory(self, settings: Settings) -> ModelFactory:
@@ -217,24 +222,13 @@ class ProcessingEngine:
         )
         return system_prompt, role_ids, services
 
-    def _setup_concurrency(
-        self, settings: Settings
-    ) -> tuple[asyncio.Semaphore, asyncio.Lock]:
-        """Create concurrency primitives.
+    def _setup_concurrency(self, settings: Settings) -> asyncio.Semaphore:
+        """Create a semaphore limiting concurrent executions."""
 
-        Args:
-            settings: Global configuration.
-
-        Returns:
-            Semaphore and lock controlling concurrent access.
-
-        Side effects:
-            None.
-        """
         concurrency = settings.concurrency
         if concurrency < 1:  # Guard against invalid configuration
             raise ValueError("concurrency must be a positive integer")
-        return asyncio.Semaphore(concurrency), asyncio.Lock()
+        return asyncio.Semaphore(concurrency)
 
     def _create_progress(self, total: int) -> tqdm | None:
         """Create a progress bar if enabled.
@@ -254,12 +248,9 @@ class ProcessingEngine:
         return None
 
     def _prepare_models(
-        self, settings: Settings
+        self,
     ) -> tuple[ModelFactory, str, list[str], list[ServiceInput]]:
         """Initialise shared models and service definitions.
-
-        Args:
-            settings: Global configuration.
 
         Returns:
             Model factory, system prompt, role IDs and services.
@@ -268,17 +259,17 @@ class ProcessingEngine:
             Configures prompt and mapping directories.
         """
 
+        settings = RuntimeEnv.instance().settings
         factory = self._create_model_factory(settings)
         system_prompt, role_ids, services = self._load_services(settings)
         return factory, system_prompt, role_ids, services
 
     def _init_sessions(
-        self, settings: Settings, total: int
-    ) -> tuple[asyncio.Semaphore, asyncio.Lock, tqdm | None, Path | None, ErrorHandler]:
+        self, total: int
+    ) -> tuple[asyncio.Semaphore, tqdm | None, Path | None, ErrorHandler]:
         """Create concurrency, progress and error-handling helpers.
 
         Args:
-            settings: Global configuration.
             total: Number of services to process.
 
         Returns:
@@ -289,7 +280,8 @@ class ProcessingEngine:
             May create the temporary output directory.
         """
 
-        sem, lock = self._setup_concurrency(settings)
+        settings = RuntimeEnv.instance().settings
+        sem = self._setup_concurrency(settings)
         progress = self._create_progress(total)
         temp_output_dir = (
             Path(self.args.temp_output_dir)
@@ -297,7 +289,52 @@ class ProcessingEngine:
             else None
         )
         error_handler: ErrorHandler = LoggingErrorHandler()
-        return sem, lock, progress, temp_output_dir, error_handler
+        return sem, progress, temp_output_dir, error_handler
+
+    async def _run_service(
+        self,
+        service: ServiceInput,
+        factory: ModelFactory,
+        system_prompt: str,
+        role_ids: list[str],
+        sem: asyncio.Semaphore,
+        progress: tqdm | None,
+        temp_output_dir: Path | None,
+        error_handler: ErrorHandler,
+    ) -> bool:
+        """Execute ``service`` and update runtime state.
+
+        Args:
+            service: Service to evolve.
+            factory: Shared model factory.
+            system_prompt: System prompt used for all stages.
+            role_ids: Valid role identifiers.
+            sem: Semaphore limiting concurrency.
+            progress: Progress bar to update or ``None``.
+            temp_output_dir: Directory for temporary artefacts.
+            error_handler: Handler for execution errors.
+
+        Returns:
+            ``True`` when the execution succeeds, ``False`` otherwise.
+        """
+
+        async with sem:
+            runtime = ServiceRuntime(service)
+            execution = ServiceExecution(
+                runtime,
+                factory=factory,
+                system_prompt=system_prompt,
+                transcripts_dir=self.transcripts_dir,
+                role_ids=role_ids,
+                temp_output_dir=temp_output_dir,
+                allow_prompt_logging=self.args.allow_prompt_logging,
+                error_handler=error_handler,
+            )
+            success = await execution.run()
+            self.runtimes.append(runtime)
+        if progress:
+            progress.update(1)
+        return success
 
     async def _generate_evolution(
         self,
@@ -306,7 +343,6 @@ class ProcessingEngine:
         system_prompt: str,
         role_ids: list[str],
         sem: asyncio.Semaphore,
-        lock: asyncio.Lock,
         progress: tqdm | None,
         temp_output_dir: Path | None,
         error_handler: ErrorHandler,
@@ -331,51 +367,39 @@ class ProcessingEngine:
             Updates ``self.executions`` and ``self.new_ids``.
         """
 
-        success = True
-
-        async def run_one(service: ServiceInput) -> None:
-            nonlocal success
-            async with sem:
-                execution = ServiceExecution(
-                    service,
-                    factory=factory,
-                    system_prompt=system_prompt,
-                    transcripts_dir=self.transcripts_dir,
-                    role_ids=role_ids,
-                    lock=lock,
-                    output=None,
-                    new_ids=self.new_ids,
-                    temp_output_dir=temp_output_dir,
-                    allow_prompt_logging=self.args.allow_prompt_logging,
-                    error_handler=error_handler,
-                )
-                self.executions.append(execution)
-                if not await execution.run():
-                    success = False
-            if progress:
-                progress.update(1)
-
+        tasks: list[asyncio.Task[bool]] = []
         async with asyncio.TaskGroup() as tg:
             for svc in services:
-                tg.create_task(run_one(svc))
+                task = tg.create_task(
+                    self._run_service(
+                        svc,
+                        factory,
+                        system_prompt,
+                        role_ids,
+                        sem,
+                        progress,
+                        temp_output_dir,
+                        error_handler,
+                    )
+                )
+                tasks.append(task)
 
-        return success
+        return all(t.result() for t in tasks)
 
     async def run(self) -> bool:
         """Orchestrate the evolution workflow."""
 
         with logfire.span("processing_engine.run"):
-            settings = RuntimeEnv.instance().settings
             logfire.info(
                 "Starting processing engine",
                 input_file=self.args.input_file,
             )
-            factory, system_prompt, role_ids, services = self._prepare_models(settings)
+            factory, system_prompt, role_ids, services = self._prepare_models()
             if self.args.dry_run:
                 logfire.info("Validated services", count=len(services))
                 return True
-            sem, lock, progress, temp_output_dir, error_handler = self._init_sessions(
-                settings, len(services)
+            sem, progress, temp_output_dir, error_handler = self._init_sessions(
+                len(services)
             )
             success = await self._generate_evolution(
                 services,
@@ -383,7 +407,6 @@ class ProcessingEngine:
                 system_prompt,
                 role_ids,
                 sem,
-                lock,
                 progress,
                 temp_output_dir,
                 error_handler,
@@ -397,14 +420,23 @@ class ProcessingEngine:
     async def finalise(self) -> None:
         """Write successful results to disk."""
         with logfire.span("processing_engine.finalise"):
-            if not self.executions:
+            if not self.runtimes:
                 logfire.debug("No executions to finalise")
                 return
             output = await asyncio.to_thread(self.part_path.open, "w", encoding="utf-8")
             try:
-                for exec in self.executions:
-                    exec.output = output
-                    await exec.finalise()
+                for runtime in self.runtimes:
+                    if runtime.line is None:
+                        continue
+                    await asyncio.to_thread(output.write, f"{runtime.line}\n")
+                    self.new_ids.add(runtime.service.service_id)
+                    EVOLUTIONS_GENERATED.add(1)
+                    LINES_WRITTEN.add(1)
+                    logfire.info(
+                        "Generated evolution",
+                        service_id=runtime.service.service_id,
+                        output_path=getattr(output, "name", ""),
+                    )
             finally:
                 await asyncio.to_thread(output.close)
             _save_results(

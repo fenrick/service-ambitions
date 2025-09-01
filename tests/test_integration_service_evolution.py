@@ -6,7 +6,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 
 from pydantic_ai import Agent
 
@@ -22,6 +22,7 @@ from models import (
     ServiceMeta,
 )
 from plateau_generator import PlateauGenerator
+from runtime.environment import RuntimeEnv
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -80,6 +81,7 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
         use_local_cache=False,
         cache_mode="off",
     )
+    RuntimeEnv.initialize(cast(Any, SimpleNamespace(mapping_data_dir=Path("data"))))
     generator = PlateauGenerator(
         session,
         required_count=5,
@@ -89,13 +91,13 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
 
     map_calls = {"n": 0}
 
-    async def _fake_map_features(self, session, features, **kwargs):
+    async def _fake_generate_mappings(self, session, **kwargs):
         map_calls["n"] += 1
         refs = [
             FeatureMappingRef(feature_id=f.feature_id, description=f.description)
-            for f in features
+            for f in self.features
         ]
-        return {
+        self.mappings = {
             "data": [MappingFeatureGroup(id="d", name="d", mappings=refs.copy())],
             "applications": [
                 MappingFeatureGroup(id="a", name="a", mappings=refs.copy())
@@ -104,8 +106,9 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
                 MappingFeatureGroup(id="t", name="t", mappings=refs.copy())
             ],
         }
+        self._success = True
 
-    monkeypatch.setattr(PlateauGenerator, "_map_features", _fake_map_features)
+    monkeypatch.setattr(PlateauRuntime, "generate_mappings", _fake_generate_mappings)
     template = "{required_count} {service_name} {service_description} {plateau} {roles}"
 
     def fake_loader(name, *_, **__):

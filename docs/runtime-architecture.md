@@ -14,28 +14,38 @@ in-memory state such as caches.  Modules access the singleton via
 files. Tests or reconfigurations can clear the singleton via
 `RuntimeEnv.reset()`.
 
+Settings also drive the lazy loaders for prompts, plateau definitions
+and role identifiers.  Each loader reads configuration paths from the
+current `RuntimeEnv` settings on first use and retains the parsed
+results in an in-memory cache for subsequent calls.
+
 ## Processing engine
 
 `ProcessingEngine` orchestrates the overall workflow.  It iterates over
-services from the input file, constructs a `ServiceExecution` for each
-and awaits their completion.  The engine only reports whether the batch
-succeeded; individual artefacts remain inside the service objects until
-`finalise()` is invoked.
+services from the input file, builds a `ServiceRuntime` for each and
+invokes a `ServiceExecution` to populate it.  The engine reports whether
+the batch succeeded and later flushes successful runtime artefacts to
+disk.  Because per‑service state is confined to the runtime object,
+processing remains deterministic and easy to reason about.
 
-## Service execution
+## Service runtime and execution
 
-A `ServiceExecution` handles one service.  It lazily loads plateau
-information, spawns `PlateauRuntime` objects for each plateau and
-delegates feature generation and mapping.  Results for successful
-plateaus are stored on the execution instance and flushed to disk during
-`finalise()`.
+`ServiceRuntime` is a dataclass capturing the service input, associated
+plateau runtimes and output artefacts.  `ServiceExecution` is a thin
+executor that mutates a `ServiceRuntime` in place.  It lazily loads
+plateau information, spawns `PlateauRuntime` objects and delegates
+feature generation and mapping.  The executor returns a success flag
+while the populated runtime retains all artefacts for later
+persistence.
 
-## Plateau runtime
+## Plateau execution
 
-`PlateauRuntime` encapsulates the per‑plateau state: description,
-features and mapping results.  Each runtime exposes a simple
-`status()` method used by the processing engine to determine overall
-success.
+`PlateauGenerator` orchestrates a sequence of `PlateauRuntime` objects.
+Each runtime encapsulates the plateau description, features and mapping
+results and exposes `generate_features()` and `generate_mappings()`
+helpers.  These helpers call model sessions, update on‑disk caches and
+store results on the runtime.  A simple `status()` method communicates
+per‑plateau success back to the processing engine.
 
 ## Telemetry and logging
 
@@ -47,9 +57,15 @@ spans.  These spans enable fine‑grained tracing across services and
 plateaus, while log levels allow operators to dial in the desired amount
 of detail.
 
-## Caching strategy
+## Lazy loading and caching
 
-Caching is opt‑in and scoped by context, service and plateau:
+Prompt templates are lazily loaded with `FilePromptLoader`, which
+retains an in-memory cache.  Plateau definitions, default plateau maps
+and role identifiers use similar loaders that cache results on first
+use.
+
+Feature and mapping outputs are cached on disk.  The cache layout is
+scoped by context, service and plateau:
 
 ```
 .cache/<context>/<service_id>/<descriptions>.json
@@ -61,7 +77,26 @@ Legacy files are discovered and relocated to the canonical structure.
 Caches are indented JSON dictionaries for easy inspection.  Invalid or
 non‑dictionary content halts processing with a descriptive error.
 
-Prompt templates are lazily loaded with `FilePromptLoader`, which retains an
-in-memory cache to avoid repeated disk access.  Tests can reset the cache via
-the `clear_prompt_cache()` hook.
+## Flow overview
+
+The following sequence summarises a typical run:
+
+```mermaid
+sequenceDiagram
+    participant CLI
+    participant PE as ProcessingEngine
+    participant SE as ServiceExecution
+    participant PR as PlateauRuntime
+
+    CLI->>RuntimeEnv: initialise settings
+    CLI->>PE: run()
+    loop services
+        PE->>SE: execute(serviceRuntime)
+        SE->>PR: generate_features()
+        SE->>PR: generate_mappings()
+        PR-->>SE: status
+        SE-->>PE: success flag
+    end
+    PE->>PE: flush outputs
+```
 
