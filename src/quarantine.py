@@ -3,11 +3,11 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
 import logfire
+from pydantic_core import from_json, to_json
 
 import telemetry
 
@@ -53,18 +53,24 @@ class QuarantineWriter:
         if isinstance(payload, str):
             file_path.write_text(payload, encoding="utf-8")
         else:
-            file_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            file_path.write_text(
+                to_json(payload, indent=2).decode("utf-8"),
+                encoding="utf-8",
+            )
 
         manifest_path = qdir / MANIFEST
         if manifest_path.exists():
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest = from_json(manifest_path.read_text(encoding="utf-8"))
         else:
             manifest = {}
         entry = manifest.setdefault(kind, {"count": 0, "examples": []})
         entry["count"] += 1
         if len(entry["examples"]) < 3:
             entry["examples"].append(payload)
-        manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        manifest_path.write_text(
+            to_json(manifest, indent=2).decode("utf-8"),
+            encoding="utf-8",
+        )
 
         logfire.warning(
             "Quarantined payload",
