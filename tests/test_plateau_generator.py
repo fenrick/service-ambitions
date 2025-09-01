@@ -8,7 +8,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 
 import pytest
 from pydantic_ai import Agent
@@ -30,6 +30,7 @@ from models import (
     ServiceMeta,
 )
 from plateau_generator import PlateauGenerator
+from runtime.environment import RuntimeEnv
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -116,10 +117,7 @@ async def test_map_features_maps_all_sets_with_full_list(monkeypatch) -> None:
         MappingSet(name="Extra", file="extra.json", field="extra"),
     ]
     monkeypatch.setattr("plateau_generator.map_set", fake_map_set)
-    monkeypatch.setattr(
-        "plateau_generator.load_settings",
-        lambda: SimpleNamespace(mapping_sets=mapping_sets),
-    )
+    RuntimeEnv.initialize(cast(Any, SimpleNamespace(mapping_sets=mapping_sets)))
     monkeypatch.setattr(
         "plateau_generator.load_mapping_items",
         lambda path, sets: ({s.field: [] for s in sets}, "hash"),

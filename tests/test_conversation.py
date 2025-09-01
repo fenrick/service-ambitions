@@ -5,7 +5,7 @@ import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 
 from pydantic_ai import Agent, messages
 from pydantic_core import from_json
@@ -13,6 +13,7 @@ from pydantic_core import from_json
 import conversation
 from conversation import ConversationSession
 from models import ServiceFeature, ServiceInput
+from runtime.environment import RuntimeEnv
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -203,10 +204,8 @@ def test_ask_uses_cache_when_available(tmp_path, monkeypatch) -> None:
         use_local_cache=True,
         cache_mode="read",
     )
-    monkeypatch.setattr(
-        conversation,
-        "load_settings",
-        lambda: SimpleNamespace(cache_dir=tmp_path, context_id="ctx"),
+    RuntimeEnv.initialize(
+        cast(Any, SimpleNamespace(cache_dir=tmp_path, context_id="ctx"))
     )
     key = conversation._prompt_cache_key("hello", "", "stage")
     path = conversation._prompt_cache_path("unknown", "stage", key)

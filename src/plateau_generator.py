@@ -40,7 +40,7 @@ from models import (
     ServiceInput,
     ServiceMeta,
 )
-from settings import load_settings
+from runtime.environment import RuntimeEnv
 from shortcode import ShortCodeRegistry
 
 # Settings and token scheduling are no longer required after simplification.
@@ -150,7 +150,7 @@ class PlateauGenerator:
         lists its contributing features.
         """
 
-        settings = load_settings()
+        settings = RuntimeEnv.instance().settings
         items, catalogue_hash = load_mapping_items(
             MAPPING_DATA_DIR, settings.mapping_sets
         )

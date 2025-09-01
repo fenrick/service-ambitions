@@ -19,7 +19,7 @@ from uuid import uuid4
 import logfire
 from pydantic_ai import Agent
 from pydantic_core import to_json
-from tqdm import tqdm
+from tqdm import tqdm  # type: ignore[import-untyped]
 
 import loader
 import mapping
@@ -45,6 +45,7 @@ from monitoring import LOG_FILE_NAME, init_logfire
 from persistence import atomic_write, read_lines
 from plateau_generator import PlateauGenerator
 from quarantine import QuarantineWriter
+from runtime.environment import RuntimeEnv
 from service_loader import load_services
 from settings import load_settings
 
@@ -491,8 +492,6 @@ async def _cmd_generate_evolution(
 def main() -> None:
     """Parse arguments and dispatch to the requested subcommand."""
 
-    settings = load_settings()
-
     parser = argparse.ArgumentParser(
         description="Service evolution utilities",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -723,6 +722,9 @@ def main() -> None:
     val_p.set_defaults(func=_cmd_validate)
 
     args = parser.parse_args()
+
+    settings = load_settings()
+    RuntimeEnv.initialize(settings)
 
     if args.seed is not None:
         random.seed(args.seed)

@@ -34,7 +34,7 @@ from models import (
     StrictModel,
 )
 from quarantine import QuarantineWriter
-from settings import load_settings
+from runtime.environment import RuntimeEnv
 from telemetry import record_mapping_set
 
 if TYPE_CHECKING:
@@ -113,7 +113,7 @@ def _cache_path(service: str, feature_id: str, set_name: str, key: str) -> Path:
     """Return cache path for ``feature_id`` in ``service`` and ``set_name``."""
 
     try:
-        settings = load_settings()
+        settings = RuntimeEnv.instance().settings
         cache_root = settings.cache_dir
         context = settings.context_id
     except Exception:
@@ -174,9 +174,10 @@ def _merge_mapping_results(
     presence of unknown or missing identifiers raises :class:`MappingError`.
     """
 
+    env = RuntimeEnv.instance()
     catalogues = (
         catalogue_items
-        or load_mapping_items(MAPPING_DATA_DIR, load_settings().mapping_sets)[0]
+        or load_mapping_items(MAPPING_DATA_DIR, env.settings.mapping_sets)[0]
     )
     valid_ids: dict[str, set[str]] = {
         key: {item.id for item in catalogues[cfg.dataset]}

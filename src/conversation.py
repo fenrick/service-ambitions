@@ -23,7 +23,7 @@ from pydantic_core import from_json, to_json
 
 from mapping import cache_write_json_atomic
 from models import ServiceInput
-from settings import load_settings
+from runtime.environment import RuntimeEnv
 
 
 def _prompt_cache_key(prompt: str, model: str, stage: str) -> str:
@@ -39,7 +39,7 @@ def _prompt_cache_path(
     """Return cache path for ``key`` grouped by context and identifiers."""
 
     try:
-        settings = load_settings()
+        settings = RuntimeEnv.instance().settings
         cache_root = settings.cache_dir
         context = settings.context_id
     except Exception:  # pragma: no cover - fallback when settings unavailable

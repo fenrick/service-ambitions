@@ -7,7 +7,8 @@ Ensures OpenAI calls are stubbed and a deterministic API key is present.
 from __future__ import annotations
 
 import sys
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
+from typing import Any, cast
 from unittest.mock import AsyncMock
 
 import pytest
@@ -44,29 +45,19 @@ class _DummySpan:
         return None
 
 
-dummy_logfire = SimpleNamespace(
-    metric_counter=lambda name: SimpleNamespace(add=lambda *a, **k: None),
-    span=lambda name, attributes=None: _DummySpan(),
-    info=lambda *a, **k: None,
-    warning=lambda *a, **k: None,
-    error=lambda *a, **k: None,
-    debug=lambda *a, **k: None,
-    exception=lambda *a, **k: None,
-    force_flush=lambda: None,
-)
-sys.modules.setdefault("logfire", dummy_logfire)  # type: ignore[arg-type]
+dummy_logfire = cast(Any, ModuleType("logfire"))
+dummy_logfire.metric_counter = lambda name: SimpleNamespace(add=lambda *a, **k: None)
+dummy_logfire.span = lambda name, attributes=None: _DummySpan()
+dummy_logfire.info = lambda *a, **k: None
+dummy_logfire.warning = lambda *a, **k: None
+dummy_logfire.error = lambda *a, **k: None
+dummy_logfire.debug = lambda *a, **k: None
+dummy_logfire.exception = lambda *a, **k: None
+dummy_logfire.force_flush = lambda: None
+sys.modules.setdefault("logfire", dummy_logfire)
 
-dummy_pydantic = SimpleNamespace(BaseModel=object)
-sys.modules.setdefault("pydantic", dummy_pydantic)  # type: ignore[arg-type]
-sys.modules.setdefault(
-    "pydantic_ai",
-    SimpleNamespace(Agent=object, messages=SimpleNamespace(ModelMessage=object)),
-)  # type: ignore[arg-type]
-sys.modules.setdefault("pydantic_ai.models", SimpleNamespace(Model=object))  # type: ignore[arg-type]
-sys.modules.setdefault(
-    "pydantic_ai.models.openai",
-    SimpleNamespace(OpenAIResponsesModel=object, OpenAIResponsesModelSettings=object),
-)  # type: ignore[arg-type]
+# No stubs for ``pydantic`` or ``pydantic_ai``; real packages are available.
+# No stubs for ``pydantic_ai.models``; real modules are used.
 
 
 class _DummyTqdm:  # pragma: no cover - simple progress bar stub
@@ -80,7 +71,17 @@ class _DummyTqdm:  # pragma: no cover - simple progress bar stub
         return None
 
 
-sys.modules.setdefault("tqdm", SimpleNamespace(tqdm=_DummyTqdm))  # type: ignore[arg-type]
+dummy_tqdm = cast(Any, ModuleType("tqdm"))
+dummy_tqdm.tqdm = _DummyTqdm
+sys.modules.setdefault("tqdm", dummy_tqdm)
+
+# Ensure real modules are loaded before test-specific stubs override them.
+import mapping  # noqa: E402,F401
+import models  # noqa: E402,F401
+import plateau_generator  # noqa: E402,F401
+import service_loader  # noqa: E402,F401
+import settings  # noqa: E402,F401
+import telemetry  # noqa: E402,F401
 
 
 class DummyAgent:
