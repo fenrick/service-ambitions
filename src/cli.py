@@ -30,6 +30,7 @@ from models import (
     MappingResponse,
     PlateauFeaturesResponse,
     ServiceEvolution,
+    StageModels,
 )
 from monitoring import init_logfire
 from plateau_generator import _feature_cache_path
@@ -341,13 +342,13 @@ def main() -> None:
     common.add_argument(
         "--strict",
         action=argparse.BooleanOptionalAction,
-        default=False,
+        default=None,
         help="Fail on missing roles or mappings when enabled",
     )
     common.add_argument(
         "--use-local-cache",
         action=argparse.BooleanOptionalAction,
-        default=True,
+        default=None,
         help=(
             "Enable reading/writing the cache directory for mapping results. "
             "When disabled, cache options are ignored"
@@ -356,7 +357,7 @@ def main() -> None:
     common.add_argument(
         "--cache-mode",
         choices=("off", "read", "refresh", "write"),
-        default="read",
+        default=None,
         help=(
             "Caching behaviour (default 'read'): 'off' disables caching, "
             "'read' uses existing entries without writing, 'refresh' "
@@ -366,7 +367,7 @@ def main() -> None:
     )
     common.add_argument(
         "--cache-dir",
-        default=".cache",
+        default=None,
         help=(
             "Directory to store cache files; defaults to '.cache' in the "
             "current working directory"
@@ -463,19 +464,48 @@ def main() -> None:
     val_p.set_defaults(func=_cmd_validate)
 
     args = parser.parse_args()
-
     settings = load_settings()
-    RuntimeEnv.initialize(settings)
 
-    if args.seed is not None:
-        random.seed(args.seed)
-
+    if args.model is not None:
+        settings.model = args.model
+    stage_models = settings.models or StageModels(
+        descriptions=None,
+        features=None,
+        mapping=None,
+        search=None,
+    )
+    if args.descriptions_model is not None:
+        stage_models.descriptions = args.descriptions_model
+    if args.features_model is not None:
+        stage_models.features = args.features_model
+    if args.mapping_model is not None:
+        stage_models.mapping = args.mapping_model
+    if args.search_model is not None:
+        stage_models.search = args.search_model
+    settings.models = stage_models
+    if args.concurrency is not None:
+        settings.concurrency = args.concurrency
     if args.strict_mapping is not None:
         settings.strict_mapping = args.strict_mapping
     if args.mapping_data_dir is not None:
         settings.mapping_data_dir = Path(args.mapping_data_dir)
+    if args.web_search is not None:
+        settings.web_search = args.web_search
+    if args.use_local_cache is not None:
+        settings.use_local_cache = args.use_local_cache
+    if args.cache_mode is not None:
+        settings.cache_mode = args.cache_mode
+    if args.cache_dir is not None:
+        settings.cache_dir = Path(args.cache_dir)
+    if args.strict is not None:
+        settings.strict = args.strict
     if not hasattr(settings, "mapping_mode"):
         settings.mapping_mode = "per_set"
+
+    RuntimeEnv.initialize(settings)
+
+    if args.seed is not None:
+        random.seed(args.seed)
 
     _configure_logging(args, settings)
 

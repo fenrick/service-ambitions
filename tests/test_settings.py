@@ -33,6 +33,7 @@ def test_load_settings_reads_env(monkeypatch) -> None:
     assert settings.cache_dir == Path("/tmp/cache")
     assert settings.mapping_data_dir == Path("data")
     assert settings.diagnostics is False
+    assert settings.strict is False
     assert settings.strict_mapping is False
     assert settings.reasoning is not None
     assert settings.reasoning.effort == "medium"

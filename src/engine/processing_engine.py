@@ -116,25 +116,16 @@ class ProcessingEngine:
                 "Starting processing engine",
                 input_file=self.args.input_file,
             )
-            use_web_search = (
-                self.args.web_search
-                if self.args.web_search is not None
-                else settings.web_search
-            )
             factory = ModelFactory(
                 settings.model,
                 settings.openai_api_key,
                 stage_models=getattr(settings, "models", None),
                 reasoning=settings.reasoning,
                 seed=self.args.seed,
-                web_search=use_web_search,
+                web_search=settings.web_search,
             )
             configure_prompt_dir(settings.prompt_dir)
-            if self.args.mapping_data_dir is None and not settings.diagnostics:
-                raise RuntimeError("--mapping-data-dir is required in production mode")
-            configure_mapping_data_dir(
-                self.args.mapping_data_dir or settings.mapping_data_dir
-            )
+            configure_mapping_data_dir(settings.mapping_data_dir)
             system_prompt = load_evolution_prompt(
                 settings.context_id, settings.inspiration
             )
@@ -145,11 +136,7 @@ class ProcessingEngine:
             if self.args.dry_run:
                 logfire.info("Validated services", count=len(services))
                 return True
-            concurrency = (
-                self.args.concurrency
-                if self.args.concurrency is not None
-                else settings.concurrency
-            )
+            concurrency = settings.concurrency
             if concurrency < 1:
                 raise ValueError("concurrency must be a positive integer")
             sem = asyncio.Semaphore(concurrency)
@@ -172,7 +159,6 @@ class ProcessingEngine:
                     execution = ServiceExecution(
                         service,
                         factory=factory,
-                        args=self.args,
                         system_prompt=system_prompt,
                         transcripts_dir=self.transcripts_dir,
                         role_ids=role_ids,
@@ -180,6 +166,7 @@ class ProcessingEngine:
                         output=None,
                         new_ids=self.new_ids,
                         temp_output_dir=temp_output_dir,
+                        allow_prompt_logging=self.args.allow_prompt_logging,
                     )
                     self.executions.append(execution)
                     if not await execution.run():

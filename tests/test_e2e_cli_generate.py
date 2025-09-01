@@ -199,7 +199,7 @@ class DummyModelFactory:
     """Factory providing placeholder models."""
 
     def __init__(self, *args, **kwargs) -> None:  # pragma: no cover
-        pass
+        self.seed = 0
 
     def model_name(self, *args, **kwargs) -> str:
         return "model"
@@ -232,6 +232,8 @@ def _settings() -> SimpleNamespace:
         logfire_token=None,
         diagnostics=True,
         strict_mapping=False,
+        strict=False,
+        models=None,
         use_local_cache=True,
         cache_mode="read",
         cache_dir=Path(".cache"),
