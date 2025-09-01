@@ -2,9 +2,10 @@
 """Migrate legacy cache layout to context-aware structure."""
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
+
+from pydantic_core import from_json, to_json
 
 
 def migrate(root: Path, context: str) -> None:
@@ -12,21 +13,25 @@ def migrate(root: Path, context: str) -> None:
 
     for service_dir in root.iterdir():
         if not service_dir.is_dir():
+            # Skip non-directory entries in the cache root
             continue
         service = service_dir.name
         for file in service_dir.rglob("*.json"):
             try:
-                data = json.load(file.open("r", encoding="utf-8"))
-            except json.JSONDecodeError:
+                with file.open("r", encoding="utf-8") as fh:
+                    data = from_json(fh.read())
+            except ValueError:
+                # Ignore files containing invalid JSON
                 continue
             rel = file.relative_to(service_dir)
             parts = rel.parts
             if parts and parts[0] in {"features", "mappings"}:
+                # Insert "unknown" placeholder for feature/mapping caches
                 rel = Path(parts[0]) / "unknown" / Path(*parts[1:])
             new_path = root / context / service / rel
             new_path.parent.mkdir(parents=True, exist_ok=True)
             with new_path.open("w", encoding="utf-8") as fh:
-                json.dump(data, fh, ensure_ascii=False, separators=(",", ":"))
+                fh.write(to_json(data).decode("utf-8"))
             file.unlink()
 
 
