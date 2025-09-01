@@ -59,8 +59,3 @@ Generate service features for the {service_name} service at plateau {plateau} us
     - "level": integer 1–5.
     - "label": one of "Initial", "Managed", "Defined", "Quantitatively Managed", "Optimizing".
     - "justification": brief rationale for the level.
-- The response must adhere to the JSON schema provided below.
- 
-## Response structure
-
-{schema}

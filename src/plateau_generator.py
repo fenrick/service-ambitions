@@ -249,11 +249,8 @@ class PlateauGenerator:
                 raise ValueError(f"Unknown plateau name: {name}") from exc
             lines.append(f"{level}. {name}")
         plateaus_str = "\n".join(lines)
-        schema = to_json(
-            PlateauDescriptionsResponse.model_json_schema(), indent=2
-        ).decode()
         template = load_prompt_text("plateau_descriptions_prompt")
-        return template.format(plateaus=plateaus_str, schema=str(schema))
+        return template.format(plateaus=plateaus_str)
 
     def _request_descriptions_common(
         self, plateau_names: Sequence[str], payload: PlateauDescriptionsResponse
@@ -330,7 +327,6 @@ class PlateauGenerator:
     def _build_plateau_prompt(self, level: int, description: str) -> str:
         """Return a prompt requesting features for ``level``."""
 
-        schema = to_json(PlateauFeaturesResponse.model_json_schema(), indent=2).decode()
         template = load_prompt_text("plateau_prompt")
         roles_str = ", ".join(f'"{r}"' for r in self.roles)
         return template.format(
@@ -338,7 +334,6 @@ class PlateauGenerator:
             service_name=self._service.name if self._service else "",
             service_description=description,
             plateau=str(level),
-            schema=str(schema),
             roles=str(roles_str),
         )
 
@@ -371,25 +366,10 @@ class PlateauGenerator:
     ) -> list[FeatureItem]:
         """Return ``count`` features for ``role`` when initial parsing fails."""
 
-        example = {
-            "features": [
-                {
-                    "name": "Example feature",
-                    "description": "Example description.",
-                    "score": {
-                        "level": 3,
-                        "label": "Defined",
-                        "justification": "Example justification.",
-                    },
-                }
-            ]
-        }
-        schema = to_json(RoleFeaturesResponse.model_json_schema(), indent=2).decode()
         prompt = (
             f"Previous output returned {reason} for role '{role}'.\nProvide exactly"
             f" {count} unique features for this role at plateau {level}.\n\nService"
-            f" description:\n{description}\n\nExample"
-            f" output:\n{to_json(example, indent=2).decode()}\n\nJSON schema:\n{schema}"
+            f" description:\n{description}"
         )
         payload = await session.ask_async(prompt)
         return payload.features
@@ -593,27 +573,11 @@ class PlateauGenerator:
     ) -> list[FeatureItem]:
         """Return additional features for ``role`` to meet the required count."""
 
-        example = {
-            "features": [
-                {
-                    "name": "Example feature",
-                    "description": "Example description.",
-                    "score": {
-                        "level": 3,
-                        "label": "Defined",
-                        "justification": "Example justification.",
-                    },
-                }
-            ]
-        }
-        schema = to_json(RoleFeaturesResponse.model_json_schema(), indent=2).decode()
         prompt = (
             f"Previous output returned insufficient features for role '{role}'.\n"
             f"Provide exactly {missing} additional unique features for this role"
             f" at plateau {level}.\n\n"
-            f"Service description:\n{description}\n\n"
-            f"Example output:\n{to_json(example, indent=2).decode()}\n\n"
-            f"JSON schema:\n{schema}"
+            f"Service description:\n{description}"
         )
         payload = await session.ask_async(prompt)
         return payload.features

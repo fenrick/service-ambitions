@@ -29,10 +29,6 @@ Lists are provided as JSON arrays in code blocks. Each object contains `id`, `na
     - "rationale": a single-line explanation of the match (concise; no line breaks).
   - Do not include weights, scores, or extra fields.
   - Do not invent IDs or rationales.
-  - Deduplicate within each array (no repeated IDs per feature).
-  - If a feature has no relevant IDs for a field, include an empty array for that field.
+- Deduplicate within each array (no repeated IDs per feature).
+- If a feature has no relevant IDs for a field, include an empty array for that field.
 - Maintain terminology consistent with the situational context, definitions, and inspirations.
-- The response must adhere strictly to the JSON schema provided below.
-## Response structure
-
-{schema}

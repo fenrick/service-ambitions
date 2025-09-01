@@ -28,11 +28,7 @@ Lists are provided as JSON arrays in code blocks. Each object contains `id`, `na
   - Do not include weights, explanations, scores, or extra fields.
   - Do not invent IDs. Only use IDs present in the provided lists.
   - No limit on the number of returned items.
-  - Deduplicate within each array (no repeated IDs per feature).
-  - Preserve the original ID type (string vs number) and formatting (e.g., UUID hyphens).
+- Deduplicate within each array (no repeated IDs per feature).
+- Preserve the original ID type (string vs number) and formatting (e.g., UUID hyphens).
 - If a feature has no relevant IDs for a field, include an empty array for that field.
 - Maintain terminology consistent with the situational context, definitions, and inspirations.
-- The response must adhere strictly to the JSON schema provided below.
-## Response structure
-
-{schema}

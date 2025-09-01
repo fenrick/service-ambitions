@@ -19,8 +19,3 @@ stages.
 - Base wording on the situational context, definitions and inspirations.
 - `description` must be a non-empty string explaining the service at plateau {plateau}.
 - `description` must begin directly with the service details and not include any introductory phrases such as "Prepared plateau-1 description for".
-- The response must adhere to the JSON schema provided below.
-
-## Response structure
-
-{schema}

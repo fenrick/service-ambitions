@@ -218,7 +218,7 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
         if name == "plateau_prompt":
             return template
         if name == "plateau_descriptions_prompt":
-            return "desc {plateaus} {schema}"
+            return "desc {plateaus}"
         return ""
 
     monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
@@ -297,7 +297,7 @@ def test_generate_plateau_repairs_missing_features(monkeypatch) -> None:
         if name == "plateau_prompt":
             return template
         if name == "plateau_descriptions_prompt":
-            return "desc {plateaus} {schema}"
+            return "desc {plateaus}"
         return ""
 
     monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
@@ -392,7 +392,7 @@ def test_generate_plateau_requests_missing_features_concurrently(
         if name == "plateau_prompt":
             return template
         if name == "plateau_descriptions_prompt":
-            return "desc {plateaus} {schema}"
+            return "desc {plateaus}"
         return ""
 
     monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
@@ -510,7 +510,7 @@ def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> None:
         if name == "plateau_prompt":
             return template
         if name == "plateau_descriptions_prompt":
-            return "desc {plateaus} {schema}"
+            return "desc {plateaus}"
         return ""
 
     monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
@@ -560,7 +560,7 @@ def test_generate_plateau_missing_features(monkeypatch) -> None:
         if name == "plateau_prompt":
             return template
         if name == "plateau_descriptions_prompt":
-            return "desc {plateaus} {schema}"
+            return "desc {plateaus}"
         return ""
 
     monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
@@ -612,7 +612,7 @@ async def test_generate_plateau_supports_custom_roles(monkeypatch) -> None:
         if name == "plateau_prompt":
             return template
         if name == "plateau_descriptions_prompt":
-            return "desc {plateaus} {schema}"
+            return "desc {plateaus}"
         return ""
 
     monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)

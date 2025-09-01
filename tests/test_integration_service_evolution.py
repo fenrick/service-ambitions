@@ -112,7 +112,7 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
         if name == "plateau_prompt":
             return template
         if name == "plateau_descriptions_prompt":
-            return "desc {plateaus} {schema}"
+            return "desc {plateaus}"
         return ""
 
     monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
