@@ -109,27 +109,53 @@ def _build_cache_key(
     return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:32]
 
 
-def _cache_path(service: str, feature_id: str, set_name: str, key: str) -> Path:
-    """Return cache path for ``feature_id`` in ``service`` and ``set_name``."""
+def _cache_path(service: str, plateau: int, set_name: str, key: str) -> Path:
+    """Return canonical cache path for ``service`` and ``set_name``.
+
+    Cache files are grouped by context, service identifier and plateau level.
+    """
 
     try:
         settings = RuntimeEnv.instance().settings
         cache_root = settings.cache_dir
         context = settings.context_id
-    except Exception:
+    except Exception:  # pragma: no cover - settings unavailable
         cache_root = Path(".cache")
         context = "unknown"
+
     path = (
         cache_root
         / context
         / service
+        / str(plateau)
         / "mappings"
-        / feature_id
         / set_name
         / f"{key}.json"
     )
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def _discover_cache_file(
+    service: str, plateau: int, set_name: str, key: str
+) -> tuple[Path, Path]:
+    """Return existing cache path and canonical destination.
+
+    Searches the service cache directory for ``set_name`` entries that may have
+    been stored under legacy locations (e.g. without plateau information or
+    within an ``unknown`` folder). The first match is returned alongside the
+    canonical path.
+    """
+
+    canonical = _cache_path(service, plateau, set_name, key)
+    if canonical.exists():
+        return canonical, canonical
+
+    service_root = canonical.parents[3]
+    for candidate in service_root.glob(f"**/mappings/**/{set_name}/{key}.json"):
+        return candidate, canonical
+
+    return canonical, canonical
 
 
 def cache_write_json_atomic(path: Path, content: Any) -> None:
@@ -317,20 +343,21 @@ async def map_set(
     payload: StrictModel | None = None
     write_after_call = False
     cache_hit = False
-    first_id = features[0].feature_id if features else "global"
     if cache_mode != "off":
         svc = service or "unknown"
-        cache_file = _cache_path(svc, first_id, set_name, key)
-        exists_before = cache_file.exists()
+        candidate, cache_file = _discover_cache_file(svc, plateau, set_name, key)
+        exists_before = candidate.exists()
         if cache_mode == "read" and exists_before:
             try:
-                with cache_file.open("rb") as fh:
+                with candidate.open("rb") as fh:
                     data = from_json(fh.read())
                 payload = model_type.model_validate(data)
                 cache_hit = True
-            except (ValidationError, ValueError):
-                cache_file.replace(cache_file.with_suffix(".bad.json"))
-                exists_before = False
+                if candidate != cache_file:
+                    cache_write_json_atomic(cache_file, payload.model_dump())
+                    candidate.unlink()
+            except (ValidationError, ValueError) as exc:
+                raise RuntimeError(f"Invalid cache file: {candidate}") from exc
         if cache_mode == "refresh":
             write_after_call = True
         elif cache_mode == "write" and not exists_before:
@@ -426,13 +453,9 @@ async def map_set(
                     for feat in features
                 ]
         if cache_file and write_after_call:
-            # Persist successful responses for future runs under each feature.
+            # Persist successful responses for future runs.
             data = payload.model_dump() if hasattr(payload, "model_dump") else payload
-            for feat in features:
-                cache_write_json_atomic(
-                    _cache_path(svc, feat.feature_id, set_name, key),
-                    data,
-                )
+            cache_write_json_atomic(cache_file, data)
         if should_log_prompt:
             session.log_prompts = session_log_prompts
 

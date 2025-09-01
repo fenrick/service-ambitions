@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: MIT
 import json
 from pathlib import Path
-from typing import Any, Sequence, cast
+from types import SimpleNamespace
+from typing import Any, Iterator, Sequence, cast
 
 import pytest
 from pydantic_core import from_json
@@ -20,6 +21,22 @@ from models import (
     MaturityScore,
     PlateauFeature,
 )
+from runtime.environment import RuntimeEnv
+
+
+@pytest.fixture(autouse=True)
+def _init_runtime_env() -> Iterator[None]:
+    """Initialise a minimal runtime environment for caching."""
+
+    settings = cast(
+        Any,
+        SimpleNamespace(
+            cache_dir=Path(".cache"), context_id="unknown", mapping_sets=[]
+        ),
+    )
+    RuntimeEnv.initialize(settings)
+    yield
+    RuntimeEnv._instance = None
 
 
 class DummySession:
@@ -61,7 +78,7 @@ def test_cache_write_json_atomic_rejects_invalid_json(tmp_path) -> None:
     """Invalid JSON content is not persisted to disk."""
 
     path = tmp_path / "file.json"
-    with pytest.raises(json.JSONDecodeError):
+    with pytest.raises(ValueError):
         cache_write_json_atomic(path, "{bad")
     assert not path.exists()
 
@@ -340,14 +357,15 @@ async def test_map_set_writes_cache(monkeypatch, tmp_path) -> None:
         service_name="svc",
         service_description="desc",
         plateau=1,
+        service="svc",
         cache_mode="read",
     )
     cache_file = (
         Path(".cache")
         / "unknown"
-        / "unknown"
+        / "svc"
+        / "1"
         / "mappings"
-        / "f1"
         / "applications"
         / "key.json"
     )
@@ -365,11 +383,9 @@ async def test_map_set_reads_cache(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
     monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
     cached = {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
-    cache_dir = (
-        Path(".cache") / "unknown" / "unknown" / "mappings" / "f1" / "applications"
-    )
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    with (cache_dir / "key.json").open("w", encoding="utf-8") as fh:
+    old_dir = Path(".cache") / "unknown" / "svc" / "mappings" / "f1" / "applications"
+    old_dir.mkdir(parents=True, exist_ok=True)
+    with (old_dir / "key.json").open("w", encoding="utf-8") as fh:
         json.dump(cached, fh)
 
     class NoCallSession(DummySession):
@@ -385,22 +401,32 @@ async def test_map_set_reads_cache(monkeypatch, tmp_path) -> None:
         service_name="svc",
         service_description="desc",
         plateau=1,
+        service="svc",
         cache_mode="read",
     )
+    canonical = (
+        Path(".cache")
+        / "unknown"
+        / "svc"
+        / "1"
+        / "mappings"
+        / "applications"
+        / "key.json"
+    )
+    assert canonical.exists()
+    assert not (old_dir / "key.json").exists()
     assert session.prompts == []
     assert mapped[0].mappings["applications"][0].item == "a"
 
 
 @pytest.mark.asyncio()
-async def test_map_set_bad_cache_renamed(monkeypatch, tmp_path) -> None:
-    """Corrupt cache files are renamed and the request retried."""
+async def test_map_set_invalid_cache_halts(monkeypatch, tmp_path) -> None:
+    """Unreadable cache files abort processing with an error."""
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
     monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
-    cache_dir = (
-        Path(".cache") / "unknown" / "unknown" / "mappings" / "f1" / "applications"
-    )
+    cache_dir = Path(".cache") / "unknown" / "svc" / "1" / "mappings" / "applications"
     cache_dir.mkdir(parents=True, exist_ok=True)
     bad_file = cache_dir / "key.json"
     bad_file.write_text("not json", encoding="utf-8")
@@ -408,20 +434,20 @@ async def test_map_set_bad_cache_renamed(monkeypatch, tmp_path) -> None:
         {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
     )
     session = DummySession([valid])
-    mapped = await map_set(
-        cast(ConversationSession, session),
-        "applications",
-        [_item()],
-        [_feature()],
-        service_name="svc",
-        service_description="desc",
-        plateau=1,
-        cache_mode="read",
-    )
-    assert mapped[0].mappings["applications"][0].item == "a"
+    with pytest.raises(RuntimeError, match="Invalid cache"):
+        await map_set(
+            cast(ConversationSession, session),
+            "applications",
+            [_item()],
+            [_feature()],
+            service_name="svc",
+            service_description="desc",
+            plateau=1,
+            service="svc",
+            cache_mode="read",
+        )
     assert bad_file.exists()
-    assert (cache_dir / "key.bad.json").exists()
-    assert session.prompts == ["PROMPT"]
+    assert session.prompts == []
 
 
 @pytest.mark.asyncio()
@@ -475,7 +501,7 @@ async def test_map_set_cache_invalidation(monkeypatch, tmp_path, change) -> None
         catalogue_hash=cat_hash2,
     )
     cache_dir = (
-        Path(".cache") / "unknown" / "unknown" / "mappings" / "f1" / "applications"
+        Path(".cache") / "unknown" / "unknown" / "1" / "mappings" / "applications"
     )
     assert (cache_dir / "key1.json").exists()
     assert (cache_dir / "key2.json").exists()
@@ -505,7 +531,7 @@ async def test_map_set_logs_cache_status(
     )
     if prepopulate:
         cache_dir = (
-            Path(".cache") / "unknown" / "unknown" / "mappings" / "f1" / "applications"
+            Path(".cache") / "unknown" / "unknown" / "1" / "mappings" / "applications"
         )
         cache_dir.mkdir(parents=True, exist_ok=True)
         with (cache_dir / "key.json").open("w", encoding="utf-8") as fh:
@@ -566,9 +592,9 @@ async def test_map_set_cache_modes(
     cache_file = (
         Path(".cache")
         / "unknown"
-        / "unknown"
+        / "svc"
+        / "1"
         / "mappings"
-        / "f1"
         / "applications"
         / "key.json"
     )
@@ -584,6 +610,7 @@ async def test_map_set_cache_modes(
         service_name="svc",
         service_description="desc",
         plateau=1,
+        service="svc",
         cache_mode=mode,
     )
     assert len(session.prompts) == expected_prompts

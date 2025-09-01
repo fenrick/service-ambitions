@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Literal, Sequence
 
 import logfire
+from pydantic import ValidationError
 from pydantic_core import from_json, to_json
 
 from conversation import ConversationSession
@@ -27,7 +28,7 @@ from loader import (
     load_prompt_text,
     load_role_ids,
 )
-from mapping import group_features_by_mapping, map_set
+from mapping import cache_write_json_atomic, group_features_by_mapping, map_set
 from models import (
     DescriptionResponse,
     FeatureItem,
@@ -65,6 +66,36 @@ DEFAULT_PLATEAU_NAMES: list[str] = [plateau.name for plateau in _PLATEAU_DEFS]
 # Core roles targeted during feature generation. These represent the default
 # audience slices and should be updated if new roles are introduced.
 DEFAULT_ROLE_IDS: list[str] = load_role_ids()
+
+
+def _feature_cache_path(service: str, plateau: int) -> Path:
+    """Return canonical cache path for features at ``plateau``."""
+
+    try:
+        settings = RuntimeEnv.instance().settings
+        cache_root = settings.cache_dir
+        context = settings.context_id
+    except Exception:  # pragma: no cover - settings unavailable
+        cache_root = Path(".cache")
+        context = "unknown"
+
+    path = cache_root / context / service / str(plateau) / "features.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _discover_feature_cache(service: str, plateau: int) -> tuple[Path, Path]:
+    """Return existing feature cache and canonical destination."""
+
+    canonical = _feature_cache_path(service, plateau)
+    if canonical.exists():
+        return canonical, canonical
+
+    service_root = canonical.parents[1]
+    for candidate in service_root.glob("**/features.json"):
+        return candidate, canonical
+
+    return canonical, canonical
 
 
 class PlateauGenerator:
@@ -635,25 +666,42 @@ class PlateauGenerator:
 
         level = runtime.plateau
         description = runtime.description
+        svc_id = self._service.service_id
 
-        with logfire.span("generate_plateau") as span:
-            span.set_attribute("service.id", self._service.service_id)
-            span.set_attribute("plateau", level)
+        payload: PlateauFeaturesResponse | None = None
+        cache_file: Path | None = None
+        if self.use_local_cache and self.cache_mode != "off":
+            candidate, cache_file = _discover_feature_cache(svc_id, level)
+            if self.cache_mode == "read" and candidate.exists():
+                try:
+                    with candidate.open("rb") as fh:
+                        data = from_json(fh.read())
+                    payload = PlateauFeaturesResponse.model_validate(data)
+                    if candidate != cache_file:
+                        cache_write_json_atomic(cache_file, payload.model_dump())
+                        candidate.unlink()
+                except (ValidationError, ValueError) as exc:
+                    raise RuntimeError(f"Invalid feature cache: {candidate}") from exc
 
-            prompt = self._build_plateau_prompt(level, description)
-            logfire.info(f"Requesting features for level={level}")
+        if payload is None:
+            with logfire.span("generate_plateau") as span:
+                span.set_attribute("service.id", svc_id)
+                span.set_attribute("plateau", level)
 
-            try:
-                raw = await session.ask_async(prompt)
-                data = from_json(raw)
-            except Exception as exc:
-                logfire.error(f"Invalid JSON from feature response: {exc}")
-                raise ValueError("Agent returned invalid JSON") from exc
+                prompt = self._build_plateau_prompt(level, description)
+                logfire.info(f"Requesting features for level={level}")
 
-            if not isinstance(data, dict) or "features" not in data:
-                raise ValueError("Agent returned invalid JSON")
+                try:
+                    raw = await session.ask_async(prompt)
+                    data = from_json(raw)
+                except Exception as exc:
+                    logfire.error(f"Invalid JSON from feature response: {exc}")
+                    raise ValueError("Agent returned invalid JSON") from exc
 
-            role_data = data.get("features", {})
+                if not isinstance(data, dict) or "features" not in data:
+                    raise ValueError("Agent returned invalid JSON")
+
+                role_data = data.get("features", {})
             valid, invalid_roles, missing = self._validate_roles(role_data)
 
             fixes = await self._recover_invalid_roles(
@@ -675,32 +723,34 @@ class PlateauGenerator:
                     valid[role].extend(extras)
 
             self._enforce_min_features(valid)
-            # Build a features mapping for the configured roles. Roles absent in
-            # ``valid`` are included with empty lists to simplify downstream
-            # processing.
             block: dict[str, list[FeatureItem]] = {
                 role: list(valid.get(role, [])) for role in self.roles
             }
             payload = PlateauFeaturesResponse(features=block)
+            if self.use_local_cache and self.cache_mode != "off":
+                cache_write_json_atomic(
+                    cache_file or _feature_cache_path(svc_id, level),
+                    payload.model_dump(),
+                )
 
-            features = self._collect_features(payload, runtime.plateau_name)
-            map_session = ConversationSession(
-                self.mapping_session.client,
-                stage=self.mapping_session.stage,
-                use_local_cache=self.use_local_cache,
-                cache_mode=self.cache_mode,
-            )
-            if self._service is not None:
-                map_session.add_parent_materials(self._service)
-            mappings = await self._map_features(
-                map_session,
-                features,
-                plateau=level,
-                service_name=self._service.name,
-                service_description=description,
-            )
-            runtime.set_results(features=list(features), mappings=mappings)
-            return runtime
+        features = self._collect_features(payload, runtime.plateau_name)
+        map_session = ConversationSession(
+            self.mapping_session.client,
+            stage=self.mapping_session.stage,
+            use_local_cache=self.use_local_cache,
+            cache_mode=self.cache_mode,
+        )
+        if self._service is not None:
+            map_session.add_parent_materials(self._service)
+        mappings = await self._map_features(
+            map_session,
+            features,
+            plateau=level,
+            service_name=self._service.name,
+            service_description=description,
+        )
+        runtime.set_results(features=list(features), mappings=mappings)
+        return runtime
 
     def generate_plateau(
         self,

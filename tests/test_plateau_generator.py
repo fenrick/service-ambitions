@@ -25,6 +25,7 @@ from models import (
     MappingSet,
     MaturityScore,
     PlateauFeature,
+    PlateauFeaturesResponse,
     PlateauResult,
     ServiceEvolution,
     ServiceInput,
@@ -1163,3 +1164,53 @@ def test_write_transcript_writes_payload(tmp_path) -> None:
     path = tmp_path / f"{service.service_id}.json"
     data = from_json(path.read_text(encoding="utf-8"))
     assert data["request"]["service_id"] == "s1"
+
+
+@pytest.mark.asyncio()
+async def test_generate_plateau_reads_feature_cache(monkeypatch, tmp_path) -> None:
+    """Legacy feature caches are relocated and reused."""
+
+    monkeypatch.chdir(tmp_path)
+    payload = PlateauFeaturesResponse(
+        features={
+            "learners": [
+                FeatureItem(
+                    name="Feat",
+                    description="Desc",
+                    score=MaturityScore(level=1, label="Initial", justification="j"),
+                )
+            ]
+        }
+    )
+    old_file = Path(".cache") / "unknown" / "svc" / "features.json"
+    old_file.parent.mkdir(parents=True, exist_ok=True)
+    old_file.write_text(payload.model_dump_json(), encoding="utf-8")
+
+    session = DummySession([])
+    generator = PlateauGenerator(
+        cast(ConversationSession, session),
+        roles=["learners"],
+        required_count=1,
+        use_local_cache=True,
+        cache_mode="read",
+    )
+    generator._service = ServiceInput(
+        service_id="svc",
+        name="svc",
+        description="desc",
+        jobs_to_be_done=[],
+    )
+
+    async def fake_map_features(*args, **kwargs):
+        return {}
+
+    monkeypatch.setattr(generator, "_map_features", fake_map_features)
+
+    runtime = PlateauRuntime(plateau=1, plateau_name="p1", description="d")
+    result = await generator.generate_plateau_async(runtime)
+
+    assert result.features[0].name == "Feat"
+    canonical = Path(".cache") / "unknown" / "svc" / "1" / "features.json"
+    assert canonical.exists()
+    assert not old_file.exists()
+    assert session.prompts == []
