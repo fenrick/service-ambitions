@@ -689,7 +689,10 @@ class PlateauGenerator:
 
             try:
                 raw = await session.ask_async(prompt)
-                data = from_json(raw)
+                if isinstance(raw, (bytes, bytearray, str)):
+                    data = from_json(raw)
+                else:
+                    data = raw
             except Exception as exc:
                 logfire.error(f"Invalid JSON from feature response: {exc}")
                 raise ValueError("Agent returned invalid JSON") from exc

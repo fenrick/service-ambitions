@@ -100,6 +100,62 @@ def _feature_payload(count: int, level: int = 1) -> str:
     return json.dumps(payload)
 
 
+def test_generate_plateau_accepts_dict_response(monkeypatch) -> None:
+    """Plateau generation supports cached dict responses."""
+
+    template = "{required_count} {service_name} {service_description} {plateau} {roles}"
+
+    def fake_loader(name, *_, **__):
+        if name == "plateau_prompt":
+            return template
+        return ""
+
+    monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
+
+    class DictSession(DummySession):
+        def ask(self, prompt: str, output_type=None) -> object:  # type: ignore[override]
+            self.prompts.append(prompt)
+            self.last_output_type = output_type
+            response = self._responses.pop(0)
+            if output_type is None:
+                return from_json(response)
+            return output_type.model_validate_json(response)
+
+    responses = [_feature_payload(2)]
+    session = DictSession(responses)
+
+    async def dummy_map(self, session, feats, **_):  # noqa: ANN001
+        return {}
+
+    monkeypatch.setattr(PlateauGenerator, "_map_features", dummy_map)
+
+    generator = PlateauGenerator(
+        cast(ConversationSession, session),
+        required_count=2,
+        use_local_cache=False,
+        cache_mode="off",
+    )
+    service = ServiceInput(
+        service_id="svc-1",
+        name="svc",
+        customer_type="retail",
+        description="desc",
+        jobs_to_be_done=[{"name": "job"}],
+    )
+    generator._service = service
+
+    plateau = asyncio.run(
+        generator.generate_plateau_async(
+            1,
+            "Foundational",
+            session=cast(ConversationSession, session),
+            description="desc",
+        )
+    )
+
+    assert len(plateau.features) == 6
+
+
 @pytest.mark.asyncio()
 async def test_map_features_maps_all_sets_with_full_list(monkeypatch) -> None:
     """Each mapping set processes the full feature list exactly once."""
