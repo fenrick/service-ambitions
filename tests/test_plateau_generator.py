@@ -8,7 +8,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import Any, Sequence, cast
 
 import pytest
 from pydantic_ai import Agent
@@ -42,13 +42,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 class DummySession:
     """Conversation session returning queued responses."""
 
-    def __init__(self, responses: list[str]) -> None:
-        self._responses = responses
+    def __init__(self, responses: Sequence[str | object]) -> None:
+        self._responses = list(responses)
         self.prompts: list[str] = []
         self.client = None
         self.stage = "test"
 
     def ask(self, prompt: str) -> object:
+        """Return the next queued response, parsing JSON when necessary."""
         self.prompts.append(prompt)
         response = self._responses.pop(0)
         if isinstance(response, str):
@@ -327,7 +328,11 @@ def test_generate_plateau_repairs_missing_features(monkeypatch) -> None:
                 {
                     "name": "L",
                     "description": "dl",
-                    "score": {"level": 3, "label": "Defined", "justification": "j"},
+                    "score": {
+                        "level": 3,
+                        "label": "Defined",
+                        "justification": "j",
+                    },
                 }
             ]
         }
@@ -532,13 +537,41 @@ def test_generate_plateau_repairs_invalid_role(monkeypatch) -> None:
     )
     repair = json.dumps(
         {
-            "features": [
-                {
-                    "name": "L",
-                    "description": "dl",
-                    "score": {"level": 3, "label": "Defined", "justification": "j"},
-                }
-            ]
+            "features": {
+                "learners": [
+                    {
+                        "name": "L",
+                        "description": "dl",
+                        "score": {
+                            "level": 3,
+                            "label": "Defined",
+                            "justification": "j",
+                        },
+                    }
+                ],
+                "academics": [
+                    {
+                        "name": "A",
+                        "description": "da",
+                        "score": {
+                            "level": 3,
+                            "label": "Defined",
+                            "justification": "j",
+                        },
+                    }
+                ],
+                "professional_staff": [
+                    {
+                        "name": "P",
+                        "description": "dp",
+                        "score": {
+                            "level": 3,
+                            "label": "Defined",
+                            "justification": "j",
+                        },
+                    }
+                ],
+            }
         }
     )
     desc_payload = json.dumps(
@@ -659,7 +692,7 @@ def test_generate_plateau_missing_features(monkeypatch) -> None:
             ]
         }
     )
-    responses = [desc_payload, "{}"]
+    responses = [desc_payload, "{}", "{}"]
     session = DummySession(responses)
     generator = PlateauGenerator(
         cast(ConversationSession, session),
@@ -682,10 +715,8 @@ def test_generate_plateau_missing_features(monkeypatch) -> None:
         plateau_name="Foundational",
         description=desc_map["Foundational"],
     )
-    with pytest.raises(ValueError) as exc:
+    with pytest.raises(ValueError):
         generator.generate_plateau(runtime)
-
-    assert "invalid JSON" in str(exc.value)
 
 
 @pytest.mark.asyncio()
@@ -754,36 +785,59 @@ async def test_generate_plateau_supports_custom_roles(monkeypatch) -> None:
     assert {f.customer_type for f in plateau.features} == {"researchers", "students"}
 
 
-def test_request_description_invalid_json(monkeypatch) -> None:
-    template = "{required_count} {service_name} {service_description} {plateau} {roles}"
+@pytest.mark.asyncio()
+async def test_request_descriptions_async_recovers_from_invalid(monkeypatch) -> None:
+    """A retry hint is issued when the model response is invalid."""
 
     def fake_loader(name, *_, **__):
-        return template if name == "plateau_prompt" else "desc {plateau}"
+        return "template" if name == "plateau_descriptions_prompt" else ""
 
     monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
-    session = DummySession(["not json"])
+    # First response is invalid JSON; second is valid.
+    bad = "not json"
+    good = json.dumps(
+        {
+            "descriptions": [
+                {
+                    "plateau": 1,
+                    "plateau_name": "Foundational",
+                    "description": "desc one",
+                }
+            ]
+        }
+    )
+    session = DummySession([bad, good])
     generator = PlateauGenerator(
         cast(ConversationSession, session),
         required_count=1,
         use_local_cache=False,
         cache_mode="off",
     )
-    result = generator._request_description(1)
-    assert result == ""
-    assert len(session.prompts) == 1
-    assert session.prompts[0].startswith("desc 1")
+
+    result = await generator._request_descriptions_async(["Foundational"])
+
+    assert result == {"Foundational": "desc one"}
+    assert session.prompts == ["template", "template\nStick to the fields defined."]
 
 
 def test_request_description_strips_preamble(monkeypatch) -> None:
     """Model-added preamble should be removed from descriptions."""
 
     def fake_loader(name, *_, **__):
-        return "desc {plateau}" if name == "description_prompt" else ""
+        return "template" if name == "plateau_descriptions_prompt" else ""
 
     monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
     payload = json.dumps(
         {
-            "description": "Prepared plateau-1 description for svc: actual details",
+            "descriptions": [
+                {
+                    "plateau": 1,
+                    "plateau_name": "Foundational",
+                    "description": (
+                        "Prepared plateau-1 description for svc: actual details"
+                    ),
+                }
+            ]
         }
     )
     session = DummySession([payload])

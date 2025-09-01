@@ -13,6 +13,7 @@ from mapping import MappingError, cache_write_json_atomic, map_set
 from models import (
     Contribution,
     FeatureMappingRef,
+    MappingDiagnosticsResponse,
     MappingFeature,
     MappingFeatureGroup,
     MappingItem,
@@ -55,11 +56,16 @@ class DummySession:
         self.log_prompts = log_prompts
         self.last_tokens = 0
 
-    async def ask_async(self, prompt: str) -> MappingResponse:
+    async def ask_async(
+        self, prompt: str
+    ) -> MappingResponse | MappingDiagnosticsResponse:
         self.prompts.append(prompt)
         resp = self._responses.pop(0)
         if isinstance(resp, str):
-            return MappingResponse.model_validate_json(resp)
+            try:
+                return MappingDiagnosticsResponse.model_validate_json(resp)
+            except Exception:  # noqa: BLE001
+                return MappingResponse.model_validate_json(resp)
         if isinstance(resp, Exception):
             raise resp
         return resp

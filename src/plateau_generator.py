@@ -30,7 +30,6 @@ from loader import (
 )
 from mapping import cache_write_json_atomic, group_features_by_mapping, map_set
 from models import (
-    DescriptionResponse,
     FeatureItem,
     MappingFeatureGroup,
     PlateauDescriptionsResponse,
@@ -216,41 +215,18 @@ class PlateauGenerator:
     ) -> str:
         """Return the service description for ``level``.
 
-        A description template is loaded from disk and rendered with the target
-        ``level``. The prompt is sent to the agent via ``session`` and the JSON
-        response parsed. A :class:`ValueError` is raised if the response cannot
-        be validated or the description field is empty.
+        This helper delegates to :meth:`_request_descriptions` using the
+        plateau's name to keep all description handling in one place. Any
+        parsing or sanitisation errors are handled by the batch method and an
+        empty string is returned when the model cannot provide a valid
+        description.
         """
         session = session or self.description_session
-        template = load_prompt_text("description_prompt")
-        schema = to_json(DescriptionResponse.model_json_schema(), indent=2).decode()
-        prompt = template.format(
-            plateau=level,
-            schema=str(schema),
-        )
-
-        # Query the model to obtain the raw response text.
-        raw = session.ask(prompt)
-
-        # Map the numeric level back to the plateau name for quarantine purposes.
         plateau_name = next(
             (n for n, lvl in DEFAULT_PLATEAU_MAP.items() if lvl == level),
             f"plateau_{level}",
         )
-
-        try:
-            response = DescriptionResponse.model_validate_json(raw)
-            if not response.description:
-                raise ValueError(A_NON_EMPTY_STRING)
-            cleaned = self._sanitize_description(response.description)
-            if not cleaned:
-                raise ValueError(A_NON_EMPTY_STRING)
-            return cleaned
-        except Exception as exc:
-            # Persist the invalid response and continue with a safe placeholder.
-            self._quarantine_description(plateau_name, raw)
-            logfire.error(f"Invalid plateau description for {plateau_name}: {exc}")
-            return ""
+        return self._request_descriptions([plateau_name], session).get(plateau_name, "")
 
     @staticmethod
     def _sanitize_description(text: str) -> str:
