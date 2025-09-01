@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import DefaultDict, List
 
+from utils import ErrorHandler, LoggingErrorHandler
+
 
 @dataclass
 class SetMetrics:
@@ -49,6 +51,14 @@ class SetMetrics:
 
 _metrics: DefaultDict[str, SetMetrics] = DefaultDict(SetMetrics)
 _quarantine_paths: List[Path] = []
+_error_handler: ErrorHandler = LoggingErrorHandler()
+
+
+def configure_error_handler(handler: ErrorHandler) -> None:
+    """Override the telemetry error handler."""
+
+    global _error_handler
+    _error_handler = handler
 
 
 def record_mapping_set(
@@ -97,15 +107,18 @@ def print_summary() -> None:
 
     if not _metrics:
         return
-    for set_name, data in _metrics.items():
-        avg_latency = data.average_latency
-        print(
-            f"{set_name}: features={data.features} mapped_ids={data.mapped_ids} "
-            f"unknown_ids={data.unknown_ids} retries={data.retries} "
-            f"avg_latency={avg_latency:.2f}s tokens={data.tokens}"
-        )
-    total_tokens = sum(d.tokens for d in _metrics.values())
-    print(f"Totals: tokens={total_tokens}")
+    try:
+        for set_name, data in _metrics.items():
+            avg_latency = data.average_latency
+            print(
+                f"{set_name}: features={data.features} mapped_ids={data.mapped_ids} "
+                f"unknown_ids={data.unknown_ids} retries={data.retries} "
+                f"avg_latency={avg_latency:.2f}s tokens={data.tokens}"
+            )
+        total_tokens = sum(d.tokens for d in _metrics.values())
+        print(f"Totals: tokens={total_tokens}")
+    except Exception as exc:  # pragma: no cover - defensive
+        _error_handler.handle("Failed to print telemetry summary", exc)
 
 
 __all__ = [

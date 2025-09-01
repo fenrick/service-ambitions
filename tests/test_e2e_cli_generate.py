@@ -9,7 +9,7 @@ from contextlib import nullcontext
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 # Provide a lightweight stub for the logfire dependency required by ``cli``.
 dummy_logfire = types.SimpleNamespace(
@@ -22,7 +22,7 @@ dummy_logfire = types.SimpleNamespace(
     exception=lambda *a, **k: None,
     force_flush=lambda: None,
 )
-sys.modules.setdefault("logfire", dummy_logfire)  # type: ignore[arg-type]
+sys.modules.setdefault("logfire", cast(types.ModuleType, dummy_logfire))
 
 # Minimal stub for the ``pydantic_ai`` package required by :mod:`cli` and
 # :mod:`conversation`.
@@ -30,11 +30,15 @@ dummy_pydantic = types.SimpleNamespace(
     Agent=object,
     messages=types.SimpleNamespace(ModelMessage=object),
 )
-sys.modules.setdefault("pydantic_ai", dummy_pydantic)  # type: ignore[arg-type]
-sys.modules.setdefault("pydantic_ai.models", types.SimpleNamespace(Model=object))  # type: ignore[arg-type]
+sys.modules.setdefault("pydantic_ai", cast(types.ModuleType, dummy_pydantic))
 sys.modules.setdefault(
-    "generator", types.SimpleNamespace(build_model=lambda *a, **k: None)
-)  # type: ignore[arg-type]
+    "pydantic_ai.models",
+    cast(types.ModuleType, types.SimpleNamespace(Model=object)),
+)
+sys.modules.setdefault(
+    "generator",
+    cast(types.ModuleType, types.SimpleNamespace(build_model=lambda *a, **k: None)),
+)
 
 
 class _DummyTqdm:  # pragma: no cover - simple progress bar stub
@@ -48,10 +52,14 @@ class _DummyTqdm:  # pragma: no cover - simple progress bar stub
         return None
 
 
-sys.modules.setdefault("tqdm", types.SimpleNamespace(tqdm=_DummyTqdm))  # type: ignore[arg-type]
+sys.modules.setdefault(
+    "tqdm", cast(types.ModuleType, types.SimpleNamespace(tqdm=_DummyTqdm))
+)
 
 # Basic YAML stub used by the loader module during import.
-sys.modules.setdefault("yaml", types.SimpleNamespace(safe_load=lambda *a, **k: {}))  # type: ignore[arg-type]
+sys.modules.setdefault(
+    "yaml", cast(types.ModuleType, types.SimpleNamespace(safe_load=lambda *a, **k: {}))
+)
 
 # Minimal loader stub to satisfy imports in :mod:`cli`.
 dummy_loader = types.SimpleNamespace(
@@ -64,32 +72,40 @@ dummy_loader = types.SimpleNamespace(
     load_prompt_text=lambda *a, **k: "",
     MAPPING_DATA_DIR=Path("data"),
 )
-sys.modules.setdefault("loader", dummy_loader)  # type: ignore[arg-type]
+sys.modules.setdefault("loader", cast(types.ModuleType, dummy_loader))
 
 # Stub mapping and telemetry modules to satisfy CLI imports.
 sys.modules.setdefault(
     "mapping",
-    types.SimpleNamespace(
-        cache_write_json_atomic=lambda *a, **k: None,
-        group_features_by_mapping=lambda *a, **k: {},
-        map_set=lambda *a, **k: [],
+    cast(
+        types.ModuleType,
+        types.SimpleNamespace(
+            cache_write_json_atomic=lambda *a, **k: None,
+            group_features_by_mapping=lambda *a, **k: {},
+            map_set=lambda *a, **k: [],
+        ),
     ),
-)  # type: ignore[arg-type]
+)
 sys.modules.setdefault(
     "telemetry",
-    types.SimpleNamespace(
-        reset=lambda: None,
-        print_summary=lambda: None,
-        has_quarantines=lambda: False,
-        record_quarantine=lambda *a, **k: None,
+    cast(
+        types.ModuleType,
+        types.SimpleNamespace(
+            reset=lambda: None,
+            print_summary=lambda: None,
+            has_quarantines=lambda: False,
+            record_quarantine=lambda *a, **k: None,
+        ),
     ),
-)  # type: ignore[arg-type]
+)
 sys.modules.setdefault(
-    "settings", types.SimpleNamespace(load_settings=lambda: SimpleNamespace())
-)  # type: ignore[arg-type]
+    "settings",
+    cast(types.ModuleType, SimpleNamespace(load_settings=lambda: SimpleNamespace())),
+)
 sys.modules.setdefault(
-    "service_loader", types.SimpleNamespace(load_services=lambda *a, **k: [])
-)  # type: ignore[arg-type]
+    "service_loader",
+    cast(types.ModuleType, SimpleNamespace(load_services=lambda *a, **k: [])),
+)
 
 
 # Stub implementations of the ``models`` module required by ``cli``.
@@ -151,16 +167,19 @@ class MappingFeatureGroup:  # pragma: no cover - placeholder container
 
 sys.modules.setdefault(
     "models",
-    types.SimpleNamespace(
-        ServiceInput=ServiceInput,
-        ServiceMeta=ServiceMeta,
-        ServiceEvolution=ServiceEvolution,
-        FeatureMappingRef=FeatureMappingRef,
-        MappingFeatureGroup=MappingFeatureGroup,
-        ReasoningConfig=object,
-        StageModels=object,
+    cast(
+        types.ModuleType,
+        types.SimpleNamespace(
+            ServiceInput=ServiceInput,
+            ServiceMeta=ServiceMeta,
+            ServiceEvolution=ServiceEvolution,
+            FeatureMappingRef=FeatureMappingRef,
+            MappingFeatureGroup=MappingFeatureGroup,
+            ReasoningConfig=object,
+            StageModels=object,
+        ),
     ),
-)  # type: ignore[arg-type]
+)
 
 
 class DummySession:
@@ -191,8 +210,9 @@ class DummyModelFactory:
 
 # Expose a placeholder ``PlateauGenerator`` before importing the CLI.
 sys.modules.setdefault(
-    "plateau_generator", types.SimpleNamespace(PlateauGenerator=object)
-)  # type: ignore[arg-type]
+    "plateau_generator",
+    cast(types.ModuleType, types.SimpleNamespace(PlateauGenerator=object)),
+)
 
 import cli  # noqa: E402
 
@@ -242,26 +262,33 @@ def test_cli_generate_matches_golden(monkeypatch, tmp_path, dummy_agent) -> None
         def __init__(self, *args, **kwargs) -> None:  # pragma: no cover
             self.agent = dummy_agent()
 
+        async def _request_descriptions_async(self, names, session=None):
+            return {name: "desc" for name in names}
+
         async def generate_service_evolution_async(
-            self, service_input: ServiceInput, *_, **__
+            self, service_input: ServiceInput, runtimes, *_, **__
         ):
             resp = await self.agent.run(service_input.model_dump_json(), dict)
             return SimpleNamespace(
                 model_dump=lambda mode=None: resp.output.model_dump()
             )
 
-    monkeypatch.setattr(cli, "Agent", dummy_agent)
-    monkeypatch.setattr(cli, "ConversationSession", DummySession)
-    monkeypatch.setattr(cli, "ModelFactory", DummyModelFactory)
-    monkeypatch.setattr(cli, "PlateauGenerator", DummyPlateauGenerator)
     monkeypatch.setattr(cli, "load_settings", _settings)
     monkeypatch.setattr(cli, "_configure_logging", lambda *a, **k: None)
-    monkeypatch.setattr(cli, "_load_services_list", _load_services_stub)
-    monkeypatch.setattr(cli, "configure_prompt_dir", lambda *a, **k: None)
-    monkeypatch.setattr(cli, "configure_mapping_data_dir", lambda *a, **k: None)
-    monkeypatch.setattr(cli, "load_evolution_prompt", lambda *a, **k: "prompt")
-    monkeypatch.setattr(cli, "load_role_ids", lambda *a, **k: ["role"])
-    monkeypatch.setattr(cli, "load_mapping_items", lambda *a, **k: ([], "hash"))
+    import engine.processing_engine as pe
+    import engine.service_execution as se
+
+    monkeypatch.setattr(pe, "ModelFactory", DummyModelFactory)
+    monkeypatch.setattr(pe, "_load_services_list", _load_services_stub)
+    monkeypatch.setattr(pe, "configure_prompt_dir", lambda *a, **k: None)
+    monkeypatch.setattr(pe, "configure_mapping_data_dir", lambda *a, **k: None)
+    monkeypatch.setattr(pe, "load_evolution_prompt", lambda *a, **k: "prompt")
+    monkeypatch.setattr(pe, "load_role_ids", lambda *a, **k: ["role"])
+    monkeypatch.setattr(se, "load_mapping_items", lambda *a, **k: ([], "0" * 64))
+    monkeypatch.setattr(se, "Agent", dummy_agent)
+    monkeypatch.setattr(se, "ConversationSession", DummySession)
+    monkeypatch.setattr(se, "PlateauGenerator", DummyPlateauGenerator)
+    monkeypatch.setattr(se, "canonicalise_record", lambda d: d)
     monkeypatch.setattr(cli, "canonicalise_record", lambda d: d)
 
     output_file = tmp_path / "out.jsonl"

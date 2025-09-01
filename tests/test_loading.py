@@ -6,6 +6,7 @@ import pytest
 
 from loader import (
     NORTH_STAR,
+    clear_prompt_cache,
     load_ambition_prompt,
     load_app_config,
     load_mapping_type_config,
@@ -166,6 +167,18 @@ def test_load_prompt_text_description(tmp_path):
     base.mkdir()
     (base / "description_prompt.md").write_text("desc", encoding="utf-8")
     assert load_prompt_text("description_prompt", str(base)) == "desc"
+
+
+def test_load_prompt_text_caches_and_clears(tmp_path):
+    base = tmp_path / "prompts"
+    base.mkdir()
+    prompt = base / "foo.md"
+    prompt.write_text("one", encoding="utf-8")
+    assert load_prompt_text("foo", base) == "one"
+    prompt.write_text("two", encoding="utf-8")
+    assert load_prompt_text("foo", base) == "one"
+    clear_prompt_cache()
+    assert load_prompt_text("foo", base) == "two"
 
 
 def test_load_plateau_definitions(tmp_path):

@@ -25,6 +25,7 @@ from pydantic_core import from_json, to_json
 
 from mapping import _find_cache_file, _service_cache_root, cache_write_json_atomic
 from models import ServiceInput
+from runtime.environment import RuntimeEnv
 
 
 def _prompt_cache_key(prompt: str, model: str, stage: str) -> str:
@@ -39,7 +40,14 @@ def _prompt_cache_path(
 ) -> Path:
     """Return cache path for ``key`` grouped by context and identifiers."""
 
-    root = _service_cache_root(service)
+    try:
+        settings = RuntimeEnv.instance().settings
+        cache_root = settings.cache_dir
+        context = settings.context_id
+    except Exception:  # pragma: no cover - fallback when settings unavailable
+        cache_root = Path(".cache")
+        context = "unknown"
+
     if stage.startswith("mapping_"):
         _, mapping_type = stage.split("_", 1)
         subdir = Path("mappings") / mapping_type
