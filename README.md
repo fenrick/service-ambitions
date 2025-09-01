@@ -1,5 +1,14 @@
 # service-ambitions
 
+## Architecture
+
+The generator runs on a layered engine design.  `ProcessingEngine`
+coordinates work across services, `ServiceExecution` manages per‑service
+state and spawns `PlateauRuntime` instances for each plateau.  A
+thread‑safe `RuntimeEnv` singleton holds configuration and shared state
+such as caches.  See [runtime-architecture](docs/runtime-architecture.md)
+for a detailed walkthrough.
+
 ## Configuration
 
 Copy the sample configuration and customise it for your environment:
@@ -102,6 +111,9 @@ instruments Pydantic, Pydantic AI, OpenAI and system metrics when run with the
 avoid writing local log files. Prompts are excluded from logs unless
 `--allow-prompt-logging` is specified.
 
+See [Logging levels](docs/logging-levels.md) for guidance on TRACE through
+EXCEPTION and when to use each level.
+
 ## Installation
 
 Dependencies are managed with [Poetry](https://python-poetry.org/). Install the
@@ -125,6 +137,7 @@ subcommands to select the desired operation:
 poetry run service-ambitions run --input-file sample-services.jsonl --output-file evolutions.jsonl --no-logs
 poetry run service-ambitions diagnose --input-file sample-services.jsonl --output-file evolutions.jsonl --no-logs
 poetry run service-ambitions validate --input-file sample-services.jsonl --no-logs
+poetry run service-ambitions reverse --input-file evolutions.jsonl --output-file features.jsonl --no-logs
 ```
 
 Alternatively, use the provided shell script which forwards all arguments to the CLI:
@@ -133,6 +146,7 @@ Alternatively, use the provided shell script which forwards all arguments to the
 ./run.sh run --input-file sample-services.jsonl --output-file evolutions.jsonl --no-logs
 ./run.sh diagnose --input-file sample-services.jsonl --output-file evolutions.jsonl --no-logs
 ./run.sh validate --input-file sample-services.jsonl --no-logs
+./run.sh reverse --input-file evolutions.jsonl --output-file features.jsonl --no-logs
 ```
 
 ## Usage

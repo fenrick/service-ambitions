@@ -6,54 +6,36 @@ from __future__ import annotations
 import argparse
 import asyncio
 import inspect
+import json
 import logging
-import os
 import random
-import sys
-from datetime import datetime, timezone
-from itertools import islice
 from pathlib import Path
-from typing import Any, Coroutine, Sequence, cast
-from uuid import uuid4
+from typing import Any, Coroutine, cast
 
 import logfire
-from pydantic_ai import Agent
 from pydantic_core import to_json
-from tqdm import tqdm
 
 import loader
 import mapping
 import telemetry
 from canonical import canonicalise_record
 from conversation import ConversationSession
-from loader import (
-    configure_mapping_data_dir,
-    configure_prompt_dir,
-    load_evolution_prompt,
-    load_mapping_items,
-    load_role_ids,
-)
-from model_factory import ModelFactory
+from engine.processing_engine import ProcessingEngine
+from loader import configure_mapping_data_dir, load_mapping_items
 from models import (
+    Contribution,
+    FeatureItem,
     FeatureMappingRef,
+    MappingFeature,
     MappingFeatureGroup,
+    MappingResponse,
+    PlateauFeaturesResponse,
     ServiceEvolution,
-    ServiceInput,
-    ServiceMeta,
 )
 from monitoring import LOG_FILE_NAME, init_logfire
-from persistence import atomic_write, read_lines
-from plateau_generator import PlateauGenerator
-from quarantine import QuarantineWriter
-from service_loader import load_services
+from plateau_generator import _feature_cache_path
+from runtime.environment import RuntimeEnv
 from settings import load_settings
-
-SERVICES_PROCESSED = logfire.metric_counter("services_processed")
-EVOLUTIONS_GENERATED = logfire.metric_counter("evolutions_generated")
-LINES_WRITTEN = logfire.metric_counter("lines_written")
-
-_RUN_META: ServiceMeta | None = None
-_writer = QuarantineWriter()
 
 SERVICES_FILE_HELP = "Path to the services JSONL file"
 OUTPUT_FILE_HELP = "File to write the results"
@@ -92,213 +74,6 @@ def _configure_logging(args: argparse.Namespace, settings) -> None:
     # Initialize logfire regardless of token availability; a missing token
     # keeps logging local without sending telemetry to the cloud.
     init_logfire(settings.logfire_token, diagnostics=settings.diagnostics)
-
-
-def _prepare_paths(output: Path, resume: bool) -> tuple[Path, Path]:
-    """Return paths used for output and resume tracking."""
-
-    part_path = output.with_suffix(
-        output.suffix + ".tmp" if not resume else output.suffix + ".tmp.part"
-    )
-    processed_path = output.with_name("processed_ids.txt")
-    return part_path, processed_path
-
-
-def _load_resume_state(
-    processed_path: Path, output_path: Path, resume: bool
-) -> tuple[set[str], list[str]]:
-    """Return previously processed IDs and existing output lines."""
-
-    processed_ids = set(read_lines(processed_path)) if resume else set()
-    existing_lines = read_lines(output_path) if resume else []
-    return processed_ids, existing_lines
-
-
-def _ensure_transcripts_dir(path: str | None, output: Path) -> Path:
-    """Create and return the directory used to store transcripts."""
-
-    transcripts_dir = Path(path) if path is not None else output.parent / "_transcripts"
-    transcripts_dir.mkdir(parents=True, exist_ok=True)
-    return transcripts_dir
-
-
-def _load_services_list(
-    input_file: str, max_services: int | None, processed_ids: set[str]
-) -> list[ServiceInput]:
-    """Return services filtered for ``processed_ids`` and ``max_services``."""
-
-    with load_services(Path(input_file)) as svc_iter:
-        if max_services is not None:
-            svc_iter = islice(svc_iter, max_services)
-        return [s for s in svc_iter if s.service_id not in processed_ids]
-
-
-def _save_results(
-    *,
-    resume: bool,
-    part_path: Path,
-    output_path: Path,
-    existing_lines: list[str],
-    processed_ids: set[str],
-    new_ids: set[str],
-    processed_path: Path,
-) -> set[str]:
-    """Persist generated lines and update processed IDs."""
-
-    if resume:
-        new_lines = read_lines(part_path)
-        atomic_write(output_path, [*existing_lines, *new_lines])
-        part_path.unlink(missing_ok=True)
-        processed_ids.update(new_ids)
-    else:
-        os.replace(part_path, output_path)
-        processed_ids = new_ids
-    atomic_write(processed_path, sorted(processed_ids))
-    return processed_ids
-
-
-async def _generate_evolution_for_service(
-    service: ServiceInput,
-    *,
-    factory: ModelFactory,
-    settings,
-    args: argparse.Namespace,
-    system_prompt: str,
-    transcripts_dir: Path | None,
-    role_ids: Sequence[str],
-    lock: asyncio.Lock,
-    output,
-    new_ids: set[str],
-    temp_output_dir: Path | None,
-) -> None:
-    """Generate evolution for ``service`` and record results."""
-
-    desc_name = factory.model_name(
-        "descriptions", args.descriptions_model or args.model
-    )
-    feat_name = factory.model_name("features", args.features_model or args.model)
-    map_name = factory.model_name("mapping", args.mapping_model or args.model)
-    attrs = {
-        "service_id": service.service_id,
-        "service_name": service.name,
-        "descriptions_model": desc_name,
-        "features_model": feat_name,
-        "mapping_model": map_name,
-        "output_path": getattr(output, "name", ""),
-    }
-    with logfire.span("generate_evolution_for_service", attributes=attrs):
-        try:
-            logfire.info(f"Processing service {service.service_id}")
-            SERVICES_PROCESSED.add(1)
-            desc_model = factory.get(
-                "descriptions", args.descriptions_model or args.model
-            )
-            feat_model = factory.get("features", args.features_model or args.model)
-            map_model = factory.get("mapping", args.mapping_model or args.model)
-
-            desc_agent = Agent(desc_model, instructions=system_prompt)
-            feat_agent = Agent(feat_model, instructions=system_prompt)
-            map_agent = Agent(map_model, instructions=system_prompt)
-
-            desc_session = ConversationSession(
-                desc_agent,
-                stage="descriptions",
-                diagnostics=settings.diagnostics,
-                log_prompts=args.allow_prompt_logging,
-                transcripts_dir=transcripts_dir,
-                use_local_cache=args.use_local_cache,
-                cache_mode=args.cache_mode,
-            )
-            feat_session = ConversationSession(
-                feat_agent,
-                stage="features",
-                diagnostics=settings.diagnostics,
-                log_prompts=args.allow_prompt_logging,
-                transcripts_dir=transcripts_dir,
-                use_local_cache=args.use_local_cache,
-                cache_mode=args.cache_mode,
-            )
-            map_session = ConversationSession(
-                map_agent,
-                stage="mapping",
-                diagnostics=settings.diagnostics,
-                log_prompts=args.allow_prompt_logging,
-                transcripts_dir=transcripts_dir,
-                use_local_cache=args.use_local_cache,
-                cache_mode=args.cache_mode,
-            )
-            generator = PlateauGenerator(
-                feat_session,
-                required_count=settings.features_per_role,
-                roles=role_ids,
-                description_session=desc_session,
-                mapping_session=map_session,
-                strict=args.strict,
-                use_local_cache=args.use_local_cache,
-                cache_mode=args.cache_mode,
-            )
-            global _RUN_META
-            if _RUN_META is None:
-                models_map = {
-                    "descriptions": desc_name,
-                    "features": feat_name,
-                    "mapping": map_name,
-                    "search": factory.model_name(
-                        "search", args.search_model or args.model
-                    ),
-                }
-                _, catalogue_hash = load_mapping_items(
-                    loader.MAPPING_DATA_DIR, settings.mapping_sets
-                )
-                context_window = getattr(feat_model, "max_input_tokens", 0)
-                _RUN_META = ServiceMeta(
-                    run_id=str(uuid4()),
-                    seed=args.seed,
-                    models=models_map,
-                    web_search=getattr(factory, "_web_search", False),
-                    mapping_types=sorted(getattr(settings, "mapping_types", {}).keys()),
-                    context_window=context_window,
-                    diagnostics=settings.diagnostics,
-                    catalogue_hash=catalogue_hash,
-                    created=datetime.now(timezone.utc),
-                )
-            evolution = await generator.generate_service_evolution_async(
-                service,
-                transcripts_dir=transcripts_dir,
-                meta=_RUN_META,
-            )
-            record = canonicalise_record(evolution.model_dump(mode="json"))
-            if temp_output_dir is not None:
-                temp_output_dir.mkdir(parents=True, exist_ok=True)
-                atomic_write(
-                    temp_output_dir / f"{service.service_id}.json",
-                    [to_json(record).decode()],
-                )
-            line = to_json(record).decode()
-            async with lock:
-                await asyncio.to_thread(output.write, f"{line}\n")
-                new_ids.add(service.service_id)
-                EVOLUTIONS_GENERATED.add(1)
-                LINES_WRITTEN.add(1)
-            logfire.info(
-                "Generated evolution",
-                service_id=service.service_id,
-                output_path=getattr(output, "name", ""),
-            )
-        except Exception as exc:  # noqa: BLE001
-            quarantine_file = await asyncio.to_thread(
-                _writer.write,
-                "evolution",
-                service.service_id,
-                "schema_mismatch",
-                service.model_dump(),
-            )
-            logfire.exception(
-                "Failed to generate evolution",
-                service_id=service.service_id,
-                error=str(exc),
-                quarantine_file=str(quarantine_file),
-            )
 
 
 async def _cmd_run(
@@ -395,107 +170,103 @@ async def _cmd_map(
     with output_path.open("w", encoding="utf-8") as fh:
         for evo in evolutions:
             record = canonicalise_record(evo.model_dump(mode="json"))
-            fh.write(to_json(record).decode() + "\n")
+            fh.write(json.dumps(record, separators=(",", ":"), sort_keys=True) + "\n")
+
+
+def _cmd_reverse(
+    args: argparse.Namespace, settings, transcripts_dir: Path | None
+) -> None:
+    """Backfill feature and mapping caches from ``evolutions.jsonl``."""
+
+    configure_mapping_data_dir(args.mapping_data_dir or settings.mapping_data_dir)
+    items, catalogue_hash = load_mapping_items(
+        loader.MAPPING_DATA_DIR, settings.mapping_sets
+    )
+
+    input_path = Path(args.input_file)
+    output_path = Path(args.output_file)
+    text = input_path.read_text(encoding="utf-8")
+    evolutions = [
+        ServiceEvolution.model_validate_json(line)
+        for line in text.splitlines()
+        if line.strip()
+    ]
+
+    with output_path.open("w", encoding="utf-8") as out_fh:
+        for evo in evolutions:
+            svc_id = evo.service.service_id
+            for plateau in evo.plateaus:
+                # Reconstruct feature cache grouped by role
+                block: dict[str, list[FeatureItem]] = {}
+                for feat in plateau.features:
+                    item = FeatureItem(
+                        name=feat.name,
+                        description=feat.description,
+                        score=feat.score,
+                    )
+                    block.setdefault(feat.customer_type, []).append(item)
+                feat_payload = PlateauFeaturesResponse(features=block)
+                feat_path = _feature_cache_path(svc_id, plateau.plateau)
+                mapping.cache_write_json_atomic(feat_path, feat_payload.model_dump())
+
+                # Rebuild mapping cache per mapping set
+                for cfg in settings.mapping_sets:
+                    features_by_id: dict[str, MappingFeature] = {
+                        f.feature_id: MappingFeature(feature_id=f.feature_id)
+                        for f in plateau.features
+                    }
+                    for group in plateau.mappings.get(cfg.field, []):
+                        for ref in group.mappings:
+                            contrib = Contribution(item=group.id)
+                            features_by_id[ref.feature_id].mappings.setdefault(
+                                cfg.field, []
+                            ).append(contrib)
+                    key = mapping._build_cache_key(
+                        settings.model,
+                        cfg.field,
+                        catalogue_hash,
+                        plateau.features,
+                        settings.diagnostics,
+                    )
+                    cache_file = mapping._cache_path(
+                        svc_id, plateau.plateau, cfg.field, key
+                    )
+                    map_payload = MappingResponse(
+                        features=list(features_by_id.values())
+                    )
+                    mapping.cache_write_json_atomic(
+                        cache_file, map_payload.model_dump()
+                    )
+
+                plateau.mappings = {}
+
+            evo.meta.mapping_types = []
+            record = canonicalise_record(evo.model_dump(mode="json"))
+            out_fh.write(to_json(record).decode() + "\n")
 
 
 async def _cmd_generate_evolution(
     args: argparse.Namespace, settings, transcripts_dir: Path | None
 ) -> None:
-    """Generate service evolution summaries."""
+    """Generate service evolution summaries via ``ProcessingEngine``."""
 
-    use_web_search = (
-        args.web_search if args.web_search is not None else settings.web_search
-    )
-    factory = ModelFactory(
-        settings.model,
-        settings.openai_api_key,
-        stage_models=getattr(settings, "models", None),
-        reasoning=settings.reasoning,
-        seed=args.seed,
-        web_search=use_web_search,
-    )
-
-    configure_prompt_dir(settings.prompt_dir)
-    if args.mapping_data_dir is None and not settings.diagnostics:
-        raise RuntimeError("--mapping-data-dir is required in production mode")
-    configure_mapping_data_dir(args.mapping_data_dir or settings.mapping_data_dir)
-    system_prompt = load_evolution_prompt(settings.context_id, settings.inspiration)
-
-    role_ids = load_role_ids(Path(args.roles_file))
-
-    output_path = Path(args.output_file)
-    part_path, processed_path = _prepare_paths(output_path, args.resume)
-    processed_ids, existing_lines = _load_resume_state(
-        processed_path, output_path, args.resume
-    )
-    if transcripts_dir is None and not args.no_logs:
-        transcripts_dir = _ensure_transcripts_dir(args.transcripts_dir, output_path)
-    services = _load_services_list(args.input_file, args.max_services, processed_ids)
-
-    if args.dry_run:
-        logfire.info(f"Validated {len(services)} services")
-        return
-
-    concurrency = (
-        args.concurrency if args.concurrency is not None else settings.concurrency
-    )
-    if concurrency < 1:
-        raise ValueError("concurrency must be a positive integer")
-    sem = asyncio.Semaphore(concurrency)
-    lock = asyncio.Lock()
-    new_ids: set[str] = set()
-    show_progress = args.progress and sys.stdout.isatty()
-    progress = tqdm(total=len(services)) if show_progress else None
-
-    async def run_one(service: ServiceInput) -> None:
-        async with sem:
-            await _generate_evolution_for_service(
-                service,
-                factory=factory,
-                settings=settings,
-                args=args,
-                system_prompt=system_prompt,
-                transcripts_dir=transcripts_dir,
-                role_ids=role_ids,
-                lock=lock,
-                output=output,
-                new_ids=new_ids,
-                temp_output_dir=temp_output_dir,
-            )
-            if progress:
-                progress.update(1)
-
-    temp_output_dir = (
-        Path(args.temp_output_dir) if args.temp_output_dir is not None else None
-    )
-    output = await asyncio.to_thread(part_path.open, "w", encoding="utf-8")
-    try:
-        async with asyncio.TaskGroup() as tg:
-            for service in services:
-                tg.create_task(run_one(service))
-    finally:
-        await asyncio.to_thread(output.close)
-    if progress:
-        progress.close()
-
-    processed_ids = _save_results(
-        resume=args.resume,
-        part_path=part_path,
-        output_path=output_path,
-        existing_lines=existing_lines,
-        processed_ids=processed_ids,
-        new_ids=new_ids,
-        processed_path=processed_path,
-    )
+    engine = ProcessingEngine(args, settings, transcripts_dir)
+    success = await engine.run()
+    await engine.finalise()
+    if not success:
+        logfire.warning("One or more services failed during processing")
 
 
 def main() -> None:
     """Parse arguments and dispatch to the requested subcommand."""
 
-    settings = load_settings()
-
     parser = argparse.ArgumentParser(
-        description="Service evolution utilities",
+        description=(
+            "Service evolution utilities backed by a layered runtime "
+            "architecture. A ProcessingEngine coordinates ServiceExecution "
+            "and PlateauRuntime instances and relies on a global RuntimeEnv "
+            "for configuration."
+        ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     common = argparse.ArgumentParser(add_help=False)
@@ -664,11 +435,35 @@ def main() -> None:
     )
     map_p.set_defaults(func=_cmd_map)
 
+    rev_p = subparsers.add_parser(
+        "reverse",
+        parents=[common],
+        help="Rebuild caches from an evolutions file",
+        description=(
+            "Reconstruct feature and mapping caches from a previously "
+            "generated evolutions.jsonl"
+        ),
+    )
+    rev_p.add_argument(
+        "--input-file",
+        default="evolutions.jsonl",
+        help="Path to the evolutions JSONL file",
+    )
+    rev_p.add_argument(
+        "--output-file",
+        default="features.jsonl",
+        help="Path to write extracted features JSONL",
+    )
+    rev_p.set_defaults(func=_cmd_reverse)
+
     run_p = subparsers.add_parser(
         "run",
         parents=[common],
-        help="Generate service evolutions",
-        description="Generate service evolutions",
+        help="Generate service evolutions via ProcessingEngine",
+        description=(
+            "Generate service evolutions using the ProcessingEngine and "
+            "RuntimeEnv architecture"
+        ),
     )
     run_p.add_argument(
         "--input-file",
@@ -686,8 +481,11 @@ def main() -> None:
     diag_p = subparsers.add_parser(
         "diagnose",
         parents=[common],
-        help="Generate service evolutions",
-        description="Generate service evolutions with diagnostics enabled",
+        help="Generate service evolutions via ProcessingEngine",
+        description=(
+            "Generate service evolutions with diagnostics enabled using the "
+            "ProcessingEngine runtime"
+        ),
     )
     diag_p.add_argument(
         "--input-file",
@@ -705,9 +503,10 @@ def main() -> None:
     val_p = subparsers.add_parser(
         "validate",
         parents=[common],
-        help="Generate service evolutions",
+        help="Generate service evolutions via ProcessingEngine",
         description=(
-            "Validate inputs without calling the API and generate service evolutions"
+            "Validate inputs without calling the API and generate service "
+            "evolutions using the ProcessingEngine runtime"
         ),
     )
     val_p.add_argument(
@@ -724,6 +523,9 @@ def main() -> None:
     val_p.set_defaults(func=_cmd_validate)
 
     args = parser.parse_args()
+
+    settings = load_settings()
+    RuntimeEnv.initialize(settings)
 
     if args.seed is not None:
         random.seed(args.seed)

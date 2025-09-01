@@ -11,15 +11,16 @@ history into another while still reusing the same underlying agent.
 from __future__ import annotations
 
 import asyncio
-import json
 import re
 from pathlib import Path
-from typing import Any, Literal, Mapping, Sequence
+from typing import Any, Literal, Sequence
 
 import logfire
+from pydantic import ValidationError
 from pydantic_core import from_json, to_json
 
 from conversation import ConversationSession
+from engine.plateau_runtime import PlateauRuntime
 from loader import (
     MAPPING_DATA_DIR,
     load_mapping_items,
@@ -27,7 +28,7 @@ from loader import (
     load_prompt_text,
     load_role_ids,
 )
-from mapping import group_features_by_mapping, map_set
+from mapping import cache_write_json_atomic, group_features_by_mapping, map_set
 from models import (
     DescriptionResponse,
     FeatureItem,
@@ -41,7 +42,7 @@ from models import (
     ServiceInput,
     ServiceMeta,
 )
-from settings import load_settings
+from runtime.environment import RuntimeEnv
 from shortcode import ShortCodeRegistry
 
 # Settings and token scheduling are no longer required after simplification.
@@ -65,6 +66,36 @@ DEFAULT_PLATEAU_NAMES: list[str] = [plateau.name for plateau in _PLATEAU_DEFS]
 # Core roles targeted during feature generation. These represent the default
 # audience slices and should be updated if new roles are introduced.
 DEFAULT_ROLE_IDS: list[str] = load_role_ids()
+
+
+def _feature_cache_path(service: str, plateau: int) -> Path:
+    """Return canonical cache path for features at ``plateau``."""
+
+    try:
+        settings = RuntimeEnv.instance().settings
+        cache_root = settings.cache_dir
+        context = settings.context_id
+    except Exception:  # pragma: no cover - settings unavailable
+        cache_root = Path(".cache")
+        context = "unknown"
+
+    path = cache_root / context / service / str(plateau) / "features.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _discover_feature_cache(service: str, plateau: int) -> tuple[Path, Path]:
+    """Return existing feature cache and canonical destination."""
+
+    canonical = _feature_cache_path(service, plateau)
+    if canonical.exists():
+        return canonical, canonical
+
+    service_root = canonical.parents[1]
+    for candidate in service_root.glob("**/features.json"):
+        return candidate, canonical
+
+    return canonical, canonical
 
 
 class PlateauGenerator:
@@ -116,15 +147,14 @@ class PlateauGenerator:
         # Registry used for deterministic feature codes.
         self.code_registry = ShortCodeRegistry()
 
-    def _quarantine_description(self, plateau_name: str, raw: Any) -> Path:
+    def _quarantine_description(self, plateau_name: str, raw: str) -> Path:
         """Persist ``raw`` text for ``plateau_name`` and record its path."""
 
         # Create the quarantine directory if it does not yet exist.
         qdir = Path("quarantine/descriptions")
         qdir.mkdir(parents=True, exist_ok=True)
         file_path = qdir / f"{plateau_name}.txt"
-        text = raw if isinstance(raw, str) else json.dumps(raw, indent=2)
-        file_path.write_text(text, encoding="utf-8")
+        file_path.write_text(raw, encoding="utf-8")
         logfire.warning(f"Quarantined plateau description at {file_path}")
         self.quarantined_descriptions.append(file_path)
         return file_path
@@ -152,7 +182,7 @@ class PlateauGenerator:
         lists its contributing features.
         """
 
-        settings = load_settings()
+        settings = RuntimeEnv.instance().settings
         items, catalogue_hash = load_mapping_items(
             MAPPING_DATA_DIR, settings.mapping_sets
         )
@@ -250,19 +280,12 @@ class PlateauGenerator:
         return template.format(plateaus=plateaus_str, schema=str(schema))
 
     def _request_descriptions_common(
-        self,
-        plateau_names: Sequence[str],
-        raw: PlateauDescriptionsResponse | str | Mapping[str, Any],
+        self, plateau_names: Sequence[str], raw: str
     ) -> dict[str, str]:
         """Parse ``raw`` description payload for ``plateau_names``."""
 
         try:
-            if isinstance(raw, PlateauDescriptionsResponse):
-                payload = raw
-            elif isinstance(raw, str):
-                payload = PlateauDescriptionsResponse.model_validate_json(raw)
-            else:
-                payload = PlateauDescriptionsResponse.model_validate(raw)
+            payload = PlateauDescriptionsResponse.model_validate_json(raw)
             items = payload.descriptions
         except Exception as exc:  # noqa: BLE001
             # If the overall payload is invalid JSON, quarantine each plateau.
@@ -296,18 +319,8 @@ class PlateauGenerator:
     ) -> dict[str, str]:
         session = session or self.description_session
         prompt = self._build_descriptions_prompt(plateau_names)
-        try:
-            payload = session.ask(prompt, PlateauDescriptionsResponse)
-        except Exception:  # noqa: BLE001
-            # Fallback to raw string without caching on failure.
-            original_mode = getattr(session, "cache_mode", None)
-            if original_mode is not None:
-                session.cache_mode = "off"
-            raw = session.ask(prompt)
-            if original_mode is not None:
-                session.cache_mode = original_mode
-            return self._request_descriptions_common(plateau_names, raw)
-        return self._request_descriptions_common(plateau_names, payload)
+        raw = session.ask(prompt)
+        return self._request_descriptions_common(plateau_names, raw)
 
     async def _request_descriptions_async(
         self,
@@ -318,18 +331,8 @@ class PlateauGenerator:
 
         session = session or self.description_session
         prompt = self._build_descriptions_prompt(plateau_names)
-        try:
-            payload = await session.ask_async(prompt, PlateauDescriptionsResponse)
-        except Exception:  # noqa: BLE001
-            # Fallback to raw string without caching on failure.
-            original_mode = getattr(session, "cache_mode", None)
-            if original_mode is not None:
-                session.cache_mode = "off"
-            raw = await session.ask_async(prompt)
-            if original_mode is not None:
-                session.cache_mode = original_mode
-            return self._request_descriptions_common(plateau_names, raw)
-        return self._request_descriptions_common(plateau_names, payload)
+        raw = await session.ask_async(prompt)
+        return self._request_descriptions_common(plateau_names, raw)
 
     def _to_feature(
         self, item: FeatureItem, role: str, plateau_name: str
@@ -482,29 +485,22 @@ class PlateauGenerator:
 
     async def _schedule_plateaus(
         self,
-        plateau_names: Sequence[str],
-        desc_map: Mapping[str, str],
+        runtimes: Sequence[PlateauRuntime],
         service_input: ServiceInput,
-    ) -> list[PlateauResult]:
-        """Return plateau results in the order provided."""
+    ) -> list[PlateauRuntime]:
+        """Populate ``runtimes`` with plateau results."""
 
-        results: list[PlateauResult] = []
-        for name in plateau_names:
-            description = desc_map[name]
-            level = DEFAULT_PLATEAU_MAP.get(name)
-            if level is None:
-                raise ValueError(f"Unknown plateau name: {name}")
+        results: list[PlateauRuntime] = []
+        for runtime in runtimes:
             plateau_session = ConversationSession(
                 self.session.client,
-                stage=f"features_{level}",
+                stage=self.session.stage,
                 use_local_cache=self.use_local_cache,
                 cache_mode=self.cache_mode,
             )
             plateau_session.add_parent_materials(service_input)
-            result = await self.generate_plateau_async(
-                level, name, session=plateau_session, description=description
-            )
-            results.append(result)
+            await self.generate_plateau_async(runtime, session=plateau_session)
+            results.append(runtime)
         return results
 
     def _validate_plateau_results(
@@ -655,23 +651,11 @@ class PlateauGenerator:
 
     async def generate_plateau_async(
         self,
-        level: int,
-        plateau_name: str,
+        runtime: PlateauRuntime,
         *,
         session: ConversationSession | None = None,
-        description: str,
-    ) -> PlateauResult:
-        """Asynchronously return mapped plateau features for ``level``.
-
-        Args:
-            level: Numeric plateau level.
-            plateau_name: Human readable name of the plateau.
-            session: Conversation session used for feature generation.
-            description: Pre-fetched description for the target plateau.
-
-        Returns:
-            PlateauResult populated with mapped features.
-        """
+    ) -> PlateauRuntime:
+        """Populate ``runtime`` with mapped features and mappings."""
 
         if self._service is None:
             raise ValueError(
@@ -680,27 +664,44 @@ class PlateauGenerator:
 
         session = session or self.session
 
-        with logfire.span("generate_plateau") as span:
-            span.set_attribute("service.id", self._service.service_id)
-            span.set_attribute("plateau", level)
+        level = runtime.plateau
+        description = runtime.description
+        svc_id = self._service.service_id
 
-            prompt = self._build_plateau_prompt(level, description)
-            logfire.info(f"Requesting features for level={level}")
+        payload: PlateauFeaturesResponse | None = None
+        cache_file: Path | None = None
+        if self.use_local_cache and self.cache_mode != "off":
+            candidate, cache_file = _discover_feature_cache(svc_id, level)
+            if self.cache_mode == "read" and candidate.exists():
+                try:
+                    with candidate.open("rb") as fh:
+                        data = from_json(fh.read())
+                    payload = PlateauFeaturesResponse.model_validate(data)
+                    if candidate != cache_file:
+                        cache_write_json_atomic(cache_file, payload.model_dump())
+                        candidate.unlink()
+                except (ValidationError, ValueError) as exc:
+                    raise RuntimeError(f"Invalid feature cache: {candidate}") from exc
 
-            try:
-                raw = await session.ask_async(prompt)
-                if isinstance(raw, (bytes, bytearray, str)):
+        if payload is None:
+            with logfire.span("generate_plateau") as span:
+                span.set_attribute("service.id", svc_id)
+                span.set_attribute("plateau", level)
+
+                prompt = self._build_plateau_prompt(level, description)
+                logfire.info(f"Requesting features for level={level}")
+
+                try:
+                    raw = await session.ask_async(prompt)
                     data = from_json(raw)
-                else:
-                    data = raw
-            except Exception as exc:
-                logfire.error(f"Invalid JSON from feature response: {exc}")
-                raise ValueError("Agent returned invalid JSON: " + self._service.service_id) from exc
+                except Exception as exc:
+                    logfire.error(f"Invalid JSON from feature response: {exc}")
+                    raise ValueError("Agent returned invalid JSON") from exc
 
-            if not isinstance(data, dict) or "features" not in data:
-                raise ValueError("Agent returned invalid JSON: " + self._service.service_id)
+                if not isinstance(data, dict) or "features" not in data:
+                    raise ValueError("Agent returned invalid JSON")
 
-            role_data = data.get("features", {})
+                role_data = data.get("features", {})
             valid, invalid_roles, missing = self._validate_roles(role_data)
 
             fixes = await self._recover_invalid_roles(
@@ -722,78 +723,60 @@ class PlateauGenerator:
                     valid[role].extend(extras)
 
             self._enforce_min_features(valid)
-            # Build a features mapping for the configured roles. Roles absent in
-            # ``valid`` are included with empty lists to simplify downstream
-            # processing.
             block: dict[str, list[FeatureItem]] = {
                 role: list(valid.get(role, [])) for role in self.roles
             }
             payload = PlateauFeaturesResponse(features=block)
+            if self.use_local_cache and self.cache_mode != "off":
+                cache_write_json_atomic(
+                    cache_file or _feature_cache_path(svc_id, level),
+                    payload.model_dump(),
+                )
 
-            features = self._collect_features(payload, plateau_name)
-            map_session = ConversationSession(
-                self.mapping_session.client,
-                stage=self.mapping_session.stage,
-                use_local_cache=self.use_local_cache,
-                cache_mode=self.cache_mode,
-            )
-            if self._service is not None:
-                map_session.add_parent_materials(self._service)
-            mappings = await self._map_features(
-                map_session,
-                features,
-                plateau=level,
-                service_name=self._service.name,
-                service_description=description,
-            )
-            return PlateauResult(
-                plateau=level,
-                plateau_name=plateau_name,
-                service_description=description,
-                features=list(features),
-                mappings=mappings,
-            )
+        features = self._collect_features(payload, runtime.plateau_name)
+        map_session = ConversationSession(
+            self.mapping_session.client,
+            stage=self.mapping_session.stage,
+            use_local_cache=self.use_local_cache,
+            cache_mode=self.cache_mode,
+        )
+        if self._service is not None:
+            map_session.add_parent_materials(self._service)
+        mappings = await self._map_features(
+            map_session,
+            features,
+            plateau=level,
+            service_name=self._service.name,
+            service_description=description,
+        )
+        runtime.set_results(features=list(features), mappings=mappings)
+        return runtime
 
     def generate_plateau(
         self,
-        level: int,
-        plateau_name: str,
+        runtime: PlateauRuntime,
         *,
         session: ConversationSession | None = None,
-        description: str,
-    ) -> PlateauResult:
-        """Return mapped plateau features for ``level``.
+    ) -> PlateauRuntime:
+        """Synchronously populate ``runtime`` with mapped features."""
 
-        Args:
-            level: Numeric plateau level.
-            plateau_name: Human readable name of the plateau.
-            session: Conversation session used for feature generation.
-            description: Pre-fetched description for the target plateau.
-        """
-
-        return asyncio.run(
-            self.generate_plateau_async(
-                level,
-                plateau_name,
-                session=session,
-                description=description,
-            )
-        )
+        return asyncio.run(self.generate_plateau_async(runtime, session=session))
 
     async def generate_service_evolution_async(
         self,
         service_input: ServiceInput,
-        plateau_names: Sequence[str] | None = None,
+        runtimes: Sequence[PlateauRuntime] | None = None,
         role_ids: Sequence[str] | None = None,
         *,
         transcripts_dir: Path | None = None,
         meta: ServiceMeta,
     ) -> ServiceEvolution:
-        """Asynchronously return service evolution for selected plateaus.
+        """Asynchronously return service evolution for provided ``runtimes``.
 
         Args:
             service_input: Source service details to evolve.
-            plateau_names: Optional subset of plateau names to include.
+            runtimes: Plateau runtimes to process. When ``None`` the defaults in
+                ``DEFAULT_PLATEAU_NAMES`` are used.
             role_ids: Optional subset of role identifiers to include.
             transcripts_dir: Directory to persist per-service transcripts. ``None``
                 disables transcript persistence.
@@ -807,20 +790,38 @@ class PlateauGenerator:
             if service_input.customer_type:
                 span.set_attribute("customer_type", service_input.customer_type)
 
-            plateau_names = list(plateau_names or DEFAULT_PLATEAU_NAMES)
+            if runtimes is None:
+                desc_map = await self._request_descriptions_async(
+                    DEFAULT_PLATEAU_NAMES, session=self.description_session
+                )
+                runtimes = [
+                    PlateauRuntime(
+                        plateau=DEFAULT_PLATEAU_MAP[name],
+                        plateau_name=name,
+                        description=desc_map[name],
+                    )
+                    for name in DEFAULT_PLATEAU_NAMES
+                ]
             role_ids = list(role_ids or self.roles)
 
-            desc_map = await self._request_descriptions_async(
-                plateau_names, session=self.description_session
-            )
+            results = await self._schedule_plateaus(runtimes, service_input)
+            plateau_names = [r.plateau_name for r in runtimes]
 
-            results = await self._schedule_plateaus(
-                plateau_names, desc_map, service_input
-            )
+            plateau_results = [
+                PlateauResult(
+                    plateau=r.plateau,
+                    plateau_name=r.plateau_name,
+                    service_description=r.description,
+                    features=r.features,
+                    mappings=r.mappings,
+                )
+                for r in results
+                if r.status()
+            ]
 
             evolution = await self._assemble_evolution(
                 service_input,
-                results,
+                plateau_results,
                 plateau_names,
                 role_ids,
                 meta,
@@ -840,18 +841,18 @@ class PlateauGenerator:
     def generate_service_evolution(
         self,
         service_input: ServiceInput,
-        plateau_names: Sequence[str] | None = None,
+        runtimes: Sequence[PlateauRuntime] | None = None,
         role_ids: Sequence[str] | None = None,
         *,
         transcripts_dir: Path | None = None,
         meta: ServiceMeta,
     ) -> ServiceEvolution:
-        """Return service evolution for selected plateaus and roles."""
+        """Return service evolution for provided plateau runtimes."""
 
         return asyncio.run(
             self.generate_service_evolution_async(
                 service_input,
-                plateau_names,
+                runtimes,
                 role_ids,
                 transcripts_dir=transcripts_dir,
                 meta=meta,

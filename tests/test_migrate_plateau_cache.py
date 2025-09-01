@@ -5,20 +5,22 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
+from types import ModuleType
+from typing import Any, cast
 
 
-def _load_module() -> object:
+def _load_module() -> ModuleType:
     spec = importlib.util.spec_from_file_location(
         "migrate_plateau_cache", Path("scripts/migrate_plateau_cache.py")
     )
+    assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(module)  # type: ignore[reportAttributeAccessIssue]
+    spec.loader.exec_module(module)
     return module
 
 
 def test_migrate_moves_feature_and_mapping(tmp_path: Path) -> None:
-    module = _load_module()
+    module = cast(Any, _load_module())
     output = tmp_path / "output" / "ctx"
     cache = tmp_path / ".cache" / "ctx" / "svc"
     output.mkdir(parents=True)

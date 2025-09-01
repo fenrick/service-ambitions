@@ -12,7 +12,7 @@ from __future__ import annotations
 import hashlib
 from functools import lru_cache
 from pathlib import Path
-from typing import Sequence, Tuple, TypeVar
+from typing import Sequence, TypeVar
 
 import logfire
 import yaml
@@ -28,6 +28,14 @@ from models import (
     Role,
     ServiceFeaturePlateau,
 )
+from utils import (
+    ErrorHandler,
+    FileMappingLoader,
+    FilePromptLoader,
+    LoggingErrorHandler,
+    MappingLoader,
+    PromptLoader,
+)
 
 FEATURE_PLATEAUS_JSON = "service_feature_plateaus.json"
 
@@ -42,6 +50,10 @@ PROMPT_DIR = Path("prompts")
 # location.
 MAPPING_DATA_DIR = Path("data")
 
+_prompt_loader: PromptLoader = FilePromptLoader(PROMPT_DIR)
+_mapping_loader: MappingLoader = FileMappingLoader(MAPPING_DATA_DIR)
+_error_handler: ErrorHandler = LoggingErrorHandler()
+
 # Core role statement for all system prompts. This line anchors the model's
 # objective before any contextual material is provided.
 NORTH_STAR = (
@@ -52,29 +64,20 @@ NORTH_STAR = (
 
 
 def configure_prompt_dir(path: Path | str) -> None:
-    """Set the base directory for prompt templates.
+    """Set the base directory for prompt templates."""
 
-    Side Effects:
-        Updates the module-level :data:`PROMPT_DIR` used by other loading
-        helpers so tests or CLI options may override where templates are sourced
-        from.
-    """
-
-    global PROMPT_DIR
+    global PROMPT_DIR, _prompt_loader
     PROMPT_DIR = Path(path)
+    _prompt_loader = FilePromptLoader(PROMPT_DIR)
+    clear_prompt_cache()
 
 
 def configure_mapping_data_dir(path: Path | str) -> None:
-    """Set the base directory for mapping reference data.
+    """Set the base directory for mapping reference data."""
 
-    Side Effects:
-        Updates :data:`MAPPING_DATA_DIR` used by catalogue loaders and clears
-        cached data so subsequent calls honour the new location.
-    """
-
-    global MAPPING_DATA_DIR
+    global MAPPING_DATA_DIR, _mapping_loader
     MAPPING_DATA_DIR = Path(path)
-    _load_mapping_items.cache_clear()
+    _mapping_loader = FileMappingLoader(MAPPING_DATA_DIR)
 
 
 def _read_file(path: Path) -> str:
@@ -191,73 +194,42 @@ def _read_yaml_file(path: Path, schema: type[T]) -> T:
         ) from exc
 
 
-def load_prompt_text(prompt_name: str, base_dir: Path | None = None) -> str:
+@lru_cache(maxsize=None)
+def load_prompt_text(prompt_name: str, base_dir: Path | str | None = None) -> str:
     """Return the contents of a prompt template.
 
-    The function locates ``prompt_name`` within ``base_dir`` (defaulting to the
-    globally configured :data:`PROMPT_DIR`) and returns the stripped file
-    contents. The ``.md`` suffix is added automatically if missing. Results are
-    not cached so callers should apply their own caching where appropriate.
-
-    Args:
-        prompt_name: Name of the prompt file without directory components.
-        base_dir: Optional override for the base directory containing prompts.
-
-    Returns:
-        Prompt template text.
-
-    Raises:
-        FileNotFoundError: If the file does not exist.
-        RuntimeError: If the file cannot be read.
+    Results are memoised for the lifetime of the process. Use
+    :func:`clear_prompt_cache` to invalidate the cache when template files
+    change.
     """
 
-    directory = Path(base_dir) if base_dir is not None else PROMPT_DIR
-    filename = prompt_name if prompt_name.endswith(".md") else f"{prompt_name}.md"
-    return _read_file(directory / filename)
+    loader = _prompt_loader if base_dir is None else FilePromptLoader(Path(base_dir))
+    try:
+        return loader.load(prompt_name)
+    except Exception as exc:
+        _error_handler.handle(f"Error loading prompt {prompt_name}", exc)
+        raise
+
+
+def clear_prompt_cache() -> None:
+    """Invalidate any cached prompt text."""
+
+    load_prompt_text.cache_clear()
 
 
 def load_mapping_items(
     data_dir: Path, sets: Sequence[MappingSet]
 ) -> tuple[dict[str, list[MappingItem]], str]:
-    """Return mapping reference data and a combined catalogue hash.
+    """Return mapping reference data and a combined catalogue hash."""
 
-    The hash summarises all requested catalogues and changes whenever any
-    underlying dataset is modified.
-    """
-
-    key = tuple((s.file, s.field) for s in sets)
-    return _load_mapping_items(data_dir, key)
-
-
-@lru_cache(maxsize=None)
-def _load_mapping_items(
-    data_dir: Path, key: Tuple[Tuple[str, str], ...]
-) -> tuple[dict[str, list[MappingItem]], str]:
-    """Load mapping items using a hashable key for caching.
-
-    Returns a mapping of catalogue names to sorted items along with a SHA256
-    digest covering all catalogues. The digest changes when any catalogue
-    content is modified.
-    """
-
-    if not data_dir.is_dir():
-        raise FileNotFoundError(f"Mapping data directory not found: {data_dir}")
-
-    data: dict[str, list[MappingItem]] = {}
-    digests: list[str] = []
-    for file, field in key:
-        path = data_dir / file
-        try:
-            raw_items = _read_json_file(path, list[MappingItem])
-        except FileNotFoundError:
-            raise
-        except Exception:
-            continue
-        ordered, digest = compile_catalogue_for_set(raw_items)
-        data[field] = ordered
-        digests.append(f"{field}:{digest}")
-    combined = "|".join(sorted(digests))
-    return data, hashlib.sha256(combined.encode("utf-8")).hexdigest()
+    loader = (
+        _mapping_loader if data_dir == MAPPING_DATA_DIR else FileMappingLoader(data_dir)
+    )
+    try:
+        return loader.load(sets)
+    except Exception as exc:
+        _error_handler.handle("Error loading mapping items", exc)
+        raise
 
 
 @lru_cache(maxsize=None)

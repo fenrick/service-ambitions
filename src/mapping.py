@@ -10,7 +10,6 @@ contributions back into :class:`PlateauFeature` objects.
 from __future__ import annotations
 
 import hashlib
-import os
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Mapping, Sequence, cast
@@ -34,14 +33,33 @@ from models import (
     StrictModel,
 )
 from quarantine import QuarantineWriter
-from settings import load_settings
+from runtime.environment import RuntimeEnv
 from telemetry import record_mapping_set
+from utils import CacheManager, ErrorHandler, JSONCacheManager, LoggingErrorHandler
 
 if TYPE_CHECKING:
     from conversation import ConversationSession
 
 
 _writer = QuarantineWriter()
+
+_cache_manager: CacheManager = JSONCacheManager()
+_error_handler: ErrorHandler = LoggingErrorHandler()
+
+
+def configure_cache_manager(manager: CacheManager) -> None:
+    """Override the cache manager used for mapping results."""
+
+    global _cache_manager
+    _cache_manager = manager
+
+
+def configure_error_handler(handler: ErrorHandler) -> None:
+    """Override the error handler used for mapping operations."""
+
+    global _error_handler
+    _error_handler = handler
+
 
 UNKNOWN_ID_LOG_LIMIT = 5
 """Maximum number of unknown IDs to include in warning logs."""
@@ -58,7 +76,13 @@ def _json_bytes(value: Any, *, sort_keys: bool = False, **kwargs: Any) -> bytes:
 
     if sort_keys and isinstance(value, dict):
         value = dict(sorted(value.items()))
-    return cast(Any, to_json)(value, **kwargs)
+    try:
+        return cast(Any, to_json)(value, **kwargs)
+    except TypeError:  # pragma: no cover - legacy pydantic-core
+        if "sort_keys" in kwargs:
+            kwargs = dict(kwargs)
+            kwargs.pop("sort_keys")
+        return cast(Any, to_json)(value, **kwargs)
 
 
 def _features_hash(features: Sequence[PlateauFeature]) -> str:
@@ -109,64 +133,59 @@ def _build_cache_key(
     return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:32]
 
 
-def _service_cache_root(service: str) -> Path:
-    """Return the cache root for ``service`` within the current context."""
+def _cache_path(service: str, plateau: int, set_name: str, key: str) -> Path:
+    """Return canonical cache path for ``service`` and ``set_name``.
+
+    Cache files are grouped by context, service identifier and plateau level.
+    """
 
     try:
-        settings = load_settings()
+        settings = RuntimeEnv.instance().settings
         cache_root = settings.cache_dir
         context = settings.context_id
-    except Exception:  # pragma: no cover - fallback when settings unavailable
+    except Exception:  # pragma: no cover - settings unavailable
         cache_root = Path(".cache")
         context = "unknown"
-    root = cache_root / context / service
-    root.mkdir(parents=True, exist_ok=True)
-    return root
 
-
-def _cache_path(service: str, plateau: str, set_name: str, key: str) -> Path:
-    """Return cache path for ``plateau`` in ``service`` and ``set_name``."""
-
-    root = _service_cache_root(service)
-    path = root / plateau / "mappings" / set_name / f"{key}.json"
+    path = (
+        cache_root
+        / context
+        / service
+        / str(plateau)
+        / "mappings"
+        / set_name
+        / f"{key}.json"
+    )
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 
 
-def _find_cache_file(root: Path, key: str, expected: Path) -> Path | None:
-    """Return path to ``key`` under ``root`` when present, else ``None``."""
+def _discover_cache_file(
+    service: str, plateau: int, set_name: str, key: str
+) -> tuple[Path, Path]:
+    """Return existing cache path and canonical destination.
 
-    if expected.exists():
-        return expected
-    for candidate in root.rglob(f"{key}.json"):
-        if candidate != expected:
-            return candidate
-    return None
+    Searches the service cache directory for ``set_name`` entries that may have
+    been stored under legacy locations (e.g. without plateau information or
+    within an ``unknown`` folder). The first match is returned alongside the
+    canonical path.
+    """
+
+    canonical = _cache_path(service, plateau, set_name, key)
+    if canonical.exists():
+        return canonical, canonical
+
+    service_root = canonical.parents[3]
+    for candidate in service_root.glob(f"**/mappings/**/{set_name}/{key}.json"):
+        return candidate, canonical
+
+    return canonical, canonical
 
 
 def cache_write_json_atomic(path: Path, content: Any) -> None:
-    """Atomically write JSON ``content`` to ``path`` with ``0o600`` permissions."""
+    """Atomically write ``content`` as pretty JSON to ``path``."""
 
-    data = (
-        content
-        if not isinstance(content, (str, bytes, bytearray))
-        else from_json(
-            content
-            if isinstance(content, (bytes, bytearray))
-            else content.encode("utf-8")
-        )
-    )
-    tmp_path = path.with_suffix(".tmp")
-    fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    try:
-        with os.fdopen(fd, "wb") as fh:
-            fh.write(_json_bytes(data))
-            fh.flush()
-            os.fsync(fh.fileno())
-        os.replace(tmp_path, path)
-    finally:
-        if os.path.exists(tmp_path):  # Clean up when replace fails
-            os.remove(tmp_path)
+    _cache_manager.write_json_atomic(path, content)
 
 
 def _merge_mapping_results(
@@ -186,9 +205,10 @@ def _merge_mapping_results(
     presence of unknown or missing identifiers raises :class:`MappingError`.
     """
 
+    env = RuntimeEnv.instance()
     catalogues = (
         catalogue_items
-        or load_mapping_items(MAPPING_DATA_DIR, load_settings().mapping_sets)[0]
+        or load_mapping_items(MAPPING_DATA_DIR, env.settings.mapping_sets)[0]
     )
     valid_ids: dict[str, set[str]] = {
         key: {item.id for item in catalogues[cfg.dataset]}
@@ -330,27 +350,21 @@ async def map_set(
     cache_hit = False
     if cache_mode != "off":
         svc = service or "unknown"
-        plateau_dir = str(plateau)
-        cache_root = _service_cache_root(svc)
-        cache_file = cache_root / plateau_dir / "mappings" / set_name / f"{key}.json"
-        cache_file.parent.mkdir(parents=True, exist_ok=True)
-        path_to_use = _find_cache_file(cache_root, key, cache_file)
-        exists_before = path_to_use is not None
-        if cache_mode == "read" and path_to_use:
+        candidate, cache_file = _discover_cache_file(svc, plateau, set_name, key)
+        exists_before = candidate.exists()
+        if cache_mode == "read" and exists_before:
             try:
-                with path_to_use.open("rb") as fh:
+                with candidate.open("rb") as fh:
                     data = from_json(fh.read())
                 payload = model_type.model_validate(data)
                 cache_hit = True
-                if path_to_use != cache_file:
+                if candidate != cache_file:
                     cache_write_json_atomic(cache_file, payload.model_dump())
-                    try:
-                        path_to_use.unlink()
-                    except OSError:
-                        pass
-            except (ValidationError, ValueError, OSError) as exc:
-                raise RuntimeError(f"Invalid cache file: {path_to_use}") from exc
-        elif cache_mode == "refresh":
+                    candidate.unlink()
+            except (ValidationError, ValueError) as exc:
+                _error_handler.handle(f"Invalid cache file: {candidate}", exc)
+                raise RuntimeError(f"Invalid cache file: {candidate}") from exc
+        if cache_mode == "refresh":
             write_after_call = True
         elif cache_mode == "write" and not exists_before:
             write_after_call = True
@@ -425,6 +439,7 @@ async def map_set(
                 svc = service or "unknown"
                 text = raw if isinstance(raw, str) else raw.model_dump()
                 _writer.write(set_name, svc, "json_parse_error", text)
+                _error_handler.handle("Invalid mapping response", exc)
                 if strict:
                     raise MappingError(
                         f"Invalid mapping response for {svc}/{set_name}"
