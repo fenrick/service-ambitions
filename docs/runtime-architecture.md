@@ -36,6 +36,16 @@ features and mapping results.  Each runtime exposes a simple
 `status()` method used by the processing engine to determine overall
 success.
 
+## Telemetry and logging
+
+Structured logging and spans are provided by
+[Logfire](https://logfire.pydantic.dev/).  The runtime environment
+initialiser, the processing engine and each plateau runtime emit
+contextual `debug` and `info` events and wrap long‑running operations in
+spans.  These spans enable fine‑grained tracing across services and
+plateaus, while log levels allow operators to dial in the desired amount
+of detail.
+
 ## Caching strategy
 
 Caching is opt‑in and scoped by context, service and plateau:

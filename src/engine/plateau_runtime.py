@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+import logfire
+
 from models import MappingFeatureGroup, PlateauFeature
 
 
@@ -26,11 +28,26 @@ class PlateauRuntime:
     ) -> None:
         """Store ``features`` and ``mappings`` for this plateau."""
 
-        self.features = list(features)
-        self.mappings = mappings
-        self._success = True
+        with logfire.span(
+            "plateau_runtime.set_results",
+            attributes={"plateau": self.plateau_name},
+        ):
+            self.features = list(features)
+            self.mappings = mappings
+            self._success = True
+            logfire.debug(
+                "Stored plateau results",
+                plateau=self.plateau_name,
+                feature_count=len(self.features),
+                mapping_sets=len(self.mappings),
+            )
 
     def status(self) -> bool:
         """Return ``True`` when generation succeeded."""
 
+        logfire.debug(
+            "Plateau status checked",
+            plateau=self.plateau_name,
+            success=self._success,
+        )
         return self._success
