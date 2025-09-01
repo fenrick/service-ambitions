@@ -233,6 +233,8 @@ async def test_map_set_strict_raises(monkeypatch, tmp_path) -> None:
             service="svc",
             strict=True,
         )
+    # Only a single attempt is made when validation fails.
+    assert session.prompts == ["PROMPT"]
     qfile = tmp_path / "quarantine" / "svc" / "applications" / "json_parse_error_1.json"
     assert qfile.exists()
     assert paths == [qfile.resolve()]
