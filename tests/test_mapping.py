@@ -61,7 +61,7 @@ def test_cache_write_json_atomic_rejects_invalid_json(tmp_path) -> None:
     """Invalid JSON content is not persisted to disk."""
 
     path = tmp_path / "file.json"
-    with pytest.raises(json.JSONDecodeError):
+    with pytest.raises(ValueError):
         cache_write_json_atomic(path, "{bad")
     assert not path.exists()
 
@@ -346,8 +346,8 @@ async def test_map_set_writes_cache(monkeypatch, tmp_path) -> None:
         Path(".cache")
         / "unknown"
         / "unknown"
+        / "1"
         / "mappings"
-        / "f1"
         / "applications"
         / "key.json"
     )
@@ -366,7 +366,7 @@ async def test_map_set_reads_cache(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
     cached = {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
     cache_dir = (
-        Path(".cache") / "unknown" / "unknown" / "mappings" / "f1" / "applications"
+        Path(".cache") / "unknown" / "unknown" / "1" / "mappings" / "applications"
     )
     cache_dir.mkdir(parents=True, exist_ok=True)
     with (cache_dir / "key.json").open("w", encoding="utf-8") as fh:
@@ -392,22 +392,31 @@ async def test_map_set_reads_cache(monkeypatch, tmp_path) -> None:
 
 
 @pytest.mark.asyncio()
-async def test_map_set_bad_cache_renamed(monkeypatch, tmp_path) -> None:
-    """Corrupt cache files are renamed and the request retried."""
+async def test_map_set_reads_unknown_cache(monkeypatch, tmp_path) -> None:
+    """Cache entries under ``unknown`` are migrated to plateau directories."""
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
     monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
-    cache_dir = (
-        Path(".cache") / "unknown" / "unknown" / "mappings" / "f1" / "applications"
+    cached = {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
+    unknown_dir = (
+        Path(".cache")
+        / "unknown"
+        / "unknown"
+        / "mappings"
+        / "unknown"
+        / "f1"
+        / "applications"
     )
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    bad_file = cache_dir / "key.json"
-    bad_file.write_text("not json", encoding="utf-8")
-    valid = json.dumps(
-        {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
-    )
-    session = DummySession([valid])
+    unknown_dir.mkdir(parents=True, exist_ok=True)
+    with (unknown_dir / "key.json").open("w", encoding="utf-8") as fh:
+        json.dump(cached, fh)
+
+    class NoCallSession(DummySession):
+        async def ask_async(self, prompt: str, output_type=None) -> str:
+            raise AssertionError("ask_async should not be called")
+
+    session = NoCallSession([])
     mapped = await map_set(
         cast(ConversationSession, session),
         "applications",
@@ -418,10 +427,48 @@ async def test_map_set_bad_cache_renamed(monkeypatch, tmp_path) -> None:
         plateau=1,
         cache_mode="read",
     )
+    plateau_file = (
+        Path(".cache")
+        / "unknown"
+        / "unknown"
+        / "1"
+        / "mappings"
+        / "applications"
+        / "key.json"
+    )
+    assert plateau_file.exists()
+    assert not (unknown_dir / "key.json").exists()
+    assert session.prompts == []
     assert mapped[0].mappings["applications"][0].item == "a"
+
+
+@pytest.mark.asyncio()
+async def test_map_set_bad_cache_errors(monkeypatch, tmp_path) -> None:
+    """Invalid cache files halt processing with an error."""
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
+    cache_dir = (
+        Path(".cache") / "unknown" / "unknown" / "1" / "mappings" / "applications"
+    )
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    bad_file = cache_dir / "key.json"
+    bad_file.write_text("not json", encoding="utf-8")
+    session = DummySession([])
+    with pytest.raises(RuntimeError, match="Invalid cache file"):
+        await map_set(
+            cast(ConversationSession, session),
+            "applications",
+            [_item()],
+            [_feature()],
+            service_name="svc",
+            service_description="desc",
+            plateau=1,
+            cache_mode="read",
+        )
     assert bad_file.exists()
-    assert (cache_dir / "key.bad.json").exists()
-    assert session.prompts == ["PROMPT"]
+    assert session.prompts == []
 
 
 @pytest.mark.asyncio()
@@ -475,7 +522,7 @@ async def test_map_set_cache_invalidation(monkeypatch, tmp_path, change) -> None
         catalogue_hash=cat_hash2,
     )
     cache_dir = (
-        Path(".cache") / "unknown" / "unknown" / "mappings" / "f1" / "applications"
+        Path(".cache") / "unknown" / "unknown" / "1" / "mappings" / "applications"
     )
     assert (cache_dir / "key1.json").exists()
     assert (cache_dir / "key2.json").exists()
@@ -505,7 +552,7 @@ async def test_map_set_logs_cache_status(
     )
     if prepopulate:
         cache_dir = (
-            Path(".cache") / "unknown" / "unknown" / "mappings" / "f1" / "applications"
+            Path(".cache") / "unknown" / "unknown" / "1" / "mappings" / "applications"
         )
         cache_dir.mkdir(parents=True, exist_ok=True)
         with (cache_dir / "key.json").open("w", encoding="utf-8") as fh:
@@ -567,8 +614,8 @@ async def test_map_set_cache_modes(
         Path(".cache")
         / "unknown"
         / "unknown"
+        / "1"
         / "mappings"
-        / "f1"
         / "applications"
         / "key.json"
     )
