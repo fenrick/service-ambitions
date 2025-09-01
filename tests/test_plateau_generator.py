@@ -14,6 +14,7 @@ import pytest
 from pydantic_ai import Agent
 from pydantic_core import from_json
 
+import loader
 from conversation import (
     ConversationSession,
 )
@@ -134,12 +135,16 @@ async def test_map_features_maps_all_sets_with_full_list(monkeypatch) -> None:
     RuntimeEnv.initialize(
         cast(
             Any,
-            SimpleNamespace(mapping_sets=mapping_sets, mapping_data_dir=Path("data")),
+            SimpleNamespace(
+                mapping_sets=mapping_sets,
+                mapping_data_dir=Path("data"),
+                prompt_dir=Path("prompts"),
+            ),
         )
     )
     monkeypatch.setattr(
         "engine.plateau_runtime.load_mapping_items",
-        lambda path, sets: ({s.field: [] for s in sets}, "hash"),
+        lambda sets, data_dir=None: ({s.field: [] for s in sets}, "hash"),
     )
     session = DummySession([])
     runtime = PlateauRuntime(plateau=1, plateau_name="p1", description="desc")
@@ -1124,6 +1129,7 @@ async def test_generate_plateau_reads_feature_cache(monkeypatch, tmp_path) -> No
     """Legacy feature caches are relocated and reused."""
 
     monkeypatch.chdir(tmp_path)
+    loader.configure_prompt_dir(Path(__file__).resolve().parents[1] / "prompts")
     payload = PlateauFeaturesResponse(
         features={
             "learners": [
@@ -1135,7 +1141,10 @@ async def test_generate_plateau_reads_feature_cache(monkeypatch, tmp_path) -> No
             ]
         }
     )
-    old_file = Path(".cache") / "unknown" / "svc" / "features.json"
+    env = RuntimeEnv.instance()
+    old_file = (
+        env.settings.cache_dir / env.settings.context_id / "svc" / "features.json"
+    )
     old_file.parent.mkdir(parents=True, exist_ok=True)
     old_file.write_text(payload.model_dump_json(), encoding="utf-8")
 
@@ -1164,7 +1173,9 @@ async def test_generate_plateau_reads_feature_cache(monkeypatch, tmp_path) -> No
     result = await generator.generate_plateau_async(runtime)
 
     assert result.features[0].name == "Feat"
-    canonical = Path(".cache") / "unknown" / "svc" / "1" / "features.json"
+    canonical = (
+        env.settings.cache_dir / env.settings.context_id / "svc" / "1" / "features.json"
+    )
     assert canonical.exists()
     assert not old_file.exists()
     assert session.prompts == []
@@ -1177,6 +1188,8 @@ async def test_init_runtimes_generates_defaults(monkeypatch) -> None:
         strict=False,
         use_local_cache=True,
         cache_mode="read",
+        mapping_data_dir=Path("data"),
+        prompt_dir=Path("prompts"),
     )
     RuntimeEnv.initialize(cast(Any, settings))
     session = DummySession([])

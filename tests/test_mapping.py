@@ -32,7 +32,11 @@ def _init_runtime_env() -> Iterator[None]:
     settings = cast(
         Any,
         SimpleNamespace(
-            cache_dir=Path(".cache"), context_id="unknown", mapping_sets=[]
+            cache_dir=Path(".cache"),
+            context_id="unknown",
+            mapping_sets=[],
+            mapping_data_dir=Path("data"),
+            prompt_dir=Path("prompts"),
         ),
     )
     RuntimeEnv.initialize(settings)

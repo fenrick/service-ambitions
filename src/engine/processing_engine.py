@@ -426,8 +426,9 @@ class ProcessingEngine:
             output = await asyncio.to_thread(self.part_path.open, "w", encoding="utf-8")
             try:
                 for runtime in self.runtimes:
-                    if runtime.line is None:
+                    if not runtime.success:
                         continue
+                    assert runtime.line is not None
                     await asyncio.to_thread(output.write, f"{runtime.line}\n")
                     self.new_ids.add(runtime.service.service_id)
                     EVOLUTIONS_GENERATED.add(1)

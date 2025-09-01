@@ -7,7 +7,6 @@ import json
 from pathlib import Path
 from typing import Iterable, Literal, Sequence, cast
 
-import loader
 import mapping
 from canonical import canonicalise_record
 from conversation import ConversationSession
@@ -39,7 +38,7 @@ def load_catalogue(
     """
 
     configure_mapping_data_dir(mapping_data_dir or settings.mapping_data_dir)
-    return load_mapping_items(loader.MAPPING_DATA_DIR, settings.mapping_sets)
+    return load_mapping_items(settings.mapping_sets)
 
 
 async def remap_features(

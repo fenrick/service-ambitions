@@ -13,7 +13,6 @@ from typing import Any, Coroutine, cast
 import logfire
 from pydantic_core import to_json
 
-import loader
 import mapping
 import telemetry
 from canonical import canonicalise_record
@@ -98,9 +97,7 @@ def _cmd_reverse(args: argparse.Namespace, transcripts_dir: Path | None) -> None
 
     settings = RuntimeEnv.instance().settings
     configure_mapping_data_dir(args.mapping_data_dir or settings.mapping_data_dir)
-    items, catalogue_hash = load_mapping_items(
-        loader.MAPPING_DATA_DIR, settings.mapping_sets
-    )
+    items, catalogue_hash = load_mapping_items(settings.mapping_sets)
 
     input_path = Path(args.input_file)
     output_path = Path(args.output_file)

@@ -46,7 +46,7 @@ def test_mapping_run_matches_golden(tmp_path) -> None:
         MappingSet(name="Applications", file="applications.json", field="applications"),
         MappingSet(name="Technologies", file="technologies.json", field="technologies"),
     ]
-    items, catalogue_hash = loader.load_mapping_items(loader.MAPPING_DATA_DIR, sets)
+    items, catalogue_hash = loader.load_mapping_items(sets)
     evolutions = _load_evolutions()
     features = [f for evo in evolutions for p in evo.plateaus for f in p.features]
     session_apps = DummySession(
@@ -126,7 +126,7 @@ def test_default_mode_quarantines_unknown_ids(monkeypatch, tmp_path) -> None:
     sets = [
         MappingSet(name="Applications", file="applications.json", field="applications")
     ]
-    items, catalogue_hash = loader.load_mapping_items(loader.MAPPING_DATA_DIR, sets)
+    items, catalogue_hash = loader.load_mapping_items(sets)
     evolutions = _load_evolutions()
     features = [f for evo in evolutions for p in evo.plateaus for f in p.features]
     session = DummySession(
@@ -173,7 +173,7 @@ def test_strict_mapping_raises_on_unknown_ids(monkeypatch, tmp_path) -> None:
     sets = [
         MappingSet(name="Applications", file="applications.json", field="applications")
     ]
-    items, catalogue_hash = loader.load_mapping_items(loader.MAPPING_DATA_DIR, sets)
+    items, catalogue_hash = loader.load_mapping_items(sets)
     evolutions = _load_evolutions()
     features = [f for evo in evolutions for p in evo.plateaus for f in p.features]
     session = DummySession(

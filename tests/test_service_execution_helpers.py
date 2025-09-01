@@ -66,8 +66,9 @@ def _execution() -> ServiceExecution:
 def test_ensure_run_meta_initialises_once(monkeypatch):
     exec_obj = _execution()
     monkeypatch.setattr(se, "load_mapping_items", lambda *a, **k: ({}, "0" * 64))
-    se._RUN_META = None
-    settings = RuntimeEnv.instance().settings
+    env = RuntimeEnv.instance()
+    env.state.pop("run_meta", None)
+    settings = env.settings
     exec_obj._ensure_run_meta(
         settings,
         "desc-model",
@@ -75,6 +76,15 @@ def test_ensure_run_meta_initialises_once(monkeypatch):
         "map-model",
         SimpleNamespace(max_input_tokens=0),
     )
-    assert se._RUN_META is not None
-    assert se._RUN_META.models["descriptions"] == "desc-model"
-    se._RUN_META = None
+    meta = env.state.get("run_meta")
+    assert meta is not None
+    assert meta.models["descriptions"] == "desc-model"
+    exec_obj._ensure_run_meta(
+        settings,
+        "other-desc",
+        "other-feat",
+        "other-map",
+        SimpleNamespace(max_input_tokens=0),
+    )
+    assert env.state.get("run_meta") is meta
+    env.state.pop("run_meta", None)

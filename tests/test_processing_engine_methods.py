@@ -115,6 +115,7 @@ async def test_finalise_writes_runtime_lines(tmp_path):
     )
     runtime = ServiceRuntime(svc)
     runtime.line = '{"ok": true}'
+    runtime.success = True
     engine.runtimes.append(runtime)
 
     await engine.finalise()
@@ -140,7 +141,8 @@ async def test_generate_evolution_aggregates_success(monkeypatch, tmp_path):
             self.runtime = runtime
 
         async def run(self) -> bool:  # pragma: no cover - trivial
-            return outcomes[self.runtime.service.service_id]
+            self.runtime.success = outcomes[self.runtime.service.service_id]
+            return self.runtime.success
 
     monkeypatch.setattr("engine.service_execution.ServiceExecution", DummyExecution)
     monkeypatch.setattr("engine.processing_engine.ServiceExecution", DummyExecution)

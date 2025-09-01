@@ -16,7 +16,7 @@ def test_load_mapping_items_missing_dir(tmp_path: Path) -> None:
 
     missing = tmp_path / "missing"
     with pytest.raises(FileNotFoundError):
-        load_mapping_items(missing, [])
+        load_mapping_items([], data_dir=missing)
 
 
 def test_load_mapping_items_sorted(tmp_path: Path) -> None:
@@ -32,7 +32,7 @@ def test_load_mapping_items_sorted(tmp_path: Path) -> None:
     (data_dir / "applications.json").write_text(json.dumps(items), encoding="utf-8")
 
     sets = [MappingSet(name="Apps", file="applications.json", field="applications")]
-    result, catalogue_hash = load_mapping_items(data_dir, sets)
+    result, catalogue_hash = load_mapping_items(sets, data_dir=data_dir)
 
     ids = [item.id for item in result["applications"]]
     names = [item.name for item in result["applications"]]

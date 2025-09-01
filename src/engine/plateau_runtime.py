@@ -12,11 +12,7 @@ from pydantic import ValidationError
 from pydantic_core import from_json
 
 from conversation import ConversationSession
-from loader import (
-    MAPPING_DATA_DIR,
-    load_mapping_items,
-    load_prompt_text,
-)
+from loader import load_mapping_items, load_prompt_text
 from mapping import cache_write_json_atomic, group_features_by_mapping, map_set
 from models import (
     FeatureItem,
@@ -215,19 +211,13 @@ class PlateauRuntime:
         payload = await session.ask_async(prompt)
         return payload.features
 
-    async def generate_features(
+    def _load_cached_payload(
         self,
-        session: ConversationSession,
-        *,
         service_id: str,
-        service_name: str,
-        roles: Sequence[str],
-        required_count: int,
-        code_registry: ShortCodeRegistry,
         use_local_cache: bool,
         cache_mode: Literal["off", "read", "refresh", "write"],
-    ) -> None:
-        """Populate ``self.features`` using ``session``."""
+    ) -> tuple[PlateauFeaturesResponse | None, Path | None]:
+        """Return cached feature payload when available."""
 
         payload: PlateauFeaturesResponse | None = None
         cache_file: Path | None = None
@@ -243,51 +233,107 @@ class PlateauRuntime:
                         candidate.unlink()
                 except (ValidationError, ValueError) as exc:
                     raise RuntimeError(f"Invalid feature cache: {candidate}") from exc
+        return payload, cache_file
 
+    async def _dispatch_feature_prompt(
+        self,
+        session: ConversationSession,
+        *,
+        service_id: str,
+        service_name: str,
+        roles: Sequence[str],
+        required_count: int,
+    ) -> PlateauFeaturesResponse:
+        """Return features generated via LLM prompt."""
+
+        prompt = self._build_plateau_prompt(
+            service_name=service_name,
+            description=self.description,
+            roles=roles,
+            required_count=required_count,
+        )
+        logfire.info("Requesting features", plateau=self.plateau, service=service_id)
+        return await session.ask_async(prompt)
+
+    async def _recover_feature_shortfalls(
+        self,
+        valid: dict[str, list[FeatureItem]],
+        invalid_roles: list[str],
+        missing: dict[str, int],
+        *,
+        level: int,
+        description: str,
+        session: ConversationSession,
+        required_count: int,
+        roles: Sequence[str],
+    ) -> dict[str, list[FeatureItem]]:
+        """Return roles with recovered features."""
+
+        fixes = await self._recover_invalid_roles(
+            invalid_roles,
+            level=level,
+            description=description,
+            session=session,
+            required_count=required_count,
+        )
+        valid.update(fixes)
+        tasks = {
+            role: asyncio.create_task(
+                self._request_missing_features_async(
+                    level, role, description, need, session
+                )
+            )
+            for role, need in missing.items()
+        }
+        if tasks:
+            results = await asyncio.gather(*tasks.values())
+            for role, extras in zip(tasks.keys(), results, strict=False):
+                valid[role].extend(extras)
+        self._enforce_min_features(valid, roles=roles, required=required_count)
+        return valid
+
+    async def generate_features(
+        self,
+        session: ConversationSession,
+        *,
+        service_id: str,
+        service_name: str,
+        roles: Sequence[str],
+        required_count: int,
+        code_registry: ShortCodeRegistry,
+        use_local_cache: bool,
+        cache_mode: Literal["off", "read", "refresh", "write"],
+    ) -> None:
+        """Populate ``self.features`` using ``session``."""
+
+        payload, cache_file = self._load_cached_payload(
+            service_id, use_local_cache, cache_mode
+        )
         if payload is None:
-            prompt = self._build_plateau_prompt(
+            payload = await self._dispatch_feature_prompt(
+                session,
+                service_id=service_id,
                 service_name=service_name,
-                description=self.description,
                 roles=roles,
                 required_count=required_count,
             )
-            logfire.info(
-                "Requesting features", plateau=self.plateau, service=service_id
-            )
-            payload = await session.ask_async(prompt)
             role_data = payload.features
             valid, invalid_roles, missing = self._validate_roles(
                 role_data, roles=roles, required_count=required_count
             )
-            fixes = await self._recover_invalid_roles(
+            valid = await self._recover_feature_shortfalls(
+                valid,
                 invalid_roles,
+                missing,
                 level=self.plateau,
                 description=self.description,
                 session=session,
                 required_count=required_count,
+                roles=roles,
             )
-            valid.update(fixes)
-            tasks = {
-                role: asyncio.create_task(
-                    self._request_missing_features_async(
-                        self.plateau,
-                        role,
-                        self.description,
-                        need,
-                        session,
-                    )
-                )
-                for role, need in missing.items()
-            }
-            if tasks:
-                results = await asyncio.gather(*tasks.values())
-                for role, extras in zip(tasks.keys(), results, strict=False):
-                    valid[role].extend(extras)
-            self._enforce_min_features(valid, roles=roles, required=required_count)
-            block: dict[str, list[FeatureItem]] = {
-                role: list(valid.get(role, [])) for role in roles
-            }
-            payload = PlateauFeaturesResponse(features=block)
+            payload = PlateauFeaturesResponse(
+                features={role: list(valid.get(role, [])) for role in roles}
+            )
             if use_local_cache and cache_mode != "off":
                 cache_write_json_atomic(
                     cache_file or self._feature_cache_path(service_id),
@@ -312,9 +358,7 @@ class PlateauRuntime:
         """Populate ``self.mappings`` for ``self.features``."""
 
         settings = RuntimeEnv.instance().settings
-        items, catalogue_hash = load_mapping_items(
-            MAPPING_DATA_DIR, settings.mapping_sets
-        )
+        items, catalogue_hash = load_mapping_items(settings.mapping_sets)
 
         groups: dict[str, list[MappingFeatureGroup]] = {}
         for cfg in settings.mapping_sets:
