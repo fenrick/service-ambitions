@@ -72,6 +72,10 @@ class Settings(BaseSettings):
     diagnostics: bool = Field(
         False, description="Enable verbose diagnostics and tracing."
     )
+    strict: bool = Field(
+        False,
+        description="Fail when features or mappings are missing.",
+    )
     strict_mapping: bool = Field(
         False, description="Fail when feature mappings are missing."
     )
@@ -132,6 +136,7 @@ def load_settings() -> Settings:
             mapping_data_dir=getattr(config, "mapping_data_dir", Path("data")),
             mapping_sets=getattr(config, "mapping_sets", []),
             diagnostics=getattr(config, "diagnostics", False),
+            strict=getattr(config, "strict", False),
             strict_mapping=getattr(config, "strict_mapping", False),
             mapping_mode=getattr(config, "mapping_mode", "per_set"),
             _env_file=env_file,

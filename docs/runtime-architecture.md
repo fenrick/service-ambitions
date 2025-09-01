@@ -61,7 +61,7 @@ Legacy files are discovered and relocated to the canonical structure.
 Caches are indented JSON dictionaries for easy inspection.  Invalid or
 non‑dictionary content halts processing with a descriptive error.
 
-Prompt templates are lazily loaded with `PromptLoader` and cached via an
-LRU to avoid repeated disk access.  Tests can reset the cache using the
-`clear_prompt_cache()` hook.
+Prompt templates are lazily loaded with `FilePromptLoader`, which retains an
+in-memory cache to avoid repeated disk access.  Tests can reset the cache via
+the `clear_prompt_cache()` hook.
 

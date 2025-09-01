@@ -63,3 +63,5 @@ features_per_role: 5        # Required number of features per role.
 use_local_cache: true       # Enable reading/writing the cache directory.
 cache_mode: "read"          # Cache behaviour: off, read, refresh or write.
 cache_dir: .cache           # Directory to store cache files.
+diagnostics: false          # Enable verbose diagnostics and tracing.
+strict: false               # Fail when features or mappings are missing.

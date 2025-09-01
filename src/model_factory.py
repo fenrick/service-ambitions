@@ -37,6 +37,12 @@ class ModelFactory:
         self._web_search = web_search
         self._cache: Dict[str, Model] = {}
 
+    @property
+    def seed(self) -> int | None:
+        """Return the deterministic seed configured for model generation."""
+
+        return self._seed
+
     def model_name(self, stage: str, override: str | None = None) -> str:
         """Return the resolved model name for ``stage``."""
 

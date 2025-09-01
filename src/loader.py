@@ -212,9 +212,16 @@ def load_prompt_text(prompt_name: str, base_dir: Path | str | None = None) -> st
 
 
 def clear_prompt_cache() -> None:
-    """Invalidate any cached prompt text."""
+    """Invalidate memoised prompt text."""
 
     load_prompt_text.cache_clear()
+    _prompt_loader.clear_cache()
+
+
+def clear_mapping_cache() -> None:
+    """Invalidate memoised mapping catalogues."""
+
+    _mapping_loader.clear_cache()
 
 
 def load_mapping_items(

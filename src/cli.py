@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import inspect
-import json
 import random
 from pathlib import Path
 from typing import Any, Coroutine, cast
@@ -18,18 +17,17 @@ import loader
 import mapping
 import telemetry
 from canonical import canonicalise_record
-from conversation import ConversationSession
+from cli_mapping import load_catalogue, remap_features, write_output
 from engine.processing_engine import ProcessingEngine
 from loader import configure_mapping_data_dir, load_mapping_items
 from models import (
     Contribution,
     FeatureItem,
-    FeatureMappingRef,
     MappingFeature,
-    MappingFeatureGroup,
     MappingResponse,
     PlateauFeaturesResponse,
     ServiceEvolution,
+    StageModels,
 )
 from monitoring import init_logfire
 from plateau_generator import _feature_cache_path
@@ -71,71 +69,28 @@ async def _cmd_validate(args: argparse.Namespace, transcripts_dir: Path | None) 
 
 async def _cmd_map(args: argparse.Namespace, transcripts_dir: Path | None) -> None:
     """Populate feature mappings for an existing features file."""
+    input_path = Path(args.input_file)
+    if not input_path.exists():
+        raise FileNotFoundError(input_path)
 
     settings = RuntimeEnv.instance().settings
-    configure_mapping_data_dir(args.mapping_data_dir or settings.mapping_data_dir)
-    items, catalogue_hash = load_mapping_items(
-        loader.MAPPING_DATA_DIR, settings.mapping_sets
-    )
+    items, catalogue_hash = load_catalogue(args.mapping_data_dir, settings)
 
-    text = Path(args.input_file).read_text(encoding="utf-8")
+    text = input_path.read_text(encoding="utf-8")
     evolutions = [
         ServiceEvolution.model_validate_json(line)
         for line in text.splitlines()
         if line.strip()
     ]
 
-    features = [f for evo in evolutions for p in evo.plateaus for f in p.features]
-    mapped = features
-    for cfg in settings.mapping_sets:
-        mapped = await mapping.map_set(
-            cast(ConversationSession, object()),
-            cfg.field,
-            items[cfg.field],
-            mapped,
-            service_name="svc",
-            service_description="desc",
-            plateau=1,
-            strict=settings.strict_mapping,
-            diagnostics=settings.diagnostics,
-            cache_mode=args.cache_mode,
-            catalogue_hash=catalogue_hash,
-        )
-
-    catalogue_lookup = {
-        cfg.field: {item.id: item.name for item in items[cfg.field]}
-        for cfg in settings.mapping_sets
-    }
-    by_id = {f.feature_id: f for f in mapped}
-    for evo in evolutions:
-        for plateau in evo.plateaus:
-            mapped_feats = [by_id[f.feature_id] for f in plateau.features]
-            plateau.mappings = {}
-            for cfg in settings.mapping_sets:
-                groups: dict[str, list[FeatureMappingRef]] = {}
-                for feat in mapped_feats:
-                    for contrib in feat.mappings.get(cfg.field, []):
-                        groups.setdefault(contrib.item, []).append(
-                            FeatureMappingRef(
-                                feature_id=feat.feature_id,
-                                description=feat.description,
-                            )
-                        )
-                catalogue = catalogue_lookup[cfg.field]
-                plateau.mappings[cfg.field] = [
-                    MappingFeatureGroup(
-                        id=item_id,
-                        name=catalogue.get(item_id, item_id),
-                        mappings=sorted(refs, key=lambda r: r.feature_id),
-                    )
-                    for item_id, refs in sorted(groups.items())
-                ]
-
-    output_path = Path(args.output_file)
-    with output_path.open("w", encoding="utf-8") as fh:
-        for evo in evolutions:
-            record = canonicalise_record(evo.model_dump(mode="json"))
-            fh.write(json.dumps(record, separators=(",", ":"), sort_keys=True) + "\n")
+    await remap_features(
+        evolutions,
+        items,
+        settings,
+        args.cache_mode,
+        catalogue_hash,
+    )
+    write_output(evolutions, Path(args.output_file))
 
 
 def _cmd_reverse(args: argparse.Namespace, transcripts_dir: Path | None) -> None:
@@ -341,13 +296,13 @@ def main() -> None:
     common.add_argument(
         "--strict",
         action=argparse.BooleanOptionalAction,
-        default=False,
+        default=None,
         help="Fail on missing roles or mappings when enabled",
     )
     common.add_argument(
         "--use-local-cache",
         action=argparse.BooleanOptionalAction,
-        default=True,
+        default=None,
         help=(
             "Enable reading/writing the cache directory for mapping results. "
             "When disabled, cache options are ignored"
@@ -356,7 +311,7 @@ def main() -> None:
     common.add_argument(
         "--cache-mode",
         choices=("off", "read", "refresh", "write"),
-        default="read",
+        default=None,
         help=(
             "Caching behaviour (default 'read'): 'off' disables caching, "
             "'read' uses existing entries without writing, 'refresh' "
@@ -366,7 +321,7 @@ def main() -> None:
     )
     common.add_argument(
         "--cache-dir",
-        default=".cache",
+        default=None,
         help=(
             "Directory to store cache files; defaults to '.cache' in the "
             "current working directory"
@@ -463,19 +418,48 @@ def main() -> None:
     val_p.set_defaults(func=_cmd_validate)
 
     args = parser.parse_args()
-
     settings = load_settings()
-    RuntimeEnv.initialize(settings)
 
-    if args.seed is not None:
-        random.seed(args.seed)
-
+    if args.model is not None:
+        settings.model = args.model
+    stage_models = settings.models or StageModels(
+        descriptions=None,
+        features=None,
+        mapping=None,
+        search=None,
+    )
+    if args.descriptions_model is not None:
+        stage_models.descriptions = args.descriptions_model
+    if args.features_model is not None:
+        stage_models.features = args.features_model
+    if args.mapping_model is not None:
+        stage_models.mapping = args.mapping_model
+    if args.search_model is not None:
+        stage_models.search = args.search_model
+    settings.models = stage_models
+    if args.concurrency is not None:
+        settings.concurrency = args.concurrency
     if args.strict_mapping is not None:
         settings.strict_mapping = args.strict_mapping
     if args.mapping_data_dir is not None:
         settings.mapping_data_dir = Path(args.mapping_data_dir)
+    if args.web_search is not None:
+        settings.web_search = args.web_search
+    if args.use_local_cache is not None:
+        settings.use_local_cache = args.use_local_cache
+    if args.cache_mode is not None:
+        settings.cache_mode = args.cache_mode
+    if args.cache_dir is not None:
+        settings.cache_dir = Path(args.cache_dir)
+    if args.strict is not None:
+        settings.strict = args.strict
     if not hasattr(settings, "mapping_mode"):
         settings.mapping_mode = "per_set"
+
+    RuntimeEnv.initialize(settings)
+
+    if args.seed is not None:
+        random.seed(args.seed)
 
     _configure_logging(args, settings)
 

@@ -47,6 +47,8 @@ def test_cli_reverse_generates_caches(monkeypatch, tmp_path) -> None:
         logfire_token=None,
         diagnostics=False,
         strict_mapping=False,
+        strict=False,
+        models=None,
         use_local_cache=True,
         cache_mode="read",
         cache_dir=cache_dir,

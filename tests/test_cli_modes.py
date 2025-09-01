@@ -17,6 +17,9 @@ def _prepare_settings():
         logfire_token=None,
         diagnostics=False,
         strict_mapping=False,
+        strict=False,
+        model="openai:gpt-5",
+        models=None,
         use_local_cache=True,
         cache_mode="read",
         cache_dir=Path(".cache"),
@@ -82,9 +85,9 @@ def test_cache_args_defaults(monkeypatch):
 
     args = called["args"]
     settings = called["settings"]
-    assert args.use_local_cache is True
-    assert args.cache_mode == "read"
-    assert args.cache_dir == ".cache"
+    assert args.use_local_cache is None
+    assert args.cache_mode is None
+    assert args.cache_dir is None
     assert settings.use_local_cache is True
     assert settings.cache_mode == "read"
     assert settings.cache_dir == Path(".cache")
@@ -97,6 +100,7 @@ def test_cache_args_custom(monkeypatch):
 
     async def fake_generate(args, transcripts_dir):
         called["args"] = args
+        called["settings"] = RuntimeEnv.instance().settings
 
     monkeypatch.setattr(cli, "_cmd_generate_evolution", fake_generate)
     monkeypatch.setattr(cli, "load_settings", _prepare_settings)
@@ -119,6 +123,10 @@ def test_cache_args_custom(monkeypatch):
     cli.main()
 
     args = called["args"]
+    settings = called["settings"]
     assert args.use_local_cache is True
     assert args.cache_mode == "write"
     assert args.cache_dir == "/tmp/cache"
+    assert settings.use_local_cache is True
+    assert settings.cache_mode == "write"
+    assert settings.cache_dir == Path("/tmp/cache")

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
@@ -35,6 +34,7 @@ from plateau_generator import (
 )
 from quarantine import QuarantineWriter
 from runtime.environment import RuntimeEnv
+from utils import ErrorHandler
 
 SERVICES_PROCESSED = logfire.metric_counter("services_processed")
 EVOLUTIONS_GENERATED = logfire.metric_counter("evolutions_generated")
@@ -58,7 +58,6 @@ class ServiceExecution:
         service: ServiceInput,
         *,
         factory: ModelFactory,
-        args: argparse.Namespace,
         system_prompt: str,
         transcripts_dir: Path | None,
         role_ids: Sequence[str],
@@ -66,10 +65,11 @@ class ServiceExecution:
         output,
         new_ids: set[str],
         temp_output_dir: Path | None,
+        allow_prompt_logging: bool,
+        error_handler: ErrorHandler,
     ) -> None:
         self.service = service
         self.factory = factory
-        self.args = args
         self.system_prompt = system_prompt
         self.transcripts_dir = transcripts_dir
         self.role_ids = role_ids
@@ -77,24 +77,24 @@ class ServiceExecution:
         self.output = output
         self.new_ids = new_ids
         self.temp_output_dir = temp_output_dir
+        self.allow_prompt_logging = allow_prompt_logging
+        self.error_handler = error_handler
         self.line: str | None = None
 
     async def run(self) -> bool:
         """Generate the evolution for ``service`` and store the result.
 
-        Returns ``True`` on success, ``False`` otherwise.  Generated artefacts
-        are kept on the instance for later persistence.
+        Returns:
+            ``True`` on success, ``False`` otherwise.
+
+        Side effects:
+            Updates metrics, writes quarantine files on failure and stores the
+            generated line on the instance for later persistence.
         """
 
-        desc_name = self.factory.model_name(
-            "descriptions", self.args.descriptions_model or self.args.model
-        )
-        feat_name = self.factory.model_name(
-            "features", self.args.features_model or self.args.model
-        )
-        map_name = self.factory.model_name(
-            "mapping", self.args.mapping_model or self.args.model
-        )
+        desc_name = self.factory.model_name("descriptions")
+        feat_name = self.factory.model_name("features")
+        map_name = self.factory.model_name("mapping")
         attrs = {
             "service_id": self.service.service_id,
             "service_name": self.service.name,
@@ -106,15 +106,9 @@ class ServiceExecution:
         with logfire.span("generate_evolution_for_service", attributes=attrs):
             try:
                 SERVICES_PROCESSED.add(1)
-                desc_model = self.factory.get(
-                    "descriptions", self.args.descriptions_model or self.args.model
-                )
-                feat_model = self.factory.get(
-                    "features", self.args.features_model or self.args.model
-                )
-                map_model = self.factory.get(
-                    "mapping", self.args.mapping_model or self.args.model
-                )
+                desc_model = self.factory.get("descriptions")
+                feat_model = self.factory.get("features")
+                map_model = self.factory.get("mapping")
 
                 settings = RuntimeEnv.instance().settings
 
@@ -141,28 +135,28 @@ class ServiceExecution:
                     desc_agent,
                     stage="descriptions",
                     diagnostics=settings.diagnostics,
-                    log_prompts=self.args.allow_prompt_logging,
+                    log_prompts=self.allow_prompt_logging,
                     transcripts_dir=self.transcripts_dir,
-                    use_local_cache=self.args.use_local_cache,
-                    cache_mode=self.args.cache_mode,
+                    use_local_cache=settings.use_local_cache,
+                    cache_mode=settings.cache_mode,
                 )
                 feat_session = ConversationSession(
                     feat_agent,
                     stage="features",
                     diagnostics=settings.diagnostics,
-                    log_prompts=self.args.allow_prompt_logging,
+                    log_prompts=self.allow_prompt_logging,
                     transcripts_dir=self.transcripts_dir,
-                    use_local_cache=self.args.use_local_cache,
-                    cache_mode=self.args.cache_mode,
+                    use_local_cache=settings.use_local_cache,
+                    cache_mode=settings.cache_mode,
                 )
                 map_session = ConversationSession(
                     map_agent,
                     stage="mapping",
                     diagnostics=settings.diagnostics,
-                    log_prompts=self.args.allow_prompt_logging,
+                    log_prompts=self.allow_prompt_logging,
                     transcripts_dir=self.transcripts_dir,
-                    use_local_cache=self.args.use_local_cache,
-                    cache_mode=self.args.cache_mode,
+                    use_local_cache=settings.use_local_cache,
+                    cache_mode=settings.cache_mode,
                 )
                 generator = PlateauGenerator(
                     feat_session,
@@ -170,9 +164,9 @@ class ServiceExecution:
                     roles=self.role_ids,
                     description_session=desc_session,
                     mapping_session=map_session,
-                    strict=self.args.strict,
-                    use_local_cache=self.args.use_local_cache,
-                    cache_mode=self.args.cache_mode,
+                    strict=settings.strict,
+                    use_local_cache=settings.use_local_cache,
+                    cache_mode=settings.cache_mode,
                 )
                 global _RUN_META
                 if _RUN_META is None:
@@ -180,9 +174,7 @@ class ServiceExecution:
                         "descriptions": desc_name,
                         "features": feat_name,
                         "mapping": map_name,
-                        "search": self.factory.model_name(
-                            "search", self.args.search_model or self.args.model
-                        ),
+                        "search": self.factory.model_name("search"),
                     }
                     _, catalogue_hash = load_mapping_items(
                         loader.MAPPING_DATA_DIR, settings.mapping_sets
@@ -190,7 +182,7 @@ class ServiceExecution:
                     context_window = getattr(feat_model, "max_input_tokens", 0)
                     _RUN_META = ServiceMeta(
                         run_id=str(uuid4()),
-                        seed=self.args.seed,
+                        seed=self.factory.seed,
                         models=models_map,
                         web_search=getattr(self.factory, "_web_search", False),
                         mapping_types=sorted(
@@ -236,11 +228,10 @@ class ServiceExecution:
                     "schema_mismatch",
                     self.service.model_dump(),
                 )
-                logfire.exception(
-                    "Failed to generate evolution",
-                    service_id=self.service.service_id,
-                    error=str(exc),
-                    quarantine_file=str(quarantine_file),
+                self.error_handler.handle(
+                    "Failed to generate evolution for "
+                    f"{self.service.service_id}; quarantined {quarantine_file}",
+                    exc,
                 )
                 return False
 
