@@ -10,14 +10,11 @@ import logging
 import os
 import random
 import sys
-from datetime import datetime, timezone
 from itertools import islice
 from pathlib import Path
-from typing import Any, Coroutine, Sequence, cast
-from uuid import uuid4
+from typing import Any, Coroutine, cast
 
 import logfire
-from pydantic_ai import Agent
 from pydantic_core import to_json
 from tqdm import tqdm  # type: ignore[import-untyped]
 
@@ -26,6 +23,7 @@ import mapping
 import telemetry
 from canonical import canonicalise_record
 from conversation import ConversationSession
+from engine import ServiceExecution
 from loader import (
     configure_mapping_data_dir,
     configure_prompt_dir,
@@ -39,22 +37,12 @@ from models import (
     MappingFeatureGroup,
     ServiceEvolution,
     ServiceInput,
-    ServiceMeta,
 )
 from monitoring import LOG_FILE_NAME, init_logfire
 from persistence import atomic_write, read_lines
-from plateau_generator import PlateauGenerator
-from quarantine import QuarantineWriter
 from runtime.environment import RuntimeEnv
 from service_loader import load_services
 from settings import load_settings
-
-SERVICES_PROCESSED = logfire.metric_counter("services_processed")
-EVOLUTIONS_GENERATED = logfire.metric_counter("evolutions_generated")
-LINES_WRITTEN = logfire.metric_counter("lines_written")
-
-_RUN_META: ServiceMeta | None = None
-_writer = QuarantineWriter()
 
 SERVICES_FILE_HELP = "Path to the services JSONL file"
 OUTPUT_FILE_HELP = "File to write the results"
@@ -156,149 +144,6 @@ def _save_results(
         processed_ids = new_ids
     atomic_write(processed_path, sorted(processed_ids))
     return processed_ids
-
-
-async def _generate_evolution_for_service(
-    service: ServiceInput,
-    *,
-    factory: ModelFactory,
-    settings,
-    args: argparse.Namespace,
-    system_prompt: str,
-    transcripts_dir: Path | None,
-    role_ids: Sequence[str],
-    lock: asyncio.Lock,
-    output,
-    new_ids: set[str],
-    temp_output_dir: Path | None,
-) -> None:
-    """Generate evolution for ``service`` and record results."""
-
-    desc_name = factory.model_name(
-        "descriptions", args.descriptions_model or args.model
-    )
-    feat_name = factory.model_name("features", args.features_model or args.model)
-    map_name = factory.model_name("mapping", args.mapping_model or args.model)
-    attrs = {
-        "service_id": service.service_id,
-        "service_name": service.name,
-        "descriptions_model": desc_name,
-        "features_model": feat_name,
-        "mapping_model": map_name,
-        "output_path": getattr(output, "name", ""),
-    }
-    with logfire.span("generate_evolution_for_service", attributes=attrs):
-        try:
-            SERVICES_PROCESSED.add(1)
-            desc_model = factory.get(
-                "descriptions", args.descriptions_model or args.model
-            )
-            feat_model = factory.get("features", args.features_model or args.model)
-            map_model = factory.get("mapping", args.mapping_model or args.model)
-
-            desc_agent = Agent(desc_model, instructions=system_prompt)
-            feat_agent = Agent(feat_model, instructions=system_prompt)
-            map_agent = Agent(map_model, instructions=system_prompt)
-
-            desc_session = ConversationSession(
-                desc_agent,
-                stage="descriptions",
-                diagnostics=settings.diagnostics,
-                log_prompts=args.allow_prompt_logging,
-                transcripts_dir=transcripts_dir,
-                use_local_cache=args.use_local_cache,
-                cache_mode=args.cache_mode,
-            )
-            feat_session = ConversationSession(
-                feat_agent,
-                stage="features",
-                diagnostics=settings.diagnostics,
-                log_prompts=args.allow_prompt_logging,
-                transcripts_dir=transcripts_dir,
-                use_local_cache=args.use_local_cache,
-                cache_mode=args.cache_mode,
-            )
-            map_session = ConversationSession(
-                map_agent,
-                stage="mapping",
-                diagnostics=settings.diagnostics,
-                log_prompts=args.allow_prompt_logging,
-                transcripts_dir=transcripts_dir,
-                use_local_cache=args.use_local_cache,
-                cache_mode=args.cache_mode,
-            )
-            generator = PlateauGenerator(
-                feat_session,
-                required_count=settings.features_per_role,
-                roles=role_ids,
-                description_session=desc_session,
-                mapping_session=map_session,
-                strict=args.strict,
-                use_local_cache=args.use_local_cache,
-                cache_mode=args.cache_mode,
-            )
-            global _RUN_META
-            if _RUN_META is None:
-                models_map = {
-                    "descriptions": desc_name,
-                    "features": feat_name,
-                    "mapping": map_name,
-                    "search": factory.model_name(
-                        "search", args.search_model or args.model
-                    ),
-                }
-                _, catalogue_hash = load_mapping_items(
-                    loader.MAPPING_DATA_DIR, settings.mapping_sets
-                )
-                context_window = getattr(feat_model, "max_input_tokens", 0)
-                _RUN_META = ServiceMeta(
-                    run_id=str(uuid4()),
-                    seed=args.seed,
-                    models=models_map,
-                    web_search=getattr(factory, "_web_search", False),
-                    mapping_types=sorted(getattr(settings, "mapping_types", {}).keys()),
-                    context_window=context_window,
-                    diagnostics=settings.diagnostics,
-                    catalogue_hash=catalogue_hash,
-                    created=datetime.now(timezone.utc),
-                )
-            evolution = await generator.generate_service_evolution_async(
-                service,
-                transcripts_dir=transcripts_dir,
-                meta=_RUN_META,
-            )
-            record = canonicalise_record(evolution.model_dump(mode="json"))
-            if temp_output_dir is not None:
-                temp_output_dir.mkdir(parents=True, exist_ok=True)
-                atomic_write(
-                    temp_output_dir / f"{service.service_id}.json",
-                    [to_json(record).decode()],
-                )
-            line = to_json(record).decode()
-            async with lock:
-                await asyncio.to_thread(output.write, f"{line}\n")
-                new_ids.add(service.service_id)
-                EVOLUTIONS_GENERATED.add(1)
-                LINES_WRITTEN.add(1)
-            logfire.info(
-                "Generated evolution",
-                service_id=service.service_id,
-                output_path=getattr(output, "name", ""),
-            )
-        except Exception as exc:  # noqa: BLE001
-            quarantine_file = await asyncio.to_thread(
-                _writer.write,
-                "evolution",
-                service.service_id,
-                "schema_mismatch",
-                service.model_dump(),
-            )
-            logfire.exception(
-                "Failed to generate evolution",
-                service_id=service.service_id,
-                error=str(exc),
-                quarantine_file=str(quarantine_file),
-            )
 
 
 async def _cmd_run(
@@ -449,7 +294,7 @@ async def _cmd_generate_evolution(
 
     async def run_one(service: ServiceInput) -> None:
         async with sem:
-            await _generate_evolution_for_service(
+            execution = ServiceExecution(
                 service,
                 factory=factory,
                 settings=settings,
@@ -462,6 +307,8 @@ async def _cmd_generate_evolution(
                 new_ids=new_ids,
                 temp_output_dir=temp_output_dir,
             )
+            if await execution.run():
+                await execution.finalise()
             if progress:
                 progress.update(1)
 

@@ -270,10 +270,7 @@ def test_cli_generate_matches_golden(monkeypatch, tmp_path, dummy_agent) -> None
                 model_dump=lambda mode=None: resp.output.model_dump()
             )
 
-    monkeypatch.setattr(cli, "Agent", dummy_agent)
-    monkeypatch.setattr(cli, "ConversationSession", DummySession)
     monkeypatch.setattr(cli, "ModelFactory", DummyModelFactory)
-    monkeypatch.setattr(cli, "PlateauGenerator", DummyPlateauGenerator)
     monkeypatch.setattr(cli, "load_settings", _settings)
     monkeypatch.setattr(cli, "_configure_logging", lambda *a, **k: None)
     monkeypatch.setattr(cli, "_load_services_list", _load_services_stub)
@@ -282,6 +279,12 @@ def test_cli_generate_matches_golden(monkeypatch, tmp_path, dummy_agent) -> None
     monkeypatch.setattr(cli, "load_evolution_prompt", lambda *a, **k: "prompt")
     monkeypatch.setattr(cli, "load_role_ids", lambda *a, **k: ["role"])
     monkeypatch.setattr(cli, "load_mapping_items", lambda *a, **k: ([], "hash"))
+    import engine.service_execution as se
+
+    monkeypatch.setattr(se, "Agent", dummy_agent)
+    monkeypatch.setattr(se, "ConversationSession", DummySession)
+    monkeypatch.setattr(se, "PlateauGenerator", DummyPlateauGenerator)
+    monkeypatch.setattr(se, "canonicalise_record", lambda d: d)
     monkeypatch.setattr(cli, "canonicalise_record", lambda d: d)
 
     output_file = tmp_path / "out.jsonl"
