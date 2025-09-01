@@ -27,6 +27,7 @@ from plateau_generator import (
     PlateauGenerator,
 )
 from quarantine import QuarantineWriter
+from runtime.environment import RuntimeEnv
 
 SERVICES_PROCESSED = logfire.metric_counter("services_processed")
 EVOLUTIONS_GENERATED = logfire.metric_counter("evolutions_generated")
@@ -50,7 +51,6 @@ class ServiceExecution:
         service: ServiceInput,
         *,
         factory: ModelFactory,
-        settings,
         args: argparse.Namespace,
         system_prompt: str,
         transcripts_dir: Path | None,
@@ -62,7 +62,6 @@ class ServiceExecution:
     ) -> None:
         self.service = service
         self.factory = factory
-        self.settings = settings
         self.args = args
         self.system_prompt = system_prompt
         self.transcripts_dir = transcripts_dir
@@ -114,10 +113,11 @@ class ServiceExecution:
                 feat_agent = Agent(feat_model, instructions=self.system_prompt)
                 map_agent = Agent(map_model, instructions=self.system_prompt)
 
+                settings = RuntimeEnv.instance().settings
                 desc_session = ConversationSession(
                     desc_agent,
                     stage="descriptions",
-                    diagnostics=self.settings.diagnostics,
+                    diagnostics=settings.diagnostics,
                     log_prompts=self.args.allow_prompt_logging,
                     transcripts_dir=self.transcripts_dir,
                     use_local_cache=self.args.use_local_cache,
@@ -126,7 +126,7 @@ class ServiceExecution:
                 feat_session = ConversationSession(
                     feat_agent,
                     stage="features",
-                    diagnostics=self.settings.diagnostics,
+                    diagnostics=settings.diagnostics,
                     log_prompts=self.args.allow_prompt_logging,
                     transcripts_dir=self.transcripts_dir,
                     use_local_cache=self.args.use_local_cache,
@@ -135,7 +135,7 @@ class ServiceExecution:
                 map_session = ConversationSession(
                     map_agent,
                     stage="mapping",
-                    diagnostics=self.settings.diagnostics,
+                    diagnostics=settings.diagnostics,
                     log_prompts=self.args.allow_prompt_logging,
                     transcripts_dir=self.transcripts_dir,
                     use_local_cache=self.args.use_local_cache,
@@ -143,7 +143,7 @@ class ServiceExecution:
                 )
                 generator = PlateauGenerator(
                     feat_session,
-                    required_count=self.settings.features_per_role,
+                    required_count=settings.features_per_role,
                     roles=self.role_ids,
                     description_session=desc_session,
                     mapping_session=map_session,
@@ -162,7 +162,7 @@ class ServiceExecution:
                         ),
                     }
                     _, catalogue_hash = load_mapping_items(
-                        loader.MAPPING_DATA_DIR, self.settings.mapping_sets
+                        loader.MAPPING_DATA_DIR, settings.mapping_sets
                     )
                     context_window = getattr(feat_model, "max_input_tokens", 0)
                     _RUN_META = ServiceMeta(
@@ -171,10 +171,10 @@ class ServiceExecution:
                         models=models_map,
                         web_search=getattr(self.factory, "_web_search", False),
                         mapping_types=sorted(
-                            getattr(self.settings, "mapping_types", {}).keys()
+                            getattr(settings, "mapping_types", {}).keys()
                         ),
                         context_window=context_window,
-                        diagnostics=self.settings.diagnostics,
+                        diagnostics=settings.diagnostics,
                         catalogue_hash=catalogue_hash,
                         created=datetime.now(timezone.utc),
                     )

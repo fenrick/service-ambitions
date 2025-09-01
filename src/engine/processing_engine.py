@@ -22,6 +22,7 @@ from loader import (
 from model_factory import ModelFactory
 from models import ServiceInput
 from persistence import atomic_write, read_lines
+from runtime.environment import RuntimeEnv
 from service_loader import load_services
 
 # Helper functions migrated from cli for reuse.
@@ -88,11 +89,8 @@ def _save_results(
 class ProcessingEngine:
     """Coordinate service evolution generation across multiple services."""
 
-    def __init__(
-        self, args: argparse.Namespace, settings, transcripts_dir: Path | None
-    ) -> None:
+    def __init__(self, args: argparse.Namespace, transcripts_dir: Path | None) -> None:
         self.args = args
-        self.settings = settings
         self.transcripts_dir = transcripts_dir
         self.output_path = Path(args.output_file)
         self.part_path, self.processed_path = _prepare_paths(
@@ -113,6 +111,7 @@ class ProcessingEngine:
         """Run evolutions for all loaded services."""
 
         with logfire.span("processing_engine.run"):
+            settings = RuntimeEnv.instance().settings
             logfire.info(
                 "Starting processing engine",
                 input_file=self.args.input_file,
@@ -120,24 +119,24 @@ class ProcessingEngine:
             use_web_search = (
                 self.args.web_search
                 if self.args.web_search is not None
-                else self.settings.web_search
+                else settings.web_search
             )
             factory = ModelFactory(
-                self.settings.model,
-                self.settings.openai_api_key,
-                stage_models=getattr(self.settings, "models", None),
-                reasoning=self.settings.reasoning,
+                settings.model,
+                settings.openai_api_key,
+                stage_models=getattr(settings, "models", None),
+                reasoning=settings.reasoning,
                 seed=self.args.seed,
                 web_search=use_web_search,
             )
-            configure_prompt_dir(self.settings.prompt_dir)
-            if self.args.mapping_data_dir is None and not self.settings.diagnostics:
+            configure_prompt_dir(settings.prompt_dir)
+            if self.args.mapping_data_dir is None and not settings.diagnostics:
                 raise RuntimeError("--mapping-data-dir is required in production mode")
             configure_mapping_data_dir(
-                self.args.mapping_data_dir or self.settings.mapping_data_dir
+                self.args.mapping_data_dir or settings.mapping_data_dir
             )
             system_prompt = load_evolution_prompt(
-                self.settings.context_id, self.settings.inspiration
+                settings.context_id, settings.inspiration
             )
             role_ids = load_role_ids(Path(self.args.roles_file))
             services = _load_services_list(
@@ -149,7 +148,7 @@ class ProcessingEngine:
             concurrency = (
                 self.args.concurrency
                 if self.args.concurrency is not None
-                else self.settings.concurrency
+                else settings.concurrency
             )
             if concurrency < 1:
                 raise ValueError("concurrency must be a positive integer")
@@ -173,7 +172,6 @@ class ProcessingEngine:
                     execution = ServiceExecution(
                         service,
                         factory=factory,
-                        settings=self.settings,
                         args=self.args,
                         system_prompt=system_prompt,
                         transcripts_dir=self.transcripts_dir,

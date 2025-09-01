@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import cli
+from runtime.environment import RuntimeEnv
 
 
 def _prepare_settings():
@@ -27,9 +28,9 @@ def test_run_invokes_generator(monkeypatch):
 
     called = {}
 
-    async def fake_generate(args, settings, transcripts_dir):
+    async def fake_generate(args, transcripts_dir):
         called["args"] = args
-        called["settings"] = settings
+        called["settings"] = RuntimeEnv.instance().settings
 
     monkeypatch.setattr(cli, "_cmd_generate_evolution", fake_generate)
     monkeypatch.setattr(cli, "load_settings", _prepare_settings)
@@ -47,9 +48,9 @@ def test_diagnose_enables_diagnostics(monkeypatch):
 
     called = {}
 
-    async def fake_generate(args, settings, transcripts_dir):
+    async def fake_generate(args, transcripts_dir):
         called["args"] = args
-        called["settings"] = settings
+        called["settings"] = RuntimeEnv.instance().settings
 
     monkeypatch.setattr(cli, "_cmd_generate_evolution", fake_generate)
     monkeypatch.setattr(cli, "load_settings", _prepare_settings)
@@ -68,9 +69,9 @@ def test_validate_sets_dry_run(monkeypatch):
 
     called = {}
 
-    async def fake_generate(args, settings, transcripts_dir):
+    async def fake_generate(args, transcripts_dir):
         called["args"] = args
-        called["settings"] = settings
+        called["settings"] = RuntimeEnv.instance().settings
 
     monkeypatch.setattr(cli, "_cmd_generate_evolution", fake_generate)
     monkeypatch.setattr(cli, "load_settings", _prepare_settings)
@@ -89,9 +90,9 @@ def test_cache_args_defaults(monkeypatch):
 
     called = {}
 
-    async def fake_generate(args, settings, transcripts_dir):
+    async def fake_generate(args, transcripts_dir):
         called["args"] = args
-        called["settings"] = settings
+        called["settings"] = RuntimeEnv.instance().settings
 
     monkeypatch.setattr(cli, "_cmd_generate_evolution", fake_generate)
     monkeypatch.setattr(cli, "load_settings", _prepare_settings)
@@ -115,7 +116,7 @@ def test_cache_args_custom(monkeypatch):
 
     called = {}
 
-    async def fake_generate(args, settings, transcripts_dir):
+    async def fake_generate(args, transcripts_dir):
         called["args"] = args
 
     monkeypatch.setattr(cli, "_cmd_generate_evolution", fake_generate)
