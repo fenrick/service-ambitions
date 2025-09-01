@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import inspect
-import json
 import logging
 import os
 import random
@@ -19,6 +18,7 @@ from uuid import uuid4
 
 import logfire
 from pydantic_ai import Agent
+from pydantic_core import to_json
 from tqdm import tqdm
 
 import loader
@@ -271,18 +271,9 @@ async def _generate_evolution_for_service(
                 temp_output_dir.mkdir(parents=True, exist_ok=True)
                 atomic_write(
                     temp_output_dir / f"{service.service_id}.json",
-                    [
-                        json.dumps(
-                            record,
-                            separators=(",", ":"),
-                            ensure_ascii=False,
-                            sort_keys=True,
-                        )
-                    ],
+                    [to_json(record).decode()],
                 )
-            line = json.dumps(
-                record, separators=(",", ":"), ensure_ascii=False, sort_keys=True
-            )
+            line = to_json(record).decode()
             async with lock:
                 await asyncio.to_thread(output.write, f"{line}\n")
                 new_ids.add(service.service_id)
@@ -403,7 +394,7 @@ async def _cmd_map(
     with output_path.open("w", encoding="utf-8") as fh:
         for evo in evolutions:
             record = canonicalise_record(evo.model_dump(mode="json"))
-            fh.write(json.dumps(record, separators=(",", ":"), sort_keys=True) + "\n")
+            fh.write(to_json(record).decode() + "\n")
 
 
 async def _cmd_generate_evolution(
