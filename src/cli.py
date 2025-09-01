@@ -23,7 +23,7 @@ import mapping
 import telemetry
 from canonical import canonicalise_record
 from conversation import ConversationSession
-from engine import ServiceExecution
+from engine.service_execution import ServiceExecution
 from loader import (
     configure_mapping_data_dir,
     configure_prompt_dir,

@@ -11,6 +11,7 @@ from typing import cast
 from pydantic_ai import Agent
 
 from conversation import ConversationSession
+from engine.plateau_runtime import PlateauRuntime
 from models import (
     SCHEMA_VERSION,
     FeatureMappingRef,
@@ -75,18 +76,7 @@ def _feature_payload(count: int) -> str:
 def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
     """``generate_service_evolution`` should aggregate all plateaus."""
 
-    desc_payload = json.dumps(
-        {
-            "descriptions": [
-                {"plateau": 1, "plateau_name": "Foundational", "description": "desc"},
-                {"plateau": 2, "plateau_name": "Enhanced", "description": "desc"},
-                {"plateau": 3, "plateau_name": "Autonomous", "description": "desc"},
-                {"plateau": 4, "plateau_name": "Outcome-Driven", "description": "desc"},
-            ]
-        }
-    )
-    responses: list[str] = [desc_payload]
-    responses += [_feature_payload(5) for _ in range(4)]
+    responses: list[str] = [_feature_payload(5) for _ in range(4)]
     agent = DummyAgent(responses)
     session = ConversationSession(
         cast(Agent[None, str], agent),
@@ -145,9 +135,15 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
         mapping_types=[],
         created=datetime.now(timezone.utc),
     )
+    runtimes = [
+        PlateauRuntime(plateau=i + 1, plateau_name=n, description="desc")
+        for i, n in enumerate(
+            ["Foundational", "Enhanced", "Autonomous", "Outcome-Driven"]
+        )
+    ]
     evolution = generator.generate_service_evolution(
         service,
-        ["Foundational", "Enhanced", "Autonomous", "Outcome-Driven"],
+        runtimes,
         ["learners", "academics", "professional_staff"],
         meta=meta,
     )

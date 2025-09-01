@@ -17,6 +17,7 @@ from pydantic_core import from_json
 from conversation import (
     ConversationSession,
 )
+from engine.plateau_runtime import PlateauRuntime
 from models import (
     FeatureItem,
     FeatureMappingRef,
@@ -258,9 +259,12 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
     generator._service = service
 
     desc_map = asyncio.run(generator._request_descriptions_async(["Foundational"]))
-    plateau = generator.generate_plateau(
-        1, "Foundational", description=desc_map["Foundational"]
+    runtime = PlateauRuntime(
+        plateau=1,
+        plateau_name="Foundational",
+        description=desc_map["Foundational"],
     )
+    plateau = generator.generate_plateau(runtime)
 
     assert isinstance(plateau, PlateauResult)
     assert len(plateau.features) == 3
@@ -350,9 +354,12 @@ def test_generate_plateau_repairs_missing_features(monkeypatch) -> None:
     generator._service = service
 
     desc_map = asyncio.run(generator._request_descriptions_async(["Foundational"]))
-    plateau = generator.generate_plateau(
-        1, "Foundational", description=desc_map["Foundational"]
+    runtime = PlateauRuntime(
+        plateau=1,
+        plateau_name="Foundational",
+        description=desc_map["Foundational"],
     )
+    plateau = generator.generate_plateau(runtime)
 
     assert len(session.prompts) == 3
     learners = [f for f in plateau.features if f.customer_type == "learners"]
@@ -452,14 +459,16 @@ def test_generate_plateau_requests_missing_features_concurrently(
         PlateauGenerator, "_request_missing_features_async", fake_request
     )
 
-    async def run() -> tuple[PlateauResult, float]:
+    async def run() -> tuple[PlateauRuntime, float]:
         desc_map = await generator._request_descriptions_async(["Foundational"])
         start = time.perf_counter()
-        plateau = await generator.generate_plateau_async(
-            1,
-            "Foundational",
-            session=cast(ConversationSession, session),
+        runtime = PlateauRuntime(
+            plateau=1,
+            plateau_name="Foundational",
             description=desc_map["Foundational"],
+        )
+        plateau = await generator.generate_plateau_async(
+            runtime, session=cast(ConversationSession, session)
         )
         duration = time.perf_counter() - start
         return plateau, duration
@@ -554,9 +563,12 @@ def test_generate_plateau_repairs_invalid_role(monkeypatch) -> None:
     generator._service = service
 
     desc_map = asyncio.run(generator._request_descriptions_async(["Foundational"]))
-    plateau = generator.generate_plateau(
-        1, "Foundational", description=desc_map["Foundational"]
+    runtime = PlateauRuntime(
+        plateau=1,
+        plateau_name="Foundational",
+        description=desc_map["Foundational"],
     )
+    plateau = generator.generate_plateau(runtime)
 
     assert len(session.prompts) == 3
     learners = [f for f in plateau.features if f.customer_type == "learners"]
@@ -604,10 +616,13 @@ def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> None:
     generator._service = service
 
     desc_map = asyncio.run(generator._request_descriptions_async(["Foundational"]))
+    runtime = PlateauRuntime(
+        plateau=1,
+        plateau_name="Foundational",
+        description=desc_map["Foundational"],
+    )
     with pytest.raises(ValueError):
-        generator.generate_plateau(
-            1, "Foundational", description=desc_map["Foundational"]
-        )
+        generator.generate_plateau(runtime)
 
 
 def test_generate_plateau_missing_features(monkeypatch) -> None:
@@ -650,10 +665,13 @@ def test_generate_plateau_missing_features(monkeypatch) -> None:
     generator._service = service
 
     desc_map = asyncio.run(generator._request_descriptions_async(["Foundational"]))
+    runtime = PlateauRuntime(
+        plateau=1,
+        plateau_name="Foundational",
+        description=desc_map["Foundational"],
+    )
     with pytest.raises(ValueError) as exc:
-        generator.generate_plateau(
-            1, "Foundational", description=desc_map["Foundational"]
-        )
+        generator.generate_plateau(runtime)
 
     assert "invalid JSON" in str(exc.value)
 
@@ -716,11 +734,9 @@ async def test_generate_plateau_supports_custom_roles(monkeypatch) -> None:
 
     monkeypatch.setattr(PlateauGenerator, "_map_features", dummy_map_features)
 
+    runtime = PlateauRuntime(plateau=1, plateau_name="Foundational", description="desc")
     plateau = await generator.generate_plateau_async(
-        1,
-        "Foundational",
-        session=cast(ConversationSession, session),
-        description="desc",
+        runtime, session=cast(ConversationSession, session)
     )
 
     assert {f.customer_type for f in plateau.features} == {"researchers", "students"}
@@ -831,32 +847,28 @@ def test_generate_service_evolution_filters(monkeypatch) -> None:
     sessions: set[int] = set()
 
     async def fake_generate_plateau_async(
-        self, level, plateau_name, *, session=None, description
-    ) -> PlateauResult:
-        called.append(level)
+        self, runtime, *, session=None
+    ) -> PlateauRuntime:
+        called.append(runtime.plateau)
         sessions.add(id(session))
         feats = [
             PlateauFeature(
-                feature_id=f"l{level}",
+                feature_id=f"l{runtime.plateau}",
                 name="L",
                 description="d",
                 score=MaturityScore(level=3, label="Defined", justification="j"),
                 customer_type="learners",
             ),
             PlateauFeature(
-                feature_id=f"s{level}",
+                feature_id=f"s{runtime.plateau}",
                 name="S",
                 description="d",
                 score=MaturityScore(level=3, label="Defined", justification="j"),
                 customer_type="academics",
             ),
         ]
-        return PlateauResult(
-            plateau=level,
-            plateau_name=plateau_name,
-            service_description="d",
-            features=feats,
-        )
+        runtime.set_results(features=feats, mappings={})
+        return runtime
 
     async def fake_request_descriptions_async(self, names, session=None):
         return {name: "desc" for name in names}
@@ -872,9 +884,13 @@ def test_generate_service_evolution_filters(monkeypatch) -> None:
         fake_request_descriptions_async,
     )
 
+    runtimes = [
+        PlateauRuntime(plateau=1, plateau_name="Foundational", description="desc"),
+        PlateauRuntime(plateau=2, plateau_name="Enhanced", description="desc"),
+    ]
     evo = generator.generate_service_evolution(
         service,
-        ["Foundational", "Enhanced"],
+        runtimes,
         ["learners", "academics"],
         meta=_meta(),
     )
@@ -910,9 +926,7 @@ def test_generate_service_evolution_invalid_role_raises(monkeypatch) -> None:
         cache_mode="off",
     )
 
-    async def fake_generate_plateau_async(
-        self, level, plateau_name, *, session=None, description
-    ):
+    async def fake_generate_plateau_async(self, runtime, *, session=None):
         feat = PlateauFeature(
             feature_id="f1",
             name="F",
@@ -920,12 +934,8 @@ def test_generate_service_evolution_invalid_role_raises(monkeypatch) -> None:
             score=MaturityScore(level=3, label="Defined", justification="j"),
             customer_type="unknown",
         )
-        return PlateauResult(
-            plateau=level,
-            plateau_name=plateau_name,
-            service_description="d",
-            features=[feat],
-        )
+        runtime.set_results(features=[feat], mappings={})
+        return runtime
 
     async def fake_request_descriptions_async(self, names, session=None):
         return {name: "desc" for name in names}
@@ -944,7 +954,11 @@ def test_generate_service_evolution_invalid_role_raises(monkeypatch) -> None:
     with pytest.raises(ValueError):
         generator.generate_service_evolution(
             service,
-            ["Foundational"],
+            [
+                PlateauRuntime(
+                    plateau=1, plateau_name="Foundational", description="desc"
+                )
+            ],
             ["learners"],
             meta=_meta(),
         )
@@ -974,9 +988,7 @@ def test_generate_service_evolution_unknown_plateau_raises(monkeypatch) -> None:
         cache_mode="off",
     )
 
-    async def fake_generate_plateau_async(
-        self, level, plateau_name, *, session=None, description
-    ):
+    async def fake_generate_plateau_async(self, runtime, *, session=None):
         feat = PlateauFeature(
             feature_id="f1",
             name="F",
@@ -984,12 +996,9 @@ def test_generate_service_evolution_unknown_plateau_raises(monkeypatch) -> None:
             score=MaturityScore(level=3, label="Defined", justification="j"),
             customer_type="learners",
         )
-        return PlateauResult(
-            plateau=level,
-            plateau_name="Mystery",
-            service_description="d",
-            features=[feat],
-        )
+        runtime.set_results(features=[feat], mappings={})
+        runtime.plateau_name = "Mystery"
+        return runtime
 
     async def fake_request_descriptions_async(self, names, session=None):
         return {name: "desc" for name in names}
@@ -1008,7 +1017,7 @@ def test_generate_service_evolution_unknown_plateau_raises(monkeypatch) -> None:
     with pytest.raises(ValueError):
         generator.generate_service_evolution(
             service,
-            ["Foundational"],
+            [PlateauRuntime(plateau=1, plateau_name="Foundational", description="d")],
             ["learners"],
             meta=_meta(),
         )
@@ -1038,22 +1047,16 @@ def test_generate_service_evolution_deduplicates_features(monkeypatch) -> None:
         cache_mode="off",
     )
 
-    async def fake_generate_plateau_async(
-        self, level, plateau_name, *, session=None, description
-    ):
+    async def fake_generate_plateau_async(self, runtime, *, session=None):
         item = FeatureItem(
             name="A",
             description="d",
             score=MaturityScore(level=3, label="Defined", justification="j"),
         )
-        feat1 = self._to_feature(item, "learners", plateau_name)
-        feat2 = self._to_feature(item, "learners", plateau_name)
-        return PlateauResult(
-            plateau=level,
-            plateau_name=plateau_name,
-            service_description="d",
-            features=[feat1, feat2],
-        )
+        feat1 = self._to_feature(item, "learners", runtime.plateau_name)
+        feat2 = self._to_feature(item, "learners", runtime.plateau_name)
+        runtime.set_results(features=[feat1, feat2], mappings={})
+        return runtime
 
     async def fake_request_descriptions_async(self, names, session=None):
         return {name: "desc" for name in names}
@@ -1071,7 +1074,7 @@ def test_generate_service_evolution_deduplicates_features(monkeypatch) -> None:
 
     evo = generator.generate_service_evolution(
         service,
-        ["Foundational"],
+        [PlateauRuntime(plateau=1, plateau_name="Foundational", description="desc")],
         ["learners"],
         meta=_meta(),
     )

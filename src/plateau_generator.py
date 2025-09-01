@@ -13,12 +13,13 @@ from __future__ import annotations
 import asyncio
 import re
 from pathlib import Path
-from typing import Any, Literal, Mapping, Sequence
+from typing import Any, Literal, Sequence
 
 import logfire
 from pydantic_core import from_json, to_json
 
 from conversation import ConversationSession
+from engine.plateau_runtime import PlateauRuntime
 from loader import (
     MAPPING_DATA_DIR,
     load_mapping_items,
@@ -453,18 +454,13 @@ class PlateauGenerator:
 
     async def _schedule_plateaus(
         self,
-        plateau_names: Sequence[str],
-        desc_map: Mapping[str, str],
+        runtimes: Sequence[PlateauRuntime],
         service_input: ServiceInput,
-    ) -> list[PlateauResult]:
-        """Return plateau results in the order provided."""
+    ) -> list[PlateauRuntime]:
+        """Populate ``runtimes`` with plateau results."""
 
-        results: list[PlateauResult] = []
-        for name in plateau_names:
-            description = desc_map[name]
-            level = DEFAULT_PLATEAU_MAP.get(name)
-            if level is None:
-                raise ValueError(f"Unknown plateau name: {name}")
+        results: list[PlateauRuntime] = []
+        for runtime in runtimes:
             plateau_session = ConversationSession(
                 self.session.client,
                 stage=self.session.stage,
@@ -472,10 +468,8 @@ class PlateauGenerator:
                 cache_mode=self.cache_mode,
             )
             plateau_session.add_parent_materials(service_input)
-            result = await self.generate_plateau_async(
-                level, name, session=plateau_session, description=description
-            )
-            results.append(result)
+            await self.generate_plateau_async(runtime, session=plateau_session)
+            results.append(runtime)
         return results
 
     def _validate_plateau_results(
@@ -626,23 +620,11 @@ class PlateauGenerator:
 
     async def generate_plateau_async(
         self,
-        level: int,
-        plateau_name: str,
+        runtime: PlateauRuntime,
         *,
         session: ConversationSession | None = None,
-        description: str,
-    ) -> PlateauResult:
-        """Asynchronously return mapped plateau features for ``level``.
-
-        Args:
-            level: Numeric plateau level.
-            plateau_name: Human readable name of the plateau.
-            session: Conversation session used for feature generation.
-            description: Pre-fetched description for the target plateau.
-
-        Returns:
-            PlateauResult populated with mapped features.
-        """
+    ) -> PlateauRuntime:
+        """Populate ``runtime`` with mapped features and mappings."""
 
         if self._service is None:
             raise ValueError(
@@ -650,6 +632,9 @@ class PlateauGenerator:
             )
 
         session = session or self.session
+
+        level = runtime.plateau
+        description = runtime.description
 
         with logfire.span("generate_plateau") as span:
             span.set_attribute("service.id", self._service.service_id)
@@ -698,7 +683,7 @@ class PlateauGenerator:
             }
             payload = PlateauFeaturesResponse(features=block)
 
-            features = self._collect_features(payload, plateau_name)
+            features = self._collect_features(payload, runtime.plateau_name)
             map_session = ConversationSession(
                 self.mapping_session.client,
                 stage=self.mapping_session.stage,
@@ -714,54 +699,34 @@ class PlateauGenerator:
                 service_name=self._service.name,
                 service_description=description,
             )
-            return PlateauResult(
-                plateau=level,
-                plateau_name=plateau_name,
-                service_description=description,
-                features=list(features),
-                mappings=mappings,
-            )
+            runtime.set_results(features=list(features), mappings=mappings)
+            return runtime
 
     def generate_plateau(
         self,
-        level: int,
-        plateau_name: str,
+        runtime: PlateauRuntime,
         *,
         session: ConversationSession | None = None,
-        description: str,
-    ) -> PlateauResult:
-        """Return mapped plateau features for ``level``.
+    ) -> PlateauRuntime:
+        """Synchronously populate ``runtime`` with mapped features."""
 
-        Args:
-            level: Numeric plateau level.
-            plateau_name: Human readable name of the plateau.
-            session: Conversation session used for feature generation.
-            description: Pre-fetched description for the target plateau.
-        """
-
-        return asyncio.run(
-            self.generate_plateau_async(
-                level,
-                plateau_name,
-                session=session,
-                description=description,
-            )
-        )
+        return asyncio.run(self.generate_plateau_async(runtime, session=session))
 
     async def generate_service_evolution_async(
         self,
         service_input: ServiceInput,
-        plateau_names: Sequence[str] | None = None,
+        runtimes: Sequence[PlateauRuntime] | None = None,
         role_ids: Sequence[str] | None = None,
         *,
         transcripts_dir: Path | None = None,
         meta: ServiceMeta,
     ) -> ServiceEvolution:
-        """Asynchronously return service evolution for selected plateaus.
+        """Asynchronously return service evolution for provided ``runtimes``.
 
         Args:
             service_input: Source service details to evolve.
-            plateau_names: Optional subset of plateau names to include.
+            runtimes: Plateau runtimes to process. When ``None`` the defaults in
+                ``DEFAULT_PLATEAU_NAMES`` are used.
             role_ids: Optional subset of role identifiers to include.
             transcripts_dir: Directory to persist per-service transcripts. ``None``
                 disables transcript persistence.
@@ -775,20 +740,38 @@ class PlateauGenerator:
             if service_input.customer_type:
                 span.set_attribute("customer_type", service_input.customer_type)
 
-            plateau_names = list(plateau_names or DEFAULT_PLATEAU_NAMES)
+            if runtimes is None:
+                desc_map = await self._request_descriptions_async(
+                    DEFAULT_PLATEAU_NAMES, session=self.description_session
+                )
+                runtimes = [
+                    PlateauRuntime(
+                        plateau=DEFAULT_PLATEAU_MAP[name],
+                        plateau_name=name,
+                        description=desc_map[name],
+                    )
+                    for name in DEFAULT_PLATEAU_NAMES
+                ]
             role_ids = list(role_ids or self.roles)
 
-            desc_map = await self._request_descriptions_async(
-                plateau_names, session=self.description_session
-            )
+            results = await self._schedule_plateaus(runtimes, service_input)
+            plateau_names = [r.plateau_name for r in runtimes]
 
-            results = await self._schedule_plateaus(
-                plateau_names, desc_map, service_input
-            )
+            plateau_results = [
+                PlateauResult(
+                    plateau=r.plateau,
+                    plateau_name=r.plateau_name,
+                    service_description=r.description,
+                    features=r.features,
+                    mappings=r.mappings,
+                )
+                for r in results
+                if r.status()
+            ]
 
             evolution = await self._assemble_evolution(
                 service_input,
-                results,
+                plateau_results,
                 plateau_names,
                 role_ids,
                 meta,
@@ -808,18 +791,18 @@ class PlateauGenerator:
     def generate_service_evolution(
         self,
         service_input: ServiceInput,
-        plateau_names: Sequence[str] | None = None,
+        runtimes: Sequence[PlateauRuntime] | None = None,
         role_ids: Sequence[str] | None = None,
         *,
         transcripts_dir: Path | None = None,
         meta: ServiceMeta,
     ) -> ServiceEvolution:
-        """Return service evolution for selected plateaus and roles."""
+        """Return service evolution for provided plateau runtimes."""
 
         return asyncio.run(
             self.generate_service_evolution_async(
                 service_input,
-                plateau_names,
+                runtimes,
                 role_ids,
                 transcripts_dir=transcripts_dir,
                 meta=meta,

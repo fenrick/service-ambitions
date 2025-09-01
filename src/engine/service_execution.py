@@ -16,11 +16,16 @@ from pydantic_core import to_json
 import loader
 from canonical import canonicalise_record
 from conversation import ConversationSession
+from engine.plateau_runtime import PlateauRuntime
 from loader import load_mapping_items
 from model_factory import ModelFactory
 from models import ServiceInput, ServiceMeta
 from persistence import atomic_write
-from plateau_generator import PlateauGenerator
+from plateau_generator import (
+    DEFAULT_PLATEAU_MAP,
+    DEFAULT_PLATEAU_NAMES,
+    PlateauGenerator,
+)
 from quarantine import QuarantineWriter
 
 SERVICES_PROCESSED = logfire.metric_counter("services_processed")
@@ -173,8 +178,21 @@ class ServiceExecution:
                         catalogue_hash=catalogue_hash,
                         created=datetime.now(timezone.utc),
                     )
+                plateau_names = list(DEFAULT_PLATEAU_NAMES)
+                desc_map = await generator._request_descriptions_async(
+                    plateau_names, session=desc_session
+                )
+                runtimes = [
+                    PlateauRuntime(
+                        plateau=DEFAULT_PLATEAU_MAP[name],
+                        plateau_name=name,
+                        description=desc_map[name],
+                    )
+                    for name in plateau_names
+                ]
                 evolution = await generator.generate_service_evolution_async(
                     self.service,
+                    runtimes,
                     transcripts_dir=self.transcripts_dir,
                     meta=_RUN_META,
                 )

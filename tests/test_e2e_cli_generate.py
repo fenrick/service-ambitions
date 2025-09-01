@@ -262,8 +262,11 @@ def test_cli_generate_matches_golden(monkeypatch, tmp_path, dummy_agent) -> None
         def __init__(self, *args, **kwargs) -> None:  # pragma: no cover
             self.agent = dummy_agent()
 
+        async def _request_descriptions_async(self, names, session=None):
+            return {name: "desc" for name in names}
+
         async def generate_service_evolution_async(
-            self, service_input: ServiceInput, *_, **__
+            self, service_input: ServiceInput, runtimes, *_, **__
         ):
             resp = await self.agent.run(service_input.model_dump_json(), dict)
             return SimpleNamespace(
