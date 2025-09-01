@@ -10,7 +10,6 @@ contributions back into :class:`PlateauFeature` objects.
 from __future__ import annotations
 
 import hashlib
-import os
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Mapping, Sequence, cast
@@ -36,12 +35,31 @@ from models import (
 from quarantine import QuarantineWriter
 from runtime.environment import RuntimeEnv
 from telemetry import record_mapping_set
+from utils import CacheManager, ErrorHandler, JSONCacheManager, LoggingErrorHandler
 
 if TYPE_CHECKING:
     from conversation import ConversationSession
 
 
 _writer = QuarantineWriter()
+
+_cache_manager: CacheManager = JSONCacheManager()
+_error_handler: ErrorHandler = LoggingErrorHandler()
+
+
+def configure_cache_manager(manager: CacheManager) -> None:
+    """Override the cache manager used for mapping results."""
+
+    global _cache_manager
+    _cache_manager = manager
+
+
+def configure_error_handler(handler: ErrorHandler) -> None:
+    """Override the error handler used for mapping operations."""
+
+    global _error_handler
+    _error_handler = handler
+
 
 UNKNOWN_ID_LOG_LIMIT = 5
 """Maximum number of unknown IDs to include in warning logs."""
@@ -58,7 +76,13 @@ def _json_bytes(value: Any, *, sort_keys: bool = False, **kwargs: Any) -> bytes:
 
     if sort_keys and isinstance(value, dict):
         value = dict(sorted(value.items()))
-    return cast(Any, to_json)(value, **kwargs)
+    try:
+        return cast(Any, to_json)(value, **kwargs)
+    except TypeError:  # pragma: no cover - legacy pydantic-core
+        if "sort_keys" in kwargs:
+            kwargs = dict(kwargs)
+            kwargs.pop("sort_keys")
+        return cast(Any, to_json)(value, **kwargs)
 
 
 def _features_hash(features: Sequence[PlateauFeature]) -> str:
@@ -159,35 +183,9 @@ def _discover_cache_file(
 
 
 def cache_write_json_atomic(path: Path, content: Any) -> None:
-    """Atomically write ``content`` as pretty JSON to ``path``.
+    """Atomically write ``content`` as pretty JSON to ``path``."""
 
-    ``content`` may be a JSON string/bytes or a mapping. Only JSON objects are
-    persisted; other structures raise :class:`TypeError` to avoid ambiguous cache
-    formats.
-    """
-
-    data = (
-        content
-        if not isinstance(content, (str, bytes, bytearray))
-        else from_json(
-            content
-            if isinstance(content, (bytes, bytearray))
-            else content.encode("utf-8")
-        )
-    )
-    if not isinstance(data, dict):
-        raise TypeError("cache content must be a JSON object")
-    tmp_path = path.with_suffix(".tmp")
-    fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    try:
-        with os.fdopen(fd, "wb") as fh:
-            fh.write(_json_bytes(data, sort_keys=True, indent=2))
-            fh.flush()
-            os.fsync(fh.fileno())
-        os.replace(tmp_path, path)
-    finally:
-        if os.path.exists(tmp_path):  # Clean up when replace fails
-            os.remove(tmp_path)
+    _cache_manager.write_json_atomic(path, content)
 
 
 def _merge_mapping_results(
@@ -364,6 +362,7 @@ async def map_set(
                     cache_write_json_atomic(cache_file, payload.model_dump())
                     candidate.unlink()
             except (ValidationError, ValueError) as exc:
+                _error_handler.handle(f"Invalid cache file: {candidate}", exc)
                 raise RuntimeError(f"Invalid cache file: {candidate}") from exc
         if cache_mode == "refresh":
             write_after_call = True
@@ -440,6 +439,7 @@ async def map_set(
                 svc = service or "unknown"
                 text = raw if isinstance(raw, str) else raw.model_dump()
                 _writer.write(set_name, svc, "json_parse_error", text)
+                _error_handler.handle("Invalid mapping response", exc)
                 if strict:
                     raise MappingError(
                         f"Invalid mapping response for {svc}/{set_name}"
