@@ -159,7 +159,12 @@ def _discover_cache_file(
 
 
 def cache_write_json_atomic(path: Path, content: Any) -> None:
-    """Atomically write JSON ``content`` to ``path`` with ``0o600`` permissions."""
+    """Atomically write ``content`` as pretty JSON to ``path``.
+
+    ``content`` may be a JSON string/bytes or a mapping. Only JSON objects are
+    persisted; other structures raise :class:`TypeError` to avoid ambiguous cache
+    formats.
+    """
 
     data = (
         content
@@ -170,11 +175,13 @@ def cache_write_json_atomic(path: Path, content: Any) -> None:
             else content.encode("utf-8")
         )
     )
+    if not isinstance(data, dict):
+        raise TypeError("cache content must be a JSON object")
     tmp_path = path.with_suffix(".tmp")
     fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     try:
         with os.fdopen(fd, "wb") as fh:
-            fh.write(_json_bytes(data))
+            fh.write(_json_bytes(data, sort_keys=True, indent=2))
             fh.flush()
             os.fsync(fh.fileno())
         os.replace(tmp_path, path)

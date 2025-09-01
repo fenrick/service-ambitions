@@ -83,6 +83,15 @@ def test_cache_write_json_atomic_rejects_invalid_json(tmp_path) -> None:
     assert not path.exists()
 
 
+def test_cache_write_json_atomic_requires_dict(tmp_path) -> None:
+    """Non-dictionary content is rejected."""
+
+    path = tmp_path / "file.json"
+    with pytest.raises(TypeError):
+        cache_write_json_atomic(path, [1, 2, 3])
+    assert not path.exists()
+
+
 @pytest.mark.asyncio()
 async def test_map_set_successful_mapping(monkeypatch) -> None:
     """Agent response is retried once then merged into features."""
@@ -340,7 +349,7 @@ async def test_map_set_diagnostics_includes_rationale(monkeypatch) -> None:
 
 @pytest.mark.asyncio()
 async def test_map_set_writes_cache(monkeypatch, tmp_path) -> None:
-    """Cache miss writes compact JSON to the filesystem."""
+    """Cache miss writes indented JSON to the filesystem."""
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
@@ -372,7 +381,7 @@ async def test_map_set_writes_cache(monkeypatch, tmp_path) -> None:
     assert cache_file.exists()
     content = cache_file.read_text()
     assert from_json(content) == response.model_dump()
-    assert ": " not in content and ", " not in content
+    assert ": " in content and "\n" in content
 
 
 @pytest.mark.asyncio()
@@ -575,8 +584,7 @@ async def test_map_set_cache_modes(
     monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
     monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
     response = json.dumps(
-        {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]},
-        separators=(",", ":"),
+        {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
     )
     cache_expected = json.dumps(
         {
@@ -587,7 +595,8 @@ async def test_map_set_cache_modes(
                 }
             ]
         },
-        separators=(",", ":"),
+        indent=2,
+        sort_keys=True,
     )
     cache_file = (
         Path(".cache")
@@ -617,9 +626,12 @@ async def test_map_set_cache_modes(
     if expected_content is None:  # off mode does not write cache
         assert not cache_file.exists()
     else:  # remaining modes leave an on-disk file
-        assert cache_file.read_text() == (
-            cache_expected if expected_content == "response" else "cached"
-        )
+        content = cache_file.read_text()
+        if expected_content == "response":
+            assert from_json(content) == from_json(cache_expected)
+            assert ": " in content and "\n" in content
+        else:
+            assert content == "cached"
 
 
 @pytest.mark.asyncio()
