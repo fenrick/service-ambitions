@@ -8,12 +8,12 @@ reading newline-delimited JSON service definitions and yielding validated
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Generator, Iterator
 
 import logfire
 from pydantic import TypeAdapter
+from pydantic_core import from_json
 
 from models import ServiceInput
 
@@ -29,9 +29,12 @@ def _extract_service_id(line: str) -> str | None:
     """Return service identifier from ``line`` when available."""
 
     try:
-        return json.loads(line).get("service_id")
+        data = from_json(line, allow_partial=True)
     except Exception:
         return None
+    if isinstance(data, dict):
+        return data.get("service_id")
+    return None
 
 
 def _process_line(
