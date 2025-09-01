@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Sequence, Tuple, TypeVar
 
+import logfire
 from pydantic import TypeAdapter
 from pydantic_core import to_json
 
@@ -38,29 +39,42 @@ class FileMappingLoader(MappingLoader):
         self, sets: Sequence[MappingSet]
     ) -> tuple[dict[str, list[MappingItem]], str]:  # noqa: D401
         key: Tuple[Tuple[str, str], ...] = tuple((s.file, s.field) for s in sets)
-        if not self._data_dir.is_dir():
-            raise FileNotFoundError(
-                f"Mapping data directory not found: {self._data_dir}"
+        with logfire.span(
+            "mapping_loader.load",
+            attributes={"files": [f for f, _ in key]},
+        ):
+            if not self._data_dir.is_dir():
+                raise FileNotFoundError(
+                    f"Mapping data directory not found: {self._data_dir}"
+                )
+            data: dict[str, list[MappingItem]] = {}
+            digests: list[str] = []
+            for file, field in key:
+                path = self._data_dir / file
+                items = _read_json_file(path, list[MappingItem])
+                ordered, digest = _compile_catalogue_for_set(items)
+                data[field] = ordered
+                digests.append(f"{field}:{digest}")
+            combined = "|".join(sorted(digests))
+            digest = hashlib.sha256(combined.encode("utf-8")).hexdigest()
+            logfire.debug(
+                "Loaded mapping sets",
+                count=len(data),
+                digest=digest,
             )
-        data: dict[str, list[MappingItem]] = {}
-        digests: list[str] = []
-        for file, field in key:
-            path = self._data_dir / file
-            items = _read_json_file(path, list[MappingItem])
-            ordered, digest = _compile_catalogue_for_set(items)
-            data[field] = ordered
-            digests.append(f"{field}:{digest}")
-        combined = "|".join(sorted(digests))
-        return data, hashlib.sha256(combined.encode("utf-8")).hexdigest()
+            return data, digest
 
 
 T = TypeVar("T")
 
 
 def _read_json_file(path: Path, schema: type[T]) -> T:
-    adapter = TypeAdapter(schema)
-    with path.open("r", encoding="utf-8") as fh:
-        return adapter.validate_json(fh.read())
+    with logfire.span("mapping_loader.read_json", attributes={"path": str(path)}):
+        adapter = TypeAdapter(schema)
+        with path.open("r", encoding="utf-8") as fh:
+            data = adapter.validate_json(fh.read())
+        logfire.debug("Read mapping file", path=str(path))
+        return data
 
 
 def _sanitize(value: str) -> str:

@@ -5,6 +5,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from pathlib import Path
 
+import logfire
+
 
 class PromptLoader(ABC):
     """Interface for retrieving prompt templates.
@@ -33,6 +35,8 @@ class FilePromptLoader(PromptLoader):
         self._base_dir = base_dir
 
     def load(self, name: str) -> str:  # noqa: D401 - short delegation
-        path = self._base_dir / (name if name.endswith(".md") else f"{name}.md")
-        with path.open("r", encoding="utf-8") as file:
-            return file.read().strip()
+        with logfire.span("prompt_loader.load", attributes={"name": name}):
+            path = self._base_dir / (name if name.endswith(".md") else f"{name}.md")
+            with path.open("r", encoding="utf-8") as file:
+                text = file.read().strip()
+            return text
