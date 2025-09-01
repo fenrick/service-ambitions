@@ -254,12 +254,9 @@ class ProcessingEngine:
         return None
 
     def _prepare_models(
-        self, settings: Settings
+        self,
     ) -> tuple[ModelFactory, str, list[str], list[ServiceInput]]:
         """Initialise shared models and service definitions.
-
-        Args:
-            settings: Global configuration.
 
         Returns:
             Model factory, system prompt, role IDs and services.
@@ -268,17 +265,17 @@ class ProcessingEngine:
             Configures prompt and mapping directories.
         """
 
+        settings = RuntimeEnv.instance().settings
         factory = self._create_model_factory(settings)
         system_prompt, role_ids, services = self._load_services(settings)
         return factory, system_prompt, role_ids, services
 
     def _init_sessions(
-        self, settings: Settings, total: int
+        self, total: int
     ) -> tuple[asyncio.Semaphore, asyncio.Lock, tqdm | None, Path | None, ErrorHandler]:
         """Create concurrency, progress and error-handling helpers.
 
         Args:
-            settings: Global configuration.
             total: Number of services to process.
 
         Returns:
@@ -289,6 +286,7 @@ class ProcessingEngine:
             May create the temporary output directory.
         """
 
+        settings = RuntimeEnv.instance().settings
         sem, lock = self._setup_concurrency(settings)
         progress = self._create_progress(total)
         temp_output_dir = (
@@ -365,17 +363,16 @@ class ProcessingEngine:
         """Orchestrate the evolution workflow."""
 
         with logfire.span("processing_engine.run"):
-            settings = RuntimeEnv.instance().settings
             logfire.info(
                 "Starting processing engine",
                 input_file=self.args.input_file,
             )
-            factory, system_prompt, role_ids, services = self._prepare_models(settings)
+            factory, system_prompt, role_ids, services = self._prepare_models()
             if self.args.dry_run:
                 logfire.info("Validated services", count=len(services))
                 return True
             sem, lock, progress, temp_output_dir, error_handler = self._init_sessions(
-                settings, len(services)
+                len(services)
             )
             success = await self._generate_evolution(
                 services,
