@@ -9,7 +9,6 @@ avoid overwhelming upstream APIs while still maximising throughput.
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import random
 from asyncio import Semaphore, TaskGroup
@@ -24,6 +23,7 @@ from pydantic_ai.models.openai import (
     OpenAIResponsesModel,
     OpenAIResponsesModelSettings,
 )
+from pydantic_core import to_json
 from tqdm import tqdm
 
 from canonical import canonicalise_record
@@ -286,36 +286,22 @@ class ServiceAmbitionGenerator:
             record = canonicalise_record(
                 AmbitionModel.model_validate(payload).model_dump(mode="json")
             )
+            record_json = to_json(record).decode()
             if temp_output_dir is not None:
                 temp_output_dir.mkdir(parents=True, exist_ok=True)
-                atomic_write(
-                    temp_output_dir / f"{svc_id}.json",
-                    [
-                        json.dumps(
-                            record,
-                            separators=(",", ":"),
-                            ensure_ascii=False,
-                            sort_keys=True,
-                        )
-                    ],
-                )
-            line = json.dumps(
-                record, separators=(",", ":"), ensure_ascii=False, sort_keys=True
-            )
+                atomic_write(temp_output_dir / f"{svc_id}.json", [record_json])
+            line = record_json
             if transcripts_dir is not None:
                 transcripts_dir.mkdir(parents=True, exist_ok=True)
                 transcript = {
                     "request": service.model_dump(),
                     "response": record,
                 }
-                data = json.dumps(
-                    transcript,
-                    separators=(",", ":"),
-                    ensure_ascii=False,
-                    sort_keys=True,
-                )
+                transcript_json = to_json(transcript).decode()
                 path = transcripts_dir / f"{svc_id}.json"
-                await asyncio.to_thread(path.write_text, data, encoding="utf-8")
+                await asyncio.to_thread(
+                    path.write_text, transcript_json, encoding="utf-8"
+                )
 
             async with lock:
                 await asyncio.to_thread(handle.write, f"{line}\n")

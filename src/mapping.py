@@ -10,7 +10,6 @@ contributions back into :class:`PlateauFeature` objects.
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 import time
 from pathlib import Path
@@ -18,6 +17,7 @@ from typing import TYPE_CHECKING, Any, Literal, Mapping, Sequence, cast
 
 import logfire
 from pydantic import ValidationError
+from pydantic_core import from_json, to_json
 
 from loader import MAPPING_DATA_DIR, load_mapping_items, load_prompt_text
 from mapping_prompt import render_set_prompt
@@ -53,21 +53,28 @@ def _sanitize(value: str) -> str:
     return value.replace("\n", " ").replace("\t", " ")
 
 
+def _json_bytes(value: Any, *, sort_keys: bool = False, **kwargs: Any) -> bytes:
+    """Return ``value`` serialised to JSON bytes."""
+
+    if sort_keys and isinstance(value, dict):
+        value = dict(sorted(value.items()))
+    return cast(Any, to_json)(value, **kwargs)
+
+
 def _features_hash(features: Sequence[PlateauFeature]) -> str:
     """Return a SHA256 hash summarising ``features``."""
 
     digests = []
     for feat in features:
-        canonical = json.dumps(
+        canonical = _json_bytes(
             {
                 "ref": _sanitize(feat.feature_id),
                 "name": _sanitize(feat.name),
                 "description": _sanitize(feat.description),
             },
-            separators=(",", ":"),
             sort_keys=True,
         )
-        digests.append(hashlib.sha256(canonical.encode("utf-8")).hexdigest())
+        digests.append(hashlib.sha256(canonical).hexdigest())
     combined = "".join(sorted(digests))
     return hashlib.sha256(combined.encode("utf-8")).hexdigest()
 
@@ -128,12 +135,20 @@ def _cache_path(service: str, feature_id: str, set_name: str, key: str) -> Path:
 def cache_write_json_atomic(path: Path, content: Any) -> None:
     """Atomically write JSON ``content`` to ``path`` with ``0o600`` permissions."""
 
-    data = content if not isinstance(content, str) else json.loads(content)
+    data = (
+        content
+        if not isinstance(content, (str, bytes, bytearray))
+        else from_json(
+            content
+            if isinstance(content, (bytes, bytearray))
+            else content.encode("utf-8")
+        )
+    )
     tmp_path = path.with_suffix(".tmp")
     fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            json.dump(data, fh, ensure_ascii=False, separators=(",", ":"))
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(_json_bytes(data))
             fh.flush()
             os.fsync(fh.fileno())
         os.replace(tmp_path, path)
@@ -308,11 +323,11 @@ async def map_set(
         exists_before = cache_file.exists()
         if cache_mode == "read" and exists_before:
             try:
-                with cache_file.open("r", encoding="utf-8") as fh:
-                    data = json.load(fh)
+                with cache_file.open("rb") as fh:
+                    data = from_json(fh.read())
                 payload = model_type.model_validate(data)
                 cache_hit = True
-            except (ValidationError, json.JSONDecodeError):
+            except (ValidationError, ValueError):
                 cache_file.replace(cache_file.with_suffix(".bad.json"))
                 exists_before = False
         if cache_mode == "refresh":
@@ -349,7 +364,7 @@ async def map_set(
         )
         should_log_prompt = use_diag and getattr(session, "log_prompts", False)
         if should_log_prompt:
-            features_json = json.dumps(
+            features_json = _json_bytes(
                 [
                     {
                         "id": f.feature_id,
@@ -359,7 +374,7 @@ async def map_set(
                     for f in sorted(features, key=lambda fe: fe.feature_id)
                 ],
                 indent=2,
-            )
+            ).decode("utf-8")
             logfire.debug(
                 "mapping_prompt",
                 set_name=set_name,

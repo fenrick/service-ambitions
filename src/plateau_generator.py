@@ -11,12 +11,12 @@ history into another while still reusing the same underlying agent.
 from __future__ import annotations
 
 import asyncio
-import json
 import re
 from pathlib import Path
 from typing import Any, Literal, Mapping, Sequence
 
 import logfire
+from pydantic_core import from_json, to_json
 
 from conversation import ConversationSession
 from loader import (
@@ -191,7 +191,7 @@ class PlateauGenerator:
         """
         session = session or self.description_session
         template = load_prompt_text("description_prompt")
-        schema = json.dumps(DescriptionResponse.model_json_schema(), indent=2)
+        schema = to_json(DescriptionResponse.model_json_schema(), indent=2).decode()
         prompt = template.format(
             plateau=level,
             schema=str(schema),
@@ -241,7 +241,9 @@ class PlateauGenerator:
                 raise ValueError(f"Unknown plateau name: {name}") from exc
             lines.append(f"{level}. {name}")
         plateaus_str = "\n".join(lines)
-        schema = json.dumps(PlateauDescriptionsResponse.model_json_schema(), indent=2)
+        schema = to_json(
+            PlateauDescriptionsResponse.model_json_schema(), indent=2
+        ).decode()
         template = load_prompt_text("plateau_descriptions_prompt")
         return template.format(plateaus=plateaus_str, schema=str(schema))
 
@@ -327,7 +329,7 @@ class PlateauGenerator:
     def _build_plateau_prompt(self, level: int, description: str) -> str:
         """Return a prompt requesting features for ``level``."""
 
-        schema = json.dumps(PlateauFeaturesResponse.model_json_schema(), indent=2)
+        schema = to_json(PlateauFeaturesResponse.model_json_schema(), indent=2).decode()
         template = load_prompt_text("plateau_prompt")
         roles_str = ", ".join(f'"{r}"' for r in self.roles)
         return template.format(
@@ -381,12 +383,12 @@ class PlateauGenerator:
                 }
             ]
         }
-        schema = json.dumps(RoleFeaturesResponse.model_json_schema(), indent=2)
+        schema = to_json(RoleFeaturesResponse.model_json_schema(), indent=2).decode()
         prompt = (
             f"Previous output returned {reason} for role '{role}'.\nProvide exactly"
             f" {count} unique features for this role at plateau {level}.\n\nService"
             f" description:\n{description}\n\nExample"
-            f" output:\n{json.dumps(example, indent=2)}\n\nJSON schema:\n{schema}"
+            f" output:\n{to_json(example, indent=2).decode()}\n\nJSON schema:\n{schema}"
         )
         payload = await session.ask_async(prompt, output_type=RoleFeaturesResponse)
         return payload.features
@@ -549,7 +551,7 @@ class PlateauGenerator:
             "request": service_input.model_dump(mode="json"),
             "response": evolution.model_dump(mode="json"),
         }
-        data = json.dumps(payload, ensure_ascii=False)
+        data = to_json(payload).decode()
         path = transcripts_dir / f"{service_input.service_id}.json"
         await asyncio.to_thread(
             path.write_text,
@@ -610,13 +612,13 @@ class PlateauGenerator:
                 }
             ]
         }
-        schema = json.dumps(RoleFeaturesResponse.model_json_schema(), indent=2)
+        schema = to_json(RoleFeaturesResponse.model_json_schema(), indent=2).decode()
         prompt = (
             f"Previous output returned insufficient features for role '{role}'.\n"
             f"Provide exactly {missing} additional unique features for this role"
             f" at plateau {level}.\n\n"
             f"Service description:\n{description}\n\n"
-            f"Example output:\n{json.dumps(example, indent=2)}\n\n"
+            f"Example output:\n{to_json(example, indent=2).decode()}\n\n"
             f"JSON schema:\n{schema}"
         )
         payload = await session.ask_async(prompt, output_type=RoleFeaturesResponse)
@@ -658,7 +660,7 @@ class PlateauGenerator:
 
             try:
                 raw = await session.ask_async(prompt)
-                data = json.loads(raw)
+                data = from_json(raw)
             except Exception as exc:
                 logfire.error(f"Invalid JSON from feature response: {exc}")
                 raise ValueError("Agent returned invalid JSON: " + self._service.service_id) from exc

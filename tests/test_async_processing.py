@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: MIT
 import asyncio
-import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from pydantic_core import from_json
 
 import generator
 from models import ServiceInput
@@ -38,7 +38,7 @@ def test_process_service_async(monkeypatch):
     gen._limiter = asyncio.Semaphore(1)
     gen._limiter = asyncio.Semaphore(1)
     result, tokens, retries = asyncio.run(gen.process_service(service, "prompt"))
-    assert json.loads(result["service"]) == service.model_dump()
+    assert from_json(result["service"]) == service.model_dump()
     assert tokens == 1
     assert retries == 0
 
@@ -74,7 +74,7 @@ def test_process_service_retries(monkeypatch):
     result, tokens, retries = asyncio.run(gen.process_service(service, "prompt"))
 
     assert attempts["count"] == 3
-    assert json.loads(result["service"]) == service.model_dump()
+    assert from_json(result["service"]) == service.model_dump()
     assert tokens == 1
     assert retries == 2
 
@@ -423,7 +423,7 @@ def test_temp_output_dir_writes_progress(tmp_path, monkeypatch):
                 None,
                 tmp_path,
             )
-            first = json.loads((tmp_path / f"{service.service_id}.json").read_text())
+            first = from_json((tmp_path / f"{service.service_id}.json").read_text())
             assert first == {"stage": 1}
             await gen._run_one(
                 service,
@@ -434,7 +434,7 @@ def test_temp_output_dir_writes_progress(tmp_path, monkeypatch):
                 None,
                 tmp_path,
             )
-            second = json.loads((tmp_path / f"{service.service_id}.json").read_text())
+            second = from_json((tmp_path / f"{service.service_id}.json").read_text())
             assert second == {"stage": 2}
         finally:
             await asyncio.to_thread(handle.close)

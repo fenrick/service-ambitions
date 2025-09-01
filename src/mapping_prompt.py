@@ -6,8 +6,9 @@ consistent interaction with the language model."""
 
 from __future__ import annotations
 
-import json
 from typing import Sequence
+
+from pydantic_core import to_json
 
 from loader import load_prompt_text
 from models import (
@@ -17,10 +18,10 @@ from models import (
     PlateauFeature,
 )
 
-MAPPING_SCHEMA = json.dumps(MappingResponse.model_json_schema(), indent=2)
-MAPPING_DIAGNOSTICS_SCHEMA = json.dumps(
+MAPPING_SCHEMA = to_json(MappingResponse.model_json_schema(), indent=2).decode()
+MAPPING_DIAGNOSTICS_SCHEMA = to_json(
     MappingDiagnosticsResponse.model_json_schema(), indent=2
-)
+).decode()
 
 
 def _sanitize(value: str) -> str:
@@ -45,7 +46,8 @@ def _render_items(items: Sequence[MappingItem]) -> str:
         }
         for entry in sorted(items, key=lambda i: i.id)
     ]
-    return json.dumps(data, indent=2)
+    # ``to_json`` emits ``bytes`` so decode before returning.
+    return to_json(data, indent=2).decode()
 
 
 def _render_features(features: Sequence[PlateauFeature]) -> str:
@@ -64,7 +66,8 @@ def _render_features(features: Sequence[PlateauFeature]) -> str:
         }
         for feat in sorted(features, key=lambda f: f.feature_id)
     ]
-    return json.dumps(data, indent=2)
+    # ``to_json`` emits ``bytes`` so decode before returning.
+    return to_json(data, indent=2).decode()
 
 
 def render_set_prompt(

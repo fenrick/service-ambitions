@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Sequence, cast
 
 import pytest
+from pydantic_core import from_json
 
 import mapping
 from conversation import ConversationSession
@@ -127,8 +128,8 @@ async def test_map_set_quarantines_unknown_ids(monkeypatch, tmp_path) -> None:
     assert [c.item for c in mapped[0].mappings["applications"]] == ["a"]
     qdir = tmp_path / "quarantine" / "svc" / "applications"
     qfile = qdir / "unknown_ids_1.json"
-    assert json.loads(qfile.read_text()) == ["x"]
-    manifest = json.loads((qdir / "manifest.json").read_text())
+    assert from_json(qfile.read_text()) == ["x"]
+    manifest = from_json((qdir / "manifest.json").read_text())
     assert manifest["unknown_ids"]["count"] == 1
     assert manifest["unknown_ids"]["examples"] == [["x"]]
     assert paths == [qfile.resolve()]
@@ -170,8 +171,8 @@ async def test_quarantine_separates_unknown_ids_by_service(
     )
     qfile1 = tmp_path / "quarantine" / "svc1" / "applications" / "unknown_ids_1.json"
     qfile2 = tmp_path / "quarantine" / "svc2" / "applications" / "unknown_ids_1.json"
-    assert json.loads(qfile1.read_text()) == ["x"]
-    assert json.loads(qfile2.read_text()) == ["x"]
+    assert from_json(qfile1.read_text()) == ["x"]
+    assert from_json(qfile2.read_text()) == ["x"]
 
 
 @pytest.mark.asyncio()
@@ -227,7 +228,7 @@ async def test_map_set_strict_unknown_ids(monkeypatch, tmp_path) -> None:
             strict=True,
         )
     qfile = tmp_path / "quarantine" / "svc" / "applications" / "unknown_ids_1.json"
-    assert json.loads(qfile.read_text()) == ["x"]
+    assert from_json(qfile.read_text()) == ["x"]
     assert paths == [qfile.resolve()]
 
 
@@ -352,7 +353,7 @@ async def test_map_set_writes_cache(monkeypatch, tmp_path) -> None:
     )
     assert cache_file.exists()
     content = cache_file.read_text()
-    assert json.loads(content) == response.model_dump()
+    assert from_json(content) == response.model_dump()
     assert ": " not in content and ", " not in content
 
 
@@ -508,7 +509,7 @@ async def test_map_set_logs_cache_status(
         )
         cache_dir.mkdir(parents=True, exist_ok=True)
         with (cache_dir / "key.json").open("w", encoding="utf-8") as fh:
-            json.dump(json.loads(response), fh)
+            json.dump(from_json(response), fh)
     session = DummySession([response])
     logs: list[tuple[str, dict[str, Any]]] = []
     monkeypatch.setattr(

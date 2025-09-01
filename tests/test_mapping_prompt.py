@@ -4,13 +4,13 @@
 from __future__ import annotations
 
 import importlib
-import json
 import re
 import sys
 import types
 from typing import Sequence
 
 import pytest
+from pydantic_core import from_json
 
 # Replace ``loader`` with a stub during ``mapping_prompt`` import to avoid
 # reading actual prompt files. The real module is restored immediately so other
@@ -67,8 +67,8 @@ def test_render_set_prompt_orders_content(shuffle: bool, monkeypatch) -> None:
         plateau=1,
     )
     blocks = re.findall(r"```json\n(.*?)\n```", prompt, re.DOTALL)
-    items_json = json.loads(blocks[0])
-    features_json = json.loads(blocks[1])
+    items_json = from_json(blocks[0])
+    features_json = from_json(blocks[1])
     assert [i["id"] for i in items_json] == ["A", "B"]
     assert [f["id"] for f in features_json] == ["1", "2"]
 
@@ -95,7 +95,7 @@ def test_render_items_normalizes_whitespace() -> None:
         )
     ]
     result = mapping_prompt._render_items(items)
-    data = json.loads(result)
+    data = from_json(result)
     assert data == [{"id": "A B", "name": "Item Name", "description": "desc more"}]
 
 
@@ -112,7 +112,7 @@ def test_render_features_normalizes_whitespace() -> None:
         )
     ]
     result = mapping_prompt._render_features(features)
-    data = json.loads(result)
+    data = from_json(result)
     assert data == [{"id": "1 2", "name": "First Feature", "description": "desc more"}]
 
 
@@ -144,8 +144,8 @@ def test_render_set_prompt_normalizes_whitespace(monkeypatch) -> None:
         plateau=1,
     )
     blocks = re.findall(r"```json\n(.*?)\n```", prompt, re.DOTALL)
-    items_json = json.loads(blocks[0])
-    features_json = json.loads(blocks[1])
+    items_json = from_json(blocks[0])
+    features_json = from_json(blocks[1])
     assert items_json == [{"id": "A B", "name": "Item Name", "description": "desc"}]
     assert features_json == [
         {"id": "1 2", "name": "First Feature", "description": "desc more"}
