@@ -7,14 +7,33 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
+import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
 from pydantic_ai import Agent, messages
 from pydantic_core import from_json
 
 import conversation
+import mapping
 from conversation import ConversationSession
 from models import ServiceFeature, ServiceInput
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+if not hasattr(messages, "ModelRequest"):
+
+    class _ModelRequest(SimpleNamespace):
+        def __init__(self, parts) -> None:
+            super().__init__(parts=parts)
+
+    class _UserPromptPart(SimpleNamespace):
+        def __init__(self, content) -> None:
+            super().__init__(content=content)
+
+    messages = SimpleNamespace(
+        ModelRequest=_ModelRequest,
+        UserPromptPart=_UserPromptPart,
+    )
+    conversation.messages = messages
 
 
 class DummyAgent:
@@ -36,7 +55,7 @@ def test_add_parent_materials_records_history() -> None:
     """``add_parent_materials`` should append service info to history."""
 
     session = ConversationSession(
-        cast(Agent[None, str], DummyAgent()),
+        cast(Agent, DummyAgent()),
         use_local_cache=False,
         cache_mode="off",
     )
@@ -67,7 +86,7 @@ def test_add_parent_materials_includes_features() -> None:
     """Seed materials should list existing service features when provided."""
 
     session = ConversationSession(
-        cast(Agent[None, str], DummyAgent()),
+        cast(Agent, DummyAgent()),
         use_local_cache=False,
         cache_mode="off",
     )
@@ -103,7 +122,7 @@ def test_ask_adds_responses_to_history() -> None:
     """``ask`` should forward prompts and store new messages."""
 
     session = ConversationSession(
-        cast(Agent[None, str], DummyAgent()),
+        cast(Agent, DummyAgent()),
         use_local_cache=False,
         cache_mode="off",
     )
@@ -117,7 +136,7 @@ def test_ask_forwards_prompt_to_agent() -> None:
     """``ask`` should delegate to the underlying agent."""
     agent = DummyAgent()
     session = ConversationSession(
-        cast(Agent[None, str], agent),
+        cast(Agent, agent),
         use_local_cache=False,
         cache_mode="off",
     )
@@ -130,7 +149,7 @@ def test_ask_omits_prompt_logging_when_disabled(tmp_path, monkeypatch) -> None:
 
     agent = DummyAgent()
     session = ConversationSession(
-        cast(Agent[None, str], agent),
+        cast(Agent, agent),
         diagnostics=True,
         log_prompts=False,
         transcripts_dir=tmp_path,
@@ -150,7 +169,7 @@ def test_catalogue_strings_not_logged_by_default(monkeypatch) -> None:
 
     agent = DummyAgent()
     session = ConversationSession(
-        cast(Agent[None, str], agent),
+        cast(Agent, agent),
         diagnostics=True,
         log_prompts=False,
         use_local_cache=False,
@@ -170,7 +189,7 @@ def test_diagnostics_writes_transcript(tmp_path) -> None:
 
     agent = DummyAgent()
     session = ConversationSession(
-        cast(Agent[None, str], agent),
+        cast(Agent, agent),
         stage="stage",
         diagnostics=True,
         transcripts_dir=tmp_path,
@@ -198,16 +217,16 @@ def test_ask_uses_cache_when_available(tmp_path, monkeypatch) -> None:
 
     agent = DummyAgent()
     session = ConversationSession(
-        cast(Agent[None, str], agent),
+        cast(Agent, agent),
         stage="stage",
         use_local_cache=True,
         cache_mode="read",
     )
-    monkeypatch.setattr(
-        conversation,
-        "load_settings",
-        lambda: SimpleNamespace(cache_dir=tmp_path, context_id="ctx"),
-    )
+
+    def settings() -> SimpleNamespace:
+        return SimpleNamespace(cache_dir=tmp_path, context_id="ctx")
+
+    monkeypatch.setattr(mapping, "load_settings", settings)
     key = conversation._prompt_cache_key("hello", "", "stage")
     path = conversation._prompt_cache_path("unknown", "stage", key)
     path.write_text(json.dumps("cached"), encoding="utf-8")
@@ -216,3 +235,58 @@ def test_ask_uses_cache_when_available(tmp_path, monkeypatch) -> None:
 
     assert reply == "cached"
     assert agent.called_with == []
+
+
+def test_features_cache_migrates_from_unknown(tmp_path, monkeypatch) -> None:
+    """Legacy feature cache entries should migrate to plateau folders."""
+
+    agent = DummyAgent()
+    session = ConversationSession(
+        cast(Agent, agent),
+        stage="features_1",
+        use_local_cache=True,
+        cache_mode="read",
+    )
+    session._service_id = "svc"
+
+    def settings() -> SimpleNamespace:
+        return SimpleNamespace(cache_dir=tmp_path, context_id="ctx")
+
+    monkeypatch.setattr(mapping, "load_settings", settings)
+    key = conversation._prompt_cache_key("hello", "", "features_1")
+    legacy_dir = tmp_path / "ctx" / "svc" / "features" / "unknown"
+    legacy_dir.mkdir(parents=True, exist_ok=True)
+    legacy = legacy_dir / f"{key}.json"
+    legacy.write_text(json.dumps("cached"), encoding="utf-8")
+
+    reply = session.ask("hello")
+
+    plateau_path = conversation._prompt_cache_path("svc", "features_1", key)
+    assert reply == "cached"
+    assert agent.called_with == []
+    assert plateau_path.exists()
+    assert not legacy.exists()
+
+
+def test_invalid_feature_cache_errors(tmp_path, monkeypatch) -> None:
+    """Unreadable feature cache files should halt processing."""
+
+    agent = DummyAgent()
+    session = ConversationSession(
+        cast(Agent, agent),
+        stage="features_1",
+        use_local_cache=True,
+        cache_mode="read",
+    )
+    session._service_id = "svc"
+
+    def settings() -> SimpleNamespace:
+        return SimpleNamespace(cache_dir=tmp_path, context_id="ctx")
+
+    monkeypatch.setattr(mapping, "load_settings", settings)
+    key = conversation._prompt_cache_key("hello", "", "features_1")
+    path = conversation._prompt_cache_path("svc", "features_1", key)
+    path.write_text("not-json", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="Invalid cache file"):
+        session.ask("hello")

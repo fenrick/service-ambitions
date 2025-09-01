@@ -12,18 +12,19 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import time
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Literal, TypeVar, cast, overload
 
 import logfire
+from pydantic import ValidationError
 from pydantic_ai import Agent, messages
 from pydantic_core import from_json, to_json
 
-from mapping import cache_write_json_atomic
+from mapping import _find_cache_file, _service_cache_root, cache_write_json_atomic
 from models import ServiceInput
-from settings import load_settings
 
 
 def _prompt_cache_key(prompt: str, model: str, stage: str) -> str:
@@ -38,30 +39,21 @@ def _prompt_cache_path(
 ) -> Path:
     """Return cache path for ``key`` grouped by context and identifiers."""
 
-    try:
-        settings = load_settings()
-        cache_root = settings.cache_dir
-        context = settings.context_id
-    except Exception:  # pragma: no cover - fallback when settings unavailable
-        cache_root = Path(".cache")
-        context = "unknown"
-
+    root = _service_cache_root(service)
     if stage.startswith("mapping_"):
         _, mapping_type = stage.split("_", 1)
-        if feature_id:
-            subdir = Path("mappings") / feature_id / mapping_type
-        else:
-            subdir = Path("mappings") / mapping_type
+        subdir = Path("mappings") / mapping_type
+    elif stage.startswith("features_"):
+        plateau = stage.split("_", 1)[1]
+        subdir = Path(plateau)
     elif stage in {"descriptions", "description"}:
-        subdir = Path("description")
+        subdir = Path()
     elif stage == "features" and feature_id:
-        subdir = Path("features") / feature_id
-    elif stage == "features":
-        subdir = Path("features")
+        subdir = Path(feature_id)
     else:
         subdir = Path(stage)
 
-    path = cache_root / context / service / subdir / f"{key}.json"
+    path = root / subdir / f"{key}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -266,20 +258,32 @@ class ConversationSession:
             key = _prompt_cache_key(prompt, model_name, stage)
             svc = self._service_id or "unknown"
             cache_file = _prompt_cache_path(svc, stage, key, feature_id)
-            exists_before = cache_file.exists()
-            if self.cache_mode == "read" and exists_before:
+            service_root = _service_cache_root(svc)
+            path_to_use = _find_cache_file(service_root, key, cache_file)
+            exists_before = path_to_use is not None
+            if self.cache_mode == "read" and path_to_use:
                 try:
-                    with cache_file.open("rb") as fh:
+                    with path_to_use.open("rb") as fh:
                         data = from_json(fh.read())
                     if output_type and hasattr(output_type, "model_validate"):
                         payload = cast(Any, output_type).model_validate(data)
+                        dump = payload.model_dump()
                     else:
                         payload = data
+                        dump = data
+                    if path_to_use != cache_file:
+                        cache_write_json_atomic(
+                            cache_file,
+                            dump if not isinstance(dump, str) else json.dumps(dump),
+                        )
+                        try:
+                            path_to_use.unlink()
+                        except OSError:
+                            pass
                     self.last_tokens = 0
                     return payload
-                except Exception:  # pragma: no cover - invalid cache content
-                    cache_file.replace(cache_file.with_suffix(".bad.json"))
-                    exists_before = False
+                except (ValidationError, ValueError, OSError) as exc:
+                    raise RuntimeError(f"Invalid cache file: {path_to_use}") from exc
             if self.cache_mode == "refresh":
                 write_after_call = True
             elif self.cache_mode == "write" and not exists_before:
@@ -298,7 +302,14 @@ class ConversationSession:
                     content = (
                         output.model_dump() if hasattr(output, "model_dump") else output
                     )
-                    cache_write_json_atomic(cache_file, content)
+                    cache_write_json_atomic(
+                        cache_file,
+                        (
+                            content
+                            if not isinstance(content, str)
+                            else json.dumps(content)
+                        ),
+                    )
                 self.last_tokens = tokens
                 await self._write_transcript(prompt, output)
                 return output

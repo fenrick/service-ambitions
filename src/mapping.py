@@ -109,27 +109,39 @@ def _build_cache_key(
     return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:32]
 
 
-def _cache_path(service: str, feature_id: str, set_name: str, key: str) -> Path:
-    """Return cache path for ``feature_id`` in ``service`` and ``set_name``."""
+def _service_cache_root(service: str) -> Path:
+    """Return the cache root for ``service`` within the current context."""
 
     try:
         settings = load_settings()
         cache_root = settings.cache_dir
         context = settings.context_id
-    except Exception:
+    except Exception:  # pragma: no cover - fallback when settings unavailable
         cache_root = Path(".cache")
         context = "unknown"
-    path = (
-        cache_root
-        / context
-        / service
-        / "mappings"
-        / feature_id
-        / set_name
-        / f"{key}.json"
-    )
+    root = cache_root / context / service
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def _cache_path(service: str, plateau: str, set_name: str, key: str) -> Path:
+    """Return cache path for ``plateau`` in ``service`` and ``set_name``."""
+
+    root = _service_cache_root(service)
+    path = root / plateau / "mappings" / set_name / f"{key}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def _find_cache_file(root: Path, key: str, expected: Path) -> Path | None:
+    """Return path to ``key`` under ``root`` when present, else ``None``."""
+
+    if expected.exists():
+        return expected
+    for candidate in root.rglob(f"{key}.json"):
+        if candidate != expected:
+            return candidate
+    return None
 
 
 def cache_write_json_atomic(path: Path, content: Any) -> None:
@@ -316,21 +328,29 @@ async def map_set(
     payload: StrictModel | None = None
     write_after_call = False
     cache_hit = False
-    first_id = features[0].feature_id if features else "global"
     if cache_mode != "off":
         svc = service or "unknown"
-        cache_file = _cache_path(svc, first_id, set_name, key)
-        exists_before = cache_file.exists()
-        if cache_mode == "read" and exists_before:
+        plateau_dir = str(plateau)
+        cache_root = _service_cache_root(svc)
+        cache_file = cache_root / plateau_dir / "mappings" / set_name / f"{key}.json"
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        path_to_use = _find_cache_file(cache_root, key, cache_file)
+        exists_before = path_to_use is not None
+        if cache_mode == "read" and path_to_use:
             try:
-                with cache_file.open("rb") as fh:
+                with path_to_use.open("rb") as fh:
                     data = from_json(fh.read())
                 payload = model_type.model_validate(data)
                 cache_hit = True
-            except (ValidationError, ValueError):
-                cache_file.replace(cache_file.with_suffix(".bad.json"))
-                exists_before = False
-        if cache_mode == "refresh":
+                if path_to_use != cache_file:
+                    cache_write_json_atomic(cache_file, payload.model_dump())
+                    try:
+                        path_to_use.unlink()
+                    except OSError:
+                        pass
+            except (ValidationError, ValueError, OSError) as exc:
+                raise RuntimeError(f"Invalid cache file: {path_to_use}") from exc
+        elif cache_mode == "refresh":
             write_after_call = True
         elif cache_mode == "write" and not exists_before:
             write_after_call = True
@@ -425,13 +445,9 @@ async def map_set(
                     for feat in features
                 ]
         if cache_file and write_after_call:
-            # Persist successful responses for future runs under each feature.
+            # Persist successful responses for future runs.
             data = payload.model_dump() if hasattr(payload, "model_dump") else payload
-            for feat in features:
-                cache_write_json_atomic(
-                    _cache_path(svc, feat.feature_id, set_name, key),
-                    data,
-                )
+            cache_write_json_atomic(cache_file, data)
         if should_log_prompt:
             session.log_prompts = session_log_prompts
 
