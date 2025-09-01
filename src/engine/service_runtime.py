@@ -17,11 +17,18 @@ class ServiceRuntime:
         service: The service definition being processed.
         plateaus: Runtimes for each plateau.
         line: JSONL output line produced after successful execution.
+        success: Flag indicating whether execution completed without errors.
     """
 
     service: ServiceInput
     plateaus: List[PlateauRuntime] = field(default_factory=list)
     line: str | None = None
+    success: bool = False
+
+    def status(self) -> bool:
+        """Return ``True`` when execution succeeded."""
+
+        return self.success
 
 
 __all__ = ["ServiceRuntime"]

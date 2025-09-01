@@ -250,6 +250,7 @@ class ServiceExecution:
                 self._write_temp_output(service, record)
                 self.runtime.plateaus = runtimes
                 self.runtime.line = to_json(record).decode()
+                self.runtime.success = True
                 return True
             except Exception as exc:  # noqa: BLE001
                 quarantine_file = await asyncio.to_thread(
