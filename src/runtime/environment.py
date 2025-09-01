@@ -58,5 +58,17 @@ class RuntimeEnv:
             raise RuntimeError("RuntimeEnv has not been initialised")
         return inst
 
+    @classmethod
+    def reset(cls) -> None:
+        """Clear the active runtime environment.
+
+        Useful for tests that need a fresh configuration or for scenarios
+        where the application must reload settings at runtime.
+        """
+        with logfire.span("runtime_env.reset"):
+            with cls._lock:
+                logfire.info("Resetting runtime environment")
+                cls._instance = None
+
 
 __all__ = ["RuntimeEnv"]

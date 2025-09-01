@@ -11,7 +11,8 @@ telemetry.
 It loads configuration, exposes global settings and holds shared
 in-memory state such as caches.  Modules access the singleton via
 `RuntimeEnv.instance()` instead of repeatedly loading configuration
-files.
+files. Tests or reconfigurations can clear the singleton via
+`RuntimeEnv.reset()`.
 
 ## Processing engine
 

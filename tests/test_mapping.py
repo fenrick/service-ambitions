@@ -36,7 +36,7 @@ def _init_runtime_env() -> Iterator[None]:
     )
     RuntimeEnv.initialize(settings)
     yield
-    RuntimeEnv._instance = None
+    RuntimeEnv.reset()
 
 
 class DummySession:
