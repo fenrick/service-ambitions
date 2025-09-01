@@ -218,6 +218,12 @@ def clear_prompt_cache() -> None:
     _prompt_loader.clear_cache()
 
 
+def clear_mapping_cache() -> None:
+    """Invalidate memoised mapping catalogues."""
+
+    _mapping_loader.clear_cache()
+
+
 def load_mapping_items(
     data_dir: Path, sets: Sequence[MappingSet]
 ) -> tuple[dict[str, list[MappingItem]], str]:
