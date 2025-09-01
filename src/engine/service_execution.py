@@ -34,6 +34,7 @@ from plateau_generator import (
 )
 from quarantine import QuarantineWriter
 from runtime.environment import RuntimeEnv
+from utils import ErrorHandler
 
 SERVICES_PROCESSED = logfire.metric_counter("services_processed")
 EVOLUTIONS_GENERATED = logfire.metric_counter("evolutions_generated")
@@ -65,6 +66,7 @@ class ServiceExecution:
         new_ids: set[str],
         temp_output_dir: Path | None,
         allow_prompt_logging: bool,
+        error_handler: ErrorHandler,
     ) -> None:
         self.service = service
         self.factory = factory
@@ -76,13 +78,18 @@ class ServiceExecution:
         self.new_ids = new_ids
         self.temp_output_dir = temp_output_dir
         self.allow_prompt_logging = allow_prompt_logging
+        self.error_handler = error_handler
         self.line: str | None = None
 
     async def run(self) -> bool:
         """Generate the evolution for ``service`` and store the result.
 
-        Returns ``True`` on success, ``False`` otherwise.  Generated artefacts
-        are kept on the instance for later persistence.
+        Returns:
+            ``True`` on success, ``False`` otherwise.
+
+        Side effects:
+            Updates metrics, writes quarantine files on failure and stores the
+            generated line on the instance for later persistence.
         """
 
         desc_name = self.factory.model_name("descriptions")
@@ -221,11 +228,10 @@ class ServiceExecution:
                     "schema_mismatch",
                     self.service.model_dump(),
                 )
-                logfire.exception(
-                    "Failed to generate evolution",
-                    service_id=self.service.service_id,
-                    error=str(exc),
-                    quarantine_file=str(quarantine_file),
+                self.error_handler.handle(
+                    "Failed to generate evolution for "
+                    f"{self.service.service_id}; quarantined {quarantine_file}",
+                    exc,
                 )
                 return False
 
