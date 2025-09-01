@@ -76,38 +76,31 @@ def _configure_logging(args: argparse.Namespace, settings) -> None:
     init_logfire(settings.logfire_token, diagnostics=settings.diagnostics)
 
 
-async def _cmd_run(
-    args: argparse.Namespace, settings, transcripts_dir: Path | None
-) -> None:
+async def _cmd_run(args: argparse.Namespace, transcripts_dir: Path | None) -> None:
     """Execute the default evolution generation workflow."""
 
-    await _cmd_generate_evolution(args, settings, transcripts_dir)
+    await _cmd_generate_evolution(args, transcripts_dir)
 
 
-async def _cmd_diagnose(
-    args: argparse.Namespace, settings, transcripts_dir: Path | None
-) -> None:
+async def _cmd_diagnose(args: argparse.Namespace, transcripts_dir: Path | None) -> None:
     """Run the generator with diagnostics and transcripts enabled."""
 
-    settings.diagnostics = True
+    RuntimeEnv.instance().settings.diagnostics = True
     args.no_logs = False
-    await _cmd_generate_evolution(args, settings, transcripts_dir)
+    await _cmd_generate_evolution(args, transcripts_dir)
 
 
-async def _cmd_validate(
-    args: argparse.Namespace, settings, transcripts_dir: Path | None
-) -> None:
+async def _cmd_validate(args: argparse.Namespace, transcripts_dir: Path | None) -> None:
     """Validate inputs without invoking the language model."""
 
     args.dry_run = True
-    await _cmd_generate_evolution(args, settings, transcripts_dir)
+    await _cmd_generate_evolution(args, transcripts_dir)
 
 
-async def _cmd_map(
-    args: argparse.Namespace, settings, transcripts_dir: Path | None
-) -> None:
+async def _cmd_map(args: argparse.Namespace, transcripts_dir: Path | None) -> None:
     """Populate feature mappings for an existing features file."""
 
+    settings = RuntimeEnv.instance().settings
     configure_mapping_data_dir(args.mapping_data_dir or settings.mapping_data_dir)
     items, catalogue_hash = load_mapping_items(
         loader.MAPPING_DATA_DIR, settings.mapping_sets
@@ -173,11 +166,10 @@ async def _cmd_map(
             fh.write(json.dumps(record, separators=(",", ":"), sort_keys=True) + "\n")
 
 
-def _cmd_reverse(
-    args: argparse.Namespace, settings, transcripts_dir: Path | None
-) -> None:
+def _cmd_reverse(args: argparse.Namespace, transcripts_dir: Path | None) -> None:
     """Backfill feature and mapping caches from ``evolutions.jsonl``."""
 
+    settings = RuntimeEnv.instance().settings
     configure_mapping_data_dir(args.mapping_data_dir or settings.mapping_data_dir)
     items, catalogue_hash = load_mapping_items(
         loader.MAPPING_DATA_DIR, settings.mapping_sets
@@ -246,11 +238,11 @@ def _cmd_reverse(
 
 
 async def _cmd_generate_evolution(
-    args: argparse.Namespace, settings, transcripts_dir: Path | None
+    args: argparse.Namespace, transcripts_dir: Path | None
 ) -> None:
     """Generate service evolution summaries via ``ProcessingEngine``."""
 
-    engine = ProcessingEngine(args, settings, transcripts_dir)
+    engine = ProcessingEngine(args, transcripts_dir)
     success = await engine.run()
     await engine.finalise()
     if not success:
@@ -542,7 +534,7 @@ def main() -> None:
     _configure_logging(args, settings)
 
     telemetry.reset()
-    result = args.func(args, settings, None)
+    result = args.func(args, None)
     if inspect.isawaitable(result):
         # Cast ensures that asyncio.run receives a proper Coroutine
         asyncio.run(cast(Coroutine[Any, Any, Any], result))
