@@ -40,8 +40,7 @@ from utils import ErrorHandler
 SERVICES_PROCESSED = logfire.metric_counter("services_processed")
 EVOLUTIONS_GENERATED = logfire.metric_counter("evolutions_generated")
 LINES_WRITTEN = logfire.metric_counter("lines_written")
-
-_RUN_META: ServiceMeta | None = None
+RUN_META_KEY = "run_meta"
 _writer = QuarantineWriter()
 
 
@@ -153,10 +152,10 @@ class ServiceExecution:
         map_name: str,
         feat_model,
     ) -> None:
-        """Initialise global run metadata once."""
+        """Initialise and store run metadata in ``RuntimeEnv.state``."""
 
-        global _RUN_META
-        if _RUN_META is not None:
+        env = RuntimeEnv.instance()
+        if RUN_META_KEY in env.state:
             return
         models_map = {
             "descriptions": desc_name,
@@ -168,7 +167,7 @@ class ServiceExecution:
             loader.MAPPING_DATA_DIR, settings.mapping_sets
         )
         context_window = getattr(feat_model, "max_input_tokens", 0)
-        _RUN_META = ServiceMeta(
+        env.state[RUN_META_KEY] = ServiceMeta(
             run_id=str(uuid4()),
             seed=self.factory.seed,
             models=models_map,
@@ -238,12 +237,14 @@ class ServiceExecution:
                     settings, desc_name, feat_name, map_name, feat_model
                 )
                 runtimes = await self._prepare_runtimes(generator)
-                assert _RUN_META is not None  # mypy safeguard
+                env = RuntimeEnv.instance()
+                meta = env.state.get(RUN_META_KEY)
+                assert meta is not None  # mypy safeguard
                 evolution = await generator.generate_service_evolution_async(
                     service,
                     runtimes,
                     transcripts_dir=self.transcripts_dir,
-                    meta=_RUN_META,
+                    meta=meta,
                 )
                 record = canonicalise_record(evolution.model_dump(mode="json"))
                 self._write_temp_output(service, record)

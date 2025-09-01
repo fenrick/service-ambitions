@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 import logfire
 
 if TYPE_CHECKING:  # pragma: no cover - for type checkers only
+    from models import ServiceMeta
     from settings import Settings
 
 
@@ -25,6 +26,21 @@ class RuntimeEnv:
         self.state: dict[str, Any] = {}
         # Debug logging helps diagnose configuration loading problems.
         logfire.debug("RuntimeEnv created", settings=str(settings))
+
+    @property
+    def run_meta(self) -> "ServiceMeta | None":
+        """Return metadata describing the current run."""
+
+        return self.state.get("run_meta")
+
+    @run_meta.setter
+    def run_meta(self, meta: "ServiceMeta | None") -> None:
+        """Persist run metadata for later access."""
+
+        if meta is None:
+            self.state.pop("run_meta", None)
+        else:
+            self.state["run_meta"] = meta
 
     @classmethod
     def initialize(cls, settings: "Settings") -> "RuntimeEnv":
