@@ -302,7 +302,6 @@ def test_cli_generate_matches_golden(monkeypatch, tmp_path, dummy_agent) -> None
             "sample-services.json",
             "--output-file",
             str(output_file),
-            "--no-logs",
         ],
     )
 

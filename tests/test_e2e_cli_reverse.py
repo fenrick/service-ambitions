@@ -125,7 +125,6 @@ def test_cli_reverse_generates_caches(monkeypatch, tmp_path) -> None:
             str(input_file),
             "--output-file",
             str(output_file),
-            "--no-logs",
         ],
     )
     cli.main()
