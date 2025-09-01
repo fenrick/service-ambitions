@@ -21,8 +21,18 @@ from canonical import canonicalise_record
 from conversation import ConversationSession
 from engine.processing_engine import ProcessingEngine
 from loader import configure_mapping_data_dir, load_mapping_items
-from models import FeatureMappingRef, MappingFeatureGroup, ServiceEvolution
+from models import (
+    Contribution,
+    FeatureItem,
+    FeatureMappingRef,
+    MappingFeature,
+    MappingFeatureGroup,
+    MappingResponse,
+    PlateauFeaturesResponse,
+    ServiceEvolution,
+)
 from monitoring import LOG_FILE_NAME, init_logfire
+from plateau_generator import _feature_cache_path
 from runtime.environment import RuntimeEnv
 from settings import load_settings
 
@@ -160,6 +170,78 @@ async def _cmd_map(
         for evo in evolutions:
             record = canonicalise_record(evo.model_dump(mode="json"))
             fh.write(to_json(record).decode() + "\n")
+
+
+def _cmd_reverse(
+    args: argparse.Namespace, settings, transcripts_dir: Path | None
+) -> None:
+    """Backfill feature and mapping caches from ``evolutions.jsonl``."""
+
+    configure_mapping_data_dir(args.mapping_data_dir or settings.mapping_data_dir)
+    items, catalogue_hash = load_mapping_items(
+        loader.MAPPING_DATA_DIR, settings.mapping_sets
+    )
+
+    input_path = Path(args.input_file)
+    output_path = Path(args.output_file)
+    text = input_path.read_text(encoding="utf-8")
+    evolutions = [
+        ServiceEvolution.model_validate_json(line)
+        for line in text.splitlines()
+        if line.strip()
+    ]
+
+    with output_path.open("w", encoding="utf-8") as out_fh:
+        for evo in evolutions:
+            svc_id = evo.service.service_id
+            for plateau in evo.plateaus:
+                # Reconstruct feature cache grouped by role
+                block: dict[str, list[FeatureItem]] = {}
+                for feat in plateau.features:
+                    item = FeatureItem(
+                        name=feat.name,
+                        description=feat.description,
+                        score=feat.score,
+                    )
+                    block.setdefault(feat.customer_type, []).append(item)
+                feat_payload = PlateauFeaturesResponse(features=block)
+                feat_path = _feature_cache_path(svc_id, plateau.plateau)
+                mapping.cache_write_json_atomic(feat_path, feat_payload.model_dump())
+
+                # Rebuild mapping cache per mapping set
+                for cfg in settings.mapping_sets:
+                    features_by_id: dict[str, MappingFeature] = {
+                        f.feature_id: MappingFeature(feature_id=f.feature_id)
+                        for f in plateau.features
+                    }
+                    for group in plateau.mappings.get(cfg.field, []):
+                        for ref in group.mappings:
+                            contrib = Contribution(item=group.id)
+                            features_by_id[ref.feature_id].mappings.setdefault(
+                                cfg.field, []
+                            ).append(contrib)
+                    key = mapping._build_cache_key(
+                        settings.model,
+                        cfg.field,
+                        catalogue_hash,
+                        plateau.features,
+                        settings.diagnostics,
+                    )
+                    cache_file = mapping._cache_path(
+                        svc_id, plateau.plateau, cfg.field, key
+                    )
+                    map_payload = MappingResponse(
+                        features=list(features_by_id.values())
+                    )
+                    mapping.cache_write_json_atomic(
+                        cache_file, map_payload.model_dump()
+                    )
+
+                plateau.mappings = {}
+
+            evo.meta.mapping_types = []
+            record = canonicalise_record(evo.model_dump(mode="json"))
+            out_fh.write(to_json(record).decode() + "\n")
 
 
 async def _cmd_generate_evolution(
@@ -351,6 +433,27 @@ def main() -> None:
         help=OUTPUT_FILE_HELP,
     )
     map_p.set_defaults(func=_cmd_map)
+
+    rev_p = subparsers.add_parser(
+        "reverse",
+        parents=[common],
+        help="Rebuild caches from an evolutions file",
+        description=(
+            "Reconstruct feature and mapping caches from a previously "
+            "generated evolutions.jsonl"
+        ),
+    )
+    rev_p.add_argument(
+        "--input-file",
+        default="evolutions.jsonl",
+        help="Path to the evolutions JSONL file",
+    )
+    rev_p.add_argument(
+        "--output-file",
+        default="features.jsonl",
+        help="Path to write extracted features JSONL",
+    )
+    rev_p.set_defaults(func=_cmd_reverse)
 
     run_p = subparsers.add_parser(
         "run",
