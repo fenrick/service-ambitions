@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal, Sequence
 
@@ -38,6 +39,7 @@ from models import (
     PlateauResult,
     RoleFeaturesResponse,
     ServiceEvolution,
+    ServiceFeaturePlateau,
     ServiceInput,
     ServiceMeta,
 )
@@ -48,23 +50,38 @@ from shortcode import ShortCodeRegistry
 
 A_NON_EMPTY_STRING = "'description' must be a non-empty string"
 
-# Snapshot of plateau definitions sourced from configuration.
-_PLATEAU_DEFS = load_plateau_definitions()
 
-# Mapping from plateau name to its numeric level derived from the order of
-# ``service_feature_plateaus.json``. Callers may override these defaults when a
-# different set of plateaus is required, but keeping module-level fallbacks
-# allows CLI tools to operate without additional configuration.
-DEFAULT_PLATEAU_MAP: dict[str, int] = {
-    plateau.name: idx + 1 for idx, plateau in enumerate(_PLATEAU_DEFS)
-}
+# Snapshot of plateau and role metadata loaded on first use.
 
-# Ordered list of plateau names used to iterate in ascending maturity.
-DEFAULT_PLATEAU_NAMES: list[str] = [plateau.name for plateau in _PLATEAU_DEFS]
 
-# Core roles targeted during feature generation. These represent the default
-# audience slices and should be updated if new roles are introduced.
-DEFAULT_ROLE_IDS: list[str] = load_role_ids()
+@lru_cache(maxsize=1)
+def plateau_definitions() -> list[ServiceFeaturePlateau]:
+    """Return service feature plateau definitions from configuration."""
+
+    settings = RuntimeEnv.instance().settings
+    return load_plateau_definitions(settings.mapping_data_dir)
+
+
+@lru_cache(maxsize=1)
+def default_plateau_map() -> dict[str, int]:
+    """Return mapping of plateau name to numeric level."""
+
+    return {p.name: idx + 1 for idx, p in enumerate(plateau_definitions())}
+
+
+@lru_cache(maxsize=1)
+def default_plateau_names() -> list[str]:
+    """Return plateau names in ascending maturity order."""
+
+    return [p.name for p in plateau_definitions()]
+
+
+@lru_cache(maxsize=1)
+def default_role_ids() -> list[str]:
+    """Return core role identifiers."""
+
+    settings = RuntimeEnv.instance().settings
+    return load_role_ids(settings.mapping_data_dir)
 
 
 def _feature_cache_path(service: str, plateau: int) -> Path:
@@ -136,7 +153,7 @@ class PlateauGenerator:
         self.description_session = description_session or session
         self.mapping_session = mapping_session or session
         self.required_count = required_count
-        self.roles = list(roles or DEFAULT_ROLE_IDS)
+        self.roles = list(roles or default_role_ids())
         self.strict = strict
         self.use_local_cache = use_local_cache
         self.cache_mode: Literal["off", "read", "refresh", "write"] = cache_mode
@@ -223,7 +240,7 @@ class PlateauGenerator:
         """
         session = session or self.description_session
         plateau_name = next(
-            (n for n, lvl in DEFAULT_PLATEAU_MAP.items() if lvl == level),
+            (n for n, lvl in default_plateau_map().items() if lvl == level),
             f"plateau_{level}",
         )
         return self._request_descriptions([plateau_name], session).get(plateau_name, "")
@@ -244,7 +261,7 @@ class PlateauGenerator:
         lines: list[str] = []
         for name in plateau_names:
             try:
-                level = DEFAULT_PLATEAU_MAP[name]
+                level = default_plateau_map()[name]
             except KeyError as exc:
                 raise ValueError(f"Unknown plateau name: {name}") from exc
             lines.append(f"{level}. {name}")
@@ -698,8 +715,8 @@ class PlateauGenerator:
 
         Args:
             service_input: Source service details to evolve.
-            runtimes: Plateau runtimes to process. When ``None`` the defaults in
-                ``DEFAULT_PLATEAU_NAMES`` are used.
+            runtimes: Plateau runtimes to process. When ``None`` the defaults
+                from :func:`default_plateau_names` are used.
             role_ids: Optional subset of role identifiers to include.
             transcripts_dir: Directory to persist per-service transcripts. ``None``
                 disables transcript persistence.
@@ -714,16 +731,18 @@ class PlateauGenerator:
                 span.set_attribute("customer_type", service_input.customer_type)
 
             if runtimes is None:
+                names = default_plateau_names()
                 desc_map = await self._request_descriptions_async(
-                    DEFAULT_PLATEAU_NAMES, session=self.description_session
+                    names, session=self.description_session
                 )
+                pmap = default_plateau_map()
                 runtimes = [
                     PlateauRuntime(
-                        plateau=DEFAULT_PLATEAU_MAP[name],
+                        plateau=pmap[name],
                         plateau_name=name,
                         description=desc_map[name],
                     )
-                    for name in DEFAULT_PLATEAU_NAMES
+                    for name in names
                 ]
             role_ids = list(role_ids or self.roles)
 

@@ -6,7 +6,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 
 from pydantic_ai import Agent
 
@@ -22,6 +22,7 @@ from models import (
     ServiceMeta,
 )
 from plateau_generator import PlateauGenerator
+from runtime.environment import RuntimeEnv
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -80,6 +81,7 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
         use_local_cache=False,
         cache_mode="off",
     )
+    RuntimeEnv.initialize(cast(Any, SimpleNamespace(mapping_data_dir=Path("data"))))
     generator = PlateauGenerator(
         session,
         required_count=5,

@@ -131,7 +131,12 @@ async def test_map_features_maps_all_sets_with_full_list(monkeypatch) -> None:
         MappingSet(name="Extra", file="extra.json", field="extra"),
     ]
     monkeypatch.setattr("plateau_generator.map_set", fake_map_set)
-    RuntimeEnv.initialize(cast(Any, SimpleNamespace(mapping_sets=mapping_sets)))
+    RuntimeEnv.initialize(
+        cast(
+            Any,
+            SimpleNamespace(mapping_sets=mapping_sets, mapping_data_dir=Path("data")),
+        )
+    )
     monkeypatch.setattr(
         "plateau_generator.load_mapping_items",
         lambda path, sets: ({s.field: [] for s in sets}, "hash"),

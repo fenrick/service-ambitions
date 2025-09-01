@@ -28,9 +28,9 @@ from models import (
 )
 from persistence import atomic_write
 from plateau_generator import (
-    DEFAULT_PLATEAU_MAP,
-    DEFAULT_PLATEAU_NAMES,
     PlateauGenerator,
+    default_plateau_map,
+    default_plateau_names,
 )
 from quarantine import QuarantineWriter
 from runtime.environment import RuntimeEnv
@@ -193,13 +193,13 @@ class ServiceExecution:
                         catalogue_hash=catalogue_hash,
                         created=datetime.now(timezone.utc),
                     )
-                plateau_names = list(DEFAULT_PLATEAU_NAMES)
+                plateau_names = list(default_plateau_names())
                 desc_map = await generator._request_descriptions_async(
                     plateau_names, session=desc_session
                 )
                 runtimes = [
                     PlateauRuntime(
-                        plateau=DEFAULT_PLATEAU_MAP[name],
+                        plateau=default_plateau_map()[name],
                         plateau_name=name,
                         description=desc_map[name],
                     )
