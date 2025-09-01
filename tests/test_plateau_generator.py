@@ -12,6 +12,7 @@ from typing import cast
 
 import pytest
 from pydantic_ai import Agent
+from pydantic_core import from_json
 
 from conversation import (
     ConversationSession,
@@ -1159,5 +1160,5 @@ def test_write_transcript_writes_payload(tmp_path) -> None:
     asyncio.run(generator._write_transcript(tmp_path, service, evolution))
 
     path = tmp_path / f"{service.service_id}.json"
-    data = json.loads(path.read_text(encoding="utf-8"))
+    data = from_json(path.read_text(encoding="utf-8"))
     assert data["request"]["service_id"] == "s1"
