@@ -10,7 +10,6 @@ callers receive concise exceptions.
 from __future__ import annotations
 
 import hashlib
-import json
 from functools import lru_cache
 from pathlib import Path
 from typing import Sequence, Tuple, TypeVar
@@ -18,6 +17,7 @@ from typing import Sequence, Tuple, TypeVar
 import logfire
 import yaml
 from pydantic import TypeAdapter
+from pydantic_core import to_json
 
 from models import (
     AppConfig,
@@ -168,7 +168,10 @@ def compile_catalogue_for_set(
         }
         for item in ordered
     ]
-    serialised = json.dumps(canonical, separators=(",", ":"), sort_keys=True)
+    try:
+        serialised = to_json(canonical, sort_keys=True).decode("utf-8")  # type: ignore[call-arg]
+    except TypeError:  # Fallback for older pydantic-core versions
+        serialised = to_json(canonical).decode("utf-8")
     digest = hashlib.sha256(serialised.encode("utf-8")).hexdigest()
     return ordered, digest
 
