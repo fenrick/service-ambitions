@@ -23,6 +23,7 @@ from models import (
     MappingFeatureGroup,
     MappingSet,
     MaturityScore,
+    PlateauDescriptionsResponse,
     PlateauFeature,
     PlateauResult,
     ServiceEvolution,
@@ -42,9 +43,11 @@ class DummySession:
         self.prompts: list[str] = []
         self.client = None
         self.stage = "test"
+        self.last_output_type = None
 
     def ask(self, prompt: str, output_type=None) -> object:
         self.prompts.append(prompt)
+        self.last_output_type = output_type
         response = self._responses.pop(0)
         if output_type is None:
             return response
@@ -1162,3 +1165,67 @@ def test_write_transcript_writes_payload(tmp_path) -> None:
     path = tmp_path / f"{service.service_id}.json"
     data = from_json(path.read_text(encoding="utf-8"))
     assert data["request"]["service_id"] == "s1"
+
+
+def test_request_descriptions_common_accepts_dict(tmp_path, monkeypatch) -> None:
+    """Dictionary payloads for descriptions should be parsed."""
+
+    monkeypatch.chdir(tmp_path)
+    session = DummySession([])
+    generator = PlateauGenerator(
+        cast(ConversationSession, session),
+        use_local_cache=False,
+        cache_mode="off",
+    )
+    raw = {
+        "descriptions": [
+            {
+                "plateau": 1,
+                "plateau_name": "Foundational",
+                "description": "Desc",
+            }
+        ]
+    }
+    result = generator._request_descriptions_common(["Foundational"], raw)
+    assert result == {"Foundational": "Desc"}
+
+
+def test_request_descriptions_common_quarantines_dict(tmp_path, monkeypatch) -> None:
+    """Invalid dictionary payloads should be quarantined."""
+
+    monkeypatch.chdir(tmp_path)
+    session = DummySession([])
+    generator = PlateauGenerator(
+        cast(ConversationSession, session),
+        use_local_cache=False,
+        cache_mode="off",
+    )
+    raw = {"foo": "bar"}
+    result = generator._request_descriptions_common(["Foundational"], raw)
+    assert result == {"Foundational": ""}
+    qfile = Path("quarantine/descriptions/Foundational.txt")
+    assert json.loads(qfile.read_text(encoding="utf-8")) == raw
+
+
+def test_request_descriptions_uses_parsed_payload(monkeypatch, tmp_path) -> None:
+    """_request_descriptions should parse JSON and request dict caching."""
+
+    monkeypatch.chdir(tmp_path)
+    payload = {
+        "descriptions": [
+            {
+                "plateau": 1,
+                "plateau_name": "Foundational",
+                "description": "Desc",
+            }
+        ]
+    }
+    session = DummySession([json.dumps(payload)])
+    generator = PlateauGenerator(
+        cast(ConversationSession, session),
+        use_local_cache=False,
+        cache_mode="off",
+    )
+    result = generator._request_descriptions(["Foundational"])
+    assert result == {"Foundational": "Desc"}
+    assert session.last_output_type is PlateauDescriptionsResponse
