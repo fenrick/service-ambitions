@@ -284,7 +284,7 @@ def test_cli_generate_matches_golden(monkeypatch, tmp_path, dummy_agent) -> None
     monkeypatch.setattr(pe, "configure_mapping_data_dir", lambda *a, **k: None)
     monkeypatch.setattr(pe, "load_evolution_prompt", lambda *a, **k: "prompt")
     monkeypatch.setattr(pe, "load_role_ids", lambda *a, **k: ["role"])
-    monkeypatch.setattr(se, "load_mapping_items", lambda *a, **k: ([], "hash"))
+    monkeypatch.setattr(se, "load_mapping_items", lambda *a, **k: ([], "0" * 64))
     monkeypatch.setattr(se, "Agent", dummy_agent)
     monkeypatch.setattr(se, "ConversationSession", DummySession)
     monkeypatch.setattr(se, "PlateauGenerator", DummyPlateauGenerator)

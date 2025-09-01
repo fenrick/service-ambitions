@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import inspect
+import json
 import logging
 import random
 from pathlib import Path
@@ -169,7 +170,7 @@ async def _cmd_map(
     with output_path.open("w", encoding="utf-8") as fh:
         for evo in evolutions:
             record = canonicalise_record(evo.model_dump(mode="json"))
-            fh.write(to_json(record).decode() + "\n")
+            fh.write(json.dumps(record, separators=(",", ":"), sort_keys=True) + "\n")
 
 
 def _cmd_reverse(

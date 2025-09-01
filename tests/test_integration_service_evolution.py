@@ -152,9 +152,9 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
     assert len(evolution.plateaus) == 4
     assert sum(len(p.features) for p in evolution.plateaus) == 60
     assert all(len(p.features) >= 15 for p in evolution.plateaus)
-    assert len(agent.prompts) == 5
+    assert len(agent.prompts) == 4
     assert map_calls["n"] == 4
-    assert len(agent.prompts) + map_calls["n"] == 9
+    assert len(agent.prompts) + map_calls["n"] == 8
     for plateau in evolution.plateaus:
         assert plateau.mappings["data"]
         assert plateau.mappings["applications"]

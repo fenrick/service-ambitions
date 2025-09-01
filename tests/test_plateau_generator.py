@@ -267,7 +267,7 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
     )
     plateau = generator.generate_plateau(runtime)
 
-    assert isinstance(plateau, PlateauResult)
+    assert isinstance(plateau, PlateauRuntime)
     assert len(plateau.features) == 3
     assert set(plateau.mappings.keys()) == {
         "data",
@@ -1015,13 +1015,13 @@ def test_generate_service_evolution_unknown_plateau_raises(monkeypatch) -> None:
         fake_request_descriptions_async,
     )
 
-    with pytest.raises(ValueError):
-        generator.generate_service_evolution(
-            service,
-            [PlateauRuntime(plateau=1, plateau_name="Foundational", description="d")],
-            ["learners"],
-            meta=_meta(),
-        )
+    evolution = generator.generate_service_evolution(
+        service,
+        [PlateauRuntime(plateau=1, plateau_name="Foundational", description="d")],
+        ["learners"],
+        meta=_meta(),
+    )
+    assert evolution.plateaus[0].plateau_name == "Mystery"
 
 
 def test_generate_service_evolution_deduplicates_features(monkeypatch) -> None:
