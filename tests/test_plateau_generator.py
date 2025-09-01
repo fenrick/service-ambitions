@@ -503,123 +503,6 @@ def test_generate_plateau_requests_missing_features_concurrently(
     assert duration < 0.19  # Parallel calls should take ~0.1s overall.
 
 
-def test_generate_plateau_repairs_invalid_role(monkeypatch) -> None:
-    template = "{required_count} {service_name} {service_description} {plateau} {roles}"
-
-    def fake_loader(name, *_, **__):
-        if name == "plateau_prompt":
-            return template
-        if name == "plateau_descriptions_prompt":
-            return "desc {plateaus} {schema}"
-        return ""
-
-    monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
-    initial = json.dumps(
-        {
-            "features": {
-                "learners": [{}],
-                "academics": [
-                    {
-                        "name": "A",
-                        "description": "da",
-                        "score": {"level": 3, "label": "Defined", "justification": "j"},
-                    }
-                ],
-                "professional_staff": [
-                    {
-                        "name": "P",
-                        "description": "dp",
-                        "score": {"level": 3, "label": "Defined", "justification": "j"},
-                    }
-                ],
-            }
-        }
-    )
-    repair = json.dumps(
-        {
-            "features": {
-                "learners": [
-                    {
-                        "name": "L",
-                        "description": "dl",
-                        "score": {
-                            "level": 3,
-                            "label": "Defined",
-                            "justification": "j",
-                        },
-                    }
-                ],
-                "academics": [
-                    {
-                        "name": "A",
-                        "description": "da",
-                        "score": {
-                            "level": 3,
-                            "label": "Defined",
-                            "justification": "j",
-                        },
-                    }
-                ],
-                "professional_staff": [
-                    {
-                        "name": "P",
-                        "description": "dp",
-                        "score": {
-                            "level": 3,
-                            "label": "Defined",
-                            "justification": "j",
-                        },
-                    }
-                ],
-            }
-        }
-    )
-    desc_payload = json.dumps(
-        {
-            "descriptions": [
-                {
-                    "plateau": 1,
-                    "plateau_name": "Foundational",
-                    "description": "desc",
-                }
-            ]
-        }
-    )
-    session = DummySession([desc_payload, initial, repair])
-
-    async def dummy_map_features(self, session, feats, **kwargs):
-        return {}
-
-    monkeypatch.setattr(PlateauGenerator, "_map_features", dummy_map_features)
-
-    generator = PlateauGenerator(
-        cast(ConversationSession, session),
-        required_count=1,
-        use_local_cache=False,
-        cache_mode="off",
-    )
-    service = ServiceInput(
-        service_id="svc-1",
-        name="svc",
-        customer_type="retail",
-        description="desc",
-        jobs_to_be_done=[{"name": "job"}],
-    )
-    generator._service = service
-
-    desc_map = asyncio.run(generator._request_descriptions_async(["Foundational"]))
-    runtime = PlateauRuntime(
-        plateau=1,
-        plateau_name="Foundational",
-        description=desc_map["Foundational"],
-    )
-    plateau = generator.generate_plateau(runtime)
-
-    assert len(session.prompts) == 3
-    learners = [f for f in plateau.features if f.customer_type == "learners"]
-    assert len(learners) == 1
-
-
 def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> None:
     template = "{required_count} {service_name} {service_description} {plateau} {roles}"
 
@@ -786,15 +669,13 @@ async def test_generate_plateau_supports_custom_roles(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio()
-async def test_request_descriptions_async_recovers_from_invalid(monkeypatch) -> None:
-    """A retry hint is issued when the model response is invalid."""
+async def test_request_descriptions_async(monkeypatch) -> None:
+    """Agent returns plateau descriptions for requested names."""
 
     def fake_loader(name, *_, **__):
         return "template" if name == "plateau_descriptions_prompt" else ""
 
     monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
-    # First response is invalid JSON; second is valid.
-    bad = "not json"
     good = json.dumps(
         {
             "descriptions": [
@@ -806,7 +687,7 @@ async def test_request_descriptions_async_recovers_from_invalid(monkeypatch) -> 
             ]
         }
     )
-    session = DummySession([bad, good])
+    session = DummySession([good])
     generator = PlateauGenerator(
         cast(ConversationSession, session),
         required_count=1,
@@ -817,7 +698,7 @@ async def test_request_descriptions_async_recovers_from_invalid(monkeypatch) -> 
     result = await generator._request_descriptions_async(["Foundational"])
 
     assert result == {"Foundational": "desc one"}
-    assert session.prompts == ["template", "template\nStick to the fields defined."]
+    assert session.prompts == ["template"]
 
 
 def test_request_description_strips_preamble(monkeypatch) -> None:

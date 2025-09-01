@@ -105,13 +105,13 @@ def test_cache_write_json_atomic_requires_dict(tmp_path) -> None:
 
 @pytest.mark.asyncio()
 async def test_map_set_successful_mapping(monkeypatch) -> None:
-    """Agent response is retried once then merged into features."""
+    """Agent response is merged into features."""
 
     monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
     valid = json.dumps(
         {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
     )
-    session = DummySession(["bad", valid])
+    session = DummySession([valid])
     mapped = await map_set(
         cast(ConversationSession, session),
         "applications",
@@ -122,7 +122,7 @@ async def test_map_set_successful_mapping(monkeypatch) -> None:
         plateau=1,
         service="svc",
     )
-    assert session.prompts == ["PROMPT", "PROMPT\nStick to the fields defined."]
+    assert session.prompts == ["PROMPT"]
     assert mapped[0].mappings["applications"][0].item == "a"
 
 

@@ -424,35 +424,29 @@ async def map_set(
         try:
             payload = await session.ask_async(prompt)
             tokens += getattr(session, "last_tokens", 0)
-        except Exception:
-            retries = 1
-            hint_prompt = f"{prompt}\nStick to the fields defined."
-            try:
-                payload = await session.ask_async(hint_prompt)
-                tokens += getattr(session, "last_tokens", 0)
-            except Exception as exc:
-                svc = service or "unknown"
-                _writer.write(set_name, svc, "json_parse_error", str(exc))
-                _error_handler.handle("Invalid mapping response", exc)
-                if strict:
-                    raise MappingError(
-                        f"Invalid mapping response for {svc}/{set_name}"
-                    ) from exc
-                record_mapping_set(
-                    set_name,
-                    features=len(features),
-                    mapped_ids=0,
-                    unknown_ids=0,
-                    retries=retries,
-                    latency=time.monotonic() - start,
-                    tokens=tokens,
-                )
-                if should_log_prompt:
-                    session.log_prompts = session_log_prompts
-                return [
-                    feat.model_copy(update={"mappings": feat.mappings | {set_name: []}})
-                    for feat in features
-                ]
+        except Exception as exc:
+            svc = service or "unknown"
+            _writer.write(set_name, svc, "json_parse_error", str(exc))
+            _error_handler.handle("Invalid mapping response", exc)
+            if strict:
+                raise MappingError(
+                    f"Invalid mapping response for {svc}/{set_name}"
+                ) from exc
+            record_mapping_set(
+                set_name,
+                features=len(features),
+                mapped_ids=0,
+                unknown_ids=0,
+                retries=retries,
+                latency=time.monotonic() - start,
+                tokens=tokens,
+            )
+            if should_log_prompt:
+                session.log_prompts = session_log_prompts
+            return [
+                feat.model_copy(update={"mappings": feat.mappings | {set_name: []}})
+                for feat in features
+            ]
         if cache_file and write_after_call:
             # Persist successful responses for future runs.
             data = payload.model_dump() if hasattr(payload, "model_dump") else payload

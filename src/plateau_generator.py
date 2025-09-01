@@ -300,11 +300,7 @@ class PlateauGenerator:
 
         session = session or self.description_session
         prompt = self._build_descriptions_prompt(plateau_names)
-        try:
-            payload = await session.ask_async(prompt)
-        except Exception:
-            hint_prompt = f"{prompt}\nStick to the fields defined."
-            payload = await session.ask_async(hint_prompt)
+        payload = await session.ask_async(prompt)
         return self._request_descriptions_common(plateau_names, payload)
 
     def _to_feature(
@@ -663,13 +659,7 @@ class PlateauGenerator:
 
                 prompt = self._build_plateau_prompt(level, description)
                 logfire.info(f"Requesting features for level={level}")
-
-                try:
-                    payload = await session.ask_async(prompt)
-                except Exception:
-                    hint_prompt = f"{prompt}\nStick to the fields defined."
-                    payload = await session.ask_async(hint_prompt)
-
+                payload = await session.ask_async(prompt)
                 role_data = payload.features
             valid, invalid_roles, missing = self._validate_roles(role_data)
 
