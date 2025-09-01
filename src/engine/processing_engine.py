@@ -24,6 +24,7 @@ from models import ServiceInput
 from persistence import atomic_write, read_lines
 from runtime.environment import RuntimeEnv
 from service_loader import load_services
+from settings import Settings
 
 # Helper functions migrated from cli for reuse.
 
@@ -107,6 +108,48 @@ class ProcessingEngine:
         self.executions: list[ServiceExecution] = []
         self.success = False
 
+    def _create_model_factory(self, settings: Settings) -> ModelFactory:
+        """Return a model factory configured from ``settings``."""
+
+        return ModelFactory(
+            settings.model,
+            settings.openai_api_key,
+            stage_models=getattr(settings, "models", None),
+            reasoning=settings.reasoning,
+            seed=self.args.seed,
+            web_search=settings.web_search,
+        )
+
+    def _load_services(
+        self, settings: Settings
+    ) -> tuple[str, list[str], list[ServiceInput]]:
+        """Load system prompt, role identifiers and service definitions."""
+
+        configure_prompt_dir(settings.prompt_dir)
+        configure_mapping_data_dir(settings.mapping_data_dir)
+        system_prompt = load_evolution_prompt(settings.context_id, settings.inspiration)
+        role_ids = load_role_ids(Path(self.args.roles_file))
+        services = _load_services_list(
+            self.args.input_file, self.args.max_services, self.processed_ids
+        )
+        return system_prompt, role_ids, services
+
+    def _setup_concurrency(
+        self, settings: Settings
+    ) -> tuple[asyncio.Semaphore, asyncio.Lock]:
+        """Create concurrency primitives based on ``settings``."""
+        concurrency = settings.concurrency
+        if concurrency < 1:  # Guard against invalid configuration
+            raise ValueError("concurrency must be a positive integer")
+        return asyncio.Semaphore(concurrency), asyncio.Lock()
+
+    def _create_progress(self, total: int) -> tqdm | None:
+        """Return a progress bar when enabled and supported."""
+        if self.args.progress and sys.stdout.isatty():
+            return tqdm(total=total)
+        # Progress bars are disabled in non-interactive environments.
+        return None
+
     async def run(self) -> bool:
         """Run evolutions for all loaded services."""
 
@@ -116,36 +159,13 @@ class ProcessingEngine:
                 "Starting processing engine",
                 input_file=self.args.input_file,
             )
-            factory = ModelFactory(
-                settings.model,
-                settings.openai_api_key,
-                stage_models=getattr(settings, "models", None),
-                reasoning=settings.reasoning,
-                seed=self.args.seed,
-                web_search=settings.web_search,
-            )
-            configure_prompt_dir(settings.prompt_dir)
-            configure_mapping_data_dir(settings.mapping_data_dir)
-            system_prompt = load_evolution_prompt(
-                settings.context_id, settings.inspiration
-            )
-            role_ids = load_role_ids(Path(self.args.roles_file))
-            services = _load_services_list(
-                self.args.input_file, self.args.max_services, self.processed_ids
-            )
+            factory = self._create_model_factory(settings)
+            system_prompt, role_ids, services = self._load_services(settings)
             if self.args.dry_run:
                 logfire.info("Validated services", count=len(services))
                 return True
-            concurrency = settings.concurrency
-            if concurrency < 1:
-                raise ValueError("concurrency must be a positive integer")
-            sem = asyncio.Semaphore(concurrency)
-            lock = asyncio.Lock()
-            progress = (
-                tqdm(total=len(services))
-                if self.args.progress and sys.stdout.isatty()
-                else None
-            )
+            sem, lock = self._setup_concurrency(settings)
+            progress = self._create_progress(len(services))
             temp_output_dir = (
                 Path(self.args.temp_output_dir)
                 if self.args.temp_output_dir is not None
