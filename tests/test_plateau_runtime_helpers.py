@@ -113,3 +113,39 @@ async def test_recover_feature_shortfalls(monkeypatch) -> None:
 
     assert len(result["r1"]) == 2
     assert len(result["r2"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_dispatch_and_cache_features(monkeypatch, tmp_path) -> None:
+    runtime = PlateauRuntime(plateau=1, plateau_name="p1", description="d")
+
+    payload = PlateauFeaturesResponse(features={"r": [_dummy_feature("f")]})
+
+    async def fake_dispatch(*args, **kwargs):  # noqa: ANN001
+        return payload
+
+    def fake_validate(role_data, *, roles, required_count):  # noqa: ANN001
+        return role_data, [], {}
+
+    async def fake_recover(*args, **kwargs):  # noqa: ANN001
+        return payload.features
+
+    monkeypatch.setattr(runtime, "_dispatch_feature_prompt", fake_dispatch)
+    monkeypatch.setattr(runtime, "_validate_roles", fake_validate)
+    monkeypatch.setattr(runtime, "_recover_feature_shortfalls", fake_recover)
+
+    cache_file = tmp_path / "features.json"
+
+    result = await runtime._dispatch_and_cache_features(
+        cast(ConversationSession, DummySession()),
+        service_id="svc",
+        service_name="svc",
+        roles=["r"],
+        required_count=1,
+        cache_file=cache_file,
+        use_local_cache=True,
+        cache_mode="write",
+    )
+
+    assert result == payload
+    assert cache_file.exists()

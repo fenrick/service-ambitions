@@ -113,7 +113,17 @@ class PlateauRuntime:
         roles: Sequence[str],
         required_count: int,
     ) -> tuple[dict[str, list[FeatureItem]], list[str], dict[str, int]]:
-        """Return valid roles, invalid role names and missing counts."""
+        """Return valid roles, invalid names and missing counts.
+
+        Args:
+            role_data: Raw features keyed by role from the model.
+            roles: Allowed role names.
+            required_count: Required features per role.
+
+        Returns:
+            A tuple of (valid features per role, invalid role names,
+            missing feature counts).
+        """
 
         valid: dict[str, list[FeatureItem]] = {}
         invalid: list[str] = []
@@ -258,7 +268,21 @@ class PlateauRuntime:
         required_count: int,
         roles: Sequence[str],
     ) -> dict[str, list[FeatureItem]]:
-        """Return roles with recovered features."""
+        """Return roles with recovered features.
+
+        Args:
+            valid: Initially valid features keyed by role.
+            invalid_roles: Roles that failed validation.
+            missing: Number of missing features per role.
+            level: Plateau level for follow-up prompts.
+            description: Service description for context.
+            session: Conversation session used for prompts.
+            required_count: Minimum features per role.
+            roles: All role names.
+
+        Returns:
+            Updated mapping of roles to feature lists.
+        """
 
         fixes = await self._recover_invalid_roles(
             invalid_roles,
@@ -283,6 +307,65 @@ class PlateauRuntime:
         self._enforce_min_features(valid, roles=roles, required=required_count)
         return valid
 
+    async def _dispatch_and_cache_features(
+        self,
+        session: ConversationSession,
+        *,
+        service_id: str,
+        service_name: str,
+        roles: Sequence[str],
+        required_count: int,
+        cache_file: Path | None,
+        use_local_cache: bool,
+        cache_mode: Literal["off", "read", "refresh", "write"],
+    ) -> PlateauFeaturesResponse:
+        """Return validated feature payload and optionally cache it.
+
+        Args:
+            session: Conversation session used to query the model.
+            service_id: Identifier for cache storage.
+            service_name: Human-readable service name for prompts.
+            roles: Customer roles requiring features.
+            required_count: Number of features to collect per role.
+            cache_file: Destination for cached payload.
+            use_local_cache: Whether caching is enabled.
+            cache_mode: Caching behaviour mode.
+
+        Returns:
+            Validated feature payload.
+        """
+
+        payload = await self._dispatch_feature_prompt(
+            session,
+            service_id=service_id,
+            service_name=service_name,
+            roles=roles,
+            required_count=required_count,
+        )
+        role_data = payload.features
+        valid, invalid_roles, missing = self._validate_roles(
+            role_data, roles=roles, required_count=required_count
+        )
+        valid = await self._recover_feature_shortfalls(
+            valid,
+            invalid_roles,
+            missing,
+            level=self.plateau,
+            description=self.description,
+            session=session,
+            required_count=required_count,
+            roles=roles,
+        )
+        payload = PlateauFeaturesResponse(
+            features={role: list(valid.get(role, [])) for role in roles}
+        )
+        if use_local_cache and cache_mode != "off":
+            cache_write_json_atomic(
+                cache_file or self._feature_cache_path(service_id),
+                payload.model_dump(),
+            )
+        return payload
+
     async def generate_features(
         self,
         session: ConversationSession,
@@ -301,35 +384,16 @@ class PlateauRuntime:
             service_id, use_local_cache, cache_mode
         )
         if payload is None:
-            payload = await self._dispatch_feature_prompt(
+            payload = await self._dispatch_and_cache_features(
                 session,
                 service_id=service_id,
                 service_name=service_name,
                 roles=roles,
                 required_count=required_count,
+                cache_file=cache_file,
+                use_local_cache=use_local_cache,
+                cache_mode=cache_mode,
             )
-            role_data = payload.features
-            valid, invalid_roles, missing = self._validate_roles(
-                role_data, roles=roles, required_count=required_count
-            )
-            valid = await self._recover_feature_shortfalls(
-                valid,
-                invalid_roles,
-                missing,
-                level=self.plateau,
-                description=self.description,
-                session=session,
-                required_count=required_count,
-                roles=roles,
-            )
-            payload = PlateauFeaturesResponse(
-                features={role: list(valid.get(role, [])) for role in roles}
-            )
-            if use_local_cache and cache_mode != "off":
-                cache_write_json_atomic(
-                    cache_file or self._feature_cache_path(service_id),
-                    payload.model_dump(),
-                )
 
         self.features = self._collect_features(
             payload, roles=roles, code_registry=code_registry
