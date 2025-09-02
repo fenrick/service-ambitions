@@ -34,7 +34,7 @@ class PlateauRuntime:
     description: str
     features: list[PlateauFeature] = field(default_factory=list)
     mappings: dict[str, list[MappingFeatureGroup]] = field(default_factory=dict)
-    _success: bool = False
+    success: bool = False
 
     def _feature_cache_path(self, service: str) -> Path:
         """Return canonical cache path for features."""
@@ -382,7 +382,7 @@ class PlateauRuntime:
             )
 
         self.mappings = groups
-        self._success = True
+        self.success = True
 
     def set_results(
         self,
@@ -398,7 +398,7 @@ class PlateauRuntime:
         ):
             self.features = list(features)
             self.mappings = mappings
-            self._success = True
+            self.success = True
             logfire.debug(
                 "Stored plateau results",
                 plateau=self.plateau_name,
@@ -412,6 +412,6 @@ class PlateauRuntime:
         logfire.debug(
             "Plateau status checked",
             plateau=self.plateau_name,
-            success=self._success,
+            success=self.success,
         )
-        return self._success
+        return self.success

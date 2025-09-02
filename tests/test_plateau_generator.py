@@ -263,7 +263,7 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
                 MappingFeatureGroup(id="t", name="t", mappings=refs.copy())
             ],
         }
-        self._success = True
+        self.success = True
 
     monkeypatch.setattr(PlateauRuntime, "generate_mappings", dummy_generate_mappings)
 
@@ -363,7 +363,7 @@ def test_generate_plateau_repairs_missing_features(monkeypatch) -> None:
 
     async def dummy_generate_mappings(self, session, **kwargs):
         self.mappings = {}
-        self._success = True
+        self.success = True
 
     monkeypatch.setattr(PlateauRuntime, "generate_mappings", dummy_generate_mappings)
 
@@ -456,7 +456,7 @@ def test_generate_plateau_requests_missing_features_concurrently(
 
     async def dummy_generate_mappings(self, session, **kwargs):
         self.mappings = {}
-        self._success = True
+        self.success = True
 
     monkeypatch.setattr(PlateauRuntime, "generate_mappings", dummy_generate_mappings)
 
@@ -668,7 +668,7 @@ async def test_generate_plateau_supports_custom_roles(monkeypatch) -> None:
 
     async def dummy_generate_mappings(self, session, **kwargs):
         self.mappings = {}
-        self._success = True
+        self.success = True
 
     monkeypatch.setattr(PlateauRuntime, "generate_mappings", dummy_generate_mappings)
 
@@ -1165,7 +1165,7 @@ async def test_generate_plateau_reads_feature_cache(monkeypatch, tmp_path) -> No
 
     async def fake_generate_mappings(self, session, **kwargs):
         self.mappings = {}
-        self._success = True
+        self.success = True
 
     monkeypatch.setattr(PlateauRuntime, "generate_mappings", fake_generate_mappings)
 
