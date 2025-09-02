@@ -139,6 +139,7 @@ class ProcessingEngine:
         self.factory: ModelFactory | None = None
         self.system_prompt: str | None = None
         self.role_ids: list[str] | None = None
+        self.services: list[ServiceInput] | None = None
         self.sem: asyncio.Semaphore | None = None
         self.progress: tqdm | None = None
         self.temp_output_dir: Path | None = None
@@ -156,19 +157,10 @@ class ProcessingEngine:
 
         self.settings = RuntimeEnv.instance().settings
 
-    def _create_model_factory(self, settings: Settings) -> ModelFactory:
-        """Create a model factory from settings.
+    def _create_model_factory(self) -> ModelFactory:
+        """Create a model factory from ``self.settings``."""
 
-        Args:
-            settings: Global configuration.
-
-        Returns:
-            Configured :class:`ModelFactory` instance.
-
-        Side effects:
-            None.
-        """
-
+        settings = self.settings
         return ModelFactory(
             settings.model,
             settings.openai_api_key,
@@ -178,21 +170,10 @@ class ProcessingEngine:
             web_search=settings.web_search,
         )
 
-    def _load_services(
-        self, settings: Settings
-    ) -> tuple[str, list[str], list[ServiceInput]]:
-        """Load system prompt, role identifiers and service definitions.
+    def _load_services(self) -> tuple[str, list[str], list[ServiceInput]]:
+        """Load system prompt, role identifiers and service definitions."""
 
-        Args:
-            settings: Global configuration.
-
-        Returns:
-            Tuple of system prompt, role IDs and filtered services.
-
-        Side effects:
-            Configures prompt and mapping directories based on ``settings``.
-        """
-
+        settings = self.settings
         configure_prompt_dir(settings.prompt_dir)
         configure_mapping_data_dir(settings.mapping_data_dir)
         system_prompt = load_evolution_prompt(settings.context_id, settings.inspiration)
@@ -202,10 +183,10 @@ class ProcessingEngine:
         )
         return system_prompt, role_ids, services
 
-    def _setup_concurrency(self, settings: Settings) -> asyncio.Semaphore:
+    def _setup_concurrency(self) -> asyncio.Semaphore:
         """Create a semaphore limiting concurrent executions."""
 
-        concurrency = settings.concurrency
+        concurrency = self.settings.concurrency
         if concurrency < 1:  # Guard against invalid configuration
             raise ValueError("concurrency must be a positive integer")
         return asyncio.Semaphore(concurrency)
@@ -227,49 +208,26 @@ class ProcessingEngine:
         # Progress bars are disabled in non-interactive environments.
         return None
 
-    def _prepare_models(
-        self,
-    ) -> tuple[ModelFactory, str, list[str], list[ServiceInput]]:
-        """Initialise shared models and service definitions.
+    def _prepare_models(self) -> None:
+        """Initialise shared models and service definitions."""
 
-        Returns:
-            Model factory, system prompt, role IDs and services.
+        self.factory = self._create_model_factory()
+        system_prompt, role_ids, services = self._load_services()
+        self.system_prompt = system_prompt
+        self.role_ids = role_ids
+        self.services = services
 
-        Side effects:
-            Configures prompt and mapping directories.
-        """
+    def _init_sessions(self, total: int) -> None:
+        """Create concurrency, progress and error-handling helpers."""
 
-        settings = self.settings
-        factory = self._create_model_factory(settings)
-        system_prompt, role_ids, services = self._load_services(settings)
-        return factory, system_prompt, role_ids, services
-
-    def _init_sessions(
-        self, total: int
-    ) -> tuple[asyncio.Semaphore, tqdm | None, Path | None, ErrorHandler]:
-        """Create concurrency, progress and error-handling helpers.
-
-        Args:
-            total: Number of services to process.
-
-        Returns:
-            Semaphore, lock, optional progress bar, temporary output directory and
-            error handler.
-
-        Side effects:
-            May create the temporary output directory.
-        """
-
-        settings = self.settings
-        sem = self._setup_concurrency(settings)
-        progress = self._create_progress(total)
-        temp_output_dir = (
+        self.sem = self._setup_concurrency()
+        self.progress = self._create_progress(total)
+        self.temp_output_dir = (
             Path(self.args.temp_output_dir)
             if self.args.temp_output_dir is not None
             else None
         )
-        error_handler: ErrorHandler = LoggingErrorHandler()
-        return sem, progress, temp_output_dir, error_handler
+        self.error_handler = LoggingErrorHandler()
 
     async def _run_service(self, service: ServiceInput) -> bool:
         """Execute ``service`` and update runtime state.
@@ -334,24 +292,12 @@ class ProcessingEngine:
                 "Starting processing engine",
                 input_file=self.args.input_file,
             )
-            factory, system_prompt, role_ids, services = self._prepare_models()
-            self.factory, self.system_prompt, self.role_ids = (
-                factory,
-                system_prompt,
-                role_ids,
-            )
+            self._prepare_models()
+            services = self.services or []
             if self.args.dry_run:
                 logfire.info("Validated services", count=len(services))
                 return True
-            sem, progress, temp_output_dir, error_handler = self._init_sessions(
-                len(services)
-            )
-            self.sem, self.progress, self.temp_output_dir, self.error_handler = (
-                sem,
-                progress,
-                temp_output_dir,
-                error_handler,
-            )
+            self._init_sessions(len(services))
             success = await self._generate_evolution(services)
             if self.progress:
                 self.progress.close()

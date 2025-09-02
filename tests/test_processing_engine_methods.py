@@ -50,12 +50,12 @@ def test_prepare_models_uses_runtimeenv(monkeypatch, tmp_path):
 
     captured = {}
 
-    def fake_create_model_factory(s):
-        captured["factory"] = s
+    def fake_create_model_factory():
+        captured["factory"] = engine.settings
         return "factory"
 
-    def fake_load_services(s):
-        captured["services"] = s
+    def fake_load_services():
+        captured["services"] = engine.settings
         svc = ServiceInput(
             service_id="svc",
             name="alpha",
@@ -67,14 +67,14 @@ def test_prepare_models_uses_runtimeenv(monkeypatch, tmp_path):
     monkeypatch.setattr(engine, "_create_model_factory", fake_create_model_factory)
     monkeypatch.setattr(engine, "_load_services", fake_load_services)
 
-    factory, system_prompt, role_ids, services = engine._prepare_models()
+    engine._prepare_models()
 
     assert captured["factory"] is settings
     assert captured["services"] is settings
-    assert factory == "factory"
-    assert system_prompt == "prompt"
-    assert role_ids == ["role"]
-    assert services[0].service_id == "svc"
+    assert engine.factory == "factory"
+    assert engine.system_prompt == "prompt"
+    assert engine.role_ids == ["role"]
+    assert engine.services and engine.services[0].service_id == "svc"
 
 
 def test_init_sessions_uses_runtimeenv(monkeypatch, tmp_path):
@@ -86,20 +86,20 @@ def test_init_sessions_uses_runtimeenv(monkeypatch, tmp_path):
 
     captured = {}
 
-    def fake_setup_concurrency(s):
-        captured["settings"] = s
+    def fake_setup_concurrency():
+        captured["settings"] = engine.settings
         return asyncio.Semaphore(1)
 
     monkeypatch.setattr(engine, "_setup_concurrency", fake_setup_concurrency)
     monkeypatch.setattr(engine, "_create_progress", lambda total: "progress")
 
-    sem, progress, temp_dir, handler = engine._init_sessions(5)
+    engine._init_sessions(5)
 
     assert captured["settings"] is settings
-    assert isinstance(sem, asyncio.Semaphore)
-    assert progress == "progress"
-    assert temp_dir is None
-    assert handler is not None
+    assert isinstance(engine.sem, asyncio.Semaphore)
+    assert engine.progress == "progress"
+    assert engine.temp_output_dir is None
+    assert engine.error_handler is not None
 
 
 @pytest.mark.asyncio
