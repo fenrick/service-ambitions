@@ -11,9 +11,9 @@ import logfire
 from pydantic import ValidationError
 from pydantic_core import from_json
 
-from conversation import ConversationSession
-from loader import load_mapping_items, load_prompt_text
-from mapping import cache_write_json_atomic, group_features_by_mapping, map_set
+from core.conversation import ConversationSession
+from core.mapping import cache_write_json_atomic, group_features_by_mapping, map_set
+from io_utils.loader import load_mapping_items, load_prompt_text
 from models import (
     FeatureItem,
     MappingFeatureGroup,

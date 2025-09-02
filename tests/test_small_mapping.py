@@ -7,10 +7,10 @@ from typing import cast
 import pytest
 from pydantic_core import from_json
 
-import loader
-import mapping
-from canonical import canonicalise_record
-from conversation import ConversationSession
+from core import mapping
+from core.canonical import canonicalise_record
+from core.conversation import ConversationSession
+from io_utils import loader
 from models import MappingResponse, MappingSet, ServiceEvolution
 
 

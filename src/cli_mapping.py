@@ -7,10 +7,10 @@ import json
 from pathlib import Path
 from typing import Iterable, Literal, Sequence, cast
 
-import mapping
-from canonical import canonicalise_record
-from conversation import ConversationSession
-from loader import configure_mapping_data_dir, load_mapping_items
+from core import mapping
+from core.canonical import canonicalise_record
+from core.conversation import ConversationSession
+from io_utils.loader import configure_mapping_data_dir, load_mapping_items
 from models import (
     FeatureMappingRef,
     MappingFeatureGroup,

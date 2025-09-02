@@ -14,11 +14,11 @@ import pytest
 from pydantic_ai import Agent
 from pydantic_core import from_json
 
-import loader
-from conversation import (
+from core.conversation import (
     ConversationSession,
 )
 from engine.plateau_runtime import PlateauRuntime
+from io_utils import loader
 from models import (
     FeatureItem,
     FeatureMappingRef,

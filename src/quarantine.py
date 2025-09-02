@@ -9,7 +9,7 @@ from typing import Any
 import logfire
 from pydantic_core import from_json, to_json
 
-import telemetry
+from observability import telemetry
 
 MANIFEST = "manifest.json"
 ALLOWED_KINDS = {"json_parse_error", "unknown_ids", "schema_mismatch", "timeout"}

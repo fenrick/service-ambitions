@@ -10,7 +10,7 @@ from typing import Any, cast
 
 from pydantic_ai import Agent
 
-from conversation import ConversationSession
+from core.conversation import ConversationSession
 from engine.plateau_runtime import PlateauRuntime
 from models import (
     SCHEMA_VERSION,

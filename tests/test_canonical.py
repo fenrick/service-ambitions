@@ -4,7 +4,7 @@
 import json
 from datetime import datetime, timezone
 
-from canonical import canonicalise_record
+from core.canonical import canonicalise_record
 from models import ServiceMeta
 
 

@@ -16,7 +16,7 @@ from typing import Literal
 from pydantic import Field, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from loader import load_app_config
+from io_utils.loader import load_app_config
 from models import MappingSet, ReasoningConfig, StageModels
 
 

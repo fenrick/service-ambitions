@@ -12,11 +12,11 @@ import logfire
 from pydantic_ai import Agent
 from pydantic_core import to_json
 
-from canonical import canonicalise_record
-from conversation import ConversationSession
+from core.canonical import canonicalise_record
+from core.conversation import ConversationSession
 from engine.plateau_runtime import PlateauRuntime
 from engine.service_runtime import ServiceRuntime
-from loader import load_mapping_items
+from io_utils.loader import load_mapping_items
 from model_factory import ModelFactory
 from models import (
     MappingDiagnosticsResponse,
