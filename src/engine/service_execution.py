@@ -69,6 +69,16 @@ class ServiceExecution:
         # Cache runtime settings for use across helper methods
         self.settings: Settings = RuntimeEnv.instance().settings
 
+    def refresh_settings(self) -> None:
+        """Refresh cached settings from :class:`RuntimeEnv`.
+
+        Side effects:
+            Updates ``self.settings`` to reflect any changes in the runtime
+            configuration.
+        """
+
+        self.settings = RuntimeEnv.instance().settings
+
     def _build_generator(
         self, settings: Settings
     ) -> tuple[PlateauGenerator, str, str, str]:
@@ -213,6 +223,7 @@ class ServiceExecution:
             are stored on :attr:`runtime` and are not returned to callers.
         """
 
+        self.refresh_settings()
         service = self.runtime.service
         generator, desc_name, feat_name, map_name = self._build_generator(self.settings)
         self.desc_name = desc_name

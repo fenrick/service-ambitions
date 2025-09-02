@@ -143,6 +143,18 @@ class ProcessingEngine:
         self.progress: tqdm | None = None
         self.temp_output_dir: Path | None = None
         self.error_handler: ErrorHandler | None = None
+        # Cache runtime settings to avoid repeated environment lookups
+        self.settings: Settings = RuntimeEnv.instance().settings
+
+    def refresh_settings(self) -> None:
+        """Refresh cached settings from :class:`RuntimeEnv`.
+
+        Side effects:
+            Updates ``self.settings`` to reflect the current runtime
+            configuration.
+        """
+
+        self.settings = RuntimeEnv.instance().settings
 
     def _create_model_factory(self, settings: Settings) -> ModelFactory:
         """Create a model factory from settings.
@@ -227,7 +239,7 @@ class ProcessingEngine:
             Configures prompt and mapping directories.
         """
 
-        settings = RuntimeEnv.instance().settings
+        settings = self.settings
         factory = self._create_model_factory(settings)
         system_prompt, role_ids, services = self._load_services(settings)
         return factory, system_prompt, role_ids, services
@@ -248,7 +260,7 @@ class ProcessingEngine:
             May create the temporary output directory.
         """
 
-        settings = RuntimeEnv.instance().settings
+        settings = self.settings
         sem = self._setup_concurrency(settings)
         progress = self._create_progress(total)
         temp_output_dir = (
@@ -316,6 +328,7 @@ class ProcessingEngine:
             per-service runtimes and written out by :meth:`finalise`.
         """
 
+        self.refresh_settings()
         with logfire.span("processing_engine.run"):
             logfire.info(
                 "Starting processing engine",
