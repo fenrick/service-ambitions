@@ -118,8 +118,9 @@ class RuntimeEnv:
         """Clear the active runtime environment and cached state.
 
         Useful for tests needing a fresh configuration or for scenarios where
-        the application must reload settings at runtime. Loader caches and run
-        metadata are cleared to avoid stale data in subsequent initialisations.
+        the application must reload settings at runtime. Loader caches, run
+        metadata, and state are cleared to avoid stale data in subsequent
+        initialisations.
         """
         with logfire.span("runtime_env.reset"):
             with cls._lock:
@@ -135,6 +136,8 @@ class RuntimeEnv:
                     if mapping is not None:
                         # Discard cached mapping data to force reloads.
                         mapping.clear_cache()
+                    # Remove any remaining state to ensure a clean instance.
+                    inst.state.clear()
                 cls._instance = None
 
 

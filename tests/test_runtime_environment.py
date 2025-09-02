@@ -43,3 +43,4 @@ def test_reset_clears_run_meta_and_caches():
     assert prompt.cleared
     assert mapping.cleared
     assert env.run_meta is None
+    assert env.state == {}
