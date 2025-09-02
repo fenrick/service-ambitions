@@ -189,10 +189,12 @@ class ServiceExecution:
             created=datetime.now(timezone.utc),
         )
 
-    async def _prepare_runtimes(
-        self, generator: PlateauGenerator
-    ) -> list[PlateauRuntime]:
+    async def _prepare_runtimes(self) -> list[PlateauRuntime]:
         """Return plateau runtimes with descriptions."""
+
+        generator = self.generator
+        if generator is None:  # pragma: no cover - defensive
+            raise RuntimeError("Generator not initialised")
 
         names = list(default_plateau_names())
         desc_map = await generator._request_descriptions_async(
@@ -244,7 +246,7 @@ class ServiceExecution:
             try:
                 SERVICES_PROCESSED.add(1)
                 self._ensure_run_meta()
-                runtimes = await self._prepare_runtimes(self.generator)
+                runtimes = await self._prepare_runtimes()
                 env = RuntimeEnv.instance()
                 meta = env.run_meta
                 assert meta is not None  # mypy safeguard
