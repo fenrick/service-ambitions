@@ -13,7 +13,6 @@ from typing import Any, Callable, Coroutine, cast
 import logfire
 from pydantic_core import to_json
 
-from cli_mapping import load_catalogue, remap_features, write_output
 from core import mapping
 from core.canonical import canonicalise_record
 from engine.processing_engine import ProcessingEngine
@@ -31,7 +30,9 @@ from observability import telemetry
 from observability.monitoring import init_logfire
 from plateau_generator import _feature_cache_path
 from runtime.environment import RuntimeEnv
-from settings import load_settings
+from runtime.settings import load_settings
+
+from .mapping import load_catalogue, remap_features, write_output
 
 SERVICES_FILE_HELP = "Path to the services JSONL file"
 OUTPUT_FILE_HELP = "File to write the results"

@@ -17,7 +17,7 @@ from core.conversation import ConversationSession
 from engine.plateau_runtime import PlateauRuntime
 from engine.service_runtime import ServiceRuntime
 from io_utils.loader import load_mapping_items
-from model_factory import ModelFactory
+from io_utils.persistence import atomic_write
 from models import (
     MappingDiagnosticsResponse,
     MappingResponse,
@@ -26,7 +26,7 @@ from models import (
     ServiceInput,
     ServiceMeta,
 )
-from persistence import atomic_write
+from models.factory import ModelFactory
 from plateau_generator import (
     PlateauGenerator,
     default_plateau_map,
@@ -34,7 +34,7 @@ from plateau_generator import (
 )
 from quarantine import QuarantineWriter
 from runtime.environment import RuntimeEnv
-from settings import Settings
+from runtime.settings import Settings
 from utils import ErrorHandler
 
 SERVICES_PROCESSED = logfire.metric_counter("services_processed")

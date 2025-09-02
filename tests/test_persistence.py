@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from persistence import atomic_write
+from io_utils.persistence import atomic_write
 
 
 def test_atomic_write_creates_parent_dir(tmp_path: Path) -> None:
@@ -30,8 +30,8 @@ def test_atomic_write_flushes(tmp_path: Path) -> None:
         return handle
 
     with (
-        patch("persistence.open", open_wrapper),
-        patch("persistence.os.fsync") as fsync,
+        patch("io_utils.persistence.open", open_wrapper),
+        patch("io_utils.persistence.os.fsync") as fsync,
     ):
         atomic_write(path, ["data"])
 

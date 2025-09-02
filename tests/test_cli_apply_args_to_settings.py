@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
-import cli
+import cli.main as cli
 
 os.environ.setdefault("OPENAI_API_KEY", "test-key")
 

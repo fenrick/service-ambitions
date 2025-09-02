@@ -6,7 +6,7 @@ from engine.service_execution import ServiceExecution
 from engine.service_runtime import ServiceRuntime
 from models import ServiceInput
 from runtime.environment import RuntimeEnv
-from settings import Settings
+from runtime.settings import Settings
 from utils import ErrorHandler
 
 

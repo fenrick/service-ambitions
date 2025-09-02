@@ -10,7 +10,7 @@ from typing import cast
 
 from pydantic_core import to_json
 
-import cli
+import cli.main as cli
 from core import mapping
 from io_utils import loader
 from models import (

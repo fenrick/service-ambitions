@@ -58,7 +58,7 @@ def _init_runtime_env():
     """Initialise a default runtime environment for tests."""
 
     from runtime.environment import RuntimeEnv
-    from settings import load_settings
+    from runtime.settings import load_settings
 
     RuntimeEnv.reset()
     RuntimeEnv.initialize(load_settings())
@@ -105,10 +105,10 @@ dummy_tqdm.tqdm = _DummyTqdm
 sys.modules.setdefault("tqdm", dummy_tqdm)
 
 # Ensure real modules are loaded before test-specific stubs override them.
+import io_utils.service_loader as service_loader  # noqa: E402,F401
 import models  # noqa: E402,F401
 import plateau_generator  # noqa: E402,F401
-import service_loader  # noqa: E402,F401
-import settings  # noqa: E402,F401
+import runtime.settings as settings  # noqa: E402,F401
 from core import mapping  # noqa: E402,F401
 from observability import telemetry  # noqa: E402,F401
 
