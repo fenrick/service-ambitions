@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from pydantic_core import from_json
 
-import generator
+import generation.generator as generator
 from models import ServiceInput
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))

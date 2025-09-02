@@ -16,8 +16,14 @@ from core.canonical import canonicalise_record
 from core.conversation import ConversationSession
 from engine.plateau_runtime import PlateauRuntime
 from engine.service_runtime import ServiceRuntime
+from generation.plateau_generator import (
+    PlateauGenerator,
+    default_plateau_map,
+    default_plateau_names,
+)
 from io_utils.loader import load_mapping_items
 from io_utils.persistence import atomic_write
+from io_utils.quarantine import QuarantineWriter
 from models import (
     MappingDiagnosticsResponse,
     MappingResponse,
@@ -27,12 +33,6 @@ from models import (
     ServiceMeta,
 )
 from models.factory import ModelFactory
-from plateau_generator import (
-    PlateauGenerator,
-    default_plateau_map,
-    default_plateau_names,
-)
-from quarantine import QuarantineWriter
 from runtime.environment import RuntimeEnv
 from runtime.settings import Settings
 from utils import ErrorHandler

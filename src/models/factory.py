@@ -7,7 +7,7 @@ from typing import Dict
 
 from pydantic_ai.models import Model
 
-from generator import build_model
+from generation.generator import build_model
 from models import ReasoningConfig, StageModels
 
 

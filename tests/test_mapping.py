@@ -111,7 +111,7 @@ def test_cache_write_json_atomic_requires_dict(tmp_path) -> None:
 async def test_map_set_successful_mapping(monkeypatch) -> None:
     """Agent response is merged into features."""
 
-    monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     valid = json.dumps(
         {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
     )
@@ -135,7 +135,7 @@ async def test_map_set_quarantines_unknown_ids(monkeypatch, tmp_path) -> None:
     """Unknown IDs are dropped and quarantined for later review."""
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     # Response contains one valid and one unknown ID.
     response = json.dumps(
         {
@@ -150,7 +150,7 @@ async def test_map_set_quarantines_unknown_ids(monkeypatch, tmp_path) -> None:
     session = DummySession([response])
     paths: list[Path] = []
     monkeypatch.setattr(
-        "telemetry.record_quarantine", lambda p: paths.append(p.resolve())
+        "observability.telemetry.record_quarantine", lambda p: paths.append(p.resolve())
     )
     warnings: list[tuple[str, dict[str, Any]]] = []
     monkeypatch.setattr(
@@ -185,7 +185,7 @@ async def test_quarantine_separates_unknown_ids_by_service(
     """Unknown IDs are quarantined per service ID."""
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     response = json.dumps(
         {"features": [{"feature_id": "f1", "applications": [{"item": "x"}]}]}
     )
@@ -219,11 +219,11 @@ async def test_quarantine_separates_unknown_ids_by_service(
 @pytest.mark.asyncio()
 async def test_map_set_strict_raises(monkeypatch, tmp_path) -> None:
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     session = DummySession(["bad", "still bad"])
     paths: list[Path] = []
     monkeypatch.setattr(
-        "telemetry.record_quarantine", lambda p: paths.append(p.resolve())
+        "observability.telemetry.record_quarantine", lambda p: paths.append(p.resolve())
     )
     with pytest.raises(MappingError):
         await map_set(
@@ -249,14 +249,14 @@ async def test_map_set_strict_unknown_ids(monkeypatch, tmp_path) -> None:
     """Strict mode raises when the agent invents mapping identifiers."""
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     response = json.dumps(
         {"features": [{"feature_id": "f1", "applications": [{"item": "x"}]}]}
     )
     session = DummySession([response])
     paths: list[Path] = []
     monkeypatch.setattr(
-        "telemetry.record_quarantine", lambda p: paths.append(p.resolve())
+        "observability.telemetry.record_quarantine", lambda p: paths.append(p.resolve())
     )
     with pytest.raises(MappingError):
         await map_set(
@@ -339,7 +339,7 @@ def test_merge_mapping_missing_feature_strict(monkeypatch, tmp_path) -> None:
 async def test_map_set_diagnostics_includes_rationale(monkeypatch) -> None:
     """Diagnostics responses with rationales are accepted."""
 
-    monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     response = json.dumps(
         {
             "features": [
@@ -369,7 +369,7 @@ async def test_map_set_writes_cache(monkeypatch, tmp_path) -> None:
     """Cache miss writes indented JSON to the filesystem."""
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
     response = MappingResponse.model_validate(
         {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
@@ -406,7 +406,7 @@ async def test_map_set_reads_cache(monkeypatch, tmp_path) -> None:
     """Cache hit bypasses the network call."""
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
     cached = {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
     old_dir = Path(".cache") / "unknown" / "svc" / "mappings" / "f1" / "applications"
@@ -450,7 +450,7 @@ async def test_map_set_invalid_cache_halts(monkeypatch, tmp_path) -> None:
     """Unreadable cache files abort processing with an error."""
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
     cache_dir = Path(".cache") / "unknown" / "svc" / "1" / "mappings" / "applications"
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -482,7 +482,7 @@ async def test_map_set_cache_invalidation(monkeypatch, tmp_path, change) -> None
     """Cache key changes when inputs differ."""
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     keys = iter(["key1", "key2"])
     monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: next(keys))
     if change == "template":  # Template text changes between calls
@@ -549,7 +549,7 @@ async def test_map_set_logs_cache_status(
     """Cache operations emit a single status log line."""
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
     response = json.dumps(
         {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]},
@@ -598,7 +598,7 @@ async def test_map_set_cache_modes(
     """Different cache modes control read/write behaviour."""
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
     response = json.dumps(
         {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
@@ -655,7 +655,7 @@ async def test_map_set_cache_modes(
 async def test_map_set_prompt_logging_respects_flags(monkeypatch) -> None:
     """Prompt logging only occurs when permitted and excludes catalogue items."""
 
-    monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     response = json.dumps(
         {
             "features": [
@@ -690,7 +690,7 @@ async def test_map_set_prompt_logging_respects_flags(monkeypatch) -> None:
 async def test_map_set_prompt_logging_skipped(monkeypatch) -> None:
     """Prompt logging is skipped when not explicitly allowed."""
 
-    monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
+    monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     response = json.dumps(
         {
             "features": [
