@@ -74,6 +74,11 @@ class _DummySpan:
         return None
 
 
+# Minimal stub to satisfy libraries expecting ``logfire.LogfireSpan``.
+class _DummyLogfireSpan:  # pragma: no cover - simple span placeholder
+    pass
+
+
 dummy_logfire = cast(Any, ModuleType("logfire"))
 dummy_logfire.metric_counter = lambda name: SimpleNamespace(add=lambda *a, **k: None)
 dummy_logfire.span = lambda name, attributes=None: _DummySpan()
@@ -83,10 +88,20 @@ dummy_logfire.error = lambda *a, **k: None
 dummy_logfire.debug = lambda *a, **k: None
 dummy_logfire.exception = lambda *a, **k: None
 dummy_logfire.force_flush = lambda: None
+dummy_logfire.LogfireSpan = _DummyLogfireSpan
 sys.modules.setdefault("logfire", dummy_logfire)
 
-# No stubs for ``pydantic`` or ``pydantic_ai``; real packages are available.
-# No stubs for ``pydantic_ai.models``; real modules are used.
+# Minimal ``pydantic_ai`` stub to avoid heavyweight dependencies.
+dummy_pydantic_ai = cast(Any, ModuleType("pydantic_ai"))
+dummy_pydantic_ai.Agent = SimpleNamespace
+dummy_pydantic_ai.messages = SimpleNamespace
+sys.modules.setdefault("pydantic_ai", dummy_pydantic_ai)
+dummy_pydantic_models = cast(Any, ModuleType("pydantic_ai.models"))
+dummy_pydantic_models.Model = SimpleNamespace
+sys.modules.setdefault("pydantic_ai.models", dummy_pydantic_models)
+dummy_model_factory = cast(Any, ModuleType("models.factory"))
+dummy_model_factory.ModelFactory = SimpleNamespace
+sys.modules.setdefault("models.factory", dummy_model_factory)
 
 
 class _DummyTqdm:  # pragma: no cover - simple progress bar stub
@@ -105,7 +120,18 @@ dummy_tqdm.tqdm = _DummyTqdm
 sys.modules.setdefault("tqdm", dummy_tqdm)
 
 # Ensure real modules are loaded before test-specific stubs override them.
-import generation.plateau_generator as plateau_generator  # noqa: E402,F401
+try:  # noqa: SIM105 - best effort import for optional dependencies
+    import generation.plateau_generator as plateau_generator  # noqa: E402,F401
+except Exception:  # pragma: no cover - optional import
+    plateau_generator = cast(
+        Any,
+        SimpleNamespace(
+            PlateauGenerator=object,
+            default_plateau_map=lambda: {},
+            default_plateau_names=lambda: [],
+        ),
+    )
+    sys.modules.setdefault("generation.plateau_generator", plateau_generator)
 import io_utils.service_loader as service_loader  # noqa: E402,F401
 import models  # noqa: E402,F401
 import runtime.settings as settings  # noqa: E402,F401
