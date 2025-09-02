@@ -99,11 +99,11 @@ sys.modules.setdefault(
     ),
 )
 sys.modules.setdefault(
-    "settings",
+    "runtime.settings",
     cast(types.ModuleType, SimpleNamespace(load_settings=lambda: SimpleNamespace())),
 )
 sys.modules.setdefault(
-    "service_loader",
+    "io_utils.service_loader",
     cast(types.ModuleType, SimpleNamespace(load_services=lambda *a, **k: [])),
 )
 
@@ -214,7 +214,7 @@ sys.modules.setdefault(
     cast(types.ModuleType, types.SimpleNamespace(PlateauGenerator=object)),
 )
 
-import cli  # noqa: E402
+import cli.main as cli  # noqa: E402
 
 
 def _settings() -> SimpleNamespace:

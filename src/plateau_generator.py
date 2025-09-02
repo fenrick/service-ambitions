@@ -37,7 +37,7 @@ from models import (
     ServiceMeta,
 )
 from runtime.environment import RuntimeEnv
-from shortcode import ShortCodeRegistry
+from utils import ShortCodeRegistry
 from utils.cache_paths import feature_cache
 
 # Settings and token scheduling are no longer required after simplification.

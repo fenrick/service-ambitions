@@ -27,8 +27,8 @@ from pydantic_core import to_json
 from tqdm import tqdm  # type: ignore[import-untyped]
 
 from core.canonical import canonicalise_record
+from io_utils.persistence import atomic_write
 from models import ReasoningConfig, ServiceInput
-from persistence import atomic_write
 
 SERVICES_PROCESSED = logfire.metric_counter("services_processed")
 SERVICES_FAILED = logfire.metric_counter("services_failed")

@@ -24,7 +24,7 @@ from models import (
     RoleFeaturesResponse,
 )
 from runtime.environment import RuntimeEnv
-from shortcode import ShortCodeRegistry
+from utils import ShortCodeRegistry
 from utils.cache_paths import feature_cache
 
 

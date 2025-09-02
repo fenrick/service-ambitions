@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
-import cli
+import cli.main as cli
 from runtime.environment import RuntimeEnv
 
 

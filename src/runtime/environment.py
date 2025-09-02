@@ -17,7 +17,7 @@ from utils import (
 
 if TYPE_CHECKING:  # pragma: no cover - for type checkers only
     from models import ServiceMeta
-    from settings import Settings
+    from runtime.settings import Settings
 
 
 class RuntimeEnv:

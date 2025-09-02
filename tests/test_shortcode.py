@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
-"""Tests for :mod:`shortcode`."""
+"""Tests for :mod:`utils.shortcode`."""
 
-from shortcode import ShortCodeRegistry
+from utils import ShortCodeRegistry
 
 
 def test_generate_is_deterministic() -> None:

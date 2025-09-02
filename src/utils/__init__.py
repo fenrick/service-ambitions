@@ -4,6 +4,7 @@ from .cache_manager import CacheManager, JSONCacheManager
 from .error_handler import ErrorHandler, LoggingErrorHandler
 from .mapping_loader import FileMappingLoader, MappingLoader
 from .prompt_loader import FilePromptLoader, PromptLoader
+from .shortcode import ShortCodeRegistry
 
 __all__ = [
     "PromptLoader",
@@ -14,4 +15,5 @@ __all__ = [
     "JSONCacheManager",
     "ErrorHandler",
     "LoggingErrorHandler",
+    "ShortCodeRegistry",
 ]

@@ -3,7 +3,7 @@
 
 import argparse
 
-import cli
+import cli.main as cli
 
 
 def test_add_common_args_parses_model():

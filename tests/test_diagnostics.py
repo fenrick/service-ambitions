@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel
 
-from diagnostics import validate_jsonl
+from io_utils.diagnostics import validate_jsonl
 
 
 class Item(BaseModel):
