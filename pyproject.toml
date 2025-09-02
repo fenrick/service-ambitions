@@ -43,8 +43,20 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 # Enable package mode so `poetry build` can create a distributable.
+package-mode = true
 # Include all modules from the `src` directory.
-packages = [{include = "*", from = "src"}]
+packages = [
+  { include = "cli", from = "src" },
+  { include = "core", from = "src" },
+  { include = "engine", from = "src" },
+  { include = "generation", from = "src" },
+  { include = "io_utils", from = "src" },
+  { include = "migrations", from = "src" },
+  { include = "models", from = "src" },
+  { include = "observability", from = "src" },
+  { include = "runtime", from = "src" },
+  { include = "utils", from = "src" }
+]
 
 [tool.black]
 line-length = 88
