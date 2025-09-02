@@ -21,6 +21,12 @@ telemetry.
   artefacts are loaded on first access and memoised for reuse. The
   runtime reset clears these caches to force fresh loads when needed.
 
+The command‑line interface wires these pieces together. It parses user
+flags, constructs application settings and initialises the global
+``RuntimeEnv``. After configuration, the CLI launches a
+``ProcessingEngine`` which loads service data, spawns per‑service and
+per‑plateau runtimes and finally writes the aggregated output.
+
 ## Runtime environment
 
 `RuntimeEnv` is a thread-safe singleton initialised in `cli.main()`.
