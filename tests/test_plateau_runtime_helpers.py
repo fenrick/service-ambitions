@@ -2,7 +2,7 @@ from typing import cast
 
 import pytest
 
-from conversation import ConversationSession
+from core.conversation import ConversationSession
 from engine.plateau_runtime import PlateauRuntime
 from models import FeatureItem, MaturityScore, PlateauFeaturesResponse
 

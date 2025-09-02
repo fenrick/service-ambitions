@@ -26,7 +26,7 @@ from pydantic_ai.models.openai import (
 from pydantic_core import to_json
 from tqdm import tqdm  # type: ignore[import-untyped]
 
-from canonical import canonicalise_record
+from core.canonical import canonicalise_record
 from models import ReasoningConfig, ServiceInput
 from persistence import atomic_write
 

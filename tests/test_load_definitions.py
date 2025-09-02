@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from loader import load_definitions
+from io_utils.loader import load_definitions
 
 
 def test_load_definitions_roundtrip(tmp_path: Path) -> None:

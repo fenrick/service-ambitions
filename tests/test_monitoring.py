@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-import monitoring
+from observability import monitoring
 
 
 def test_init_logfire_configures_and_instruments(monkeypatch):

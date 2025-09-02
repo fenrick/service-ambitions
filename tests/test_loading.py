@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from loader import (
+from io_utils.loader import (
     NORTH_STAR,
     clear_prompt_cache,
     load_ambition_prompt,

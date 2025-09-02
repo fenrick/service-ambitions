@@ -5,7 +5,7 @@ import sys
 from io import StringIO
 from pathlib import Path
 
-from telemetry import (
+from observability.telemetry import (
     has_quarantines,
     print_summary,
     record_mapping_set,

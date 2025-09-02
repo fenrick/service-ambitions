@@ -13,12 +13,11 @@ from typing import Any, Callable, Coroutine, cast
 import logfire
 from pydantic_core import to_json
 
-import mapping
-import telemetry
-from canonical import canonicalise_record
 from cli_mapping import load_catalogue, remap_features, write_output
+from core import mapping
+from core.canonical import canonicalise_record
 from engine.processing_engine import ProcessingEngine
-from loader import configure_mapping_data_dir, load_mapping_items
+from io_utils.loader import configure_mapping_data_dir, load_mapping_items
 from models import (
     Contribution,
     FeatureItem,
@@ -28,7 +27,8 @@ from models import (
     ServiceEvolution,
     StageModels,
 )
-from monitoring import init_logfire
+from observability import telemetry
+from observability.monitoring import init_logfire
 from plateau_generator import _feature_cache_path
 from runtime.environment import RuntimeEnv
 from settings import load_settings

@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 import utils.mapping_loader as mapping_loader
-from loader import compile_catalogue_for_set, load_mapping_items
+from io_utils.loader import compile_catalogue_for_set, load_mapping_items
 from models import MappingSet
 from utils.mapping_loader import FileMappingLoader
 

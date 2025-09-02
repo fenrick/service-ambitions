@@ -9,7 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 import cli_mapping
-import mapping
+from core import mapping
 from models import Contribution, MappingSet, ServiceEvolution
 
 

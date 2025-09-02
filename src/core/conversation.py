@@ -24,9 +24,10 @@ from pydantic import ValidationError
 from pydantic_ai import Agent, messages
 from pydantic_core import from_json, to_json
 
-from mapping import cache_write_json_atomic
 from models import ServiceInput
 from runtime.environment import RuntimeEnv
+
+from .mapping import cache_write_json_atomic
 
 
 def _prompt_cache_key(prompt: str, model: str, stage: str) -> str:

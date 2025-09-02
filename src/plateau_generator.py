@@ -19,9 +19,9 @@ from typing import Literal, Sequence
 import logfire
 from pydantic_core import to_json
 
-from conversation import ConversationSession
+from core.conversation import ConversationSession
 from engine.plateau_runtime import PlateauRuntime
-from loader import (
+from io_utils.loader import (
     load_plateau_definitions,
     load_prompt_text,
     load_role_ids,

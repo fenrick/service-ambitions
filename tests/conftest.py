@@ -40,7 +40,7 @@ def _mock_openai(monkeypatch):
 @pytest.fixture(autouse=True)
 def _clear_prompt_cache():
     """Ensure prompt cache is empty before and after each test."""
-    import loader
+    from io_utils import loader
 
     try:
         loader.clear_prompt_cache()
@@ -105,12 +105,12 @@ dummy_tqdm.tqdm = _DummyTqdm
 sys.modules.setdefault("tqdm", dummy_tqdm)
 
 # Ensure real modules are loaded before test-specific stubs override them.
-import mapping  # noqa: E402,F401
 import models  # noqa: E402,F401
 import plateau_generator  # noqa: E402,F401
 import service_loader  # noqa: E402,F401
 import settings  # noqa: E402,F401
-import telemetry  # noqa: E402,F401
+from core import mapping  # noqa: E402,F401
+from observability import telemetry  # noqa: E402,F401
 
 
 class DummyAgent:
