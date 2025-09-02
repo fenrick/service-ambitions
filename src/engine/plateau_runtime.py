@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal, Sequence
+from typing import Any, Literal, Mapping, Sequence
 
 import logfire
 from pydantic import ValidationError
@@ -17,6 +17,8 @@ from io_utils.loader import load_mapping_items, load_prompt_text
 from models import (
     FeatureItem,
     MappingFeatureGroup,
+    MappingItem,
+    MappingSet,
     PlateauFeature,
     PlateauFeaturesResponse,
     RoleFeaturesResponse,
@@ -399,6 +401,55 @@ class PlateauRuntime:
             payload, roles=roles, code_registry=code_registry
         )
 
+    async def _run_mapping_set(
+        self,
+        session: ConversationSession,
+        cfg: MappingSet,
+        *,
+        items: Mapping[str, Sequence[MappingItem]],
+        service_name: str,
+        service_id: str,
+        service_description: str,
+        strict: bool,
+        use_local_cache: bool,
+        cache_mode: Literal["off", "read", "refresh", "write"],
+        catalogue_hash: str,
+    ) -> list[MappingFeatureGroup]:
+        """Return grouped mapping results for a single mapping configuration.
+
+        Args:
+            session: Base conversation session for the mapping request.
+            cfg: Mapping set configuration to evaluate.
+            items: Catalogue items keyed by mapping field.
+            service_name: Human readable service name used in prompts.
+            service_id: Identifier for caching operations.
+            service_description: Description of the service for context.
+            strict: Raise :class:`MappingError` on invalid responses when ``True``.
+            use_local_cache: Enable local caching of mapping responses.
+            cache_mode: Cache behaviour controlling reads and writes.
+            catalogue_hash: Digest representing loaded mapping catalogues.
+
+        Returns:
+            Grouped mapping results keyed by mapping item identifier.
+        """
+
+        set_session = session.derive()
+        set_session.stage = f"mapping_{cfg.field}"
+        result = await map_set(
+            set_session,
+            cfg.field,
+            items[cfg.field],
+            list(self.features),
+            service_name=service_name,
+            service_description=service_description,
+            plateau=self.plateau,
+            service=service_id,
+            strict=strict,
+            cache_mode=(cache_mode if use_local_cache else "off"),
+            catalogue_hash=catalogue_hash,
+        )
+        return group_features_by_mapping(result, cfg.field, items[cfg.field])
+
     async def generate_mappings(
         self,
         session: ConversationSession,
@@ -417,23 +468,17 @@ class PlateauRuntime:
 
         groups: dict[str, list[MappingFeatureGroup]] = {}
         for cfg in settings.mapping_sets:
-            set_session = session.derive()
-            set_session.stage = f"mapping_{cfg.field}"
-            result = await map_set(
-                set_session,
-                cfg.field,
-                items[cfg.field],
-                list(self.features),
+            groups[cfg.field] = await self._run_mapping_set(
+                session,
+                cfg,
+                items=items,
                 service_name=service_name,
+                service_id=service_id,
                 service_description=service_description,
-                plateau=self.plateau,
-                service=service_id,
                 strict=strict,
-                cache_mode=(cache_mode if use_local_cache else "off"),
+                use_local_cache=use_local_cache,
+                cache_mode=cache_mode,
                 catalogue_hash=catalogue_hash,
-            )
-            groups[cfg.field] = group_features_by_mapping(
-                result, cfg.field, items[cfg.field]
             )
 
         self.mappings = groups
