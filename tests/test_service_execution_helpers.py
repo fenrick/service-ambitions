@@ -67,6 +67,27 @@ def _execution() -> ServiceExecution:
     )
 
 
+def test_build_generator_sets_attributes(monkeypatch):
+    exec_obj = _execution()
+
+    monkeypatch.setattr(se, "Agent", lambda *a, **k: object())
+    monkeypatch.setattr(se, "ConversationSession", lambda *a, **k: object())
+
+    class DummyGenerator:
+        def __init__(self, *a, **k):
+            pass
+
+    monkeypatch.setattr(se, "PlateauGenerator", DummyGenerator)
+
+    exec_obj._build_generator()
+
+    assert isinstance(exec_obj.generator, DummyGenerator)
+    assert exec_obj.desc_name == "descriptions-model"
+    assert exec_obj.feat_name == "features-model"
+    assert exec_obj.map_name == "mapping-model"
+    assert exec_obj.feat_model is not None
+
+
 def test_ensure_run_meta_initialises_once(monkeypatch):
     exec_obj = _execution()
     monkeypatch.setattr(se, "load_mapping_items", lambda *a, **k: ({}, "0" * 64))
