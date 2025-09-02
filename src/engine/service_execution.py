@@ -12,12 +12,12 @@ import logfire
 from pydantic_ai import Agent
 from pydantic_core import to_json
 
-from canonical import canonicalise_record
-from conversation import ConversationSession
+from core.canonical import canonicalise_record
+from core.conversation import ConversationSession
 from engine.plateau_runtime import PlateauRuntime
 from engine.service_runtime import ServiceRuntime
-from loader import load_mapping_items
-from model_factory import ModelFactory
+from io_utils.loader import load_mapping_items
+from io_utils.persistence import atomic_write
 from models import (
     MappingDiagnosticsResponse,
     MappingResponse,
@@ -26,7 +26,7 @@ from models import (
     ServiceInput,
     ServiceMeta,
 )
-from persistence import atomic_write
+from models.factory import ModelFactory
 from plateau_generator import (
     PlateauGenerator,
     default_plateau_map,
@@ -34,12 +34,12 @@ from plateau_generator import (
 )
 from quarantine import QuarantineWriter
 from runtime.environment import RuntimeEnv
+from runtime.settings import Settings
 from utils import ErrorHandler
 
 SERVICES_PROCESSED = logfire.metric_counter("services_processed")
 EVOLUTIONS_GENERATED = logfire.metric_counter("evolutions_generated")
 LINES_WRITTEN = logfire.metric_counter("lines_written")
-RUN_META_KEY = "run_meta"
 _writer = QuarantineWriter()
 
 
@@ -67,7 +67,9 @@ class ServiceExecution:
         self.allow_prompt_logging = allow_prompt_logging
         self.error_handler = error_handler
 
-    def _build_generator(self, settings) -> tuple[PlateauGenerator, str, str, str]:
+    def _build_generator(
+        self, settings: Settings
+    ) -> tuple[PlateauGenerator, str, str, str]:
         """Construct plateau generator and return model names.
 
         Args:
@@ -145,16 +147,16 @@ class ServiceExecution:
 
     def _ensure_run_meta(
         self,
-        settings,
+        settings: Settings,
         desc_name: str,
         feat_name: str,
         map_name: str,
         feat_model,
     ) -> None:
-        """Initialise and store run metadata in ``RuntimeEnv.state``."""
+        """Initialise and store run metadata in ``RuntimeEnv``."""
 
         env = RuntimeEnv.instance()
-        if RUN_META_KEY in env.state:
+        if env.run_meta is not None:  # run metadata already exists
             return
         models_map = {
             "descriptions": desc_name,
@@ -164,7 +166,7 @@ class ServiceExecution:
         }
         _, catalogue_hash = load_mapping_items(settings.mapping_sets)
         context_window = getattr(feat_model, "max_input_tokens", 0)
-        env.state[RUN_META_KEY] = ServiceMeta(
+        env.run_meta = ServiceMeta(
             run_id=str(uuid4()),
             seed=self.factory.seed,
             models=models_map,
@@ -209,7 +211,12 @@ class ServiceExecution:
         )
 
     async def run(self) -> bool:
-        """Populate ``runtime`` with generated evolution data."""
+        """Populate ``runtime`` and report success.
+
+        Returns:
+            ``True`` when evolution generation succeeds. Generated artefacts
+            are stored on :attr:`runtime` and are not returned to callers.
+        """
 
         service = self.runtime.service
         desc_name = self.factory.model_name("descriptions")
@@ -235,7 +242,7 @@ class ServiceExecution:
                 )
                 runtimes = await self._prepare_runtimes(generator)
                 env = RuntimeEnv.instance()
-                meta = env.state.get(RUN_META_KEY)
+                meta = env.run_meta
                 assert meta is not None  # mypy safeguard
                 evolution = await generator.generate_service_evolution_async(
                     service,

@@ -67,11 +67,12 @@ def configure_mapping_data_dir(path: Path | str) -> None:
     clear_mapping_cache()
 
 
-def _read_file(path: Path) -> str:
+def _read_file(path: Path, error_handler: ErrorHandler | None = None) -> str:
     """Return the contents of ``path``.
 
     Args:
         path: File location.
+        error_handler: Processor for any errors encountered.
 
     Returns:
         The file contents.
@@ -81,14 +82,15 @@ def _read_file(path: Path) -> str:
         RuntimeError: If the file cannot be read.
     """
 
+    handler = error_handler or LoggingErrorHandler()
     try:
         with path.open("r", encoding="utf-8") as file:
             return file.read().strip()
-    except FileNotFoundError:
-        logfire.error(f"Prompt file not found: {path}")
+    except FileNotFoundError as exc:
+        handler.handle(f"Prompt file not found: {path}", exc)
         raise
     except Exception as exc:
-        logfire.error(f"Error reading prompt file {path}: {exc}")
+        handler.handle(f"Error reading prompt file {path}", exc)
         raise RuntimeError(
             f"An error occurred while reading the prompt file: {exc}"
         ) from exc
@@ -97,20 +99,25 @@ def _read_file(path: Path) -> str:
 T = TypeVar("T")
 
 
-def _read_json_file(path: Path, schema: type[T]) -> T:
+def _read_json_file(
+    path: Path,
+    schema: type[T],
+    error_handler: ErrorHandler | None = None,
+) -> T:
     """Return JSON data loaded from ``path`` validated against ``schema``.
 
     ``schema`` may be any type understood by :class:`pydantic.TypeAdapter`, such
     as a Pydantic model or standard container type.
     """
 
+    handler = error_handler or LoggingErrorHandler()
     try:
         adapter = TypeAdapter(schema)
-        return adapter.validate_json(_read_file(path))
+        return adapter.validate_json(_read_file(path, handler))
     except FileNotFoundError:
         raise
     except Exception as exc:
-        logfire.error(f"Error reading JSON file {path}: {exc}")
+        handler.handle(f"Error reading JSON file {path}", exc)
         raise RuntimeError(
             f"An error occurred while reading the JSON file: {exc}"
         ) from exc

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from loader import (
+from io_utils.loader import (
     NORTH_STAR,
     clear_prompt_cache,
     load_ambition_prompt,
@@ -16,8 +16,8 @@ from loader import (
     load_role_ids,
     load_roles,
 )
+from io_utils.service_loader import load_services
 from models import JobToBeDone
-from service_loader import load_services
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 

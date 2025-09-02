@@ -8,8 +8,8 @@ from types import SimpleNamespace
 
 import pytest
 
-import cli_mapping
-import mapping
+from cli import mapping as cli_mapping
+from core import mapping
 from models import Contribution, MappingSet, ServiceEvolution
 
 

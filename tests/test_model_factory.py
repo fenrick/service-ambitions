@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: MIT
-from model_factory import ModelFactory
 from models import StageModels
+from models.factory import ModelFactory
 
 
 def test_model_factory_resolves_models(monkeypatch) -> None:
     def fake_build_model(name, api_key, *, seed=None, reasoning=None, web_search=False):
         return f"built:{name}"
 
-    monkeypatch.setattr("model_factory.build_model", fake_build_model)
+    monkeypatch.setattr("models.factory.build_model", fake_build_model)
 
     stage = StageModels(
         descriptions=None, features="cfg-feat", mapping=None, search=None

@@ -10,10 +10,9 @@ from typing import cast
 
 from pydantic_core import to_json
 
-import cli
-import loader
-import mapping
-import telemetry
+import cli.main as cli
+from core import mapping
+from io_utils import loader
 from models import (
     FeatureMappingRef,
     MappingFeatureGroup,
@@ -25,6 +24,7 @@ from models import (
     ServiceInput,
     ServiceMeta,
 )
+from observability import telemetry
 
 dummy_logfire = types.SimpleNamespace(
     metric_counter=lambda name: types.SimpleNamespace(add=lambda *a, **k: None),

@@ -5,24 +5,27 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal, Sequence
+from typing import Any, Literal, Mapping, Sequence
 
 import logfire
 from pydantic import ValidationError
 from pydantic_core import from_json
 
-from conversation import ConversationSession
-from loader import load_mapping_items, load_prompt_text
-from mapping import cache_write_json_atomic, group_features_by_mapping, map_set
+from core.conversation import ConversationSession
+from core.mapping import cache_write_json_atomic, group_features_by_mapping, map_set
+from io_utils.loader import load_mapping_items, load_prompt_text
 from models import (
     FeatureItem,
     MappingFeatureGroup,
+    MappingItem,
+    MappingSet,
     PlateauFeature,
     PlateauFeaturesResponse,
     RoleFeaturesResponse,
 )
 from runtime.environment import RuntimeEnv
-from shortcode import ShortCodeRegistry
+from utils import ShortCodeRegistry
+from utils.cache_paths import feature_cache
 
 
 @dataclass
@@ -34,22 +37,12 @@ class PlateauRuntime:
     description: str
     features: list[PlateauFeature] = field(default_factory=list)
     mappings: dict[str, list[MappingFeatureGroup]] = field(default_factory=dict)
-    _success: bool = False
+    success: bool = False
 
     def _feature_cache_path(self, service: str) -> Path:
         """Return canonical cache path for features."""
 
-        try:
-            settings = RuntimeEnv.instance().settings
-            cache_root = settings.cache_dir
-            context = settings.context_id
-        except Exception:  # pragma: no cover - settings unavailable
-            cache_root = Path(".cache")
-            context = "unknown"
-
-        path = cache_root / context / service / str(self.plateau) / "features.json"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        return path
+        return feature_cache(service, self.plateau)
 
     def _discover_feature_cache(self, service: str) -> tuple[Path, Path]:
         """Return existing feature cache and canonical destination."""
@@ -122,7 +115,17 @@ class PlateauRuntime:
         roles: Sequence[str],
         required_count: int,
     ) -> tuple[dict[str, list[FeatureItem]], list[str], dict[str, int]]:
-        """Return valid roles, invalid role names and missing counts."""
+        """Return valid roles, invalid names and missing counts.
+
+        Args:
+            role_data: Raw features keyed by role from the model.
+            roles: Allowed role names.
+            required_count: Required features per role.
+
+        Returns:
+            A tuple of (valid features per role, invalid role names,
+            missing feature counts).
+        """
 
         valid: dict[str, list[FeatureItem]] = {}
         invalid: list[str] = []
@@ -267,7 +270,21 @@ class PlateauRuntime:
         required_count: int,
         roles: Sequence[str],
     ) -> dict[str, list[FeatureItem]]:
-        """Return roles with recovered features."""
+        """Return roles with recovered features.
+
+        Args:
+            valid: Initially valid features keyed by role.
+            invalid_roles: Roles that failed validation.
+            missing: Number of missing features per role.
+            level: Plateau level for follow-up prompts.
+            description: Service description for context.
+            session: Conversation session used for prompts.
+            required_count: Minimum features per role.
+            roles: All role names.
+
+        Returns:
+            Updated mapping of roles to feature lists.
+        """
 
         fixes = await self._recover_invalid_roles(
             invalid_roles,
@@ -292,6 +309,65 @@ class PlateauRuntime:
         self._enforce_min_features(valid, roles=roles, required=required_count)
         return valid
 
+    async def _dispatch_and_cache_features(
+        self,
+        session: ConversationSession,
+        *,
+        service_id: str,
+        service_name: str,
+        roles: Sequence[str],
+        required_count: int,
+        cache_file: Path | None,
+        use_local_cache: bool,
+        cache_mode: Literal["off", "read", "refresh", "write"],
+    ) -> PlateauFeaturesResponse:
+        """Return validated feature payload and optionally cache it.
+
+        Args:
+            session: Conversation session used to query the model.
+            service_id: Identifier for cache storage.
+            service_name: Human-readable service name for prompts.
+            roles: Customer roles requiring features.
+            required_count: Number of features to collect per role.
+            cache_file: Destination for cached payload.
+            use_local_cache: Whether caching is enabled.
+            cache_mode: Caching behaviour mode.
+
+        Returns:
+            Validated feature payload.
+        """
+
+        payload = await self._dispatch_feature_prompt(
+            session,
+            service_id=service_id,
+            service_name=service_name,
+            roles=roles,
+            required_count=required_count,
+        )
+        role_data = payload.features
+        valid, invalid_roles, missing = self._validate_roles(
+            role_data, roles=roles, required_count=required_count
+        )
+        valid = await self._recover_feature_shortfalls(
+            valid,
+            invalid_roles,
+            missing,
+            level=self.plateau,
+            description=self.description,
+            session=session,
+            required_count=required_count,
+            roles=roles,
+        )
+        payload = PlateauFeaturesResponse(
+            features={role: list(valid.get(role, [])) for role in roles}
+        )
+        if use_local_cache and cache_mode != "off":
+            cache_write_json_atomic(
+                cache_file or self._feature_cache_path(service_id),
+                payload.model_dump(),
+            )
+        return payload
+
     async def generate_features(
         self,
         session: ConversationSession,
@@ -310,39 +386,69 @@ class PlateauRuntime:
             service_id, use_local_cache, cache_mode
         )
         if payload is None:
-            payload = await self._dispatch_feature_prompt(
+            payload = await self._dispatch_and_cache_features(
                 session,
                 service_id=service_id,
                 service_name=service_name,
                 roles=roles,
                 required_count=required_count,
+                cache_file=cache_file,
+                use_local_cache=use_local_cache,
+                cache_mode=cache_mode,
             )
-            role_data = payload.features
-            valid, invalid_roles, missing = self._validate_roles(
-                role_data, roles=roles, required_count=required_count
-            )
-            valid = await self._recover_feature_shortfalls(
-                valid,
-                invalid_roles,
-                missing,
-                level=self.plateau,
-                description=self.description,
-                session=session,
-                required_count=required_count,
-                roles=roles,
-            )
-            payload = PlateauFeaturesResponse(
-                features={role: list(valid.get(role, [])) for role in roles}
-            )
-            if use_local_cache and cache_mode != "off":
-                cache_write_json_atomic(
-                    cache_file or self._feature_cache_path(service_id),
-                    payload.model_dump(),
-                )
 
         self.features = self._collect_features(
             payload, roles=roles, code_registry=code_registry
         )
+
+    async def _run_mapping_set(
+        self,
+        session: ConversationSession,
+        cfg: MappingSet,
+        *,
+        items: Mapping[str, Sequence[MappingItem]],
+        service_name: str,
+        service_id: str,
+        service_description: str,
+        strict: bool,
+        use_local_cache: bool,
+        cache_mode: Literal["off", "read", "refresh", "write"],
+        catalogue_hash: str,
+    ) -> list[MappingFeatureGroup]:
+        """Return grouped mapping results for a single mapping configuration.
+
+        Args:
+            session: Base conversation session for the mapping request.
+            cfg: Mapping set configuration to evaluate.
+            items: Catalogue items keyed by mapping field.
+            service_name: Human readable service name used in prompts.
+            service_id: Identifier for caching operations.
+            service_description: Description of the service for context.
+            strict: Raise :class:`MappingError` on invalid responses when ``True``.
+            use_local_cache: Enable local caching of mapping responses.
+            cache_mode: Cache behaviour controlling reads and writes.
+            catalogue_hash: Digest representing loaded mapping catalogues.
+
+        Returns:
+            Grouped mapping results keyed by mapping item identifier.
+        """
+
+        set_session = session.derive()
+        set_session.stage = f"mapping_{cfg.field}"
+        result = await map_set(
+            set_session,
+            cfg.field,
+            items[cfg.field],
+            list(self.features),
+            service_name=service_name,
+            service_description=service_description,
+            plateau=self.plateau,
+            service=service_id,
+            strict=strict,
+            cache_mode=(cache_mode if use_local_cache else "off"),
+            catalogue_hash=catalogue_hash,
+        )
+        return group_features_by_mapping(result, cfg.field, items[cfg.field])
 
     async def generate_mappings(
         self,
@@ -362,27 +468,21 @@ class PlateauRuntime:
 
         groups: dict[str, list[MappingFeatureGroup]] = {}
         for cfg in settings.mapping_sets:
-            set_session = session.derive()
-            set_session.stage = f"mapping_{cfg.field}"
-            result = await map_set(
-                set_session,
-                cfg.field,
-                items[cfg.field],
-                list(self.features),
+            groups[cfg.field] = await self._run_mapping_set(
+                session,
+                cfg,
+                items=items,
                 service_name=service_name,
+                service_id=service_id,
                 service_description=service_description,
-                plateau=self.plateau,
-                service=service_id,
                 strict=strict,
-                cache_mode=(cache_mode if use_local_cache else "off"),
+                use_local_cache=use_local_cache,
+                cache_mode=cache_mode,
                 catalogue_hash=catalogue_hash,
-            )
-            groups[cfg.field] = group_features_by_mapping(
-                result, cfg.field, items[cfg.field]
             )
 
         self.mappings = groups
-        self._success = True
+        self.success = True
 
     def set_results(
         self,
@@ -398,7 +498,7 @@ class PlateauRuntime:
         ):
             self.features = list(features)
             self.mappings = mappings
-            self._success = True
+            self.success = True
             logfire.debug(
                 "Stored plateau results",
                 plateau=self.plateau_name,
@@ -412,6 +512,6 @@ class PlateauRuntime:
         logfire.debug(
             "Plateau status checked",
             plateau=self.plateau_name,
-            success=self._success,
+            success=self.success,
         )
-        return self._success
+        return self.success

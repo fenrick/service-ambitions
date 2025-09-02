@@ -5,19 +5,44 @@ Each layer has a single responsibility and retains its output until the
 final aggregation step, enabling deterministic runs and comprehensive
 telemetry.
 
+## Design principles
+
+- **Central runtime state** – the CLI initialises a singleton
+  `RuntimeEnv` which stores configuration, caches and run metadata. All
+  modules fetch this instance via `RuntimeEnv.instance()` instead of
+  passing settings through call chains.
+- **Isolated execution engines** – `ProcessingEngine` creates a
+  `ServiceRuntime` for each service and drives a `ServiceExecution` that
+  mutates it. Plateau-specific work occurs inside `PlateauRuntime`
+  instances spawned by the service executor.
+- **Success signalling** – engines return only a boolean outcome while
+  storing generated artefacts on their runtime objects.
+- **Lazy loading with caching** – prompts, plateau definitions and other
+  artefacts are loaded on first access and memoised for reuse. The
+  runtime reset clears these caches to force fresh loads when needed.
+
+The command‑line interface wires these pieces together. It parses user
+flags, constructs application settings and initialises the global
+``RuntimeEnv``. After configuration, the CLI launches a
+``ProcessingEngine`` which loads service data, spawns per‑service and
+per‑plateau runtimes and finally writes the aggregated output.
+
 ## Runtime environment
 
 `RuntimeEnv` is a thread-safe singleton initialised in `cli.main()`.
-It loads configuration, exposes global settings and holds shared
-in-memory state such as caches.  Modules access the singleton via
-`RuntimeEnv.instance()` instead of repeatedly loading configuration
-files. Tests or reconfigurations can clear the singleton via
-`RuntimeEnv.reset()`.
+It loads configuration, exposes global settings and run metadata, and
+holds shared in-memory state such as caches. Modules access the
+singleton via `RuntimeEnv.instance()` instead of repeatedly loading
+configuration files. Execution metadata is read and written through the
+`run_meta` property, while `RuntimeEnv.reset()` clears both the metadata
+and any cached loaders.
 
 Settings also drive the lazy loaders for prompts, plateau definitions
-and role identifiers.  Each loader reads configuration paths from the
+and role identifiers. Each loader reads configuration paths from the
 current `RuntimeEnv` settings on first use and retains the parsed
-results in an in-memory cache for subsequent calls.
+results in an in-memory cache for subsequent calls. Run metadata is
+stored alongside these caches and exposed through
+`RuntimeEnv.instance().run_meta`.
 
 ## Processing engine
 
@@ -31,21 +56,22 @@ processing remains deterministic and easy to reason about.
 ## Service runtime and execution
 
 `ServiceRuntime` is a dataclass capturing the service input, associated
-plateau runtimes and output artefacts.  `ServiceExecution` is a thin
-executor that mutates a `ServiceRuntime` in place.  It lazily loads
+plateau runtimes and output artefacts. `ServiceExecution` is a thin
+executor that mutates a `ServiceRuntime` in place. It lazily loads
 plateau information, spawns `PlateauRuntime` objects and delegates
-feature generation and mapping.  The executor returns a success flag
-while the populated runtime retains all artefacts for later
-persistence.
+feature generation and mapping. The runtime tracks completion via a
+public `success` flag, and the executor returns a boolean while the
+populated runtime retains all artefacts for later persistence.
 
 ## Plateau execution
 
 `PlateauGenerator` orchestrates a sequence of `PlateauRuntime` objects.
 Each runtime encapsulates the plateau description, features and mapping
 results and exposes `generate_features()` and `generate_mappings()`
-helpers.  These helpers call model sessions, update on‑disk caches and
-store results on the runtime.  A simple `status()` method communicates
-per‑plateau success back to the processing engine.
+helpers. These helpers call model sessions, update on‑disk caches and
+store results on the runtime. Execution status is tracked with a public
+`success` flag, and a simple `status()` method forwards that flag back to
+the processing engine.
 
 ## Telemetry and logging
 
@@ -94,8 +120,8 @@ sequenceDiagram
         PE->>SE: execute(serviceRuntime)
         SE->>PR: generate_features()
         SE->>PR: generate_mappings()
-        PR-->>SE: status
-        SE-->>PE: success flag
+        PR-->>SE: success
+        SE-->>PE: success
     end
     PE->>PE: flush outputs
 ```

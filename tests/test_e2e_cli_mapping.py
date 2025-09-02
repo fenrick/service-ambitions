@@ -7,8 +7,8 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
-import cli
-import mapping
+import cli.main as cli
+from core import mapping
 from models import Contribution, MappingSet
 
 

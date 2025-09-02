@@ -10,7 +10,7 @@ from typing import Sequence
 
 from pydantic_core import to_json
 
-from loader import load_prompt_text
+from io_utils.loader import load_prompt_text
 from models import MappingItem, PlateauFeature
 
 

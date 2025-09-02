@@ -18,7 +18,7 @@ import logfire
 from pydantic import ValidationError
 from pydantic_core import from_json, to_json
 
-from loader import load_mapping_items, load_prompt_text
+from io_utils.loader import load_mapping_items, load_prompt_text
 from mapping_prompt import render_set_prompt
 from models import (
     Contribution,
@@ -32,13 +32,13 @@ from models import (
     PlateauFeature,
     StrictModel,
 )
+from observability.telemetry import record_mapping_set
 from quarantine import QuarantineWriter
 from runtime.environment import RuntimeEnv
-from telemetry import record_mapping_set
 from utils import CacheManager, ErrorHandler, JSONCacheManager, LoggingErrorHandler
 
 if TYPE_CHECKING:
-    from conversation import ConversationSession
+    from .conversation import ConversationSession
 
 
 _writer = QuarantineWriter()

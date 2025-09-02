@@ -12,16 +12,16 @@ from typing import Sequence
 import pytest
 from pydantic_core import from_json
 
-# Replace ``loader`` with a stub during ``mapping_prompt`` import to avoid
+# Replace ``io_utils.loader`` with a stub during ``mapping_prompt`` import to avoid
 # reading actual prompt files. The real module is restored immediately so other
 # tests see the genuine implementation during collection.
-_real_loader = importlib.import_module("loader")
-stub_loader = types.ModuleType("loader")
+_real_loader = importlib.import_module("io_utils.loader")
+stub_loader = types.ModuleType("io_utils.loader")
 stub_loader.load_prompt_text = lambda name: ""  # type: ignore[attr-defined]
-sys.modules["loader"] = stub_loader
+sys.modules["io_utils.loader"] = stub_loader
 import mapping_prompt  # noqa: E402
 
-sys.modules["loader"] = _real_loader
+sys.modules["io_utils.loader"] = _real_loader
 from mapping_prompt import render_set_prompt  # noqa: E402
 from models import MappingItem, MaturityScore, PlateauFeature  # noqa: E402
 

@@ -72,11 +72,11 @@ dummy_loader = types.SimpleNamespace(
     load_prompt_text=lambda *a, **k: "",
     MAPPING_DATA_DIR=Path("data"),
 )
-sys.modules.setdefault("loader", cast(types.ModuleType, dummy_loader))
+sys.modules.setdefault("io_utils.loader", cast(types.ModuleType, dummy_loader))
 
 # Stub mapping and telemetry modules to satisfy CLI imports.
 sys.modules.setdefault(
-    "mapping",
+    "core.mapping",
     cast(
         types.ModuleType,
         types.SimpleNamespace(
@@ -87,7 +87,7 @@ sys.modules.setdefault(
     ),
 )
 sys.modules.setdefault(
-    "telemetry",
+    "observability.telemetry",
     cast(
         types.ModuleType,
         types.SimpleNamespace(
@@ -99,11 +99,11 @@ sys.modules.setdefault(
     ),
 )
 sys.modules.setdefault(
-    "settings",
+    "runtime.settings",
     cast(types.ModuleType, SimpleNamespace(load_settings=lambda: SimpleNamespace())),
 )
 sys.modules.setdefault(
-    "service_loader",
+    "io_utils.service_loader",
     cast(types.ModuleType, SimpleNamespace(load_services=lambda *a, **k: [])),
 )
 
@@ -214,7 +214,7 @@ sys.modules.setdefault(
     cast(types.ModuleType, types.SimpleNamespace(PlateauGenerator=object)),
 )
 
-import cli  # noqa: E402
+import cli.main as cli  # noqa: E402
 
 
 def _settings() -> SimpleNamespace:

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from settings import load_settings
+from runtime.settings import load_settings
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 

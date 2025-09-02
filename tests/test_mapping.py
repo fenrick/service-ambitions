@@ -7,9 +7,9 @@ from typing import Any, Iterator, Sequence, cast
 import pytest
 from pydantic_core import from_json
 
-import mapping
-from conversation import ConversationSession
-from mapping import MappingError, cache_write_json_atomic, map_set
+from core import mapping
+from core.conversation import ConversationSession
+from core.mapping import MappingError, cache_write_json_atomic, map_set
 from models import (
     Contribution,
     FeatureMappingRef,

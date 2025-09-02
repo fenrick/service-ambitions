@@ -10,8 +10,8 @@ from typing import Any, cast
 from pydantic_ai import Agent, messages
 from pydantic_core import from_json
 
-import conversation
-from conversation import ConversationSession
+from core import conversation
+from core.conversation import ConversationSession
 from models import ServiceFeature, ServiceInput
 from runtime.environment import RuntimeEnv
 

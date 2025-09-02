@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 """Tests for `_extract_service_id`."""
 
-from service_loader import _extract_service_id
+from io_utils.service_loader import _extract_service_id
 
 
 def test_extract_service_id_from_partial_json() -> None:
