@@ -67,7 +67,7 @@ def test_ensure_run_meta_initialises_once(monkeypatch):
     exec_obj = _execution()
     monkeypatch.setattr(se, "load_mapping_items", lambda *a, **k: ({}, "0" * 64))
     env = RuntimeEnv.instance()
-    env.state.pop("run_meta", None)
+    env.run_meta = None
     settings = env.settings
     exec_obj._ensure_run_meta(
         settings,
@@ -76,7 +76,7 @@ def test_ensure_run_meta_initialises_once(monkeypatch):
         "map-model",
         SimpleNamespace(max_input_tokens=0),
     )
-    meta = env.state.get("run_meta")
+    meta = RuntimeEnv.instance().run_meta
     assert meta is not None
     assert meta.models["descriptions"] == "desc-model"
     exec_obj._ensure_run_meta(
@@ -86,5 +86,5 @@ def test_ensure_run_meta_initialises_once(monkeypatch):
         "other-map",
         SimpleNamespace(max_input_tokens=0),
     )
-    assert env.state.get("run_meta") is meta
-    env.state.pop("run_meta", None)
+    assert RuntimeEnv.instance().run_meta is meta
+    env.run_meta = None
