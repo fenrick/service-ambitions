@@ -173,46 +173,47 @@ async def _cmd_generate_evolution(
         logfire.warning("One or more services failed during processing")
 
 
-def _build_parser() -> argparse.ArgumentParser:
-    """Return an argument parser configured with subcommands."""
+def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    """Add CLI options shared across subcommands.
 
-    parser = argparse.ArgumentParser(
-        description=(
-            "Service evolution utilities backed by a layered runtime "
-            "architecture. A ProcessingEngine coordinates ServiceExecution "
-            "and PlateauRuntime instances and relies on a global RuntimeEnv "
-            "for configuration."
-        ),
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    common = argparse.ArgumentParser(add_help=False)
-    common.add_argument(
+    Parameters
+    ----------
+    parser:
+        Parser to augment with common arguments.
+
+    Returns
+    -------
+    argparse.ArgumentParser
+        The parser instance with added arguments.
+    """
+
+    parser.add_argument(
         "--model",
         help=(
             "Global chat model name (default openai:gpt-5). "
             "Can also be set via the MODEL env variable."
         ),
     )
-    common.add_argument(
+    parser.add_argument(
         "--descriptions-model",
         help="Model for plateau descriptions (default openai:o4-mini)",
     )
-    common.add_argument(
+    parser.add_argument(
         "--features-model",
         help=(
             "Model for feature generation (default openai:gpt-5; "
             "use openai:o4-mini for lower cost)"
         ),
     )
-    common.add_argument(
+    parser.add_argument(
         "--mapping-model",
         help="Model for feature mapping (default openai:o4-mini)",
     )
-    common.add_argument(
+    parser.add_argument(
         "--search-model",
         help="Model for web search (default openai:gpt-4o-search-preview)",
     )
-    common.add_argument(
+    parser.add_argument(
         "-v",
         "--verbose",
         action="count",
@@ -221,62 +222,62 @@ def _build_parser() -> argparse.ArgumentParser:
             "Increase logging verbosity (-v notice, -vv info, -vvv debug, -vvvv trace)"
         ),
     )
-    common.add_argument(
+    parser.add_argument(
         "-q",
         "--quiet",
         action="count",
         default=0,
         help="Decrease logging verbosity (-q error, -qq fatal)",
     )
-    common.add_argument(
+    parser.add_argument(
         "--concurrency",
         type=int,
         help="Number of services to process concurrently",
     )
-    common.add_argument(
+    parser.add_argument(
         "--max-services",
         type=int,
         help="Process at most this many services",
     )
-    common.add_argument(
+    parser.add_argument(
         "--strict-mapping",
         action=argparse.BooleanOptionalAction,
         default=None,
         help="Fail when feature mappings are missing",
     )
-    common.add_argument(
+    parser.add_argument(
         "--mapping-data-dir",
         default=None,
         help="Directory containing mapping reference data",
     )
-    common.add_argument(
+    parser.add_argument(
         "--roles-file",
         default="data/roles.json",
         help="Path to JSON file containing role identifiers",
     )
-    common.add_argument(
+    parser.add_argument(
         "--seed",
         type=int,
         default=0,
         help="Seed random number generation for reproducible output",
     )
-    common.add_argument(
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Validate inputs without calling the API",
     )
-    common.add_argument(
+    parser.add_argument(
         "--progress",
         action="store_true",
         help="Display a progress bar during execution",
     )
-    common.add_argument(
+    parser.add_argument(
         "--continue",
         dest="resume",
         action="store_true",
         help="Resume processing using processed_ids.txt",
     )
-    common.add_argument(
+    parser.add_argument(
         "--web-search",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -285,18 +286,18 @@ def _build_parser() -> argparse.ArgumentParser:
             "Adds latency and cost"
         ),
     )
-    common.add_argument(
+    parser.add_argument(
         "--allow-prompt-logging",
         action="store_true",
         help="Include raw prompt text in debug logs",
     )
-    common.add_argument(
+    parser.add_argument(
         "--strict",
         action=argparse.BooleanOptionalAction,
         default=None,
         help="Fail on missing roles or mappings when enabled",
     )
-    common.add_argument(
+    parser.add_argument(
         "--use-local-cache",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -305,7 +306,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "When disabled, cache options are ignored"
         ),
     )
-    common.add_argument(
+    parser.add_argument(
         "--cache-mode",
         choices=("off", "read", "refresh", "write"),
         default=None,
@@ -316,7 +317,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "writes to the cache"
         ),
     )
-    common.add_argument(
+    parser.add_argument(
         "--cache-dir",
         default=None,
         help=(
@@ -324,53 +325,47 @@ def _build_parser() -> argparse.ArgumentParser:
             "current working directory"
         ),
     )
-    common.add_argument(
+    parser.add_argument(
         "--temp-output-dir",
         help="Directory for intermediate JSON records",
     )
 
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    return parser
 
-    map_p = subparsers.add_parser(
+
+def _add_map_subparser(
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
+    common: argparse.ArgumentParser,
+) -> argparse.ArgumentParser:
+    """Create the ``map`` subcommand parser."""
+
+    parser = subparsers.add_parser(
         "map",
         parents=[common],
         help="Populate feature mappings",
         description="Populate feature mappings for an existing features file",
     )
-    map_p.add_argument(
+    parser.add_argument(
         "--input-file",
         default="features.jsonl",
         help="Path to the features JSONL file",
     )
-    map_p.add_argument(
+    parser.add_argument(
         "--output-file",
         default="mapped.jsonl",
         help=OUTPUT_FILE_HELP,
     )
-    map_p.set_defaults(func=_cmd_map)
+    parser.set_defaults(func=_cmd_map)
+    return parser
 
-    rev_p = subparsers.add_parser(
-        "reverse",
-        parents=[common],
-        help="Rebuild caches from an evolutions file",
-        description=(
-            "Reconstruct feature and mapping caches from a previously "
-            "generated evolutions.jsonl"
-        ),
-    )
-    rev_p.add_argument(
-        "--input-file",
-        default="evolutions.jsonl",
-        help="Path to the evolutions JSONL file",
-    )
-    rev_p.add_argument(
-        "--output-file",
-        default="features.jsonl",
-        help="Path to write extracted features JSONL",
-    )
-    rev_p.set_defaults(func=_cmd_reverse)
 
-    run_p = subparsers.add_parser(
+def _add_run_subparser(
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
+    common: argparse.ArgumentParser,
+) -> argparse.ArgumentParser:
+    """Create the ``run`` subcommand parser."""
+
+    parser = subparsers.add_parser(
         "run",
         parents=[common],
         help="Generate service evolutions via ProcessingEngine",
@@ -379,20 +374,28 @@ def _build_parser() -> argparse.ArgumentParser:
             "RuntimeEnv architecture"
         ),
     )
-    run_p.add_argument(
+    parser.add_argument(
         "--input-file",
         default="services.jsonl",
         help=SERVICES_FILE_HELP,
     )
-    run_p.add_argument(
+    parser.add_argument(
         "--output-file",
         default="evolutions.jsonl",
         help=OUTPUT_FILE_HELP,
     )
-    run_p.add_argument("--transcripts-dir", help=TRANSCRIPTS_HELP)
-    run_p.set_defaults(func=_cmd_run)
+    parser.add_argument("--transcripts-dir", help=TRANSCRIPTS_HELP)
+    parser.set_defaults(func=_cmd_run)
+    return parser
 
-    val_p = subparsers.add_parser(
+
+def _add_validate_subparser(
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
+    common: argparse.ArgumentParser,
+) -> argparse.ArgumentParser:
+    """Create the ``validate`` subcommand parser."""
+
+    parser = subparsers.add_parser(
         "validate",
         parents=[common],
         help="Generate service evolutions via ProcessingEngine",
@@ -401,19 +404,67 @@ def _build_parser() -> argparse.ArgumentParser:
             "evolutions using the ProcessingEngine runtime"
         ),
     )
-    val_p.add_argument(
+    parser.add_argument(
         "--input-file",
         default="services.jsonl",
         help=SERVICES_FILE_HELP,
     )
-    val_p.add_argument(
+    parser.add_argument(
         "--output-file",
         default="evolutions.jsonl",
         help=OUTPUT_FILE_HELP,
     )
-    val_p.add_argument("--transcripts-dir", help=TRANSCRIPTS_HELP)
-    val_p.set_defaults(func=_cmd_validate)
+    parser.add_argument("--transcripts-dir", help=TRANSCRIPTS_HELP)
+    parser.set_defaults(func=_cmd_validate)
+    return parser
 
+
+def _add_reverse_subparser(
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
+    common: argparse.ArgumentParser,
+) -> argparse.ArgumentParser:
+    """Create the ``reverse`` subcommand parser."""
+
+    parser = subparsers.add_parser(
+        "reverse",
+        parents=[common],
+        help="Rebuild caches from an evolutions file",
+        description=(
+            "Reconstruct feature and mapping caches from a previously "
+            "generated evolutions.jsonl"
+        ),
+    )
+    parser.add_argument(
+        "--input-file",
+        default="evolutions.jsonl",
+        help="Path to the evolutions JSONL file",
+    )
+    parser.add_argument(
+        "--output-file",
+        default="features.jsonl",
+        help="Path to write extracted features JSONL",
+    )
+    parser.set_defaults(func=_cmd_reverse)
+    return parser
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    """Return an argument parser configured with subcommands."""
+    parser = argparse.ArgumentParser(
+        description=(
+            "Service evolution utilities backed by a layered runtime "
+            "architecture. A ProcessingEngine coordinates ServiceExecution "
+            "and PlateauRuntime instances and relies on a global RuntimeEnv "
+            "for configuration."
+        ),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    common = _add_common_args(argparse.ArgumentParser(add_help=False))
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    _add_map_subparser(subparsers, common)
+    _add_reverse_subparser(subparsers, common)
+    _add_run_subparser(subparsers, common)
+    _add_validate_subparser(subparsers, common)
     return parser
 
 
