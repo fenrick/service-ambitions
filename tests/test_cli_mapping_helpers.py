@@ -52,6 +52,63 @@ async def _stub_map_set_async(*args, **kwargs):
     return _stub_map_set(*args, **kwargs)
 
 
+@pytest.mark.asyncio
+async def test_apply_mapping_sets_invokes_map_set(monkeypatch) -> None:
+    """Applying mapping sets invokes ``map_set`` for each configuration."""
+
+    settings = _settings()
+    items, catalogue_hash = cli_mapping.load_catalogue(None, settings)
+
+    text = Path("tests/fixtures/mapping_services.jsonl").read_text(encoding="utf-8")
+    evolutions = [
+        ServiceEvolution.model_validate_json(line)
+        for line in text.splitlines()
+        if line.strip()
+    ]
+    features = [f for evo in evolutions for p in evo.plateaus for f in p.features]
+
+    calls: list[str] = []
+
+    async def fake_map_set(*args, **kwargs):
+        calls.append(args[1])
+        return _stub_map_set(*args, **kwargs)
+
+    monkeypatch.setattr(mapping, "map_set", fake_map_set)
+
+    mapped = await cli_mapping._apply_mapping_sets(
+        features, items, settings, "off", catalogue_hash
+    )
+
+    assert calls == ["applications", "technologies"]
+    assert any("applications" in feat.mappings for feat in mapped)
+
+
+@pytest.mark.asyncio
+async def test_assemble_mapping_groups_groups_features(monkeypatch) -> None:
+    """Grouping helper assigns plateau mapping groups."""
+
+    settings = _settings()
+    items, catalogue_hash = cli_mapping.load_catalogue(None, settings)
+
+    text = Path("tests/fixtures/mapping_services.jsonl").read_text(encoding="utf-8")
+    evolutions = [
+        ServiceEvolution.model_validate_json(line)
+        for line in text.splitlines()
+        if line.strip()
+    ]
+
+    monkeypatch.setattr(mapping, "map_set", _stub_map_set_async)
+    features = [f for evo in evolutions for p in evo.plateaus for f in p.features]
+    mapped = await cli_mapping._apply_mapping_sets(
+        features, items, settings, "off", catalogue_hash
+    )
+    cli_mapping._assemble_mapping_groups(evolutions, mapped, items, settings)
+
+    plateau = evolutions[0].plateaus[0]
+    assert plateau.mappings["applications"][0].id == "app1"
+    assert plateau.mappings["technologies"][0].id == "tech1"
+
+
 def test_load_catalogue_invokes_loader(monkeypatch) -> None:
     """Catalogue loading delegates to loader helpers."""
 
