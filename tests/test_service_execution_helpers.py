@@ -1,3 +1,4 @@
+from pathlib import Path
 from types import SimpleNamespace
 
 import engine.service_execution as se
@@ -5,16 +6,19 @@ from engine.service_execution import ServiceExecution
 from engine.service_runtime import ServiceRuntime
 from models import ServiceInput
 from runtime.environment import RuntimeEnv
+from settings import Settings
 from utils import ErrorHandler
 
 
-def _settings():
-    return SimpleNamespace(
-        diagnostics=False,
-        mapping_sets=[],
-        use_local_cache=True,
-        cache_mode="read",
-        mapping_types={},
+def _settings() -> Settings:
+    return Settings(
+        model="dummy:model",
+        log_level="INFO",
+        prompt_dir=Path("."),
+        context_id="ctx",
+        inspiration="insp",
+        concurrency=1,
+        openai_api_key="key",
     )
 
 

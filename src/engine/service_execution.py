@@ -34,6 +34,7 @@ from plateau_generator import (
 )
 from quarantine import QuarantineWriter
 from runtime.environment import RuntimeEnv
+from settings import Settings
 from utils import ErrorHandler
 
 SERVICES_PROCESSED = logfire.metric_counter("services_processed")
@@ -66,7 +67,9 @@ class ServiceExecution:
         self.allow_prompt_logging = allow_prompt_logging
         self.error_handler = error_handler
 
-    def _build_generator(self, settings) -> tuple[PlateauGenerator, str, str, str]:
+    def _build_generator(
+        self, settings: Settings
+    ) -> tuple[PlateauGenerator, str, str, str]:
         """Construct plateau generator and return model names.
 
         Args:
@@ -144,7 +147,7 @@ class ServiceExecution:
 
     def _ensure_run_meta(
         self,
-        settings,
+        settings: Settings,
         desc_name: str,
         feat_name: str,
         map_name: str,
