@@ -105,9 +105,7 @@ Provide a description of the service at plateau 1 (Foundational).
 #### Instructions
 
 - Base wording on the situational context, definitions and inspirations.
-- Return a JSON object containing only a `description` field.
-- `description` must be a non-empty string explaining the service at plateau 1.
-- Do not include any text outside the JSON object.
+- Provide a non-empty `description` string explaining the service at plateau 1.
 - The response must adhere to the JSON schema provided below.
 
 #### Response structure
@@ -130,13 +128,12 @@ Generate service features for the Learning & Teaching service at plateau 1.
 
 - Use the service description: <Foundational description>.
 - Reference the situational context, definitions and inspirations to maintain consistent terminology.
-- Return a single JSON object with three keys: "learners", "staff" and "community".
+- Provide keys for "learners", "staff" and "community".
 - Each key must map to an array containing at least 5 feature objects.
 - Every feature must provide:
   - "name": short feature title.
   - "description": explanation of the feature.
   - "score": object describing CMMI maturity with "level", "label" and "justification".
-- Do not include any text outside the JSON object.
 - The response must adhere to the JSON schema provided below.
 
 #### Response structure
@@ -187,12 +184,10 @@ Map each feature to relevant Information, Applications and Technologies from the
 
 #### Instructions
 
-- Return a JSON object with a top-level "features" array.
 - Each element must include a 6 character `feature_id` and a "mappings" object containing "information", "applications" and "technologies" arrays.
 - Each mapping entry must include an "item" field. When diagnostics are enabled, also return a single-line "rationale" for the match.
 - Do not invent IDs; only use those provided.
 - Maintain terminology consistent with the situational context, definitions and inspirations.
-- Do not include any text outside the JSON object.
 - The response must adhere to the JSON schema provided below.
 
 #### Response structure

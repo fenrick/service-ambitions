@@ -42,9 +42,28 @@ def _clear_prompt_cache():
     """Ensure prompt cache is empty before and after each test."""
     import loader
 
-    loader.clear_prompt_cache()
+    try:
+        loader.clear_prompt_cache()
+    except RuntimeError:
+        pass
     yield
-    loader.clear_prompt_cache()
+    try:
+        loader.clear_prompt_cache()
+    except RuntimeError:
+        pass
+
+
+@pytest.fixture(autouse=True)
+def _init_runtime_env():
+    """Initialise a default runtime environment for tests."""
+
+    from runtime.environment import RuntimeEnv
+    from settings import load_settings
+
+    RuntimeEnv.reset()
+    RuntimeEnv.initialize(load_settings())
+    yield
+    RuntimeEnv.reset()
 
 
 class _DummySpan:
@@ -98,12 +117,16 @@ class DummyAgent:
     """Agent echoing prompts for deterministic output."""
 
     def __init__(
-        self, model: object | None = None, instructions: str | None = None
+        self,
+        model: object | None = None,
+        instructions: str | None = None,
+        output_type: type | None = None,
     ) -> None:
         self.model = model
         self.instructions = instructions
+        self.output_type = output_type
 
-    async def run(self, user_prompt: str, output_type: type) -> SimpleNamespace:
+    async def run(self, user_prompt: str) -> SimpleNamespace:
         """Return predictable payload for the supplied prompt."""
 
         return SimpleNamespace(

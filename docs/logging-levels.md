@@ -1,6 +1,6 @@
 # Logging levels
 
-This project uses structured logging to describe application behaviour and
+Logfire provides structured logging to describe application behaviour and
 troubleshooting information. Log entries are emitted at different levels to
 control verbosity. Each level builds on the ones before it, inheriting their
 messages while adding more detail.
@@ -50,5 +50,5 @@ messages while adding more detail.
 * **Use:** Generally produced automatically by the logging system when an
   exception propagates without being caught.
 
-For more on debugging practices, see the `--diagnostics` flag in the CLI which
-enables verbose logging and telemetry instrumentation.
+Use `-q` and `-v` flags on the CLI to adjust verbosity from `fatal` through
+`trace`.

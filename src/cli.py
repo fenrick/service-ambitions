@@ -6,8 +6,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import inspect
-import json
-import logging
 import random
 from pathlib import Path
 from typing import Any, Coroutine, cast
@@ -15,24 +13,22 @@ from typing import Any, Coroutine, cast
 import logfire
 from pydantic_core import to_json
 
-import loader
 import mapping
 import telemetry
 from canonical import canonicalise_record
-from conversation import ConversationSession
+from cli_mapping import load_catalogue, remap_features, write_output
 from engine.processing_engine import ProcessingEngine
 from loader import configure_mapping_data_dir, load_mapping_items
 from models import (
     Contribution,
     FeatureItem,
-    FeatureMappingRef,
     MappingFeature,
-    MappingFeatureGroup,
     MappingResponse,
     PlateauFeaturesResponse,
     ServiceEvolution,
+    StageModels,
 )
-from monitoring import LOG_FILE_NAME, init_logfire
+from monitoring import init_logfire
 from plateau_generator import _feature_cache_path
 from runtime.environment import RuntimeEnv
 from settings import load_settings
@@ -45,143 +41,63 @@ TRANSCRIPTS_HELP = (
 )
 
 
+LOG_LEVELS = ["fatal", "error", "warn", "notice", "info", "debug", "trace"]
+
+
 def _configure_logging(args: argparse.Namespace, settings) -> None:
-    """Configure the logging subsystem."""
+    """Configure Logfire based on verbosity flags."""
 
-    # CLI-specified level takes precedence over configured default
-    level_name = settings.log_level
-
-    if args.verbose == 1:
-        # Single -v flag bumps log level to INFO for clearer output
-        level_name = "INFO"
-    elif args.verbose >= 2:
-        # Two or more -v flags enable DEBUG for deep troubleshooting
-        level_name = "DEBUG"
-
-    if args.no_logs:
-        # Disable file logging and telemetry when requested
-        logging.basicConfig(
-            level=getattr(logging, level_name.upper(), logging.INFO),
-            force=True,
-        )
-        return
-
-    logging.basicConfig(
-        filename=LOG_FILE_NAME,
-        level=getattr(logging, level_name.upper(), logging.INFO),
-        force=True,
-    )
-    # Initialize logfire regardless of token availability; a missing token
-    # keeps logging local without sending telemetry to the cloud.
-    init_logfire(settings.logfire_token, diagnostics=settings.diagnostics)
+    index = 2 + args.verbose - args.quiet
+    index = max(0, min(len(LOG_LEVELS) - 1, index))
+    min_log_level = LOG_LEVELS[index]
+    init_logfire(settings.logfire_token, min_log_level)
 
 
-async def _cmd_run(
-    args: argparse.Namespace, settings, transcripts_dir: Path | None
-) -> None:
+async def _cmd_run(args: argparse.Namespace, transcripts_dir: Path | None) -> None:
     """Execute the default evolution generation workflow."""
 
-    await _cmd_generate_evolution(args, settings, transcripts_dir)
+    await _cmd_generate_evolution(args, transcripts_dir)
 
 
-async def _cmd_diagnose(
-    args: argparse.Namespace, settings, transcripts_dir: Path | None
-) -> None:
-    """Run the generator with diagnostics and transcripts enabled."""
-
-    settings.diagnostics = True
-    args.no_logs = False
-    await _cmd_generate_evolution(args, settings, transcripts_dir)
-
-
-async def _cmd_validate(
-    args: argparse.Namespace, settings, transcripts_dir: Path | None
-) -> None:
+async def _cmd_validate(args: argparse.Namespace, transcripts_dir: Path | None) -> None:
     """Validate inputs without invoking the language model."""
 
     args.dry_run = True
-    await _cmd_generate_evolution(args, settings, transcripts_dir)
+    await _cmd_generate_evolution(args, transcripts_dir)
 
 
-async def _cmd_map(
-    args: argparse.Namespace, settings, transcripts_dir: Path | None
-) -> None:
+async def _cmd_map(args: argparse.Namespace, transcripts_dir: Path | None) -> None:
     """Populate feature mappings for an existing features file."""
+    input_path = Path(args.input_file)
+    if not input_path.exists():
+        raise FileNotFoundError(input_path)
 
-    configure_mapping_data_dir(args.mapping_data_dir or settings.mapping_data_dir)
-    items, catalogue_hash = load_mapping_items(
-        loader.MAPPING_DATA_DIR, settings.mapping_sets
-    )
+    settings = RuntimeEnv.instance().settings
+    items, catalogue_hash = load_catalogue(args.mapping_data_dir, settings)
 
-    text = Path(args.input_file).read_text(encoding="utf-8")
+    text = input_path.read_text(encoding="utf-8")
     evolutions = [
         ServiceEvolution.model_validate_json(line)
         for line in text.splitlines()
         if line.strip()
     ]
 
-    features = [f for evo in evolutions for p in evo.plateaus for f in p.features]
-    mapped = features
-    for cfg in settings.mapping_sets:
-        mapped = await mapping.map_set(
-            cast(ConversationSession, object()),
-            cfg.field,
-            items[cfg.field],
-            mapped,
-            service_name="svc",
-            service_description="desc",
-            plateau=1,
-            strict=settings.strict_mapping,
-            diagnostics=settings.diagnostics,
-            cache_mode=args.cache_mode,
-            catalogue_hash=catalogue_hash,
-        )
-
-    catalogue_lookup = {
-        cfg.field: {item.id: item.name for item in items[cfg.field]}
-        for cfg in settings.mapping_sets
-    }
-    by_id = {f.feature_id: f for f in mapped}
-    for evo in evolutions:
-        for plateau in evo.plateaus:
-            mapped_feats = [by_id[f.feature_id] for f in plateau.features]
-            plateau.mappings = {}
-            for cfg in settings.mapping_sets:
-                groups: dict[str, list[FeatureMappingRef]] = {}
-                for feat in mapped_feats:
-                    for contrib in feat.mappings.get(cfg.field, []):
-                        groups.setdefault(contrib.item, []).append(
-                            FeatureMappingRef(
-                                feature_id=feat.feature_id,
-                                description=feat.description,
-                            )
-                        )
-                catalogue = catalogue_lookup[cfg.field]
-                plateau.mappings[cfg.field] = [
-                    MappingFeatureGroup(
-                        id=item_id,
-                        name=catalogue.get(item_id, item_id),
-                        mappings=sorted(refs, key=lambda r: r.feature_id),
-                    )
-                    for item_id, refs in sorted(groups.items())
-                ]
-
-    output_path = Path(args.output_file)
-    with output_path.open("w", encoding="utf-8") as fh:
-        for evo in evolutions:
-            record = canonicalise_record(evo.model_dump(mode="json"))
-            fh.write(json.dumps(record, separators=(",", ":"), sort_keys=True) + "\n")
+    await remap_features(
+        evolutions,
+        items,
+        settings,
+        args.cache_mode,
+        catalogue_hash,
+    )
+    write_output(evolutions, Path(args.output_file))
 
 
-def _cmd_reverse(
-    args: argparse.Namespace, settings, transcripts_dir: Path | None
-) -> None:
+def _cmd_reverse(args: argparse.Namespace, transcripts_dir: Path | None) -> None:
     """Backfill feature and mapping caches from ``evolutions.jsonl``."""
 
+    settings = RuntimeEnv.instance().settings
     configure_mapping_data_dir(args.mapping_data_dir or settings.mapping_data_dir)
-    items, catalogue_hash = load_mapping_items(
-        loader.MAPPING_DATA_DIR, settings.mapping_sets
-    )
+    items, catalogue_hash = load_mapping_items(settings.mapping_sets)
 
     input_path = Path(args.input_file)
     output_path = Path(args.output_file)
@@ -246,19 +162,19 @@ def _cmd_reverse(
 
 
 async def _cmd_generate_evolution(
-    args: argparse.Namespace, settings, transcripts_dir: Path | None
+    args: argparse.Namespace, transcripts_dir: Path | None
 ) -> None:
     """Generate service evolution summaries via ``ProcessingEngine``."""
 
-    engine = ProcessingEngine(args, settings, transcripts_dir)
+    engine = ProcessingEngine(args, transcripts_dir)
     success = await engine.run()
     await engine.finalise()
     if not success:
         logfire.warning("One or more services failed during processing")
 
 
-def main() -> None:
-    """Parse arguments and dispatch to the requested subcommand."""
+def _build_parser() -> argparse.ArgumentParser:
+    """Return an argument parser configured with subcommands."""
 
     parser = argparse.ArgumentParser(
         description=(
@@ -301,7 +217,16 @@ def main() -> None:
         "--verbose",
         action="count",
         default=0,
-        help="Increase logging verbosity (-v for info, -vv for debug)",
+        help=(
+            "Increase logging verbosity (-v notice, -vv info, -vvv debug, -vvvv trace)"
+        ),
+    )
+    common.add_argument(
+        "-q",
+        "--quiet",
+        action="count",
+        default=0,
+        help="Decrease logging verbosity (-q error, -qq fatal)",
     )
     common.add_argument(
         "--concurrency",
@@ -312,12 +237,6 @@ def main() -> None:
         "--max-services",
         type=int,
         help="Process at most this many services",
-    )
-    common.add_argument(
-        "--diagnostics",
-        action=argparse.BooleanOptionalAction,
-        default=None,
-        help="Enable verbose diagnostics output",
     )
     common.add_argument(
         "--strict-mapping",
@@ -369,23 +288,18 @@ def main() -> None:
     common.add_argument(
         "--allow-prompt-logging",
         action="store_true",
-        help="Include raw prompt text in debug logs when diagnostics are enabled",
-    )
-    common.add_argument(
-        "--no-logs",
-        action="store_true",
-        help="Disable file logging and Logfire telemetry",
+        help="Include raw prompt text in debug logs",
     )
     common.add_argument(
         "--strict",
         action=argparse.BooleanOptionalAction,
-        default=False,
+        default=None,
         help="Fail on missing roles or mappings when enabled",
     )
     common.add_argument(
         "--use-local-cache",
         action=argparse.BooleanOptionalAction,
-        default=True,
+        default=None,
         help=(
             "Enable reading/writing the cache directory for mapping results. "
             "When disabled, cache options are ignored"
@@ -394,7 +308,7 @@ def main() -> None:
     common.add_argument(
         "--cache-mode",
         choices=("off", "read", "refresh", "write"),
-        default="read",
+        default=None,
         help=(
             "Caching behaviour (default 'read'): 'off' disables caching, "
             "'read' uses existing entries without writing, 'refresh' "
@@ -404,7 +318,7 @@ def main() -> None:
     )
     common.add_argument(
         "--cache-dir",
-        default=".cache",
+        default=None,
         help=(
             "Directory to store cache files; defaults to '.cache' in the "
             "current working directory"
@@ -478,28 +392,6 @@ def main() -> None:
     run_p.add_argument("--transcripts-dir", help=TRANSCRIPTS_HELP)
     run_p.set_defaults(func=_cmd_run)
 
-    diag_p = subparsers.add_parser(
-        "diagnose",
-        parents=[common],
-        help="Generate service evolutions via ProcessingEngine",
-        description=(
-            "Generate service evolutions with diagnostics enabled using the "
-            "ProcessingEngine runtime"
-        ),
-    )
-    diag_p.add_argument(
-        "--input-file",
-        default="services.jsonl",
-        help=SERVICES_FILE_HELP,
-    )
-    diag_p.add_argument(
-        "--output-file",
-        default="evolutions.jsonl",
-        help=OUTPUT_FILE_HELP,
-    )
-    diag_p.add_argument("--transcripts-dir", help=TRANSCRIPTS_HELP)
-    diag_p.set_defaults(func=_cmd_diagnose)
-
     val_p = subparsers.add_parser(
         "validate",
         parents=[common],
@@ -522,35 +414,74 @@ def main() -> None:
     val_p.add_argument("--transcripts-dir", help=TRANSCRIPTS_HELP)
     val_p.set_defaults(func=_cmd_validate)
 
-    args = parser.parse_args()
+    return parser
 
-    settings = load_settings()
-    RuntimeEnv.initialize(settings)
 
-    if args.seed is not None:
-        random.seed(args.seed)
+def _apply_args_to_settings(args: argparse.Namespace, settings) -> None:
+    """Override settings fields based on CLI arguments."""
 
-    if args.diagnostics is not None:
-        settings.diagnostics = args.diagnostics
+    if args.model is not None:
+        settings.model = args.model
+    stage_models = settings.models or StageModels(
+        descriptions=None,
+        features=None,
+        mapping=None,
+        search=None,
+    )
+    if args.descriptions_model is not None:
+        stage_models.descriptions = args.descriptions_model
+    if args.features_model is not None:
+        stage_models.features = args.features_model
+    if args.mapping_model is not None:
+        stage_models.mapping = args.mapping_model
+    if args.search_model is not None:
+        stage_models.search = args.search_model
+    settings.models = stage_models
+    if args.concurrency is not None:
+        settings.concurrency = args.concurrency
     if args.strict_mapping is not None:
         settings.strict_mapping = args.strict_mapping
     if args.mapping_data_dir is not None:
         settings.mapping_data_dir = Path(args.mapping_data_dir)
+    if args.web_search is not None:
+        settings.web_search = args.web_search
+    if args.use_local_cache is not None:
+        settings.use_local_cache = args.use_local_cache
+    if args.cache_mode is not None:
+        settings.cache_mode = args.cache_mode
+    if args.cache_dir is not None:
+        settings.cache_dir = Path(args.cache_dir)
+    if args.strict is not None:
+        settings.strict = args.strict
     if not hasattr(settings, "mapping_mode"):
         settings.mapping_mode = "per_set"
 
+
+def _execute_subcommand(args: argparse.Namespace, settings) -> None:
+    """Initialise runtime and dispatch to the chosen subcommand."""
+
+    RuntimeEnv.initialize(settings)
+    if args.seed is not None:
+        random.seed(args.seed)
     _configure_logging(args, settings)
-
     telemetry.reset()
-    result = args.func(args, settings, None)
+    result = args.func(args, None)
     if inspect.isawaitable(result):
-        # Cast ensures that asyncio.run receives a proper Coroutine
         asyncio.run(cast(Coroutine[Any, Any, Any], result))
-
     telemetry.print_summary()
     logfire.force_flush()
     if settings.strict_mapping and telemetry.has_quarantines():
         raise SystemExit(1)
+
+
+def main() -> None:
+    """Parse arguments and dispatch to the requested subcommand."""
+
+    parser = _build_parser()
+    args = parser.parse_args()
+    settings = load_settings()
+    _apply_args_to_settings(args, settings)
+    _execute_subcommand(args, settings)
 
 
 if __name__ == "__main__":

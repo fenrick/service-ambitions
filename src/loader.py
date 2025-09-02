@@ -28,30 +28,18 @@ from models import (
     Role,
     ServiceFeaturePlateau,
 )
+from runtime.environment import RuntimeEnv
 from utils import (
     ErrorHandler,
     FileMappingLoader,
     FilePromptLoader,
     LoggingErrorHandler,
-    MappingLoader,
-    PromptLoader,
 )
 
 FEATURE_PLATEAUS_JSON = "service_feature_plateaus.json"
 
 DEFINITIONS_JSON = "definitions.json"
 
-# Directory containing prompt templates.  Mutable so tests or callers may point
-# to alternative directories via ``configure_prompt_dir``.
-PROMPT_DIR = Path("prompts")
-
-# Directory containing mapping reference data. Updated via
-# :func:`configure_mapping_data_dir` so callers may override the default ``data``
-# location.
-MAPPING_DATA_DIR = Path("data")
-
-_prompt_loader: PromptLoader = FilePromptLoader(PROMPT_DIR)
-_mapping_loader: MappingLoader = FileMappingLoader(MAPPING_DATA_DIR)
 _error_handler: ErrorHandler = LoggingErrorHandler()
 
 # Core role statement for all system prompts. This line anchors the model's
@@ -66,18 +54,17 @@ NORTH_STAR = (
 def configure_prompt_dir(path: Path | str) -> None:
     """Set the base directory for prompt templates."""
 
-    global PROMPT_DIR, _prompt_loader
-    PROMPT_DIR = Path(path)
-    _prompt_loader = FilePromptLoader(PROMPT_DIR)
+    env = RuntimeEnv.instance()
+    env.prompt_loader = FilePromptLoader(Path(path))
     clear_prompt_cache()
 
 
 def configure_mapping_data_dir(path: Path | str) -> None:
     """Set the base directory for mapping reference data."""
 
-    global MAPPING_DATA_DIR, _mapping_loader
-    MAPPING_DATA_DIR = Path(path)
-    _mapping_loader = FileMappingLoader(MAPPING_DATA_DIR)
+    env = RuntimeEnv.instance()
+    env.mapping_loader = FileMappingLoader(Path(path))
+    clear_mapping_cache()
 
 
 def _read_file(path: Path) -> str:
@@ -203,7 +190,8 @@ def load_prompt_text(prompt_name: str, base_dir: Path | str | None = None) -> st
     change.
     """
 
-    loader = _prompt_loader if base_dir is None else FilePromptLoader(Path(base_dir))
+    env = RuntimeEnv.instance()
+    loader = env.prompt_loader if base_dir is None else FilePromptLoader(Path(base_dir))
     try:
         return loader.load(prompt_name)
     except Exception as exc:
@@ -212,18 +200,27 @@ def load_prompt_text(prompt_name: str, base_dir: Path | str | None = None) -> st
 
 
 def clear_prompt_cache() -> None:
-    """Invalidate any cached prompt text."""
+    """Invalidate memoised prompt text."""
 
     load_prompt_text.cache_clear()
+    RuntimeEnv.instance().prompt_loader.clear_cache()
+
+
+def clear_mapping_cache() -> None:
+    """Invalidate memoised mapping catalogues."""
+
+    RuntimeEnv.instance().mapping_loader.clear_cache()
 
 
 def load_mapping_items(
-    data_dir: Path, sets: Sequence[MappingSet]
+    sets: Sequence[MappingSet], data_dir: Path | str | None = None
 ) -> tuple[dict[str, list[MappingItem]], str]:
     """Return mapping reference data and a combined catalogue hash."""
 
     loader = (
-        _mapping_loader if data_dir == MAPPING_DATA_DIR else FileMappingLoader(data_dir)
+        FileMappingLoader(Path(data_dir))
+        if data_dir is not None
+        else RuntimeEnv.instance().mapping_loader
     )
     try:
         return loader.load(sets)
@@ -460,13 +457,12 @@ def load_evolution_prompt(
         RuntimeError: If a component file cannot be read.
     """
 
-    directory = base_dir or PROMPT_DIR
     components = [
         NORTH_STAR,
-        load_prompt_text(f"situational_context/{context_id}", directory),
+        load_prompt_text(f"situational_context/{context_id}", base_dir),
         load_plateau_text(plateaus_dir, plateaus_file),
         load_definitions(definitions_dir, definitions_file, definition_keys),
-        load_prompt_text(f"inspirations/{inspirations_id}", directory),
+        load_prompt_text(f"inspirations/{inspirations_id}", base_dir),
     ]
     return "\n\n".join(components)
 
@@ -479,7 +475,6 @@ def load_ambition_prompt(
     definitions_file: Path | str = Path(DEFINITIONS_JSON),
     definition_keys: Sequence[str] | None = None,
     task_file: Path | str = Path("task_definition.md"),
-    response_file: Path | str = Path("response_structure.md"),
     plateaus_dir: Path | str = Path("data"),
     plateaus_file: Path | str = Path(FEATURE_PLATEAUS_JSON),
 ) -> str:
@@ -496,7 +491,6 @@ def load_ambition_prompt(
         definition_keys: Optional identifiers selecting which definitions to
             include.
         task_file: Filename of the task definition component.
-        response_file: Filename of the response structure component.
         plateaus_dir: Directory containing plateau definition data.
         plateaus_file: Plateau definitions file name.
 
@@ -508,15 +502,13 @@ def load_ambition_prompt(
         RuntimeError: If a component file cannot be read.
     """
 
-    directory = base_dir or PROMPT_DIR
     components = [
         NORTH_STAR,
-        load_prompt_text(f"situational_context/{context_id}", directory),
+        load_prompt_text(f"situational_context/{context_id}", base_dir),
         load_plateau_text(plateaus_dir, plateaus_file),
         load_definitions(definitions_dir, definitions_file, definition_keys),
-        load_prompt_text(f"inspirations/{inspirations_id}", directory),
-        load_prompt_text(str(task_file), directory),
-        load_prompt_text(str(response_file), directory),
+        load_prompt_text(f"inspirations/{inspirations_id}", base_dir),
+        load_prompt_text(str(task_file), base_dir),
     ]
     return "\n\n".join(components)
 

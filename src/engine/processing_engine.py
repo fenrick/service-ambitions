@@ -12,7 +12,12 @@ from pathlib import Path
 import logfire
 from tqdm import tqdm  # type: ignore[import-untyped]
 
-from engine.service_execution import ServiceExecution
+from engine.service_execution import (
+    EVOLUTIONS_GENERATED,
+    LINES_WRITTEN,
+    ServiceExecution,
+)
+from engine.service_runtime import ServiceRuntime
 from loader import (
     configure_mapping_data_dir,
     configure_prompt_dir,
@@ -22,13 +27,27 @@ from loader import (
 from model_factory import ModelFactory
 from models import ServiceInput
 from persistence import atomic_write, read_lines
+from runtime.environment import RuntimeEnv
 from service_loader import load_services
+from settings import Settings
+from utils import ErrorHandler, LoggingErrorHandler
 
 # Helper functions migrated from cli for reuse.
 
 
 def _prepare_paths(output: Path, resume: bool) -> tuple[Path, Path]:
-    """Return paths used for output and resume tracking."""
+    """Return paths used for output and resume tracking.
+
+    Args:
+        output: Final output file.
+        resume: Whether resuming a previous run.
+
+    Returns:
+        Tuple of temporary output path and processed IDs path.
+
+    Side effects:
+        None.
+    """
     part_path = output.with_suffix(
         output.suffix + ".tmp" if not resume else output.suffix + ".tmp.part"
     )
@@ -39,14 +58,37 @@ def _prepare_paths(output: Path, resume: bool) -> tuple[Path, Path]:
 def _load_resume_state(
     processed_path: Path, output_path: Path, resume: bool
 ) -> tuple[set[str], list[str]]:
-    """Return previously processed IDs and existing output lines."""
+    """Return previously processed IDs and existing output lines.
+
+    Args:
+        processed_path: Location of the processed IDs file.
+        output_path: Existing output file.
+        resume: Whether resuming a previous run.
+
+    Returns:
+        Set of processed IDs and list of existing output lines.
+
+    Side effects:
+        Reads from the file system when ``resume`` is ``True``.
+    """
     processed_ids = set(read_lines(processed_path)) if resume else set()
     existing_lines = read_lines(output_path) if resume else []
     return processed_ids, existing_lines
 
 
 def _ensure_transcripts_dir(path: str | None, output: Path) -> Path:
-    """Create and return the directory used to store transcripts."""
+    """Create and return the directory used to store transcripts.
+
+    Args:
+        path: Optional directory override.
+        output: Path to the main output file.
+
+    Returns:
+        Directory where transcripts are stored.
+
+    Side effects:
+        Creates the directory if it does not exist.
+    """
     transcripts_dir = Path(path) if path is not None else output.parent / "_transcripts"
     transcripts_dir.mkdir(parents=True, exist_ok=True)
     return transcripts_dir
@@ -55,7 +97,19 @@ def _ensure_transcripts_dir(path: str | None, output: Path) -> Path:
 def _load_services_list(
     input_file: str, max_services: int | None, processed_ids: set[str]
 ) -> list[ServiceInput]:
-    """Return services filtered for ``processed_ids`` and ``max_services``."""
+    """Return services filtered for ``processed_ids`` and ``max_services``.
+
+    Args:
+        input_file: Path to the services definition file.
+        max_services: Optional cap on number of services.
+        processed_ids: IDs already processed in previous runs.
+
+    Returns:
+        List of services pending processing.
+
+    Side effects:
+        Reads services from the file system.
+    """
     with load_services(Path(input_file)) as svc_iter:
         if max_services is not None:
             svc_iter = islice(svc_iter, max_services)
@@ -72,7 +126,23 @@ def _save_results(
     new_ids: set[str],
     processed_path: Path,
 ) -> set[str]:
-    """Persist generated lines and update processed IDs."""
+    """Persist generated lines and update processed IDs.
+
+    Args:
+        resume: Whether the engine resumed a previous run.
+        part_path: Temporary output file path.
+        output_path: Final output file path.
+        existing_lines: Lines read from a previous run.
+        processed_ids: IDs processed before this invocation.
+        new_ids: IDs generated during this run.
+        processed_path: File storing processed IDs.
+
+    Returns:
+        Updated set of all processed IDs.
+
+    Side effects:
+        Moves or writes files on disk.
+    """
     if resume:
         new_lines = read_lines(part_path)
         atomic_write(output_path, [*existing_lines, *new_lines])
@@ -88,11 +158,8 @@ def _save_results(
 class ProcessingEngine:
     """Coordinate service evolution generation across multiple services."""
 
-    def __init__(
-        self, args: argparse.Namespace, settings, transcripts_dir: Path | None
-    ) -> None:
+    def __init__(self, args: argparse.Namespace, transcripts_dir: Path | None) -> None:
         self.args = args
-        self.settings = settings
         self.transcripts_dir = transcripts_dir
         self.output_path = Path(args.output_file)
         self.part_path, self.processed_path = _prepare_paths(
@@ -101,97 +168,249 @@ class ProcessingEngine:
         self.processed_ids, self.existing_lines = _load_resume_state(
             self.processed_path, self.output_path, args.resume
         )
-        if self.transcripts_dir is None and not args.no_logs:
+        if self.transcripts_dir is None:
             self.transcripts_dir = _ensure_transcripts_dir(
                 args.transcripts_dir, self.output_path
             )
         self.new_ids: set[str] = set()
-        self.executions: list[ServiceExecution] = []
+        self.runtimes: list[ServiceRuntime] = []
         self.success = False
 
+    def _create_model_factory(self, settings: Settings) -> ModelFactory:
+        """Create a model factory from settings.
+
+        Args:
+            settings: Global configuration.
+
+        Returns:
+            Configured :class:`ModelFactory` instance.
+
+        Side effects:
+            None.
+        """
+
+        return ModelFactory(
+            settings.model,
+            settings.openai_api_key,
+            stage_models=getattr(settings, "models", None),
+            reasoning=settings.reasoning,
+            seed=self.args.seed,
+            web_search=settings.web_search,
+        )
+
+    def _load_services(
+        self, settings: Settings
+    ) -> tuple[str, list[str], list[ServiceInput]]:
+        """Load system prompt, role identifiers and service definitions.
+
+        Args:
+            settings: Global configuration.
+
+        Returns:
+            Tuple of system prompt, role IDs and filtered services.
+
+        Side effects:
+            Configures prompt and mapping directories based on ``settings``.
+        """
+
+        configure_prompt_dir(settings.prompt_dir)
+        configure_mapping_data_dir(settings.mapping_data_dir)
+        system_prompt = load_evolution_prompt(settings.context_id, settings.inspiration)
+        role_ids = load_role_ids(Path(self.args.roles_file))
+        services = _load_services_list(
+            self.args.input_file, self.args.max_services, self.processed_ids
+        )
+        return system_prompt, role_ids, services
+
+    def _setup_concurrency(self, settings: Settings) -> asyncio.Semaphore:
+        """Create a semaphore limiting concurrent executions."""
+
+        concurrency = settings.concurrency
+        if concurrency < 1:  # Guard against invalid configuration
+            raise ValueError("concurrency must be a positive integer")
+        return asyncio.Semaphore(concurrency)
+
+    def _create_progress(self, total: int) -> tqdm | None:
+        """Create a progress bar if enabled.
+
+        Args:
+            total: Total number of services.
+
+        Returns:
+            :class:`tqdm` progress bar or ``None`` when disabled.
+
+        Side effects:
+            None.
+        """
+        if self.args.progress and sys.stdout.isatty():
+            return tqdm(total=total)
+        # Progress bars are disabled in non-interactive environments.
+        return None
+
+    def _prepare_models(
+        self,
+    ) -> tuple[ModelFactory, str, list[str], list[ServiceInput]]:
+        """Initialise shared models and service definitions.
+
+        Returns:
+            Model factory, system prompt, role IDs and services.
+
+        Side effects:
+            Configures prompt and mapping directories.
+        """
+
+        settings = RuntimeEnv.instance().settings
+        factory = self._create_model_factory(settings)
+        system_prompt, role_ids, services = self._load_services(settings)
+        return factory, system_prompt, role_ids, services
+
+    def _init_sessions(
+        self, total: int
+    ) -> tuple[asyncio.Semaphore, tqdm | None, Path | None, ErrorHandler]:
+        """Create concurrency, progress and error-handling helpers.
+
+        Args:
+            total: Number of services to process.
+
+        Returns:
+            Semaphore, lock, optional progress bar, temporary output directory and
+            error handler.
+
+        Side effects:
+            May create the temporary output directory.
+        """
+
+        settings = RuntimeEnv.instance().settings
+        sem = self._setup_concurrency(settings)
+        progress = self._create_progress(total)
+        temp_output_dir = (
+            Path(self.args.temp_output_dir)
+            if self.args.temp_output_dir is not None
+            else None
+        )
+        error_handler: ErrorHandler = LoggingErrorHandler()
+        return sem, progress, temp_output_dir, error_handler
+
+    async def _run_service(
+        self,
+        service: ServiceInput,
+        factory: ModelFactory,
+        system_prompt: str,
+        role_ids: list[str],
+        sem: asyncio.Semaphore,
+        progress: tqdm | None,
+        temp_output_dir: Path | None,
+        error_handler: ErrorHandler,
+    ) -> bool:
+        """Execute ``service`` and update runtime state.
+
+        Args:
+            service: Service to evolve.
+            factory: Shared model factory.
+            system_prompt: System prompt used for all stages.
+            role_ids: Valid role identifiers.
+            sem: Semaphore limiting concurrency.
+            progress: Progress bar to update or ``None``.
+            temp_output_dir: Directory for temporary artefacts.
+            error_handler: Handler for execution errors.
+
+        Returns:
+            ``True`` when the execution succeeds, ``False`` otherwise.
+        """
+
+        async with sem:
+            runtime = ServiceRuntime(service)
+            execution = ServiceExecution(
+                runtime,
+                factory=factory,
+                system_prompt=system_prompt,
+                transcripts_dir=self.transcripts_dir,
+                role_ids=role_ids,
+                temp_output_dir=temp_output_dir,
+                allow_prompt_logging=self.args.allow_prompt_logging,
+                error_handler=error_handler,
+            )
+            success = await execution.run()
+            self.runtimes.append(runtime)
+        if progress:
+            progress.update(1)
+        return success
+
+    async def _generate_evolution(
+        self,
+        services: list[ServiceInput],
+        factory: ModelFactory,
+        system_prompt: str,
+        role_ids: list[str],
+        sem: asyncio.Semaphore,
+        progress: tqdm | None,
+        temp_output_dir: Path | None,
+        error_handler: ErrorHandler,
+    ) -> bool:
+        """Run service executions concurrently.
+
+        Args:
+            services: Services to process.
+            factory: Shared model factory.
+            system_prompt: System prompt for all stages.
+            role_ids: Valid role identifiers.
+            sem: Semaphore limiting concurrency.
+            lock: Lock guarding output writes.
+            progress: Progress bar to update or ``None``.
+            temp_output_dir: Directory for temporary output artefacts.
+            error_handler: Handler for execution errors.
+
+        Returns:
+            ``True`` when all executions succeed, ``False`` otherwise.
+
+        Side effects:
+            Updates ``self.executions`` and ``self.new_ids``.
+        """
+
+        tasks: list[asyncio.Task[bool]] = []
+        async with asyncio.TaskGroup() as tg:
+            for svc in services:
+                task = tg.create_task(
+                    self._run_service(
+                        svc,
+                        factory,
+                        system_prompt,
+                        role_ids,
+                        sem,
+                        progress,
+                        temp_output_dir,
+                        error_handler,
+                    )
+                )
+                tasks.append(task)
+
+        return all(t.result() for t in tasks)
+
     async def run(self) -> bool:
-        """Run evolutions for all loaded services."""
+        """Orchestrate the evolution workflow."""
 
         with logfire.span("processing_engine.run"):
             logfire.info(
                 "Starting processing engine",
                 input_file=self.args.input_file,
             )
-            use_web_search = (
-                self.args.web_search
-                if self.args.web_search is not None
-                else self.settings.web_search
-            )
-            factory = ModelFactory(
-                self.settings.model,
-                self.settings.openai_api_key,
-                stage_models=getattr(self.settings, "models", None),
-                reasoning=self.settings.reasoning,
-                seed=self.args.seed,
-                web_search=use_web_search,
-            )
-            configure_prompt_dir(self.settings.prompt_dir)
-            if self.args.mapping_data_dir is None and not self.settings.diagnostics:
-                raise RuntimeError("--mapping-data-dir is required in production mode")
-            configure_mapping_data_dir(
-                self.args.mapping_data_dir or self.settings.mapping_data_dir
-            )
-            system_prompt = load_evolution_prompt(
-                self.settings.context_id, self.settings.inspiration
-            )
-            role_ids = load_role_ids(Path(self.args.roles_file))
-            services = _load_services_list(
-                self.args.input_file, self.args.max_services, self.processed_ids
-            )
+            factory, system_prompt, role_ids, services = self._prepare_models()
             if self.args.dry_run:
                 logfire.info("Validated services", count=len(services))
                 return True
-            concurrency = (
-                self.args.concurrency
-                if self.args.concurrency is not None
-                else self.settings.concurrency
+            sem, progress, temp_output_dir, error_handler = self._init_sessions(
+                len(services)
             )
-            if concurrency < 1:
-                raise ValueError("concurrency must be a positive integer")
-            sem = asyncio.Semaphore(concurrency)
-            lock = asyncio.Lock()
-            progress = (
-                tqdm(total=len(services))
-                if self.args.progress and sys.stdout.isatty()
-                else None
+            success = await self._generate_evolution(
+                services,
+                factory,
+                system_prompt,
+                role_ids,
+                sem,
+                progress,
+                temp_output_dir,
+                error_handler,
             )
-            temp_output_dir = (
-                Path(self.args.temp_output_dir)
-                if self.args.temp_output_dir is not None
-                else None
-            )
-            success = True
-
-            async def run_one(service: ServiceInput) -> None:
-                nonlocal success
-                async with sem:
-                    execution = ServiceExecution(
-                        service,
-                        factory=factory,
-                        settings=self.settings,
-                        args=self.args,
-                        system_prompt=system_prompt,
-                        transcripts_dir=self.transcripts_dir,
-                        role_ids=role_ids,
-                        lock=lock,
-                        output=None,
-                        new_ids=self.new_ids,
-                        temp_output_dir=temp_output_dir,
-                    )
-                    self.executions.append(execution)
-                    if not await execution.run():
-                        success = False
-                if progress:
-                    progress.update(1)
-
-            async with asyncio.TaskGroup() as tg:
-                for svc in services:
-                    tg.create_task(run_one(svc))
             if progress:
                 progress.close()
             self.success = success
@@ -201,14 +420,24 @@ class ProcessingEngine:
     async def finalise(self) -> None:
         """Write successful results to disk."""
         with logfire.span("processing_engine.finalise"):
-            if not self.executions:
+            if not self.runtimes:
                 logfire.debug("No executions to finalise")
                 return
             output = await asyncio.to_thread(self.part_path.open, "w", encoding="utf-8")
             try:
-                for exec in self.executions:
-                    exec.output = output
-                    await exec.finalise()
+                for runtime in self.runtimes:
+                    if not runtime.success:
+                        continue
+                    assert runtime.line is not None
+                    await asyncio.to_thread(output.write, f"{runtime.line}\n")
+                    self.new_ids.add(runtime.service.service_id)
+                    EVOLUTIONS_GENERATED.add(1)
+                    LINES_WRITTEN.add(1)
+                    logfire.info(
+                        "Generated evolution",
+                        service_id=runtime.service.service_id,
+                        output_path=getattr(output, "name", ""),
+                    )
             finally:
                 await asyncio.to_thread(output.close)
             _save_results(

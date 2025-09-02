@@ -62,7 +62,7 @@ class MiniGenerator:
     ) -> None:
         with open(output_path, "w", encoding="utf-8") as f:
             for svc in services:
-                resp = await self.agent.run(svc.model_dump_json(), dict)
+                resp = await self.agent.run(svc.model_dump_json())
                 f.write(
                     json.dumps(resp.output.model_dump(), separators=(",", ":")) + "\n"
                 )

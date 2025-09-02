@@ -199,7 +199,7 @@ class DummyModelFactory:
     """Factory providing placeholder models."""
 
     def __init__(self, *args, **kwargs) -> None:  # pragma: no cover
-        pass
+        self.seed = 0
 
     def model_name(self, *args, **kwargs) -> str:
         return "model"
@@ -232,6 +232,8 @@ def _settings() -> SimpleNamespace:
         logfire_token=None,
         diagnostics=True,
         strict_mapping=False,
+        strict=False,
+        models=None,
         use_local_cache=True,
         cache_mode="read",
         cache_dir=Path(".cache"),
@@ -261,6 +263,7 @@ def test_cli_generate_matches_golden(monkeypatch, tmp_path, dummy_agent) -> None
 
         def __init__(self, *args, **kwargs) -> None:  # pragma: no cover
             self.agent = dummy_agent()
+            self.description_session = DummySession([])
 
         async def _request_descriptions_async(self, names, session=None):
             return {name: "desc" for name in names}
@@ -268,7 +271,7 @@ def test_cli_generate_matches_golden(monkeypatch, tmp_path, dummy_agent) -> None
         async def generate_service_evolution_async(
             self, service_input: ServiceInput, runtimes, *_, **__
         ):
-            resp = await self.agent.run(service_input.model_dump_json(), dict)
+            resp = await self.agent.run(service_input.model_dump_json())
             return SimpleNamespace(
                 model_dump=lambda mode=None: resp.output.model_dump()
             )
@@ -302,7 +305,6 @@ def test_cli_generate_matches_golden(monkeypatch, tmp_path, dummy_agent) -> None
             "sample-services.json",
             "--output-file",
             str(output_file),
-            "--no-logs",
         ],
     )
 

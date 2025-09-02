@@ -3,11 +3,12 @@
 ## Architecture
 
 The generator runs on a layered engine design.  `ProcessingEngine`
-coordinates work across services, `ServiceExecution` manages per‑service
-state and spawns `PlateauRuntime` instances for each plateau.  A
-thread‑safe `RuntimeEnv` singleton holds configuration and shared state
-such as caches.  See [runtime-architecture](docs/runtime-architecture.md)
-for a detailed walkthrough.
+coordinates work across services while `ServiceRuntime` holds
+per‑service artefacts.  `ServiceExecution` populates each runtime and
+spawns `PlateauRuntime` instances for every plateau.  A thread‑safe
+`RuntimeEnv` singleton holds configuration and shared state such as
+caches.  See [runtime-architecture](docs/runtime-architecture.md) for a
+detailed walkthrough.
 
 ## Configuration
 
@@ -105,11 +106,9 @@ supports swapping sections to suit different industries.
 This project depends on the [Pydantic Logfire](https://logfire.pydantic.dev/)
 libraries for telemetry. The `LOGFIRE_TOKEN` environment variable is optional:
 without it, Logfire still records logs and metrics locally but nothing is sent
-to the cloud. Provide a token to stream traces to Logfire. The CLI only
-instruments Pydantic, Pydantic AI, OpenAI and system metrics when run with the
-`--diagnostics` flag, which enables verbose diagnostics. Use `--no-logs` to
-avoid writing local log files. Prompts are excluded from logs unless
-`--allow-prompt-logging` is specified.
+to the cloud. Provide a token to stream traces to Logfire. The CLI instruments
+Pydantic, Pydantic AI, OpenAI and system metrics by default. Prompts are
+excluded from logs unless `--allow-prompt-logging` is specified.
 
 See [Logging levels](docs/logging-levels.md) for guidance on TRACE through
 EXCEPTION and when to use each level.
@@ -134,19 +133,17 @@ Run the CLI through Poetry to ensure it uses the managed environment. Use
 subcommands to select the desired operation:
 
 ```bash
-poetry run service-ambitions run --input-file sample-services.jsonl --output-file evolutions.jsonl --no-logs
-poetry run service-ambitions diagnose --input-file sample-services.jsonl --output-file evolutions.jsonl --no-logs
-poetry run service-ambitions validate --input-file sample-services.jsonl --no-logs
-poetry run service-ambitions reverse --input-file evolutions.jsonl --output-file features.jsonl --no-logs
+poetry run service-ambitions run --input-file sample-services.jsonl --output-file evolutions.jsonl
+poetry run service-ambitions validate --input-file sample-services.jsonl
+poetry run service-ambitions reverse --input-file evolutions.jsonl --output-file features.jsonl
 ```
 
 Alternatively, use the provided shell script which forwards all arguments to the CLI:
 
 ```bash
-./run.sh run --input-file sample-services.jsonl --output-file evolutions.jsonl --no-logs
-./run.sh diagnose --input-file sample-services.jsonl --output-file evolutions.jsonl --no-logs
-./run.sh validate --input-file sample-services.jsonl --no-logs
-./run.sh reverse --input-file evolutions.jsonl --output-file features.jsonl --no-logs
+./run.sh run --input-file sample-services.jsonl --output-file evolutions.jsonl
+./run.sh validate --input-file sample-services.jsonl
+./run.sh reverse --input-file evolutions.jsonl --output-file features.jsonl
 ```
 
 ## Usage
@@ -278,8 +275,7 @@ Fields in the schema:
       - `score`: object with CMMI maturity `level`, `label` and `justification`.
       - `customer_type`: audience benefiting from the feature.
       - `mappings`: object with `information`, `applications` and
-        `technologies` lists of mapping items referencing supporting IDs. Use
-        `--diagnostics` to include a brief `rationale` for each mapping.
+        `technologies` lists of mapping items referencing supporting IDs.
 
 ## Reference Data
 
@@ -309,7 +305,7 @@ Generate service features for the {service_name} service at plateau {plateau}.
 ## Instructions
 
 - Use the service description: {service_description}.
-- Return a single JSON object with keys for each role: {roles}.
+- Provide keys for each role: {roles}.
 - Each key must map to an array containing at least {required_count} feature
   objects.
 - Every feature must provide:
@@ -319,7 +315,6 @@ Generate service features for the {service_name} service at plateau {plateau}.
     - "level": integer 1–5.
     - "label": matching CMMI maturity name.
     - "justification": brief rationale for the level.
-- Do not include any text outside the JSON object.
 ```
 
 ### Mapping prompts
@@ -333,13 +328,12 @@ Map each feature to relevant Applications from the list below.
 
 ## Instructions
 
-- Return a JSON object with a top-level "features" array.
+- Include a top-level "features" array.
 - Each element must include "feature_id" and an "applications" array of objects with an "item" field only.
 - Do not invent IDs; only use those provided.
-- Do not include any text outside the JSON object.
 ```
 
-Repeat this structure for the `technologies` and `information` datasets. Run with `--diagnostics` to additionally request a one-line rationale for each mapping.
+Repeat this structure for the `technologies` and `information` datasets.
 
 ## IDE support
 

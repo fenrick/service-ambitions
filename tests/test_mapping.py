@@ -13,6 +13,7 @@ from mapping import MappingError, cache_write_json_atomic, map_set
 from models import (
     Contribution,
     FeatureMappingRef,
+    MappingDiagnosticsResponse,
     MappingFeature,
     MappingFeatureGroup,
     MappingItem,
@@ -31,7 +32,11 @@ def _init_runtime_env() -> Iterator[None]:
     settings = cast(
         Any,
         SimpleNamespace(
-            cache_dir=Path(".cache"), context_id="unknown", mapping_sets=[]
+            cache_dir=Path(".cache"),
+            context_id="unknown",
+            mapping_sets=[],
+            mapping_data_dir=Path("data"),
+            prompt_dir=Path("prompts"),
         ),
     )
     RuntimeEnv.initialize(settings)
@@ -55,9 +60,19 @@ class DummySession:
         self.log_prompts = log_prompts
         self.last_tokens = 0
 
-    async def ask_async(self, prompt: str, output_type=None) -> str:
+    async def ask_async(
+        self, prompt: str
+    ) -> MappingResponse | MappingDiagnosticsResponse:
         self.prompts.append(prompt)
-        return self._responses.pop(0)
+        resp = self._responses.pop(0)
+        if isinstance(resp, str):
+            try:
+                return MappingDiagnosticsResponse.model_validate_json(resp)
+            except Exception:  # noqa: BLE001
+                return MappingResponse.model_validate_json(resp)
+        if isinstance(resp, Exception):
+            raise resp
+        return resp
 
 
 def _feature(feature_id: str = "f1") -> PlateauFeature:
@@ -94,13 +109,13 @@ def test_cache_write_json_atomic_requires_dict(tmp_path) -> None:
 
 @pytest.mark.asyncio()
 async def test_map_set_successful_mapping(monkeypatch) -> None:
-    """Agent response is retried once then merged into features."""
+    """Agent response is merged into features."""
 
     monkeypatch.setattr("mapping.render_set_prompt", lambda *a, **k: "PROMPT")
     valid = json.dumps(
         {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
     )
-    session = DummySession(["bad", valid])
+    session = DummySession([valid])
     mapped = await map_set(
         cast(ConversationSession, session),
         "applications",
@@ -111,7 +126,7 @@ async def test_map_set_successful_mapping(monkeypatch) -> None:
         plateau=1,
         service="svc",
     )
-    assert session.prompts == ["PROMPT", "PROMPT\nReturn valid JSON only."]
+    assert session.prompts == ["PROMPT"]
     assert mapped[0].mappings["applications"][0].item == "a"
 
 
@@ -222,6 +237,8 @@ async def test_map_set_strict_raises(monkeypatch, tmp_path) -> None:
             service="svc",
             strict=True,
         )
+    # Only a single attempt is made when validation fails.
+    assert session.prompts == ["PROMPT"]
     qfile = tmp_path / "quarantine" / "svc" / "applications" / "json_parse_error_1.json"
     assert qfile.exists()
     assert paths == [qfile.resolve()]
@@ -398,7 +415,7 @@ async def test_map_set_reads_cache(monkeypatch, tmp_path) -> None:
         json.dump(cached, fh)
 
     class NoCallSession(DummySession):
-        async def ask_async(self, prompt: str, output_type=None) -> str:
+        async def ask_async(self, prompt: str) -> MappingResponse:
             raise AssertionError("ask_async should not be called")
 
     session = NoCallSession([])

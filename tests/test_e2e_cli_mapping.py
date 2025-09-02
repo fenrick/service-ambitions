@@ -20,6 +20,9 @@ def _settings() -> SimpleNamespace:
         logfire_token=None,
         diagnostics=False,
         strict_mapping=False,
+        strict=False,
+        model="openai:gpt-5",
+        models=None,
         use_local_cache=True,
         cache_mode="off",
         cache_dir=Path(".cache"),
@@ -79,7 +82,6 @@ def test_cli_map_matches_golden(monkeypatch, tmp_path) -> None:
             str(input_file),
             "--output-file",
             str(output_file),
-            "--no-logs",
         ],
     )
 

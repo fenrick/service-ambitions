@@ -17,7 +17,7 @@ import json
 import time
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Literal, TypeVar, cast, overload
+from typing import Any, Awaitable, Callable, Literal, cast
 
 import logfire
 from pydantic import ValidationError
@@ -98,7 +98,7 @@ class ConversationSession:
 
     def __init__(
         self,
-        client: Agent,
+        client: Agent[Any, Any],
         *,
         stage: str | None = None,
         diagnostics: bool = False,
@@ -267,22 +267,18 @@ class ConversationSession:
             span.set_attribute("total_tokens", tokens)
             span.set_attribute("duration", duration)
 
-    T = TypeVar("T")
-
     async def _ask_common(
         self,
         prompt: str,
-        output_type: type[T] | None,
-        runner: Callable[
-            [str, list[messages.ModelMessage], type[T] | None], Awaitable[Any]
-        ],
+        runner: Callable[[str, list[messages.ModelMessage]], Awaitable[Any]],
         span_name: str,
         feature_id: str | None = None,
-    ) -> T | str:
+    ) -> Any:
         stage = self.stage or "unknown"
         model_name = getattr(getattr(self.client, "model", None), "model_name", "")
         cache_file: Path | None = None
         write_after_call = False
+        out_type = cast(type[Any] | None, getattr(self.client, "output_type", None))
         if self.use_local_cache and self.cache_mode != "off":
             key = _prompt_cache_key(prompt, model_name, stage)
             svc = self._service_id or "unknown"
@@ -294,8 +290,8 @@ class ConversationSession:
                 try:
                     with path_to_use.open("rb") as fh:
                         data = from_json(fh.read())
-                    if output_type and hasattr(output_type, "model_validate"):
-                        payload = cast(Any, output_type).model_validate(data)
+                    if out_type and hasattr(out_type, "model_validate"):
+                        payload = cast(Any, out_type).model_validate(data)
                         dump = payload.model_dump()
                     else:
                         payload = data
@@ -325,7 +321,7 @@ class ConversationSession:
         with self._prepare_span(span_name, stage, model_name) as span:
             try:
                 self._log_prompt(prompt)
-                result = await runner(prompt, self._history, output_type)
+                result = await runner(prompt, self._history)
                 output, tokens = self._handle_success(result, stage, model_name)
                 if cache_file and write_after_call:
                     content = (
@@ -353,67 +349,45 @@ class ConversationSession:
             finally:
                 self._finalise_metrics(span, tokens, start)
 
-    @overload
-    def ask(self, prompt: str) -> str: ...
-
-    @overload
-    def ask(self, prompt: str, output_type: type[T]) -> T: ...
-
     def ask(
         self,
         prompt: str,
-        output_type: type[T] | None = None,
         *,
         feature_id: str | None = None,
-    ) -> T | str:
+    ) -> Any:
         """Return the agent's response to ``prompt``."""
 
         async def runner(
             user_prompt: str,
             message_history: list[messages.ModelMessage],
-            out_type: type[Any] | None,
         ) -> Any:
-            return self.client.run_sync(
-                user_prompt, message_history=message_history, output_type=out_type
-            )
+            return self.client.run_sync(user_prompt, message_history=message_history)
 
         return asyncio.run(
             self._ask_common(
                 prompt,
-                output_type,
                 runner,
                 self.stage or "ConversationSession.ask",
                 feature_id,
             )
         )
 
-    @overload
-    async def ask_async(self, prompt: str) -> str: ...
-
-    @overload
-    async def ask_async(self, prompt: str, output_type: type[T]) -> T: ...
-
     async def ask_async(
         self,
         prompt: str,
-        output_type: type[T] | None = None,
         *,
         feature_id: str | None = None,
-    ) -> T | str:
+    ) -> Any:
         """Asynchronously return the agent's response to ``prompt``."""
 
         async def runner(
             user_prompt: str,
             message_history: list[messages.ModelMessage],
-            out_type: type[Any] | None,
         ) -> Any:
-            return await self.client.run(
-                user_prompt, message_history=message_history, output_type=out_type
-            )
+            return await self.client.run(user_prompt, message_history=message_history)
 
         return await self._ask_common(
             prompt,
-            output_type,
             runner,
             self.stage or "ConversationSession.ask_async",
             feature_id,

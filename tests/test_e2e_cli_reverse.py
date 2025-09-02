@@ -4,6 +4,7 @@ import json
 import sys
 import types
 from contextlib import nullcontext
+from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
@@ -47,10 +48,13 @@ def test_cli_reverse_generates_caches(monkeypatch, tmp_path) -> None:
         logfire_token=None,
         diagnostics=False,
         strict_mapping=False,
+        strict=False,
+        models=None,
         use_local_cache=True,
         cache_mode="read",
         cache_dir=cache_dir,
         mapping_data_dir=tmp_path,
+        prompt_dir=Path("prompts"),
         mapping_sets=[
             MappingSet(
                 name="Applications",
@@ -125,7 +129,6 @@ def test_cli_reverse_generates_caches(monkeypatch, tmp_path) -> None:
             str(input_file),
             "--output-file",
             str(output_file),
-            "--no-logs",
         ],
     )
     cli.main()

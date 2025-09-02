@@ -2,10 +2,11 @@
 
 The evolution workflow spans the plateaus defined in
 `data/service_feature_plateaus.json`. A `ProcessingEngine` coordinates the
-process: it instantiates a `ServiceExecution` for each service and spawns a
-`PlateauRuntime` per plateau. These engines lazily load data, cache intermediate
-results and only flush output once all stages succeed. The CLI evaluates all
-plateaus in this file alongside all roles defined in `data/roles.json`.
+process: it creates a `ServiceRuntime` for each service, invokes a
+`ServiceExecution` to populate it and spawns a `PlateauRuntime` per plateau.
+These engines lazily load data, cache intermediate results and only flush output
+once all stages succeed. The CLI evaluates all plateaus in this file alongside
+all roles defined in `data/roles.json`.
 Plateau name to level mappings are derived from the order of the JSON entries.
 
 Runtime configuration and shared state live in the thread‑safe `RuntimeEnv`
@@ -23,21 +24,19 @@ Example command:
 poetry run service-ambitions generate-evolution \
   --input-file sample-services.jsonl \
   --output-file evolution.jsonl \
-  --strict-mapping --diagnostics --no-logs
+  --strict-mapping
 ```
 
 `--mapping-data-dir` points to a directory of mapping reference data.
 `--strict-mapping/--no-strict-mapping` fails when feature mappings are missing or
 contain unknown identifiers.
-`--diagnostics/--no-diagnostics` enables verbose diagnostics output and
-telemetry instrumentation. Prompt text is hidden from logs unless
+Telemetry via Logfire is always enabled. Prompt text is hidden from logs unless
 `--allow-prompt-logging` is passed.
 Use `--roles-file` to supply an alternative roles definition file when needed.
 
 Logfire is required by the CLI but the `LOGFIRE_TOKEN` environment variable is
 optional for local runs. Set the token to stream traces to Logfire; without it,
-telemetry remains local. Instrumentation only runs when `--diagnostics` is
-supplied.
+telemetry remains local.
 
 Pass `--strict` to abort if any role lacks features or if generated features
 contain empty mapping lists. This turns on a fail-fast mode instead of the

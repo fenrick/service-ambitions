@@ -18,7 +18,7 @@ import logfire
 from pydantic import ValidationError
 from pydantic_core import from_json, to_json
 
-from loader import MAPPING_DATA_DIR, load_mapping_items, load_prompt_text
+from loader import load_mapping_items, load_prompt_text
 from mapping_prompt import render_set_prompt
 from models import (
     Contribution,
@@ -206,10 +206,7 @@ def _merge_mapping_results(
     """
 
     env = RuntimeEnv.instance()
-    catalogues = (
-        catalogue_items
-        or load_mapping_items(MAPPING_DATA_DIR, env.settings.mapping_sets)[0]
-    )
+    catalogues = catalogue_items or load_mapping_items(env.settings.mapping_sets)[0]
     valid_ids: dict[str, set[str]] = {
         key: {item.id for item in catalogues[cfg.dataset]}
         for key, cfg in mapping_types.items()
@@ -315,9 +312,9 @@ async def map_set(
         cache_mode: Local cache behaviour.
         catalogue_hash: SHA256 digest representing the loaded mapping catalogues.
 
-    The agent is queried twice to obtain a valid :class:`MappingResponse`. The
-    second attempt appends a hint instructing the model to return JSON only. If
-    both attempts fail, the raw response is written to
+    The agent is queried up to twice to obtain a valid :class:`MappingResponse`.
+    The second attempt appends a hint directing the model to stick to the
+    defined fields. If both attempts fail, the raw response is written to
     ``quarantine/mapping/<service>/<set>.txt`` and an empty mapping list is
     returned. When ``strict`` is ``True`` a :class:`MappingError`` is raised
     instead of returning partial results. ``cache_mode`` controls local caching
@@ -341,8 +338,13 @@ async def map_set(
     model_obj = getattr(session, "client", None)
     model_name = getattr(getattr(model_obj, "model", None), "model_name", "")
     key = _build_cache_key(model_name, set_name, catalogue_hash, features, use_diag)
-    model_type: type[StrictModel] = (
-        MappingDiagnosticsResponse if use_diag else MappingResponse
+    model_type = cast(
+        type[StrictModel],
+        getattr(
+            model_obj,
+            "output_type",
+            MappingDiagnosticsResponse if use_diag else MappingResponse,
+        ),
     )
     cache_file: Path | None = None
     payload: StrictModel | None = None
@@ -417,48 +419,31 @@ async def map_set(
             session_log_prompts = getattr(session, "log_prompts", False)
             session.log_prompts = False
         try:
-            raw = await session.ask_async(prompt, output_type=model_type)
+            payload = await session.ask_async(prompt)
             tokens += getattr(session, "last_tokens", 0)
-            payload = (
-                raw
-                if isinstance(raw, StrictModel)
-                else model_type.model_validate_json(raw)
+        except Exception as exc:  # noqa: BLE001
+            svc = service or "unknown"
+            _writer.write(set_name, svc, "json_parse_error", str(exc))
+            _error_handler.handle("Invalid mapping response", exc)
+            if strict:
+                raise MappingError(
+                    f"Invalid mapping response for {svc}/{set_name}"
+                ) from exc
+            record_mapping_set(
+                set_name,
+                features=len(features),
+                mapped_ids=0,
+                unknown_ids=0,
+                retries=retries,
+                latency=time.monotonic() - start,
+                tokens=tokens,
             )
-        except (ValidationError, ValueError):
-            retries = 1
-            hint_prompt = f"{prompt}\nReturn valid JSON only."
-            raw = await session.ask_async(hint_prompt, output_type=model_type)
-            tokens += getattr(session, "last_tokens", 0)
-            try:
-                payload = (
-                    raw
-                    if isinstance(raw, StrictModel)
-                    else model_type.model_validate_json(raw)
-                )
-            except (ValidationError, ValueError) as exc:
-                svc = service or "unknown"
-                text = raw if isinstance(raw, str) else raw.model_dump()
-                _writer.write(set_name, svc, "json_parse_error", text)
-                _error_handler.handle("Invalid mapping response", exc)
-                if strict:
-                    raise MappingError(
-                        f"Invalid mapping response for {svc}/{set_name}"
-                    ) from exc
-                record_mapping_set(
-                    set_name,
-                    features=len(features),
-                    mapped_ids=0,
-                    unknown_ids=0,
-                    retries=retries,
-                    latency=time.monotonic() - start,
-                    tokens=tokens,
-                )
-                if should_log_prompt:
-                    session.log_prompts = session_log_prompts
-                return [
-                    feat.model_copy(update={"mappings": feat.mappings | {set_name: []}})
-                    for feat in features
-                ]
+            if should_log_prompt:
+                session.log_prompts = session_log_prompts
+            return [
+                feat.model_copy(update={"mappings": feat.mappings | {set_name: []}})
+                for feat in features
+            ]
         if cache_file and write_after_call:
             # Persist successful responses for future runs.
             data = payload.model_dump() if hasattr(payload, "model_dump") else payload

@@ -13,7 +13,7 @@ Example command:
 poetry run service-ambitions generate-mapping \
   --input evolution.jsonl \
   --output remapped.jsonl \
-  --strict-mapping --diagnostics --no-logs
+  --strict-mapping
 ```
 
 `--mapping-data-dir` points to the directory containing mapping reference data
@@ -23,9 +23,8 @@ files.
 produces an empty list or contains unknown identifiers. Disable with
 `--no-strict-mapping` to drop unknown mappings and continue.
 
-`--diagnostics` enables verbose logging and telemetry instrumentation useful for
-troubleshooting. Instrumentation runs only when this verbose mode is enabled.
-Prompt text is omitted unless `--allow-prompt-logging` is supplied.
+Telemetry via Logfire is always enabled. Prompt text is omitted unless
+`--allow-prompt-logging` is supplied.
 
 `--use-local-cache` reads mapping responses under `.cache/<service>/mappings` and
 optionally writes new entries to avoid repeated network requests during

@@ -6,7 +6,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 
 from pydantic_ai import Agent
 
@@ -16,11 +16,13 @@ from models import (
     SCHEMA_VERSION,
     FeatureMappingRef,
     MappingFeatureGroup,
+    PlateauFeaturesResponse,
     ServiceEvolution,
     ServiceInput,
     ServiceMeta,
 )
 from plateau_generator import PlateauGenerator
+from runtime.environment import RuntimeEnv
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -32,22 +34,18 @@ class DummyAgent:
         self._responses = responses
         self.prompts: list[str] = []
 
-    def run_sync(self, prompt: str, message_history, output_type=None):
+    def run_sync(self, prompt: str, message_history):
         self.prompts.append(prompt)
-        if output_type is not None and output_type.__name__ == "RoleFeaturesResponse":
-            payload = json.dumps({"features": []})
-        else:
-            payload = self._responses.pop(0)
-        if output_type is not None:
-            payload = output_type.model_validate_json(payload)
+        payload_json = self._responses.pop(0)
+        payload = PlateauFeaturesResponse.model_validate_json(payload_json)
         return SimpleNamespace(
             output=payload,
             new_messages=lambda: [],
             usage=lambda: SimpleNamespace(total_tokens=0),
         )
 
-    async def run(self, prompt: str, message_history, output_type=None):
-        return self.run_sync(prompt, message_history, output_type)
+    async def run(self, prompt: str, message_history):
+        return self.run_sync(prompt, message_history)
 
 
 def _feature_payload(count: int) -> str:
@@ -83,6 +81,12 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
         use_local_cache=False,
         cache_mode="off",
     )
+    RuntimeEnv.initialize(
+        cast(
+            Any,
+            SimpleNamespace(mapping_data_dir=Path("data"), prompt_dir=Path("prompts")),
+        )
+    )
     generator = PlateauGenerator(
         session,
         required_count=5,
@@ -92,13 +96,13 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
 
     map_calls = {"n": 0}
 
-    async def _fake_map_features(self, session, features, **kwargs):
+    async def _fake_generate_mappings(self, session, **kwargs):
         map_calls["n"] += 1
         refs = [
             FeatureMappingRef(feature_id=f.feature_id, description=f.description)
-            for f in features
+            for f in self.features
         ]
-        return {
+        self.mappings = {
             "data": [MappingFeatureGroup(id="d", name="d", mappings=refs.copy())],
             "applications": [
                 MappingFeatureGroup(id="a", name="a", mappings=refs.copy())
@@ -107,15 +111,16 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
                 MappingFeatureGroup(id="t", name="t", mappings=refs.copy())
             ],
         }
+        self._success = True
 
-    monkeypatch.setattr(PlateauGenerator, "_map_features", _fake_map_features)
+    monkeypatch.setattr(PlateauRuntime, "generate_mappings", _fake_generate_mappings)
     template = "{required_count} {service_name} {service_description} {plateau} {roles}"
 
     def fake_loader(name, *_, **__):
         if name == "plateau_prompt":
             return template
         if name == "plateau_descriptions_prompt":
-            return "desc {plateaus} {schema}"
+            return "desc {plateaus}"
         return ""
 
     monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)

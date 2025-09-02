@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,226 +12,254 @@ import logfire
 from pydantic_ai import Agent
 from pydantic_core import to_json
 
-import loader
 from canonical import canonicalise_record
 from conversation import ConversationSession
 from engine.plateau_runtime import PlateauRuntime
+from engine.service_runtime import ServiceRuntime
 from loader import load_mapping_items
 from model_factory import ModelFactory
-from models import ServiceInput, ServiceMeta
+from models import (
+    MappingDiagnosticsResponse,
+    MappingResponse,
+    PlateauDescriptionsResponse,
+    PlateauFeaturesResponse,
+    ServiceInput,
+    ServiceMeta,
+)
 from persistence import atomic_write
 from plateau_generator import (
-    DEFAULT_PLATEAU_MAP,
-    DEFAULT_PLATEAU_NAMES,
     PlateauGenerator,
+    default_plateau_map,
+    default_plateau_names,
 )
 from quarantine import QuarantineWriter
+from runtime.environment import RuntimeEnv
+from utils import ErrorHandler
 
 SERVICES_PROCESSED = logfire.metric_counter("services_processed")
 EVOLUTIONS_GENERATED = logfire.metric_counter("evolutions_generated")
 LINES_WRITTEN = logfire.metric_counter("lines_written")
-
-_RUN_META: ServiceMeta | None = None
+RUN_META_KEY = "run_meta"
 _writer = QuarantineWriter()
 
 
 class ServiceExecution:
-    """Execute a single service evolution run.
-
-    The :class:`ServiceExecution` class encapsulates the logic required to
-    generate a service evolution and persist the result.  The ``run`` method
-    performs the generation and stores intermediate artefacts on the instance
-    while ``finalise`` writes the persisted output.
-    """
+    """Execute a single service evolution run."""
 
     def __init__(
         self,
-        service: ServiceInput,
+        runtime: ServiceRuntime,
         *,
         factory: ModelFactory,
-        settings,
-        args: argparse.Namespace,
         system_prompt: str,
         transcripts_dir: Path | None,
         role_ids: Sequence[str],
-        lock: asyncio.Lock,
-        output,
-        new_ids: set[str],
         temp_output_dir: Path | None,
+        allow_prompt_logging: bool,
+        error_handler: ErrorHandler,
     ) -> None:
-        self.service = service
+        self.runtime = runtime
         self.factory = factory
-        self.settings = settings
-        self.args = args
         self.system_prompt = system_prompt
         self.transcripts_dir = transcripts_dir
         self.role_ids = role_ids
-        self.lock = lock
-        self.output = output
-        self.new_ids = new_ids
         self.temp_output_dir = temp_output_dir
-        self.line: str | None = None
+        self.allow_prompt_logging = allow_prompt_logging
+        self.error_handler = error_handler
 
-    async def run(self) -> bool:
-        """Generate the evolution for ``service`` and store the result.
+    def _build_generator(self, settings) -> tuple[PlateauGenerator, str, str, str]:
+        """Construct plateau generator and return model names.
 
-        Returns ``True`` on success, ``False`` otherwise.  Generated artefacts
-        are kept on the instance for later persistence.
+        Args:
+            settings: Runtime configuration.
+
+        Returns:
+            Tuple of the generator and stage model names.
         """
 
-        desc_name = self.factory.model_name(
-            "descriptions", self.args.descriptions_model or self.args.model
+        desc_model = self.factory.get("descriptions")
+        feat_model = self.factory.get("features")
+        map_model = self.factory.get("mapping")
+
+        desc_name = self.factory.model_name("descriptions")
+        feat_name = self.factory.model_name("features")
+        map_name = self.factory.model_name("mapping")
+
+        desc_agent = Agent(
+            desc_model,
+            instructions=self.system_prompt,
+            output_type=PlateauDescriptionsResponse,
         )
-        feat_name = self.factory.model_name(
-            "features", self.args.features_model or self.args.model
+        feat_agent = Agent(
+            feat_model,
+            instructions=self.system_prompt,
+            output_type=PlateauFeaturesResponse,
         )
-        map_name = self.factory.model_name(
-            "mapping", self.args.mapping_model or self.args.model
+        map_agent = Agent(
+            map_model,
+            instructions=self.system_prompt,
+            output_type=(
+                MappingDiagnosticsResponse if settings.diagnostics else MappingResponse
+            ),
         )
+
+        desc_session = ConversationSession(
+            desc_agent,
+            stage="descriptions",
+            diagnostics=settings.diagnostics,
+            log_prompts=self.allow_prompt_logging,
+            transcripts_dir=self.transcripts_dir,
+            use_local_cache=settings.use_local_cache,
+            cache_mode=settings.cache_mode,
+        )
+        feat_session = ConversationSession(
+            feat_agent,
+            stage="features",
+            diagnostics=settings.diagnostics,
+            log_prompts=self.allow_prompt_logging,
+            transcripts_dir=self.transcripts_dir,
+            use_local_cache=settings.use_local_cache,
+            cache_mode=settings.cache_mode,
+        )
+        map_session = ConversationSession(
+            map_agent,
+            stage="mapping",
+            diagnostics=settings.diagnostics,
+            log_prompts=self.allow_prompt_logging,
+            transcripts_dir=self.transcripts_dir,
+            use_local_cache=settings.use_local_cache,
+            cache_mode=settings.cache_mode,
+        )
+
+        generator = PlateauGenerator(
+            feat_session,
+            required_count=settings.features_per_role,
+            roles=self.role_ids,
+            description_session=desc_session,
+            mapping_session=map_session,
+            strict=settings.strict,
+            use_local_cache=settings.use_local_cache,
+            cache_mode=settings.cache_mode,
+        )
+        return generator, desc_name, feat_name, map_name
+
+    def _ensure_run_meta(
+        self,
+        settings,
+        desc_name: str,
+        feat_name: str,
+        map_name: str,
+        feat_model,
+    ) -> None:
+        """Initialise and store run metadata in ``RuntimeEnv.state``."""
+
+        env = RuntimeEnv.instance()
+        if RUN_META_KEY in env.state:
+            return
+        models_map = {
+            "descriptions": desc_name,
+            "features": feat_name,
+            "mapping": map_name,
+            "search": self.factory.model_name("search"),
+        }
+        _, catalogue_hash = load_mapping_items(settings.mapping_sets)
+        context_window = getattr(feat_model, "max_input_tokens", 0)
+        env.state[RUN_META_KEY] = ServiceMeta(
+            run_id=str(uuid4()),
+            seed=self.factory.seed,
+            models=models_map,
+            web_search=getattr(self.factory, "_web_search", False),
+            mapping_types=sorted(getattr(settings, "mapping_types", {}).keys()),
+            context_window=context_window,
+            diagnostics=settings.diagnostics,
+            catalogue_hash=catalogue_hash,
+            created=datetime.now(timezone.utc),
+        )
+
+    async def _prepare_runtimes(
+        self, generator: PlateauGenerator
+    ) -> list[PlateauRuntime]:
+        """Return plateau runtimes with descriptions."""
+
+        names = list(default_plateau_names())
+        desc_map = await generator._request_descriptions_async(
+            names, session=generator.description_session
+        )
+        pmap = default_plateau_map()
+        return [
+            PlateauRuntime(
+                plateau=pmap[name],
+                plateau_name=name,
+                description=desc_map[name],
+            )
+            for name in names
+        ]
+
+    def _write_temp_output(
+        self, service: ServiceInput, record: dict[str, object]
+    ) -> None:
+        """Persist intermediate JSON record when enabled."""
+
+        if self.temp_output_dir is None:
+            return
+        self.temp_output_dir.mkdir(parents=True, exist_ok=True)
+        atomic_write(
+            self.temp_output_dir / f"{service.service_id}.json",
+            [to_json(record).decode()],
+        )
+
+    async def run(self) -> bool:
+        """Populate ``runtime`` with generated evolution data."""
+
+        service = self.runtime.service
+        desc_name = self.factory.model_name("descriptions")
+        feat_name = self.factory.model_name("features")
+        map_name = self.factory.model_name("mapping")
         attrs = {
-            "service_id": self.service.service_id,
-            "service_name": self.service.name,
+            "service_id": service.service_id,
+            "service_name": service.name,
             "descriptions_model": desc_name,
             "features_model": feat_name,
             "mapping_model": map_name,
-            "output_path": getattr(self.output, "name", ""),
         }
         with logfire.span("generate_evolution_for_service", attributes=attrs):
             try:
                 SERVICES_PROCESSED.add(1)
-                desc_model = self.factory.get(
-                    "descriptions", self.args.descriptions_model or self.args.model
+                settings = RuntimeEnv.instance().settings
+                generator, desc_name, feat_name, map_name = self._build_generator(
+                    settings
                 )
-                feat_model = self.factory.get(
-                    "features", self.args.features_model or self.args.model
+                feat_model = self.factory.get("features")
+                self._ensure_run_meta(
+                    settings, desc_name, feat_name, map_name, feat_model
                 )
-                map_model = self.factory.get(
-                    "mapping", self.args.mapping_model or self.args.model
-                )
-
-                desc_agent = Agent(desc_model, instructions=self.system_prompt)
-                feat_agent = Agent(feat_model, instructions=self.system_prompt)
-                map_agent = Agent(map_model, instructions=self.system_prompt)
-
-                desc_session = ConversationSession(
-                    desc_agent,
-                    stage="descriptions",
-                    diagnostics=self.settings.diagnostics,
-                    log_prompts=self.args.allow_prompt_logging,
-                    transcripts_dir=self.transcripts_dir,
-                    use_local_cache=self.args.use_local_cache,
-                    cache_mode=self.args.cache_mode,
-                )
-                feat_session = ConversationSession(
-                    feat_agent,
-                    stage="features",
-                    diagnostics=self.settings.diagnostics,
-                    log_prompts=self.args.allow_prompt_logging,
-                    transcripts_dir=self.transcripts_dir,
-                    use_local_cache=self.args.use_local_cache,
-                    cache_mode=self.args.cache_mode,
-                )
-                map_session = ConversationSession(
-                    map_agent,
-                    stage="mapping",
-                    diagnostics=self.settings.diagnostics,
-                    log_prompts=self.args.allow_prompt_logging,
-                    transcripts_dir=self.transcripts_dir,
-                    use_local_cache=self.args.use_local_cache,
-                    cache_mode=self.args.cache_mode,
-                )
-                generator = PlateauGenerator(
-                    feat_session,
-                    required_count=self.settings.features_per_role,
-                    roles=self.role_ids,
-                    description_session=desc_session,
-                    mapping_session=map_session,
-                    strict=self.args.strict,
-                    use_local_cache=self.args.use_local_cache,
-                    cache_mode=self.args.cache_mode,
-                )
-                global _RUN_META
-                if _RUN_META is None:
-                    models_map = {
-                        "descriptions": desc_name,
-                        "features": feat_name,
-                        "mapping": map_name,
-                        "search": self.factory.model_name(
-                            "search", self.args.search_model or self.args.model
-                        ),
-                    }
-                    _, catalogue_hash = load_mapping_items(
-                        loader.MAPPING_DATA_DIR, self.settings.mapping_sets
-                    )
-                    context_window = getattr(feat_model, "max_input_tokens", 0)
-                    _RUN_META = ServiceMeta(
-                        run_id=str(uuid4()),
-                        seed=self.args.seed,
-                        models=models_map,
-                        web_search=getattr(self.factory, "_web_search", False),
-                        mapping_types=sorted(
-                            getattr(self.settings, "mapping_types", {}).keys()
-                        ),
-                        context_window=context_window,
-                        diagnostics=self.settings.diagnostics,
-                        catalogue_hash=catalogue_hash,
-                        created=datetime.now(timezone.utc),
-                    )
-                plateau_names = list(DEFAULT_PLATEAU_NAMES)
-                desc_map = await generator._request_descriptions_async(
-                    plateau_names, session=desc_session
-                )
-                runtimes = [
-                    PlateauRuntime(
-                        plateau=DEFAULT_PLATEAU_MAP[name],
-                        plateau_name=name,
-                        description=desc_map[name],
-                    )
-                    for name in plateau_names
-                ]
+                runtimes = await self._prepare_runtimes(generator)
+                env = RuntimeEnv.instance()
+                meta = env.state.get(RUN_META_KEY)
+                assert meta is not None  # mypy safeguard
                 evolution = await generator.generate_service_evolution_async(
-                    self.service,
+                    service,
                     runtimes,
                     transcripts_dir=self.transcripts_dir,
-                    meta=_RUN_META,
+                    meta=meta,
                 )
                 record = canonicalise_record(evolution.model_dump(mode="json"))
-                if self.temp_output_dir is not None:
-                    self.temp_output_dir.mkdir(parents=True, exist_ok=True)
-                    atomic_write(
-                        self.temp_output_dir / f"{self.service.service_id}.json",
-                        [to_json(record).decode()],
-                    )
-                self.line = to_json(record).decode()
+                self._write_temp_output(service, record)
+                self.runtime.plateaus = runtimes
+                self.runtime.line = to_json(record).decode()
+                self.runtime.success = True
                 return True
             except Exception as exc:  # noqa: BLE001
                 quarantine_file = await asyncio.to_thread(
                     _writer.write,
                     "evolution",
-                    self.service.service_id,
+                    service.service_id,
                     "schema_mismatch",
-                    self.service.model_dump(),
+                    service.model_dump(),
                 )
-                logfire.exception(
-                    "Failed to generate evolution",
-                    service_id=self.service.service_id,
-                    error=str(exc),
-                    quarantine_file=str(quarantine_file),
+                self.error_handler.handle(
+                    "Failed to generate evolution for "
+                    f"{service.service_id}; quarantined {quarantine_file}",
+                    exc,
                 )
                 return False
-
-    async def finalise(self) -> None:
-        """Persist the previously generated line to disk."""
-
-        if self.line is None:
-            return
-        async with self.lock:
-            await asyncio.to_thread(self.output.write, f"{self.line}\n")
-            self.new_ids.add(self.service.service_id)
-            EVOLUTIONS_GENERATED.add(1)
-            LINES_WRITTEN.add(1)
-        logfire.info(
-            "Generated evolution",
-            service_id=self.service.service_id,
-            output_path=getattr(self.output, "name", ""),
-        )

@@ -50,7 +50,6 @@ Generate service features for the {service_name} service at plateau {plateau} us
 
 ## Output rules
 
-- Return a single JSON object with a top-level "features" key.
 - "features" must include keys for each role: {roles}.
 - Each role key must map to an array containing at least {required_count} feature objects.
 - Every feature object must include:
@@ -60,33 +59,3 @@ Generate service features for the {service_name} service at plateau {plateau} us
     - "level": integer 1–5.
     - "label": one of "Initial", "Managed", "Defined", "Quantitatively Managed", "Optimizing".
     - "justification": brief rationale for the level.
-- Do not include any text outside the JSON object.
-- Return ONLY valid JSON. No Markdown. No backticks. No commentary. No trailing commas.
-- If you are about to include any text outside JSON, stop and return JSON only.
-- The response must adhere to the JSON schema provided below.
-
-## Example output
-
-```json
-{{
-  "features": {{
-    "learners": [
-      {{
-        "name": "Smart enrolment",
-        "description": "People complete enrolment online with real-time checks for eligibility and data accuracy.",
-        "score": {{
-          "level": 3,
-          "label": "Defined",
-          "justification": "Standardised workflow and documented rules are applied consistently."
-        }}
-      }}
-    ],
-    "academics": [],
-    "professional_staff": []
-  }}
-}}
-
-## Response structure
-
-{schema}
-```
