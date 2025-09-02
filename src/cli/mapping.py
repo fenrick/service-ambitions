@@ -17,10 +17,13 @@ from models import (
     MappingItem,
     ServiceEvolution,
 )
+from utils import ErrorHandler
 
 
 def load_catalogue(
-    mapping_data_dir: Path | None, settings
+    mapping_data_dir: Path | None,
+    settings,
+    error_handler: ErrorHandler | None = None,
 ) -> tuple[dict[str, list[MappingItem]], str]:
     """Return mapping catalogue items and hash.
 
@@ -38,7 +41,7 @@ def load_catalogue(
     """
 
     configure_mapping_data_dir(mapping_data_dir or settings.mapping_data_dir)
-    return load_mapping_items(settings.mapping_sets)
+    return load_mapping_items(settings.mapping_sets, error_handler=error_handler)
 
 
 async def remap_features(

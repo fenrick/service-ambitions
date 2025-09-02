@@ -207,7 +207,12 @@ def _merge_mapping_results(
     """
 
     env = RuntimeEnv.instance()
-    catalogues = catalogue_items or load_mapping_items(env.settings.mapping_sets)[0]
+    catalogues = (
+        catalogue_items
+        or load_mapping_items(env.settings.mapping_sets, error_handler=_error_handler)[
+            0
+        ]
+    )
     valid_ids: dict[str, set[str]] = {
         key: {item.id for item in catalogues[cfg.dataset]}
         for key, cfg in mapping_types.items()

@@ -60,8 +60,9 @@ def test_load_catalogue_invokes_loader(monkeypatch) -> None:
     def fake_configure(path):
         calls["configure"] = path
 
-    def fake_load(mapping_sets):
+    def fake_load(mapping_sets, *, error_handler=None):
         calls["load"] = mapping_sets
+        assert error_handler is None
         return {"applications": []}, "hash"
 
     monkeypatch.setattr(cli_mapping, "configure_mapping_data_dir", fake_configure)

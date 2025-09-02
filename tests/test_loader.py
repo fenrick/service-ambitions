@@ -141,6 +141,20 @@ def test_load_plateau_definitions_invokes_handler(tmp_path: Path) -> None:
     assert handler.exceptions[1] is not None
 
 
+def test_load_mapping_items_invokes_handler(tmp_path: Path) -> None:
+    """load_mapping_items should delegate errors to the handler."""
+
+    handler = DummyHandler()
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    sets = [MappingSet(name="Apps", file="missing.json", field="applications")]
+    with pytest.raises(FileNotFoundError):
+        load_mapping_items(sets, data_dir=data_dir, error_handler=handler)
+
+    assert handler.messages == ["Error loading mapping items"]
+    assert isinstance(handler.exceptions[0], FileNotFoundError)
+
+
 def test_load_roles_invokes_handler(tmp_path: Path) -> None:
     """load_roles should delegate errors to the handler."""
 
