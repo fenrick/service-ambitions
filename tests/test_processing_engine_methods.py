@@ -170,6 +170,7 @@ async def test_generate_evolution_aggregates_success(monkeypatch, tmp_path):
     engine.progress = None
     engine.temp_output_dir = None
     engine.error_handler = handler
-    ok = await engine._generate_evolution(services)
+    engine.services = services
+    ok = await engine._generate_evolution()
     assert ok is False
     assert [r.service.service_id for r in engine.runtimes] == ["a", "b"]

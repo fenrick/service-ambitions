@@ -267,18 +267,19 @@ class ProcessingEngine:
             self.progress.update(1)
         return success
 
-    async def _generate_evolution(self, services: list[ServiceInput]) -> bool:
+    async def _generate_evolution(self) -> bool:
         """Run service executions concurrently.
-
-        Args:
-            services: Services to process.
 
         Returns:
             ``True`` when all executions succeed, ``False`` otherwise.
 
         Side effects:
             Updates ``self.executions`` and ``self.new_ids``.
+
+        Notes:
+            Operates on services stored in ``self.services``.
         """
+        services = self.services or []
         async with asyncio.TaskGroup() as tg:
             tasks = [tg.create_task(self._run_service(svc)) for svc in services]
         return all(task.result() for task in tasks)
@@ -303,7 +304,7 @@ class ProcessingEngine:
                 logfire.info("Validated services", count=len(services))
                 return True
             self._init_sessions(len(services))
-            success = await self._generate_evolution(services)
+            success = await self._generate_evolution()
             if self.progress:
                 self.progress.close()
             self.success = success
