@@ -163,15 +163,13 @@ async def test_generate_evolution_aggregates_success(monkeypatch, tmp_path):
     ]
     sem = asyncio.Semaphore(2)
     handler = SimpleNamespace(handle=lambda *a, **k: None)
-    ok = await engine._generate_evolution(
-        services,
-        SimpleNamespace(),
-        "",
-        [],
-        sem,
-        None,
-        None,
-        handler,
-    )
+    engine.factory = SimpleNamespace()
+    engine.system_prompt = ""
+    engine.role_ids = []
+    engine.sem = sem
+    engine.progress = None
+    engine.temp_output_dir = None
+    engine.error_handler = handler
+    ok = await engine._generate_evolution(services)
     assert ok is False
     assert [r.service.service_id for r in engine.runtimes] == ["a", "b"]

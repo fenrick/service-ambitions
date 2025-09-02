@@ -175,6 +175,13 @@ class ProcessingEngine:
         self.new_ids: set[str] = set()
         self.runtimes: list[ServiceRuntime] = []
         self.success = False
+        self.factory: ModelFactory | None = None
+        self.system_prompt: str | None = None
+        self.role_ids: list[str] | None = None
+        self.sem: asyncio.Semaphore | None = None
+        self.progress: tqdm | None = None
+        self.temp_output_dir: Path | None = None
+        self.error_handler: ErrorHandler | None = None
 
     def _create_model_factory(self, settings: Settings) -> ModelFactory:
         """Create a model factory from settings.
@@ -291,74 +298,44 @@ class ProcessingEngine:
         error_handler: ErrorHandler = LoggingErrorHandler()
         return sem, progress, temp_output_dir, error_handler
 
-    async def _run_service(
-        self,
-        service: ServiceInput,
-        factory: ModelFactory,
-        system_prompt: str,
-        role_ids: list[str],
-        sem: asyncio.Semaphore,
-        progress: tqdm | None,
-        temp_output_dir: Path | None,
-        error_handler: ErrorHandler,
-    ) -> bool:
+    async def _run_service(self, service: ServiceInput) -> bool:
         """Execute ``service`` and update runtime state.
 
         Args:
             service: Service to evolve.
-            factory: Shared model factory.
-            system_prompt: System prompt used for all stages.
-            role_ids: Valid role identifiers.
-            sem: Semaphore limiting concurrency.
-            progress: Progress bar to update or ``None``.
-            temp_output_dir: Directory for temporary artefacts.
-            error_handler: Handler for execution errors.
 
         Returns:
             ``True`` when the execution succeeds, ``False`` otherwise.
         """
 
-        async with sem:
+        assert self.factory is not None
+        assert self.system_prompt is not None
+        assert self.role_ids is not None
+        assert self.sem is not None
+        assert self.error_handler is not None
+        async with self.sem:
             runtime = ServiceRuntime(service)
             execution = ServiceExecution(
                 runtime,
-                factory=factory,
-                system_prompt=system_prompt,
+                factory=self.factory,
+                system_prompt=self.system_prompt,
                 transcripts_dir=self.transcripts_dir,
-                role_ids=role_ids,
-                temp_output_dir=temp_output_dir,
+                role_ids=self.role_ids,
+                temp_output_dir=self.temp_output_dir,
                 allow_prompt_logging=self.args.allow_prompt_logging,
-                error_handler=error_handler,
+                error_handler=self.error_handler,
             )
             success = await execution.run()
             self.runtimes.append(runtime)
-        if progress:
-            progress.update(1)
+        if self.progress:
+            self.progress.update(1)
         return success
 
-    async def _generate_evolution(
-        self,
-        services: list[ServiceInput],
-        factory: ModelFactory,
-        system_prompt: str,
-        role_ids: list[str],
-        sem: asyncio.Semaphore,
-        progress: tqdm | None,
-        temp_output_dir: Path | None,
-        error_handler: ErrorHandler,
-    ) -> bool:
+    async def _generate_evolution(self, services: list[ServiceInput]) -> bool:
         """Run service executions concurrently.
 
         Args:
             services: Services to process.
-            factory: Shared model factory.
-            system_prompt: System prompt for all stages.
-            role_ids: Valid role identifiers.
-            sem: Semaphore limiting concurrency.
-            lock: Lock guarding output writes.
-            progress: Progress bar to update or ``None``.
-            temp_output_dir: Directory for temporary output artefacts.
-            error_handler: Handler for execution errors.
 
         Returns:
             ``True`` when all executions succeed, ``False`` otherwise.
@@ -366,25 +343,9 @@ class ProcessingEngine:
         Side effects:
             Updates ``self.executions`` and ``self.new_ids``.
         """
-
-        tasks: list[asyncio.Task[bool]] = []
         async with asyncio.TaskGroup() as tg:
-            for svc in services:
-                task = tg.create_task(
-                    self._run_service(
-                        svc,
-                        factory,
-                        system_prompt,
-                        role_ids,
-                        sem,
-                        progress,
-                        temp_output_dir,
-                        error_handler,
-                    )
-                )
-                tasks.append(task)
-
-        return all(t.result() for t in tasks)
+            tasks = [tg.create_task(self._run_service(svc)) for svc in services]
+        return all(task.result() for task in tasks)
 
     async def run(self) -> bool:
         """Execute the full processing pipeline.
@@ -400,24 +361,26 @@ class ProcessingEngine:
                 input_file=self.args.input_file,
             )
             factory, system_prompt, role_ids, services = self._prepare_models()
+            self.factory, self.system_prompt, self.role_ids = (
+                factory,
+                system_prompt,
+                role_ids,
+            )
             if self.args.dry_run:
                 logfire.info("Validated services", count=len(services))
                 return True
             sem, progress, temp_output_dir, error_handler = self._init_sessions(
                 len(services)
             )
-            success = await self._generate_evolution(
-                services,
-                factory,
-                system_prompt,
-                role_ids,
+            self.sem, self.progress, self.temp_output_dir, self.error_handler = (
                 sem,
                 progress,
                 temp_output_dir,
                 error_handler,
             )
-            if progress:
-                progress.close()
+            success = await self._generate_evolution(services)
+            if self.progress:
+                self.progress.close()
             self.success = success
             logfire.info("Processing engine completed", success=success)
             return success
