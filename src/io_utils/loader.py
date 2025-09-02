@@ -40,8 +40,6 @@ FEATURE_PLATEAUS_JSON = "service_feature_plateaus.json"
 
 DEFINITIONS_JSON = "definitions.json"
 
-_error_handler: ErrorHandler = LoggingErrorHandler()
-
 # Core role statement for all system prompts. This line anchors the model's
 # objective before any contextual material is provided.
 NORTH_STAR = (
@@ -213,7 +211,7 @@ def load_prompt_text(prompt_name: str, base_dir: Path | str | None = None) -> st
     try:
         return loader.load(prompt_name)
     except Exception as exc:
-        _error_handler.handle(f"Error loading prompt {prompt_name}", exc)
+        LoggingErrorHandler().handle(f"Error loading prompt {prompt_name}", exc)
         raise
 
 
@@ -231,19 +229,28 @@ def clear_mapping_cache() -> None:
 
 
 def load_mapping_items(
-    sets: Sequence[MappingSet], data_dir: Path | str | None = None
+    sets: Sequence[MappingSet],
+    data_dir: Path | str | None = None,
+    error_handler: ErrorHandler | None = None,
 ) -> tuple[dict[str, list[MappingItem]], str]:
-    """Return mapping reference data and a combined catalogue hash."""
+    """Return mapping reference data and a combined catalogue hash.
+
+    Args:
+        sets: Catalogue definitions to load.
+        data_dir: Optional directory override for catalogue files.
+        error_handler: Processor for any errors encountered.
+    """
 
     loader = (
         FileMappingLoader(Path(data_dir))
         if data_dir is not None
         else RuntimeEnv.instance().mapping_loader
     )
+    handler = error_handler or LoggingErrorHandler()
     try:
         return loader.load(sets)
     except Exception as exc:
-        _error_handler.handle("Error loading mapping items", exc)
+        handler.handle("Error loading mapping items", exc)
         raise
 
 

@@ -173,7 +173,9 @@ class ServiceExecution:
             "mapping": self.map_name,
             "search": self.factory.model_name("search"),
         }
-        _, catalogue_hash = load_mapping_items(self.settings.mapping_sets)
+        _, catalogue_hash = load_mapping_items(
+            self.settings.mapping_sets, error_handler=self.error_handler
+        )
         context_window = getattr(self.feat_model, "max_input_tokens", 0)
         env.run_meta = ServiceMeta(
             run_id=str(uuid4()),
