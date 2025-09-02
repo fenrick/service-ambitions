@@ -23,6 +23,7 @@ from models import (
 )
 from runtime.environment import RuntimeEnv
 from shortcode import ShortCodeRegistry
+from utils.cache_paths import feature_cache
 
 
 @dataclass
@@ -39,17 +40,7 @@ class PlateauRuntime:
     def _feature_cache_path(self, service: str) -> Path:
         """Return canonical cache path for features."""
 
-        try:
-            settings = RuntimeEnv.instance().settings
-            cache_root = settings.cache_dir
-            context = settings.context_id
-        except Exception:  # pragma: no cover - settings unavailable
-            cache_root = Path(".cache")
-            context = "unknown"
-
-        path = cache_root / context / service / str(self.plateau) / "features.json"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        return path
+        return feature_cache(service, self.plateau)
 
     def _discover_feature_cache(self, service: str) -> tuple[Path, Path]:
         """Return existing feature cache and canonical destination."""
