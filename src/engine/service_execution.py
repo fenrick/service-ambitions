@@ -66,6 +66,8 @@ class ServiceExecution:
         self.temp_output_dir = temp_output_dir
         self.allow_prompt_logging = allow_prompt_logging
         self.error_handler = error_handler
+        # Cache runtime settings for use across helper methods
+        self.settings: Settings = RuntimeEnv.instance().settings
 
     def _build_generator(
         self, settings: Settings
@@ -145,35 +147,28 @@ class ServiceExecution:
         )
         return generator, desc_name, feat_name, map_name
 
-    def _ensure_run_meta(
-        self,
-        settings: Settings,
-        desc_name: str,
-        feat_name: str,
-        map_name: str,
-        feat_model,
-    ) -> None:
+    def _ensure_run_meta(self) -> None:
         """Initialise and store run metadata in ``RuntimeEnv``."""
 
         env = RuntimeEnv.instance()
         if env.run_meta is not None:  # run metadata already exists
             return
         models_map = {
-            "descriptions": desc_name,
-            "features": feat_name,
-            "mapping": map_name,
+            "descriptions": self.desc_name,
+            "features": self.feat_name,
+            "mapping": self.map_name,
             "search": self.factory.model_name("search"),
         }
-        _, catalogue_hash = load_mapping_items(settings.mapping_sets)
-        context_window = getattr(feat_model, "max_input_tokens", 0)
+        _, catalogue_hash = load_mapping_items(self.settings.mapping_sets)
+        context_window = getattr(self.feat_model, "max_input_tokens", 0)
         env.run_meta = ServiceMeta(
             run_id=str(uuid4()),
             seed=self.factory.seed,
             models=models_map,
             web_search=getattr(self.factory, "_web_search", False),
-            mapping_types=sorted(getattr(settings, "mapping_types", {}).keys()),
+            mapping_types=sorted(getattr(self.settings, "mapping_types", {}).keys()),
             context_window=context_window,
-            diagnostics=settings.diagnostics,
+            diagnostics=self.settings.diagnostics,
             catalogue_hash=catalogue_hash,
             created=datetime.now(timezone.utc),
         )
@@ -219,27 +214,22 @@ class ServiceExecution:
         """
 
         service = self.runtime.service
-        desc_name = self.factory.model_name("descriptions")
-        feat_name = self.factory.model_name("features")
-        map_name = self.factory.model_name("mapping")
+        generator, desc_name, feat_name, map_name = self._build_generator(self.settings)
+        self.desc_name = desc_name
+        self.feat_name = feat_name
+        self.map_name = map_name
+        self.feat_model = self.factory.get("features")
         attrs = {
             "service_id": service.service_id,
             "service_name": service.name,
-            "descriptions_model": desc_name,
-            "features_model": feat_name,
-            "mapping_model": map_name,
+            "descriptions_model": self.desc_name,
+            "features_model": self.feat_name,
+            "mapping_model": self.map_name,
         }
         with logfire.span("generate_evolution_for_service", attributes=attrs):
             try:
                 SERVICES_PROCESSED.add(1)
-                settings = RuntimeEnv.instance().settings
-                generator, desc_name, feat_name, map_name = self._build_generator(
-                    settings
-                )
-                feat_model = self.factory.get("features")
-                self._ensure_run_meta(
-                    settings, desc_name, feat_name, map_name, feat_model
-                )
+                self._ensure_run_meta()
                 runtimes = await self._prepare_runtimes(generator)
                 env = RuntimeEnv.instance()
                 meta = env.run_meta
