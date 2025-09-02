@@ -116,45 +116,6 @@ def _load_services_list(
         return [s for s in svc_iter if s.service_id not in processed_ids]
 
 
-def _save_results(
-    *,
-    resume: bool,
-    part_path: Path,
-    output_path: Path,
-    existing_lines: list[str],
-    processed_ids: set[str],
-    new_ids: set[str],
-    processed_path: Path,
-) -> set[str]:
-    """Persist generated lines and update processed IDs.
-
-    Args:
-        resume: Whether the engine resumed a previous run.
-        part_path: Temporary output file path.
-        output_path: Final output file path.
-        existing_lines: Lines read from a previous run.
-        processed_ids: IDs processed before this invocation.
-        new_ids: IDs generated during this run.
-        processed_path: File storing processed IDs.
-
-    Returns:
-        Updated set of all processed IDs.
-
-    Side effects:
-        Moves or writes files on disk.
-    """
-    if resume:
-        new_lines = read_lines(part_path)
-        atomic_write(output_path, [*existing_lines, *new_lines])
-        part_path.unlink(missing_ok=True)
-        processed_ids.update(new_ids)
-    else:
-        os.replace(part_path, output_path)
-        processed_ids = new_ids
-    atomic_write(processed_path, sorted(processed_ids))
-    return processed_ids
-
-
 class ProcessingEngine:
     """Coordinate service evolution generation across multiple services."""
 
@@ -385,6 +346,24 @@ class ProcessingEngine:
             logfire.info("Processing engine completed", success=success)
             return success
 
+    def _save_results(self) -> None:
+        """Persist generated lines and update processed IDs.
+
+        Side effects:
+            Moves or writes files on disk.
+        """
+        if self.args.resume:
+            # Merge new output with existing lines when resuming.
+            new_lines = read_lines(self.part_path)
+            atomic_write(self.output_path, [*self.existing_lines, *new_lines])
+            self.part_path.unlink(missing_ok=True)
+            self.processed_ids.update(self.new_ids)
+        else:
+            # Move temp file into final destination on fresh runs.
+            os.replace(self.part_path, self.output_path)
+            self.processed_ids = set(self.new_ids)
+        atomic_write(self.processed_path, sorted(self.processed_ids))
+
     async def finalise(self) -> None:
         """Write successful results to disk."""
         with logfire.span("processing_engine.finalise"):
@@ -408,15 +387,7 @@ class ProcessingEngine:
                     )
             finally:
                 await asyncio.to_thread(output.close)
-            _save_results(
-                resume=self.args.resume,
-                part_path=self.part_path,
-                output_path=self.output_path,
-                existing_lines=self.existing_lines,
-                processed_ids=self.processed_ids,
-                new_ids=self.new_ids,
-                processed_path=self.processed_path,
-            )
+            self._save_results()
             logfire.info("Finalised processing engine", output=str(self.output_path))
 
 
