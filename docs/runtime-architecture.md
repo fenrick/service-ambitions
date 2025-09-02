@@ -5,6 +5,22 @@ Each layer has a single responsibility and retains its output until the
 final aggregation step, enabling deterministic runs and comprehensive
 telemetry.
 
+## Design principles
+
+- **Central runtime state** – the CLI initialises a singleton
+  `RuntimeEnv` which stores configuration, caches and run metadata. All
+  modules fetch this instance via `RuntimeEnv.instance()` instead of
+  passing settings through call chains.
+- **Isolated execution engines** – `ProcessingEngine` creates a
+  `ServiceRuntime` for each service and drives a `ServiceExecution` that
+  mutates it. Plateau-specific work occurs inside `PlateauRuntime`
+  instances spawned by the service executor.
+- **Success signalling** – engines return only a boolean outcome while
+  storing generated artefacts on their runtime objects.
+- **Lazy loading with caching** – prompts, plateau definitions and other
+  artefacts are loaded on first access and memoised for reuse. The
+  runtime reset clears these caches to force fresh loads when needed.
+
 ## Runtime environment
 
 `RuntimeEnv` is a thread-safe singleton initialised in `cli.main()`.
