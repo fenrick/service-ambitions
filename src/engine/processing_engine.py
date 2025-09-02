@@ -238,12 +238,17 @@ class ProcessingEngine:
         Returns:
             ``True`` when the execution succeeds, ``False`` otherwise.
         """
-
-        assert self.factory is not None
-        assert self.system_prompt is not None
-        assert self.role_ids is not None
-        assert self.sem is not None
-        assert self.error_handler is not None
+        # Validate prerequisites before running the service.
+        if self.factory is None:
+            raise RuntimeError("Model factory is not initialised")
+        if self.system_prompt is None:
+            raise RuntimeError("System prompt is not loaded")
+        if self.role_ids is None:
+            raise RuntimeError("Role identifiers are not loaded")
+        if self.sem is None:
+            raise RuntimeError("Concurrency semaphore is not configured")
+        if self.error_handler is None:
+            raise RuntimeError("Error handler is not configured")
         async with self.sem:
             runtime = ServiceRuntime(service)
             execution = ServiceExecution(
@@ -334,7 +339,11 @@ class ProcessingEngine:
                 for runtime in self.runtimes:
                     if not runtime.success:
                         continue
-                    assert runtime.line is not None
+                    # Successful runtimes must produce an output line.
+                    if runtime.line is None:
+                        raise RuntimeError(
+                            "Runtime completed successfully without producing a line"
+                        )
                     await asyncio.to_thread(output.write, f"{runtime.line}\n")
                     self.new_ids.add(runtime.service.service_id)
                     EVOLUTIONS_GENERATED.add(1)
