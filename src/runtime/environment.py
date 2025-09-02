@@ -115,14 +115,26 @@ class RuntimeEnv:
 
     @classmethod
     def reset(cls) -> None:
-        """Clear the active runtime environment.
+        """Clear the active runtime environment and cached state.
 
-        Useful for tests that need a fresh configuration or for scenarios
-        where the application must reload settings at runtime.
+        Useful for tests needing a fresh configuration or for scenarios where
+        the application must reload settings at runtime. Loader caches and run
+        metadata are cleared to avoid stale data in subsequent initialisations.
         """
         with logfire.span("runtime_env.reset"):
             with cls._lock:
                 logfire.info("Resetting runtime environment")
+                inst = cls._instance
+                if inst is not None:
+                    inst.run_meta = None  # remove any persisted run metadata
+                    prompt = inst.state.get("prompt_loader")
+                    if prompt is not None:
+                        # Discard memoised prompts to force reloads.
+                        prompt.clear_cache()
+                    mapping = inst.state.get("mapping_loader")
+                    if mapping is not None:
+                        # Discard cached mapping data to force reloads.
+                        mapping.clear_cache()
                 cls._instance = None
 
 

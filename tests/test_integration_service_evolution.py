@@ -111,7 +111,7 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
                 MappingFeatureGroup(id="t", name="t", mappings=refs.copy())
             ],
         }
-        self._success = True
+        self.success = True
 
     monkeypatch.setattr(PlateauRuntime, "generate_mappings", _fake_generate_mappings)
     template = "{required_count} {service_name} {service_description} {plateau} {roles}"
