@@ -68,6 +68,12 @@ class ServiceExecution:
         self.error_handler = error_handler
         # Cache runtime settings for use across helper methods
         self.settings: Settings = RuntimeEnv.instance().settings
+        # Initialised in ``_build_generator``
+        self.generator: PlateauGenerator | None = None
+        self.desc_name = ""
+        self.feat_name = ""
+        self.map_name = ""
+        self.feat_model: object | None = None
 
     def refresh_settings(self) -> None:
         """Refresh cached settings from :class:`RuntimeEnv`.
@@ -79,25 +85,24 @@ class ServiceExecution:
 
         self.settings = RuntimeEnv.instance().settings
 
-    def _build_generator(
-        self, settings: Settings
-    ) -> tuple[PlateauGenerator, str, str, str]:
-        """Construct plateau generator and return model names.
+    def _build_generator(self) -> None:
+        """Construct plateau generator and cache model names.
 
-        Args:
-            settings: Runtime configuration.
-
-        Returns:
-            Tuple of the generator and stage model names.
+        Side effects:
+            Sets ``generator``, ``desc_name``, ``feat_name``, ``map_name`` and
+            ``feat_model`` attributes using the current ``settings``.
         """
+
+        settings = self.settings
 
         desc_model = self.factory.get("descriptions")
         feat_model = self.factory.get("features")
         map_model = self.factory.get("mapping")
 
-        desc_name = self.factory.model_name("descriptions")
-        feat_name = self.factory.model_name("features")
-        map_name = self.factory.model_name("mapping")
+        self.desc_name = self.factory.model_name("descriptions")
+        self.feat_name = self.factory.model_name("features")
+        self.map_name = self.factory.model_name("mapping")
+        self.feat_model = feat_model
 
         desc_agent = Agent(
             desc_model,
@@ -145,7 +150,7 @@ class ServiceExecution:
             cache_mode=settings.cache_mode,
         )
 
-        generator = PlateauGenerator(
+        self.generator = PlateauGenerator(
             feat_session,
             required_count=settings.features_per_role,
             roles=self.role_ids,
@@ -155,7 +160,6 @@ class ServiceExecution:
             use_local_cache=settings.use_local_cache,
             cache_mode=settings.cache_mode,
         )
-        return generator, desc_name, feat_name, map_name
 
     def _ensure_run_meta(self) -> None:
         """Initialise and store run metadata in ``RuntimeEnv``."""
@@ -225,11 +229,8 @@ class ServiceExecution:
 
         self.refresh_settings()
         service = self.runtime.service
-        generator, desc_name, feat_name, map_name = self._build_generator(self.settings)
-        self.desc_name = desc_name
-        self.feat_name = feat_name
-        self.map_name = map_name
-        self.feat_model = self.factory.get("features")
+        self._build_generator()
+        assert self.generator is not None  # mypy safeguard
         attrs = {
             "service_id": service.service_id,
             "service_name": service.name,
@@ -241,11 +242,11 @@ class ServiceExecution:
             try:
                 SERVICES_PROCESSED.add(1)
                 self._ensure_run_meta()
-                runtimes = await self._prepare_runtimes(generator)
+                runtimes = await self._prepare_runtimes(self.generator)
                 env = RuntimeEnv.instance()
                 meta = env.run_meta
                 assert meta is not None  # mypy safeguard
-                evolution = await generator.generate_service_evolution_async(
+                evolution = await self.generator.generate_service_evolution_async(
                     service,
                     runtimes,
                     transcripts_dir=self.transcripts_dir,
