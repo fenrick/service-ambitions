@@ -12,6 +12,7 @@ import asyncio
 import os
 import random
 from asyncio import Semaphore, TaskGroup
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, TextIO, TypeVar
 
@@ -34,6 +35,18 @@ SERVICES_PROCESSED = logfire.metric_counter("services_processed")
 SERVICES_FAILED = logfire.metric_counter("services_failed")
 
 T = TypeVar("T")
+
+
+@dataclass
+class _RunContext:
+    """Shared state for concurrent service processing."""
+
+    handle: TextIO
+    lock: asyncio.Lock
+    processed: set[str]
+    progress: tqdm[Any] | None = None
+    transcripts_dir: Path | None = None
+    temp_output_dir: Path | None = None
 
 
 # Transient failures that warrant a retry. Provider specific errors are optional
@@ -224,55 +237,29 @@ class ServiceAmbitionGenerator:
             return None, service.service_id, 0, self.retries - 1, "error"
         return result, service.service_id, tokens, retries, "success"
 
-    async def _run_one(
-        self,
-        service: ServiceInput,
-        handle: TextIO,
-        lock: asyncio.Lock,
-        processed: set[str],
-        progress: tqdm[Any] | None,
-        transcripts_dir: Path | None,
-        temp_output_dir: Path | None,
-    ) -> None:
-        """Process a single service and write its result to ``handle``.
+    async def _run_one(self, service: ServiceInput, ctx: _RunContext) -> None:
+        """Process a single service and write its result to ``ctx.handle``.
 
-        Writes are protected by ``lock`` to ensure each JSON line is appended
-        atomically.
+        Writes are protected by ``ctx.lock`` to ensure each JSON line is
+        appended atomically.
         """
         limiter = self._limiter
         if limiter is None:  # pragma: no cover - defensive
             raise RuntimeError("Limiter not initialized")
         with logfire.span("service") as span:
             span.set_attribute("service.id", service.service_id)
-            tokens, retries, status = await self._execute_service(
-                limiter,
-                service,
-                transcripts_dir,
-                handle,
-                lock,
-                processed,
-                progress,
-                temp_output_dir,
-            )
+            tokens, retries, status = await self._execute_service(limiter, service, ctx)
             span.set_attribute("tokens.total", tokens)
             span.set_attribute("retries", retries)
             span.set_attribute("status", status)
 
     async def _execute_service(
-        self,
-        limiter: Semaphore,
-        service: ServiceInput,
-        transcripts_dir: Path | None,
-        handle: TextIO,
-        lock: asyncio.Lock,
-        processed: set[str],
-        progress: tqdm[Any] | None,
-        temp_output_dir: Path | None,
+        self, limiter: Semaphore, service: ServiceInput, ctx: _RunContext
     ) -> tuple[int, int, str]:
-        """Process ``service`` and append its result to ``handle``.
+        """Process ``service`` and append its result to ``ctx.handle``.
 
-        ``process_service`` is rate limited via ``limiter`` while the final
-        JSONL write is protected by ``lock`` to keep output consistent.
+        ``process_service`` is rate limited via ``limiter`` while the final JSONL
+        write is protected by ``ctx.lock`` to keep output consistent.
         """
 
         async with limiter:
@@ -287,29 +274,29 @@ class ServiceAmbitionGenerator:
                 AmbitionModel.model_validate(payload).model_dump(mode="json")
             )
             record_json = to_json(record).decode()
-            if temp_output_dir is not None:
-                temp_output_dir.mkdir(parents=True, exist_ok=True)
-                atomic_write(temp_output_dir / f"{svc_id}.json", [record_json])
+            if ctx.temp_output_dir is not None:
+                ctx.temp_output_dir.mkdir(parents=True, exist_ok=True)
+                atomic_write(ctx.temp_output_dir / f"{svc_id}.json", [record_json])
             line = record_json
-            if transcripts_dir is not None:
-                transcripts_dir.mkdir(parents=True, exist_ok=True)
+            if ctx.transcripts_dir is not None:
+                ctx.transcripts_dir.mkdir(parents=True, exist_ok=True)
                 transcript = {
                     "request": service.model_dump(),
                     "response": record,
                 }
                 transcript_json = to_json(transcript).decode()
-                path = transcripts_dir / f"{svc_id}.json"
+                path = ctx.transcripts_dir / f"{svc_id}.json"
                 await asyncio.to_thread(
                     path.write_text, transcript_json, encoding="utf-8"
                 )
 
-            async with lock:
-                await asyncio.to_thread(handle.write, f"{line}\n")
-                processed.add(svc_id)
-                if progress:
-                    progress.update(1)
-                await asyncio.to_thread(handle.flush)
-                await asyncio.to_thread(os.fsync, handle.fileno())
+            async with ctx.lock:
+                await asyncio.to_thread(ctx.handle.write, f"{line}\n")
+                ctx.processed.add(svc_id)
+                if ctx.progress:
+                    ctx.progress.update(1)
+                await asyncio.to_thread(ctx.handle.flush)
+                await asyncio.to_thread(os.fsync, ctx.handle.fileno())
             metric = getattr(self, "_metrics", None)
             if metric is not None:
                 metric.record_tokens(tokens)
@@ -372,6 +359,9 @@ class ServiceAmbitionGenerator:
     ) -> set[str]:
         """Process ``services`` and stream results to ``out_path``.
 
+        A shared context object coordinates file handling, progress tracking and
+        transcript generation across worker tasks.
+
         Args:
             services: Collection of services requiring ambition generation.
             out_path: Destination path for the JSONL results.
@@ -385,20 +375,18 @@ class ServiceAmbitionGenerator:
             processed: set[str] = set()
             lock = asyncio.Lock()
             handle = await asyncio.to_thread(open, out_path, "a", encoding="utf-8")
+            ctx = _RunContext(
+                handle=handle,
+                lock=lock,
+                processed=processed,
+                progress=progress,
+                transcripts_dir=transcripts_dir,
+                temp_output_dir=temp_output_dir,
+            )
             try:
                 async with TaskGroup() as tg:
                     for service in services:
-                        tg.create_task(
-                            self._run_one(
-                                service,
-                                handle,
-                                lock,
-                                processed,
-                                progress,
-                                transcripts_dir,
-                                temp_output_dir,
-                            )
-                        )
+                        tg.create_task(self._run_one(service, ctx))
                 await asyncio.to_thread(handle.flush)
                 await asyncio.to_thread(os.fsync, handle.fileno())
             finally:

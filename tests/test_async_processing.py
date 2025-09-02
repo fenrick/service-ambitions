@@ -318,7 +318,15 @@ async def test_run_one_counters_success(tmp_path, monkeypatch):
         service_id="s1", name="n", description="d", jobs_to_be_done=[]
     )
 
-    await gen._run_one(service, handle, lock, processed_set, None, None, None)
+    ctx = generator._RunContext(
+        handle=handle,
+        lock=lock,
+        processed=processed_set,
+        progress=None,
+        transcripts_dir=None,
+        temp_output_dir=None,
+    )
+    await gen._run_one(service, ctx)
     await asyncio.to_thread(handle.close)
 
     assert processed.value == 1
@@ -372,7 +380,15 @@ async def test_run_one_counters_failure(tmp_path, monkeypatch):
         service_id="s2", name="n", description="d", jobs_to_be_done=[]
     )
 
-    await gen._run_one(service, handle, lock, processed_set, None, None, None)
+    ctx = generator._RunContext(
+        handle=handle,
+        lock=lock,
+        processed=processed_set,
+        progress=None,
+        transcripts_dir=None,
+        temp_output_dir=None,
+    )
+    await gen._run_one(service, ctx)
     await asyncio.to_thread(handle.close)
 
     assert processed.value == 0
@@ -415,26 +431,18 @@ def test_temp_output_dir_writes_progress(tmp_path, monkeypatch):
         try:
             lock = asyncio.Lock()
             processed: set[str] = set()
-            await gen._run_one(
-                service,
-                handle,
-                lock,
-                processed,
-                None,
-                None,
-                tmp_path,
+            ctx = generator._RunContext(
+                handle=handle,
+                lock=lock,
+                processed=processed,
+                progress=None,
+                transcripts_dir=None,
+                temp_output_dir=tmp_path,
             )
+            await gen._run_one(service, ctx)
             first = from_json((tmp_path / f"{service.service_id}.json").read_text())
             assert first == {"stage": 1}
-            await gen._run_one(
-                service,
-                handle,
-                lock,
-                processed,
-                None,
-                None,
-                tmp_path,
-            )
+            await gen._run_one(service, ctx)
             second = from_json((tmp_path / f"{service.service_id}.json").read_text())
             assert second == {"stage": 2}
         finally:
