@@ -14,6 +14,8 @@ See `.pre-commit-config.yaml` for the exact tools (Black, Ruff, mypy and
 Bandit). Please ensure all checks pass and include appropriate tests and
 documentation for any new functionality.
 
+Please adhere to the project's [coding standards](docs/coding-standards.md), which emphasise Clean Code practices like single-purpose functions, methods on objects and singleton-managed shared state.
+
 ## Continuous Integration
 
 - The only required status check for merging into `main` is **CI — Quick**.
