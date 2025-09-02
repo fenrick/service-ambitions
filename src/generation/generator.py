@@ -243,24 +243,27 @@ class ServiceAmbitionGenerator:
         Writes are protected by ``ctx.lock`` to ensure each JSON line is
         appended atomically.
         """
-        limiter = self._limiter
-        if limiter is None:  # pragma: no cover - defensive
+        if self._limiter is None:  # pragma: no cover - defensive
             raise RuntimeError("Limiter not initialized")
         with logfire.span("service") as span:
             span.set_attribute("service.id", service.service_id)
-            tokens, retries, status = await self._execute_service(limiter, service, ctx)
+            tokens, retries, status = await self._execute_service(service, ctx)
             span.set_attribute("tokens.total", tokens)
             span.set_attribute("retries", retries)
             span.set_attribute("status", status)
 
     async def _execute_service(
-        self, limiter: Semaphore, service: ServiceInput, ctx: _RunContext
+        self, service: ServiceInput, ctx: _RunContext
     ) -> tuple[int, int, str]:
         """Process ``service`` and append its result to ``ctx.handle``.
 
-        ``process_service`` is rate limited via ``limiter`` while the final JSONL
-        write is protected by ``ctx.lock`` to keep output consistent.
+        ``process_service`` is rate limited via ``self._limiter`` while the final
+        JSONL write is protected by ``ctx.lock`` to keep output consistent.
         """
+
+        limiter = self._limiter
+        if limiter is None:  # pragma: no cover - defensive
+            raise RuntimeError("Limiter not initialized")
 
         async with limiter:
             payload, svc_id, tokens, retries, status = await self._process_service_line(

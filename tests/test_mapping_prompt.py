@@ -19,10 +19,10 @@ _real_loader = importlib.import_module("io_utils.loader")
 stub_loader = types.ModuleType("io_utils.loader")
 stub_loader.load_prompt_text = lambda name: ""  # type: ignore[attr-defined]
 sys.modules["io_utils.loader"] = stub_loader
-import mapping_prompt  # noqa: E402
+import core.mapping_prompt as mapping_prompt  # noqa: E402
 
 sys.modules["io_utils.loader"] = _real_loader
-from mapping_prompt import render_set_prompt  # noqa: E402
+from core.mapping_prompt import render_set_prompt  # noqa: E402
 from models import MappingItem, MaturityScore, PlateauFeature  # noqa: E402
 
 
@@ -31,7 +31,7 @@ def test_render_set_prompt_orders_content(shuffle: bool, monkeypatch) -> None:
     """Catalogue items and features are sorted deterministically."""
 
     template = "{mapping_sections}\n{features}"
-    monkeypatch.setattr("mapping_prompt.load_prompt_text", lambda _n: template)
+    monkeypatch.setattr("core.mapping_prompt.load_prompt_text", lambda _n: template)
 
     items: Sequence[MappingItem] = [
         MappingItem(id="B", name="Item B", description="desc"),
@@ -120,7 +120,7 @@ def test_render_set_prompt_normalizes_whitespace(monkeypatch) -> None:
     """Whitespace is sanitised when rendering the full prompt."""
 
     template = "{mapping_sections}\n{features}"
-    monkeypatch.setattr("mapping_prompt.load_prompt_text", lambda _n: template)
+    monkeypatch.setattr("core.mapping_prompt.load_prompt_text", lambda _n: template)
 
     items = [
         MappingItem(id="A\nB", name="Item\tName", description="desc"),
@@ -161,7 +161,7 @@ def test_render_set_prompt_uses_diagnostics_template(monkeypatch) -> None:
         called["name"] = name
         return ""
 
-    monkeypatch.setattr("mapping_prompt.load_prompt_text", fake_load)
+    monkeypatch.setattr("core.mapping_prompt.load_prompt_text", fake_load)
     render_set_prompt(
         "test",
         [],
@@ -181,7 +181,7 @@ def test_render_set_prompt_handles_literal_braces(monkeypatch) -> None:
         "{mapping_sections}\n"
         'Each array element must be an object with only one field: { "item": <ID> }\n'
     )
-    monkeypatch.setattr("mapping_prompt.load_prompt_text", lambda _n: template)
+    monkeypatch.setattr("core.mapping_prompt.load_prompt_text", lambda _n: template)
 
     result = render_set_prompt(
         "test",
@@ -198,7 +198,7 @@ def test_render_set_prompt_inserts_service_metadata(monkeypatch) -> None:
     """Service placeholders are replaced in the rendered prompt."""
 
     template = "{service_name}|{service_description}|{plateau}"
-    monkeypatch.setattr("mapping_prompt.load_prompt_text", lambda _n: template)
+    monkeypatch.setattr("core.mapping_prompt.load_prompt_text", lambda _n: template)
     result = render_set_prompt(
         "test",
         [],

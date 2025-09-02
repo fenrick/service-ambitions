@@ -238,12 +238,17 @@ class ProcessingEngine:
         Returns:
             ``True`` when the execution succeeds, ``False`` otherwise.
         """
-
-        assert self.factory is not None
-        assert self.system_prompt is not None
-        assert self.role_ids is not None
-        assert self.sem is not None
-        assert self.error_handler is not None
+        # Validate prerequisites before running the service.
+        if self.factory is None:
+            raise RuntimeError("Model factory is not initialised")
+        if self.system_prompt is None:
+            raise RuntimeError("System prompt is not loaded")
+        if self.role_ids is None:
+            raise RuntimeError("Role identifiers are not loaded")
+        if self.sem is None:
+            raise RuntimeError("Concurrency semaphore is not configured")
+        if self.error_handler is None:
+            raise RuntimeError("Error handler is not configured")
         async with self.sem:
             runtime = ServiceRuntime(service)
             execution = ServiceExecution(
@@ -262,18 +267,19 @@ class ProcessingEngine:
             self.progress.update(1)
         return success
 
-    async def _generate_evolution(self, services: list[ServiceInput]) -> bool:
+    async def _generate_evolution(self) -> bool:
         """Run service executions concurrently.
-
-        Args:
-            services: Services to process.
 
         Returns:
             ``True`` when all executions succeed, ``False`` otherwise.
 
         Side effects:
             Updates ``self.executions`` and ``self.new_ids``.
+
+        Notes:
+            Operates on services stored in ``self.services``.
         """
+        services = self.services or []
         async with asyncio.TaskGroup() as tg:
             tasks = [tg.create_task(self._run_service(svc)) for svc in services]
         return all(task.result() for task in tasks)
@@ -298,7 +304,7 @@ class ProcessingEngine:
                 logfire.info("Validated services", count=len(services))
                 return True
             self._init_sessions(len(services))
-            success = await self._generate_evolution(services)
+            success = await self._generate_evolution()
             if self.progress:
                 self.progress.close()
             self.success = success
@@ -334,7 +340,11 @@ class ProcessingEngine:
                 for runtime in self.runtimes:
                     if not runtime.success:
                         continue
-                    assert runtime.line is not None
+                    # Successful runtimes must produce an output line.
+                    if runtime.line is None:
+                        raise RuntimeError(
+                            "Runtime completed successfully without producing a line"
+                        )
                     await asyncio.to_thread(output.write, f"{runtime.line}\n")
                     self.new_ids.add(runtime.service.service_id)
                     EVOLUTIONS_GENERATED.add(1)

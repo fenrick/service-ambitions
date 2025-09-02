@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 """Tests for ``build_model`` utility."""
 
-from generator import build_model
+from generation.generator import build_model
 
 
 def test_build_model_disables_web_search_by_default(monkeypatch):

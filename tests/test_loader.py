@@ -9,8 +9,11 @@ import utils.mapping_loader as mapping_loader
 from io_utils.loader import (
     _read_file,
     _read_json_file,
+    _read_yaml_file,
     compile_catalogue_for_set,
     load_mapping_items,
+    load_plateau_definitions,
+    load_roles,
 )
 from models import MappingSet
 from utils.error_handler import ErrorHandler
@@ -104,3 +107,68 @@ def test_read_json_file_invokes_handler(tmp_path: Path) -> None:
 
     assert handler.messages == [f"Error reading JSON file {bad}"]
     assert handler.exceptions[0] is not None
+
+
+def test_read_yaml_file_invokes_handler(tmp_path: Path) -> None:
+    """_read_yaml_file should delegate errors to the handler."""
+
+    handler = DummyHandler()
+    bad = tmp_path / "data.yaml"
+    bad.write_text("[:", encoding="utf-8")
+    with pytest.raises(RuntimeError):
+        _read_yaml_file(bad, dict[str, str], error_handler=handler)
+
+    assert handler.messages == [f"Error reading YAML file {bad}"]
+    assert handler.exceptions[0] is not None
+
+
+def test_load_plateau_definitions_invokes_handler(tmp_path: Path) -> None:
+    """load_plateau_definitions should delegate errors to the handler."""
+
+    handler = DummyHandler()
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    bad = data_dir / "service_feature_plateaus.json"
+    bad.write_text("not json", encoding="utf-8")
+    with pytest.raises(RuntimeError):
+        load_plateau_definitions(data_dir, error_handler=handler)
+
+    assert handler.messages == [
+        f"Error reading JSON file {bad}",
+        f"Invalid plateau definition data in {bad}",
+    ]
+    assert handler.exceptions[0] is not None
+    assert handler.exceptions[1] is not None
+
+
+def test_load_mapping_items_invokes_handler(tmp_path: Path) -> None:
+    """load_mapping_items should delegate errors to the handler."""
+
+    handler = DummyHandler()
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    sets = [MappingSet(name="Apps", file="missing.json", field="applications")]
+    with pytest.raises(FileNotFoundError):
+        load_mapping_items(sets, data_dir=data_dir, error_handler=handler)
+
+    assert handler.messages == ["Error loading mapping items"]
+    assert isinstance(handler.exceptions[0], FileNotFoundError)
+
+
+def test_load_roles_invokes_handler(tmp_path: Path) -> None:
+    """load_roles should delegate errors to the handler."""
+
+    handler = DummyHandler()
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    bad = data_dir / "roles.json"
+    bad.write_text("not json", encoding="utf-8")
+    with pytest.raises(RuntimeError):
+        load_roles(data_dir, error_handler=handler)
+
+    assert handler.messages == [
+        f"Error reading JSON file {bad}",
+        f"Invalid role data in {bad}",
+    ]
+    assert handler.exceptions[0] is not None
+    assert handler.exceptions[1] is not None

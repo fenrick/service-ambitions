@@ -40,8 +40,6 @@ FEATURE_PLATEAUS_JSON = "service_feature_plateaus.json"
 
 DEFINITIONS_JSON = "definitions.json"
 
-_error_handler: ErrorHandler = LoggingErrorHandler()
-
 # Core role statement for all system prompts. This line anchors the model's
 # objective before any contextual material is provided.
 NORTH_STAR = (
@@ -173,16 +171,27 @@ def compile_catalogue_for_set(
     return ordered, digest
 
 
-def _read_yaml_file(path: Path, schema: type[T]) -> T:
-    """Return YAML data loaded from ``path`` validated against ``schema``."""
+def _read_yaml_file(
+    path: Path,
+    schema: type[T],
+    error_handler: ErrorHandler | None = None,
+) -> T:
+    """Return YAML data loaded from ``path`` validated against ``schema``.
 
+    Args:
+        path: File location.
+        schema: Pydantic-compatible schema to validate against.
+        error_handler: Processor for any errors encountered.
+    """
+
+    handler = error_handler or LoggingErrorHandler()
     try:
         adapter = TypeAdapter(schema)
-        return adapter.validate_python(yaml.safe_load(_read_file(path)))
+        return adapter.validate_python(yaml.safe_load(_read_file(path, handler)))
     except FileNotFoundError:
         raise
     except Exception as exc:
-        logfire.error(f"Error reading YAML file {path}: {exc}")
+        handler.handle(f"Error reading YAML file {path}", exc)
         raise RuntimeError(
             f"An error occurred while reading the YAML file: {exc}"
         ) from exc
@@ -202,7 +211,7 @@ def load_prompt_text(prompt_name: str, base_dir: Path | str | None = None) -> st
     try:
         return loader.load(prompt_name)
     except Exception as exc:
-        _error_handler.handle(f"Error loading prompt {prompt_name}", exc)
+        LoggingErrorHandler().handle(f"Error loading prompt {prompt_name}", exc)
         raise
 
 
@@ -220,19 +229,28 @@ def clear_mapping_cache() -> None:
 
 
 def load_mapping_items(
-    sets: Sequence[MappingSet], data_dir: Path | str | None = None
+    sets: Sequence[MappingSet],
+    data_dir: Path | str | None = None,
+    error_handler: ErrorHandler | None = None,
 ) -> tuple[dict[str, list[MappingItem]], str]:
-    """Return mapping reference data and a combined catalogue hash."""
+    """Return mapping reference data and a combined catalogue hash.
+
+    Args:
+        sets: Catalogue definitions to load.
+        data_dir: Optional directory override for catalogue files.
+        error_handler: Processor for any errors encountered.
+    """
 
     loader = (
         FileMappingLoader(Path(data_dir))
         if data_dir is not None
         else RuntimeEnv.instance().mapping_loader
     )
+    handler = error_handler or LoggingErrorHandler()
     try:
         return loader.load(sets)
     except Exception as exc:
-        _error_handler.handle("Error loading mapping items", exc)
+        handler.handle("Error loading mapping items", exc)
         raise
 
 
@@ -267,12 +285,14 @@ def load_mapping_type_config(
 def load_plateau_definitions(
     base_dir: Path | str = Path("data"),
     filename: Path | str = Path(FEATURE_PLATEAUS_JSON),
+    error_handler: ErrorHandler | None = None,
 ) -> list[ServiceFeaturePlateau]:
     """Return service feature plateau definitions from ``base_dir``.
 
     Args:
         base_dir: Directory containing data files.
         filename: Plateau definitions file name.
+        error_handler: Processor for any errors encountered.
 
     Returns:
         List of :class:`ServiceFeaturePlateau` records.
@@ -282,11 +302,12 @@ def load_plateau_definitions(
         RuntimeError: If the file cannot be read or parsed.
     """
 
+    handler = error_handler or LoggingErrorHandler()
     path = Path(base_dir) / Path(filename)
     try:
-        return _read_json_file(path, list[ServiceFeaturePlateau])
+        return _read_json_file(path, list[ServiceFeaturePlateau], handler)
     except Exception as exc:
-        logfire.error(f"Invalid plateau definition data in {path}: {exc}")
+        handler.handle(f"Invalid plateau definition data in {path}", exc)
         raise RuntimeError(f"Invalid plateau definitions: {exc}") from exc
 
 
@@ -294,12 +315,14 @@ def load_plateau_definitions(
 def load_roles(
     base_dir: Path | str = Path("data"),
     filename: Path | str = Path("roles.json"),
+    error_handler: ErrorHandler | None = None,
 ) -> list[Role]:
     """Return role definitions from ``base_dir`` or a direct file path.
 
     Args:
         base_dir: Directory containing data files or the roles file itself.
         filename: Roles definitions file name when ``base_dir`` is a directory.
+        error_handler: Processor for any errors encountered.
 
     Returns:
         List of :class:`Role` records.
@@ -309,14 +332,15 @@ def load_roles(
         RuntimeError: If the file cannot be read or parsed.
     """
 
+    handler = error_handler or LoggingErrorHandler()
     base_path = Path(base_dir)
     # If ``base_dir`` points to a directory append ``filename``; otherwise treat
     # it as the full path to the roles file.
     path = base_path / Path(filename) if base_path.is_dir() else base_path
     try:
-        return _read_json_file(path, list[Role])
+        return _read_json_file(path, list[Role], handler)
     except Exception as exc:
-        logfire.error(f"Invalid role data in {path}: {exc}")
+        handler.handle(f"Invalid role data in {path}", exc)
         raise RuntimeError(f"Invalid roles: {exc}") from exc
 
 

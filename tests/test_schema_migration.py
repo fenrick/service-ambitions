@@ -3,7 +3,7 @@
 
 import pytest
 
-from schema_migration import migrate_record
+from migrations.schema_migration import migrate_record
 
 
 def test_migrate_from_1_0_to_1_1() -> None:

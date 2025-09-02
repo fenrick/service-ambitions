@@ -15,12 +15,18 @@ from models import (
     FeatureMappingRef,
     MappingFeatureGroup,
     MappingItem,
+    MappingSet,
+    PlateauFeature,
+    PlateauResult,
     ServiceEvolution,
 )
+from utils import ErrorHandler
 
 
 def load_catalogue(
-    mapping_data_dir: Path | None, settings
+    mapping_data_dir: Path | None,
+    settings,
+    error_handler: ErrorHandler | None = None,
 ) -> tuple[dict[str, list[MappingItem]], str]:
     """Return mapping catalogue items and hash.
 
@@ -38,7 +44,116 @@ def load_catalogue(
     """
 
     configure_mapping_data_dir(mapping_data_dir or settings.mapping_data_dir)
-    return load_mapping_items(settings.mapping_sets)
+    return load_mapping_items(settings.mapping_sets, error_handler=error_handler)
+
+
+async def _apply_mapping_sets(
+    features: Sequence[PlateauFeature],
+    items: dict[str, list[MappingItem]],
+    settings,
+    cache_mode: Literal["off", "read", "refresh", "write"],
+    catalogue_hash: str,
+) -> list[PlateauFeature]:
+    """Return features with all mapping sets applied.
+
+    Args:
+        features: Plateau features requiring mapping enrichment.
+        items: Catalogue items keyed by mapping field.
+        settings: Runtime settings providing mapping configuration.
+        cache_mode: Strategy controlling mapping cache usage.
+        catalogue_hash: Hash of the catalogue for cache invalidation.
+
+    Returns:
+        List of features augmented with mapping contributions.
+    """
+
+    mapped = list(features)
+    for cfg in settings.mapping_sets:  # Apply each mapping set sequentially.
+        mapped = await mapping.map_set(
+            cast(ConversationSession, object()),
+            cfg.field,
+            items[cfg.field],
+            mapped,
+            service_name="svc",
+            service_description="desc",
+            plateau=1,
+            strict=settings.strict_mapping,
+            diagnostics=settings.diagnostics,
+            cache_mode=cache_mode,
+            catalogue_hash=catalogue_hash,
+        )
+    return mapped
+
+
+def _group_plateau_mappings(
+    plateau: PlateauResult,
+    mapping_sets: Sequence[MappingSet],
+    catalogue_lookup: dict[str, dict[str, str]],
+    features_by_id: dict[str, PlateauFeature],
+) -> None:
+    """Populate mapping groups for a single plateau in place.
+
+    Args:
+        plateau: Plateau result to mutate.
+        mapping_sets: Mapping set configurations.
+        catalogue_lookup: Mapping field to item name lookup.
+        features_by_id: Lookup of mapped features keyed by ``feature_id``.
+
+    Side Effects:
+        ``plateau.mappings`` is replaced with grouped mapping references.
+    """
+
+    mapped_feats = [features_by_id[f.feature_id] for f in plateau.features]
+    plateau.mappings = {}
+    for cfg in mapping_sets:  # Build groups for each mapping set.
+        groups: dict[str, list[FeatureMappingRef]] = {}
+        for feat in mapped_feats:  # Aggregate contributions per mapping item.
+            for contrib in feat.mappings.get(cfg.field, []):
+                groups.setdefault(contrib.item, []).append(
+                    FeatureMappingRef(
+                        feature_id=feat.feature_id,
+                        description=feat.description,
+                    )
+                )
+        catalogue = catalogue_lookup[cfg.field]
+        plateau.mappings[cfg.field] = [
+            MappingFeatureGroup(
+                id=item_id,
+                name=catalogue.get(item_id, item_id),
+                mappings=sorted(refs, key=lambda r: r.feature_id),
+            )
+            for item_id, refs in sorted(groups.items())
+        ]
+
+
+def _assemble_mapping_groups(
+    evolutions: Sequence[ServiceEvolution],
+    mapped: Sequence[PlateauFeature],
+    items: dict[str, list[MappingItem]],
+    settings,
+) -> None:
+    """Populate plateau mapping groups on ``evolutions`` in place.
+
+    Args:
+        evolutions: Service evolutions to update.
+        mapped: Features with mapping contributions applied.
+        items: Catalogue items keyed by mapping field.
+        settings: Runtime settings providing mapping configuration.
+
+    Side Effects:
+        Each plateau within ``evolutions`` gains grouped mapping references.
+    """
+
+    catalogue_lookup = {
+        cfg.field: {item.id: item.name for item in items[cfg.field]}
+        for cfg in settings.mapping_sets
+    }
+    features_by_id = {f.feature_id: f for f in mapped}
+    for evo in evolutions:  # Traverse each evolution.
+        for plateau in evo.plateaus:  # Populate mappings per plateau.
+            _group_plateau_mappings(
+                plateau, settings.mapping_sets, catalogue_lookup, features_by_id
+            )
 
 
 async def remap_features(
@@ -63,50 +178,10 @@ async def remap_features(
     """
 
     features = [f for evo in evolutions for p in evo.plateaus for f in p.features]
-    mapped = features
-    for cfg in settings.mapping_sets:
-        mapped = await mapping.map_set(
-            cast(ConversationSession, object()),
-            cfg.field,
-            items[cfg.field],
-            mapped,
-            service_name="svc",
-            service_description="desc",
-            plateau=1,
-            strict=settings.strict_mapping,
-            diagnostics=settings.diagnostics,
-            cache_mode=cache_mode,
-            catalogue_hash=catalogue_hash,
-        )
-
-    catalogue_lookup = {
-        cfg.field: {item.id: item.name for item in items[cfg.field]}
-        for cfg in settings.mapping_sets
-    }
-    by_id = {f.feature_id: f for f in mapped}
-    for evo in evolutions:
-        for plateau in evo.plateaus:
-            mapped_feats = [by_id[f.feature_id] for f in plateau.features]
-            plateau.mappings = {}
-            for cfg in settings.mapping_sets:
-                groups: dict[str, list[FeatureMappingRef]] = {}
-                for feat in mapped_feats:
-                    for contrib in feat.mappings.get(cfg.field, []):
-                        groups.setdefault(contrib.item, []).append(
-                            FeatureMappingRef(
-                                feature_id=feat.feature_id,
-                                description=feat.description,
-                            )
-                        )
-                catalogue = catalogue_lookup[cfg.field]
-                plateau.mappings[cfg.field] = [
-                    MappingFeatureGroup(
-                        id=item_id,
-                        name=catalogue.get(item_id, item_id),
-                        mappings=sorted(refs, key=lambda r: r.feature_id),
-                    )
-                    for item_id, refs in sorted(groups.items())
-                ]
+    mapped = await _apply_mapping_sets(
+        features, items, settings, cache_mode, catalogue_hash
+    )
+    _assemble_mapping_groups(evolutions, mapped, items, settings)
 
 
 def write_output(evolutions: Iterable[ServiceEvolution], output_path: Path) -> None:

@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from pydantic_core import from_json
 
-import generator
+import generation.generator as generator
 from models import ServiceInput
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -36,7 +36,6 @@ def test_process_service_async(monkeypatch):
         jobs_to_be_done=[{"name": "job"}],
     )
     gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
-    gen._limiter = asyncio.Semaphore(1)
     gen._limiter = asyncio.Semaphore(1)
     result, tokens, retries = asyncio.run(gen.process_service(service, "prompt"))
     assert from_json(result["service"]) == service.model_dump()

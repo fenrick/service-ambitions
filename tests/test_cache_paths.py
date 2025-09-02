@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from engine.plateau_runtime import PlateauRuntime
-from plateau_generator import _feature_cache_path
+from generation.plateau_generator import _feature_cache_path
 from runtime.environment import RuntimeEnv
 from utils.cache_paths import feature_cache
 
