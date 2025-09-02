@@ -211,7 +211,12 @@ class ServiceExecution:
         )
 
     async def run(self) -> bool:
-        """Populate ``runtime`` with generated evolution data."""
+        """Populate ``runtime`` and report success.
+
+        Returns:
+            ``True`` when evolution generation succeeds. Generated artefacts
+            are stored on :attr:`runtime` and are not returned to callers.
+        """
 
         service = self.runtime.service
         desc_name = self.factory.model_name("descriptions")

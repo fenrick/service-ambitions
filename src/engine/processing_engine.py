@@ -387,7 +387,12 @@ class ProcessingEngine:
         return all(t.result() for t in tasks)
 
     async def run(self) -> bool:
-        """Orchestrate the evolution workflow."""
+        """Execute the full processing pipeline.
+
+        Returns:
+            ``True`` when all service executions succeed. Results are stored on
+            per-service runtimes and written out by :meth:`finalise`.
+        """
 
         with logfire.span("processing_engine.run"):
             logfire.info(
