@@ -37,7 +37,6 @@ def test_process_service_async(monkeypatch):
     )
     gen = generator.ServiceAmbitionGenerator(SimpleNamespace())
     gen._limiter = asyncio.Semaphore(1)
-    gen._limiter = asyncio.Semaphore(1)
     result, tokens, retries = asyncio.run(gen.process_service(service, "prompt"))
     assert from_json(result["service"]) == service.model_dump()
     assert tokens == 1
