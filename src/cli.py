@@ -8,7 +8,7 @@ import asyncio
 import inspect
 import random
 from pathlib import Path
-from typing import Any, Coroutine, cast
+from typing import Any, Callable, Coroutine, cast
 
 import logfire
 from pydantic_core import to_json
@@ -468,42 +468,47 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _apply_args_to_settings(args: argparse.Namespace, settings) -> None:
-    """Override settings fields based on CLI arguments."""
+def _update_stage_models(args: argparse.Namespace, settings) -> None:
+    """Apply per-stage model overrides from CLI arguments."""
 
-    if args.model is not None:
-        settings.model = args.model
     stage_models = settings.models or StageModels(
         descriptions=None,
         features=None,
         mapping=None,
         search=None,
     )
-    if args.descriptions_model is not None:
-        stage_models.descriptions = args.descriptions_model
-    if args.features_model is not None:
-        stage_models.features = args.features_model
-    if args.mapping_model is not None:
-        stage_models.mapping = args.mapping_model
-    if args.search_model is not None:
-        stage_models.search = args.search_model
+    stage_mapping = {
+        "descriptions_model": "descriptions",
+        "features_model": "features",
+        "mapping_model": "mapping",
+        "search_model": "search",
+    }
+    for arg_name, field in stage_mapping.items():
+        value = getattr(args, arg_name, None)
+        if value is not None:  # branch: update the requested stage model
+            setattr(stage_models, field, value)
     settings.models = stage_models
-    if args.concurrency is not None:
-        settings.concurrency = args.concurrency
-    if args.strict_mapping is not None:
-        settings.strict_mapping = args.strict_mapping
-    if args.mapping_data_dir is not None:
-        settings.mapping_data_dir = Path(args.mapping_data_dir)
-    if args.web_search is not None:
-        settings.web_search = args.web_search
-    if args.use_local_cache is not None:
-        settings.use_local_cache = args.use_local_cache
-    if args.cache_mode is not None:
-        settings.cache_mode = args.cache_mode
-    if args.cache_dir is not None:
-        settings.cache_dir = Path(args.cache_dir)
-    if args.strict is not None:
-        settings.strict = args.strict
+
+
+def _apply_args_to_settings(args: argparse.Namespace, settings) -> None:
+    """Override settings fields based on CLI arguments."""
+
+    _update_stage_models(args, settings)
+    arg_mapping: dict[str, tuple[str, Callable[[Any], Any] | None]] = {
+        "model": ("model", None),
+        "concurrency": ("concurrency", None),
+        "strict_mapping": ("strict_mapping", None),
+        "mapping_data_dir": ("mapping_data_dir", Path),
+        "web_search": ("web_search", None),
+        "use_local_cache": ("use_local_cache", None),
+        "cache_mode": ("cache_mode", None),
+        "cache_dir": ("cache_dir", Path),
+        "strict": ("strict", None),
+    }
+    for arg_name, (attr, converter) in arg_mapping.items():
+        value = getattr(args, arg_name, None)
+        if value is not None:  # branch: override settings when flag provided
+            setattr(settings, attr, converter(value) if converter else value)
     if not hasattr(settings, "mapping_mode"):
         settings.mapping_mode = "per_set"
 
