@@ -36,7 +36,7 @@ sys.modules.setdefault(
     cast(types.ModuleType, types.SimpleNamespace(Model=object)),
 )
 sys.modules.setdefault(
-    "generator",
+    "generation.generator",
     cast(types.ModuleType, types.SimpleNamespace(build_model=lambda *a, **k: None)),
 )
 
@@ -210,7 +210,7 @@ class DummyModelFactory:
 
 # Expose a placeholder ``PlateauGenerator`` before importing the CLI.
 sys.modules.setdefault(
-    "plateau_generator",
+    "generation.plateau_generator",
     cast(types.ModuleType, types.SimpleNamespace(PlateauGenerator=object)),
 )
 

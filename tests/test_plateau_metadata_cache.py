@@ -2,7 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 
-import plateau_generator
+import generation.plateau_generator as plateau_generator
 from runtime.environment import RuntimeEnv
 
 

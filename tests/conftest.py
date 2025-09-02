@@ -105,9 +105,9 @@ dummy_tqdm.tqdm = _DummyTqdm
 sys.modules.setdefault("tqdm", dummy_tqdm)
 
 # Ensure real modules are loaded before test-specific stubs override them.
+import generation.plateau_generator as plateau_generator  # noqa: E402,F401
 import io_utils.service_loader as service_loader  # noqa: E402,F401
 import models  # noqa: E402,F401
-import plateau_generator  # noqa: E402,F401
 import runtime.settings as settings  # noqa: E402,F401
 from core import mapping  # noqa: E402,F401
 from observability import telemetry  # noqa: E402,F401

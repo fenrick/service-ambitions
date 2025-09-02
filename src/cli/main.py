@@ -16,6 +16,7 @@ from pydantic_core import to_json
 from core import mapping
 from core.canonical import canonicalise_record
 from engine.processing_engine import ProcessingEngine
+from generation.plateau_generator import _feature_cache_path
 from io_utils.loader import configure_mapping_data_dir, load_mapping_items
 from models import (
     Contribution,
@@ -28,7 +29,6 @@ from models import (
 )
 from observability import telemetry
 from observability.monitoring import init_logfire
-from plateau_generator import _feature_cache_path
 from runtime.environment import RuntimeEnv
 from runtime.settings import load_settings
 

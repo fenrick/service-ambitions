@@ -19,7 +19,7 @@ from pydantic import ValidationError
 from pydantic_core import from_json, to_json
 
 from io_utils.loader import load_mapping_items, load_prompt_text
-from mapping_prompt import render_set_prompt
+from io_utils.quarantine import QuarantineWriter
 from models import (
     Contribution,
     FeatureMappingRef,
@@ -33,9 +33,10 @@ from models import (
     StrictModel,
 )
 from observability.telemetry import record_mapping_set
-from quarantine import QuarantineWriter
 from runtime.environment import RuntimeEnv
 from utils import CacheManager, ErrorHandler, JSONCacheManager, LoggingErrorHandler
+
+from .mapping_prompt import render_set_prompt
 
 if TYPE_CHECKING:
     from .conversation import ConversationSession

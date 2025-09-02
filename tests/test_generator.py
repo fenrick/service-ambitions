@@ -2,7 +2,7 @@
 import asyncio
 from types import SimpleNamespace
 
-import generator
+import generation.generator as generator
 from models import ServiceInput
 
 

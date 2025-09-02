@@ -144,7 +144,7 @@ def test_default_mode_quarantines_unknown_ids(monkeypatch, tmp_path) -> None:
     monkeypatch.chdir(tmp_path)
     paths: list[Path] = []
     monkeypatch.setattr(
-        "telemetry.record_quarantine", lambda p: paths.append(p.resolve())
+        "observability.telemetry.record_quarantine", lambda p: paths.append(p.resolve())
     )
     mapped = asyncio.run(
         mapping.map_set(

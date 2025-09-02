@@ -18,6 +18,7 @@ from core.conversation import (
     ConversationSession,
 )
 from engine.plateau_runtime import PlateauRuntime
+from generation.plateau_generator import PlateauGenerator
 from io_utils import loader
 from models import (
     FeatureItem,
@@ -34,7 +35,6 @@ from models import (
     ServiceInput,
     ServiceMeta,
 )
-from plateau_generator import PlateauGenerator
 from runtime.environment import RuntimeEnv
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -231,7 +231,7 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
             return "desc {plateaus}"
         return ""
 
-    monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
+    monkeypatch.setattr("generation.plateau_generator.load_prompt_text", fake_loader)
     desc_payload = json.dumps(
         {
             "descriptions": [
@@ -311,7 +311,7 @@ def test_generate_plateau_repairs_missing_features(monkeypatch) -> None:
             return "desc {plateaus}"
         return ""
 
-    monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
+    monkeypatch.setattr("generation.plateau_generator.load_prompt_text", fake_loader)
     initial = json.dumps(
         {
             "features": {
@@ -407,7 +407,7 @@ def test_generate_plateau_requests_missing_features_concurrently(
             return "desc {plateaus}"
         return ""
 
-    monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
+    monkeypatch.setattr("generation.plateau_generator.load_prompt_text", fake_loader)
 
     initial = json.dumps(
         {
@@ -524,7 +524,7 @@ def test_generate_plateau_raises_on_insufficient_features(monkeypatch) -> None:
             return "desc {plateaus}"
         return ""
 
-    monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
+    monkeypatch.setattr("generation.plateau_generator.load_prompt_text", fake_loader)
     repair = json.dumps({"features": []})
     desc_payload = json.dumps(
         {
@@ -574,7 +574,7 @@ def test_generate_plateau_missing_features(monkeypatch) -> None:
             return "desc {plateaus}"
         return ""
 
-    monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
+    monkeypatch.setattr("generation.plateau_generator.load_prompt_text", fake_loader)
     desc_payload = json.dumps(
         {
             "descriptions": [
@@ -626,7 +626,7 @@ async def test_generate_plateau_supports_custom_roles(monkeypatch) -> None:
             return "desc {plateaus}"
         return ""
 
-    monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
+    monkeypatch.setattr("generation.plateau_generator.load_prompt_text", fake_loader)
 
     payload = json.dumps(
         {
@@ -687,7 +687,7 @@ async def test_request_descriptions_async(monkeypatch) -> None:
     def fake_loader(name, *_, **__):
         return "template" if name == "plateau_descriptions_prompt" else ""
 
-    monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
+    monkeypatch.setattr("generation.plateau_generator.load_prompt_text", fake_loader)
     good = json.dumps(
         {
             "descriptions": [
@@ -719,7 +719,7 @@ def test_request_description_strips_preamble(monkeypatch) -> None:
     def fake_loader(name, *_, **__):
         return "template" if name == "plateau_descriptions_prompt" else ""
 
-    monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
+    monkeypatch.setattr("generation.plateau_generator.load_prompt_text", fake_loader)
     payload = json.dumps(
         {
             "descriptions": [
@@ -752,7 +752,7 @@ def test_request_descriptions_returns_mapping(monkeypatch) -> None:
     def fake_loader(name, *_, **__):
         return "template" if name == "plateau_descriptions_prompt" else ""
 
-    monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
+    monkeypatch.setattr("generation.plateau_generator.load_prompt_text", fake_loader)
     payload = json.dumps(
         {
             "descriptions": [
@@ -1199,8 +1199,12 @@ async def test_init_runtimes_generates_defaults(monkeypatch) -> None:
         roles=["r"],
         description_session=cast(ConversationSession, session),
     )
-    monkeypatch.setattr("plateau_generator.default_plateau_names", lambda: ["p1"])
-    monkeypatch.setattr("plateau_generator.default_plateau_map", lambda: {"p1": 1})
+    monkeypatch.setattr(
+        "generation.plateau_generator.default_plateau_names", lambda: ["p1"]
+    )
+    monkeypatch.setattr(
+        "generation.plateau_generator.default_plateau_map", lambda: {"p1": 1}
+    )
     monkeypatch.setattr(
         generator,
         "_request_descriptions_async",

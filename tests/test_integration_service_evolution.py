@@ -12,6 +12,7 @@ from pydantic_ai import Agent
 
 from core.conversation import ConversationSession
 from engine.plateau_runtime import PlateauRuntime
+from generation.plateau_generator import PlateauGenerator
 from models import (
     SCHEMA_VERSION,
     FeatureMappingRef,
@@ -21,7 +22,6 @@ from models import (
     ServiceInput,
     ServiceMeta,
 )
-from plateau_generator import PlateauGenerator
 from runtime.environment import RuntimeEnv
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -123,7 +123,7 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
             return "desc {plateaus}"
         return ""
 
-    monkeypatch.setattr("plateau_generator.load_prompt_text", fake_loader)
+    monkeypatch.setattr("generation.plateau_generator.load_prompt_text", fake_loader)
 
     service = ServiceInput(
         service_id="svc-1",
