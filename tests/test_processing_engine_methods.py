@@ -93,7 +93,7 @@ def test_init_sessions_uses_runtimeenv(monkeypatch, tmp_path):
     monkeypatch.setattr(engine, "_setup_concurrency", fake_setup_concurrency)
     monkeypatch.setattr(engine, "_create_progress", lambda total: "progress")
 
-    engine._init_sessions(5)
+    engine._init_sessions()
 
     assert captured["settings"] is settings
     assert isinstance(engine.sem, asyncio.Semaphore)
