@@ -53,17 +53,22 @@ class _RunContext:
 # to avoid hard dependencies when the SDK is absent.
 if TYPE_CHECKING:
     from openai import APIConnectionError as OpenAIAPIConnectionError
+    from openai import OpenAIError
     from openai import RateLimitError as OpenAIRateLimitError
 else:
     try:
         from openai import APIConnectionError as OpenAIAPIConnectionError
+        from openai import OpenAIError
         from openai import RateLimitError as OpenAIRateLimitError
-    except Exception:
+    except ImportError:
 
         class OpenAIAPIConnectionError(Exception):
             """Fallback when OpenAI SDK is absent."""
 
         class OpenAIRateLimitError(Exception):
+            """Fallback when OpenAI SDK is absent."""
+
+        class OpenAIError(Exception):
             """Fallback when OpenAI SDK is absent."""
 
 
@@ -88,7 +93,7 @@ def _parse_retry_datetime(retry_after: str) -> float | None:
         if dt is None:
             return None
         return max(0.0, (dt - datetime.now(timezone.utc)).total_seconds())
-    except Exception:
+    except (ImportError, ValueError, TypeError):
         return None
 
 
@@ -231,7 +236,7 @@ class ServiceAmbitionGenerator:
         logfire.info(f"Processing service {service.name}")
         try:
             result, tokens, retries = await self.process_service(service)
-        except Exception as exc:
+        except (OpenAIError, OSError, ValueError) as exc:
             msg = f"Failed to process service {service.name}: {exc}"
             logfire.error(msg)
             return None, service.service_id, 0, self.retries - 1, "error"
@@ -437,7 +442,7 @@ class ServiceAmbitionGenerator:
                 )
                 span.set_attribute("service_ids", list(processed))
                 return processed
-            except Exception as exc:
+            except OSError as exc:
                 logfire.error(f"Failed to write results to {output_path}: {exc}")
                 raise
             finally:
