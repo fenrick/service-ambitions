@@ -215,3 +215,24 @@ def test_ask_uses_cache_when_available(tmp_path, monkeypatch) -> None:
 
     assert reply == "cached"
     assert agent.called_with == []
+
+
+def test_ask_writes_cache_on_miss(tmp_path, monkeypatch) -> None:
+    """Cache misses should persist responses for future calls."""
+
+    agent = DummyAgent()
+    session = ConversationSession(
+        cast(Agent[None, str], agent),
+        stage="stage",
+        use_local_cache=True,
+        cache_mode="read",
+    )
+    RuntimeEnv.initialize(
+        cast(Any, SimpleNamespace(cache_dir=tmp_path, context_id="ctx"))
+    )
+
+    session.ask("hello")
+
+    key = conversation._prompt_cache_key("hello", "", "stage")
+    path = conversation._prompt_cache_path("unknown", "stage", key)
+    assert path.exists()
