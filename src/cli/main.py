@@ -33,6 +33,7 @@ from observability.monitoring import init_logfire
 from runtime.environment import RuntimeEnv
 from runtime.settings import load_settings
 
+from .data_validation import validate_data_dir
 from .mapping import load_catalogue, remap_features, write_output
 
 SERVICES_FILE_HELP = "Path to the services JSONL file"
@@ -63,7 +64,6 @@ async def _cmd_run(args: argparse.Namespace, transcripts_dir: Path | None) -> No
 
 async def _cmd_validate(args: argparse.Namespace, transcripts_dir: Path | None) -> None:
     """Validate inputs without invoking the language model."""
-
     args.dry_run = True
     await _cmd_generate_evolution(args, transcripts_dir)
 
@@ -420,6 +420,13 @@ def _add_validate_subparser(
         default="evolutions.jsonl",
         help=OUTPUT_FILE_HELP,
     )
+    parser.add_argument(
+        "--data",
+        help=(
+            "Directory containing services.jsonl and an optional catalogue "
+            "subdirectory for standalone validation"
+        ),
+    )
     parser.add_argument("--transcripts-dir", help=TRANSCRIPTS_HELP)
     parser.set_defaults(func=_cmd_validate)
     return parser
@@ -541,6 +548,9 @@ def main() -> None:
 
     parser = _build_parser()
     args = parser.parse_args()
+    if args.command == "validate" and getattr(args, "data", None):
+        validate_data_dir(Path(args.data))
+        return
     settings = load_settings()
     _apply_args_to_settings(args, settings)
     _execute_subcommand(args, settings)
