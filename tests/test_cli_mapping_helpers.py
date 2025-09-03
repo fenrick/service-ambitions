@@ -5,29 +5,34 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 
 from cli import mapping as cli_mapping
 from core import mapping
 from models import Contribution, MappingSet, ServiceEvolution
+from runtime.settings import Settings
 
 
-def _settings() -> SimpleNamespace:
+def _settings() -> Settings:
     """Return minimal settings for helper tests."""
 
-    return SimpleNamespace(
-        diagnostics=False,
-        strict_mapping=False,
-        mapping_data_dir=Path("tests/fixtures/catalogue"),
-        mapping_sets=[
-            MappingSet(
-                name="Applications", file="applications.json", field="applications"
-            ),
-            MappingSet(
-                name="Technologies", file="technologies.json", field="technologies"
-            ),
-        ],
+    return cast(
+        Settings,
+        SimpleNamespace(
+            diagnostics=False,
+            strict_mapping=False,
+            mapping_data_dir=Path("tests/fixtures/catalogue"),
+            mapping_sets=[
+                MappingSet(
+                    name="Applications", file="applications.json", field="applications"
+                ),
+                MappingSet(
+                    name="Technologies", file="technologies.json", field="technologies"
+                ),
+            ],
+        ),
     )
 
 
@@ -125,7 +130,9 @@ def test_load_catalogue_invokes_loader(monkeypatch) -> None:
     monkeypatch.setattr(cli_mapping, "configure_mapping_data_dir", fake_configure)
     monkeypatch.setattr(cli_mapping, "load_mapping_items", fake_load)
 
-    settings = SimpleNamespace(mapping_data_dir=Path("cat"), mapping_sets=[1])
+    settings = cast(
+        Settings, SimpleNamespace(mapping_data_dir=Path("cat"), mapping_sets=[1])
+    )
     items, catalogue_hash = cli_mapping.load_catalogue(None, settings)
 
     assert calls["configure"] == Path("cat")
