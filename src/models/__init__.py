@@ -99,7 +99,15 @@ class MaturityScore(BaseModel):
     justification: Annotated[str, Field(min_length=1)]
 
     @model_validator(mode="after")
-    def label_matches_level(self):
+    def label_matches_level(self) -> MaturityScore:
+        """Ensure the textual label corresponds to the numeric CMMI level.
+
+        Returns:
+            The validated ``MaturityScore`` instance.
+
+        Raises:
+            ValueError: If ``label`` does not match ``level``.
+        """
         if self.label != CMMI_LABELS.get(self.level):
             raise ValueError(
                 f"label must match level ({self.level} → {CMMI_LABELS[self.level]})"
