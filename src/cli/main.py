@@ -6,7 +6,10 @@ from __future__ import annotations
 import argparse
 import asyncio
 import inspect
+import os
+import platform
 import random
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any, Callable, Coroutine, cast
 
@@ -44,6 +47,30 @@ TRANSCRIPTS_HELP = (
 
 
 LOG_LEVELS = ["fatal", "error", "warn", "notice", "info", "debug", "trace"]
+
+
+def _print_version() -> None:
+    """Print the installed package version."""
+
+    try:
+        pkg_version = version("service-ambitions")
+    except PackageNotFoundError:  # pragma: no cover - fallback for editable installs
+        pkg_version = "unknown"
+    print(f"service-ambitions {pkg_version}")
+
+
+def _print_diagnostics() -> None:
+    """Output basic environment information for health checks."""
+
+    _print_version()
+    print(f"Python {platform.python_version()}")
+    print(f"Platform {platform.platform()}")
+
+    missing = [var for var in ["OPENAI_API_KEY"] if not os.getenv(var)]
+    if missing:
+        print("Missing env vars: " + ", ".join(missing))
+    else:
+        print("Required env vars present")
 
 
 def _configure_logging(args: argparse.Namespace, settings) -> None:
@@ -465,8 +492,18 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+    parser.add_argument(
+        "--version",
+        action="store_true",
+        help="Print the service-ambitions version and exit.",
+    )
+    parser.add_argument(
+        "--diagnostics",
+        action="store_true",
+        help="Print environment diagnostics and exit.",
+    )
     common = _add_common_args(argparse.ArgumentParser(add_help=False))
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(dest="command", required=False)
     _add_map_subparser(subparsers, common)
     _add_reverse_subparser(subparsers, common)
     _add_run_subparser(subparsers, common)
@@ -541,6 +578,15 @@ def main() -> None:
 
     parser = _build_parser()
     args = parser.parse_args()
+    if args.version:
+        _print_version()
+        return
+    if args.diagnostics:
+        _print_diagnostics()
+        return
+    if args.command is None:
+        parser.print_help()
+        raise SystemExit(1)
     settings = load_settings()
     _apply_args_to_settings(args, settings)
     _execute_subcommand(args, settings)

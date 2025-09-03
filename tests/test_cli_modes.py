@@ -159,3 +159,25 @@ def test_apply_args_to_settings_updates_settings():
     assert settings.cache_mode == "off"
     assert settings.cache_dir == Path("/tmp/cache")
     assert settings.strict is True
+
+
+def test_version_flag_prints_version(monkeypatch, capsys):
+    """`--version` should output the package version and exit."""
+
+    monkeypatch.setattr(sys, "argv", ["main", "--version"])
+
+    cli.main()
+
+    out = capsys.readouterr().out
+    assert "service-ambitions" in out
+
+
+def test_diagnostics_flag_prints_environment(monkeypatch, capsys):
+    """`--diagnostics` should output environment information."""
+
+    monkeypatch.setattr(sys, "argv", ["main", "--diagnostics"])
+
+    cli.main()
+
+    out = capsys.readouterr().out
+    assert "Python" in out

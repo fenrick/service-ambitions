@@ -50,6 +50,28 @@ cache_dir: .cache # Directory to store cache files.
 Set `use_local_cache: false` or `cache_mode: "off"` to bypass the cache, or use
 `write` to record new entries and `refresh` to rewrite existing ones.
 
+## Health & diagnostics
+
+The Docker image is built on a [distroless](https://github.com/GoogleContainerTools/distroless)
+base, so it does not provide a shell. Use the built-in flags for lightweight
+health checks:
+
+```bash
+service-ambitions --version
+service-ambitions --diagnostics
+```
+
+When running the container directly:
+
+```bash
+docker run --rm service-ambitions:latest --version
+docker run --rm service-ambitions:latest --diagnostics
+```
+
+The `--diagnostics` flag prints Python and platform details and reports whether
+required environment variables such as `OPENAI_API_KEY` are set. Both commands
+exit with status code 0 so they can be used in automated health checks.
+
 The chat model can be set with the `--model` flag or the `MODEL` environment
 variable. Model identifiers must include a provider prefix, in the form
 `<provider>:<model>`. The default is `openai:gpt-5` with medium reasoning effort.
