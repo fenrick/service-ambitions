@@ -13,8 +13,8 @@ from typing import Any, Callable, Coroutine, cast
 import logfire
 from pydantic_core import to_json
 
-from core import mapping
 from core.canonical import canonicalise_record
+from core.mapping import build_cache_key, cache_path, cache_write_json_atomic
 from engine.processing_engine import ProcessingEngine
 from generation.plateau_generator import _feature_cache_path
 from io_utils.loader import configure_mapping_data_dir, load_mapping_items
@@ -24,6 +24,7 @@ from models import (
     MappingFeature,
     MappingResponse,
     PlateauFeaturesResponse,
+    PlateauResult,
     ServiceEvolution,
     StageModels,
 )
@@ -93,12 +94,58 @@ async def _cmd_map(args: argparse.Namespace, transcripts_dir: Path | None) -> No
     write_output(evolutions, Path(args.output_file))
 
 
+def _reconstruct_feature_cache(svc_id: str, plateau: PlateauResult) -> None:
+    """Write grouped features for ``plateau`` to the cache."""
+
+    block: dict[str, list[FeatureItem]] = {}
+    for feat in plateau.features:
+        item = FeatureItem(
+            name=feat.name, description=feat.description, score=feat.score
+        )
+        block.setdefault(feat.customer_type, []).append(item)
+    payload = PlateauFeaturesResponse(features=block)
+    feat_path = _feature_cache_path(svc_id, plateau.plateau)
+    cache_write_json_atomic(feat_path, payload.model_dump())
+
+
+def _rebuild_mapping_cache(
+    svc_id: str,
+    plateau: PlateauResult,
+    settings: Any,
+    catalogue_hash: str,
+) -> None:
+    """Write mapping cache entries for all configured mapping sets."""
+
+    for cfg in settings.mapping_sets:
+        features_by_id: dict[str, MappingFeature] = {
+            f.feature_id: MappingFeature(feature_id=f.feature_id)
+            for f in plateau.features
+        }
+        for group in plateau.mappings.get(cfg.field, []):
+            for ref in group.mappings:
+                contrib = Contribution(item=group.id)
+                features_by_id[ref.feature_id].mappings.setdefault(
+                    cfg.field, []
+                ).append(contrib)
+        key = build_cache_key(
+            settings.model,
+            cfg.field,
+            catalogue_hash,
+            plateau.features,
+            settings.diagnostics,
+        )
+        cache_file = cache_path(svc_id, plateau.plateau, cfg.field, key)
+        payload = MappingResponse(features=list(features_by_id.values()))
+        cache_write_json_atomic(cache_file, payload.model_dump())
+    plateau.mappings = {}
+
+
 def _cmd_reverse(args: argparse.Namespace, transcripts_dir: Path | None) -> None:
     """Backfill feature and mapping caches from ``evolutions.jsonl``."""
 
     settings = RuntimeEnv.instance().settings
     configure_mapping_data_dir(args.mapping_data_dir or settings.mapping_data_dir)
-    items, catalogue_hash = load_mapping_items(settings.mapping_sets)
+    _, catalogue_hash = load_mapping_items(settings.mapping_sets)
 
     input_path = Path(args.input_file)
     output_path = Path(args.output_file)
@@ -113,50 +160,8 @@ def _cmd_reverse(args: argparse.Namespace, transcripts_dir: Path | None) -> None
         for evo in evolutions:
             svc_id = evo.service.service_id
             for plateau in evo.plateaus:
-                # Reconstruct feature cache grouped by role
-                block: dict[str, list[FeatureItem]] = {}
-                for feat in plateau.features:
-                    item = FeatureItem(
-                        name=feat.name,
-                        description=feat.description,
-                        score=feat.score,
-                    )
-                    block.setdefault(feat.customer_type, []).append(item)
-                feat_payload = PlateauFeaturesResponse(features=block)
-                feat_path = _feature_cache_path(svc_id, plateau.plateau)
-                mapping.cache_write_json_atomic(feat_path, feat_payload.model_dump())
-
-                # Rebuild mapping cache per mapping set
-                for cfg in settings.mapping_sets:
-                    features_by_id: dict[str, MappingFeature] = {
-                        f.feature_id: MappingFeature(feature_id=f.feature_id)
-                        for f in plateau.features
-                    }
-                    for group in plateau.mappings.get(cfg.field, []):
-                        for ref in group.mappings:
-                            contrib = Contribution(item=group.id)
-                            features_by_id[ref.feature_id].mappings.setdefault(
-                                cfg.field, []
-                            ).append(contrib)
-                    key = mapping._build_cache_key(
-                        settings.model,
-                        cfg.field,
-                        catalogue_hash,
-                        plateau.features,
-                        settings.diagnostics,
-                    )
-                    cache_file = mapping._cache_path(
-                        svc_id, plateau.plateau, cfg.field, key
-                    )
-                    map_payload = MappingResponse(
-                        features=list(features_by_id.values())
-                    )
-                    mapping.cache_write_json_atomic(
-                        cache_file, map_payload.model_dump()
-                    )
-
-                plateau.mappings = {}
-
+                _reconstruct_feature_cache(svc_id, plateau)
+                _rebuild_mapping_cache(svc_id, plateau, settings, catalogue_hash)
             evo.meta.mapping_types = []
             record = canonicalise_record(evo.model_dump(mode="json"))
             out_fh.write(to_json(record).decode() + "\n")

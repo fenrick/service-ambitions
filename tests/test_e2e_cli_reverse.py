@@ -168,7 +168,7 @@ def test_cli_reverse_generates_caches(monkeypatch, tmp_path) -> None:
         }
     }
 
-    key = mapping._build_cache_key(
+    key = mapping.build_cache_key(
         settings.model, "applications", "0" * 64, [feat], settings.diagnostics
     )
     map_cache = (

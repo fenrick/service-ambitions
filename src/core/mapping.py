@@ -104,7 +104,7 @@ def _features_hash(features: Sequence[PlateauFeature]) -> str:
     return hashlib.sha256(combined.encode("utf-8")).hexdigest()
 
 
-def _build_cache_key(
+def build_cache_key(
     model_name: str,
     set_name: str,
     catalogue_hash: str,
@@ -134,7 +134,7 @@ def _build_cache_key(
     return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:32]
 
 
-def _cache_path(service: str, plateau: int, set_name: str, key: str) -> Path:
+def cache_path(service: str, plateau: int, set_name: str, key: str) -> Path:
     """Return canonical cache path for ``service`` and ``set_name``.
 
     Cache files are grouped by context, service identifier and plateau level.
@@ -172,7 +172,7 @@ def _discover_cache_file(
     canonical path.
     """
 
-    canonical = _cache_path(service, plateau, set_name, key)
+    canonical = cache_path(service, plateau, set_name, key)
     if canonical.exists():
         return canonical, canonical
 
@@ -187,6 +187,11 @@ def cache_write_json_atomic(path: Path, content: Any) -> None:
     """Atomically write ``content`` as pretty JSON to ``path``."""
 
     _cache_manager.write_json_atomic(path, content)
+
+
+# Backwards compatibility for renamed helpers
+_build_cache_key = build_cache_key
+_cache_path = cache_path
 
 
 def _merge_mapping_results(
@@ -343,7 +348,7 @@ async def map_set(
     )
     model_obj = getattr(session, "client", None)
     model_name = getattr(getattr(model_obj, "model", None), "model_name", "")
-    key = _build_cache_key(model_name, set_name, catalogue_hash, features, use_diag)
+    key = build_cache_key(model_name, set_name, catalogue_hash, features, use_diag)
     model_type = cast(
         type[StrictModel],
         getattr(
@@ -548,4 +553,6 @@ __all__ = [
     "map_set",
     "group_features_by_mapping",
     "MappingError",
+    "build_cache_key",
+    "cache_path",
 ]
