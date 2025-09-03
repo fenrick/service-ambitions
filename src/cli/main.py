@@ -52,7 +52,7 @@ def _configure_logging(args: argparse.Namespace, settings) -> None:
     index = 2 + args.verbose - args.quiet
     index = max(0, min(len(LOG_LEVELS) - 1, index))
     min_log_level = LOG_LEVELS[index]
-    init_logfire(settings.logfire_token, min_log_level)
+    init_logfire(settings.logfire_token, min_log_level, json_logs=args.json_logs)
 
 
 async def _cmd_run(args: argparse.Namespace, transcripts_dir: Path | None) -> None:
@@ -298,6 +298,17 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
         help="Include raw prompt text in debug logs",
     )
     parser.add_argument(
+        "--json-logs",
+        action="store_true",
+        help="Emit logs as structured JSON for container log scraping",
+    )
+    parser.add_argument(
+        "--trace",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Enable detailed diagnostics and per-request timing spans",
+    )
+    parser.add_argument(
         "--strict",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -510,6 +521,7 @@ def _apply_args_to_settings(args: argparse.Namespace, settings) -> None:
         "cache_mode": ("cache_mode", None),
         "cache_dir": ("cache_dir", Path),
         "strict": ("strict", None),
+        "trace": ("diagnostics", None),
     }
     for arg_name, (attr, converter) in arg_mapping.items():
         value = getattr(args, arg_name, None)

@@ -19,6 +19,7 @@ from contextlib import contextmanager, nullcontext, suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Literal, cast
+from uuid import uuid4
 
 import logfire
 from pydantic import ValidationError
@@ -185,6 +186,7 @@ class ConversationSession:
         span_name: str,
         stage: str,
         model_name: str,
+        request_id: str,
     ) -> Any:
         """Create a logging span and attach common attributes."""
 
@@ -194,6 +196,9 @@ class ConversationSession:
                 # annotate span for observability when diagnostics enabled
                 span.set_attribute("stage", stage)
                 span.set_attribute("model_name", model_name)
+                span.set_attribute("request_id", request_id)
+                if self._service_id is not None:
+                    span.set_attribute("service_id", self._service_id)
             yield span
 
     def _log_prompt(self, prompt: str) -> None:
@@ -225,6 +230,7 @@ class ConversationSession:
         result: Any,
         stage: str,
         model_name: str,
+        request_id: str,
     ) -> tuple[Any, int]:
         """Process a successful model invocation."""
 
@@ -236,6 +242,8 @@ class ConversationSession:
             stage=stage,
             model_name=model_name,
             total_tokens=tokens,
+            request_id=request_id,
+            service_id=self._service_id,
         )
         return result.output, tokens
 
@@ -245,6 +253,7 @@ class ConversationSession:
         stage: str,
         model_name: str,
         tokens: int,
+        request_id: str,
     ) -> None:
         """Log failure details."""
 
@@ -254,6 +263,8 @@ class ConversationSession:
             model_name=model_name,
             total_tokens=tokens,
             error=str(exc),
+            request_id=request_id,
+            service_id=self._service_id,
         )
 
     def _finalise_metrics(
@@ -261,6 +272,7 @@ class ConversationSession:
         span: Any,
         tokens: int,
         start: float,
+        _request_id: str,
     ) -> None:
         """Record latency and token usage."""
 
@@ -340,12 +352,13 @@ class ConversationSession:
         runner: Callable[[str, list[messages.ModelMessage]], Awaitable[Any]],
         stage: str,
         model_name: str,
+        request_id: str,
     ) -> tuple[Any, int]:
         """Execute ``runner`` and return output and token count."""
 
         self._log_prompt(prompt)
         result = await runner(prompt, self._history)
-        return self._handle_success(result, stage, model_name)
+        return self._handle_success(result, stage, model_name, request_id)
 
     def _write_cache_result(self, cache_file: Path, output: Any) -> None:
         """Persist ``output`` to ``cache_file`` as JSON."""
@@ -375,10 +388,11 @@ class ConversationSession:
     ) -> Any:
         tokens = 0
         start = time.monotonic()
-        with self._prepare_span(span_name, stage, model_name) as span:
+        request_id = uuid4().hex
+        with self._prepare_span(span_name, stage, model_name, request_id) as span:
             try:
                 output, tokens = await self._invoke_runner(
-                    prompt, runner, stage, model_name
+                    prompt, runner, stage, model_name, request_id
                 )
                 if cache.cache_file and cache.write_after_call:
                     self._write_cache_result(cache.cache_file, output)
@@ -391,10 +405,10 @@ class ConversationSession:
                 OSError,
                 RuntimeError,
             ) as exc:  # pragma: no cover - defensive logging
-                self._handle_failure(exc, stage, model_name, tokens)
+                self._handle_failure(exc, stage, model_name, tokens, request_id)
                 raise
             finally:
-                self._finalise_metrics(span, tokens, start)
+                self._finalise_metrics(span, tokens, start, request_id)
 
     async def _ask_common(
         self,
