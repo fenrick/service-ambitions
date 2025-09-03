@@ -10,6 +10,27 @@ spawns `PlateauRuntime` instances for every plateau.  A thread‑safe
 caches.  See [runtime-architecture](docs/runtime-architecture.md) for a
 detailed walkthrough.
 
+### File layout
+
+```
+.
+├── docs/                # Documentation
+├── prompts/             # Prompt templates
+├── src/                 # Application sources
+│   ├── cli/             # CLI entry points
+│   ├── core/            # Core models and helpers
+│   ├── engine/          # Processing engines
+│   ├── generation/      # Plateau and feature generation
+│   ├── io_utils/        # Input/output helpers
+│   ├── models/          # Data models
+│   ├── observability/   # Logging and metrics
+│   └── runtime/         # Environment and settings
+└── tests/               # Test suite
+```
+
+See [runtime-architecture](docs/runtime-architecture.md) for component-level
+details.
+
 ## Configuration
 
 Copy the sample configuration and customise it for your environment:
@@ -76,6 +97,14 @@ The chat model can be set with the `--model` flag or the `MODEL` environment
 variable. Model identifiers must include a provider prefix, in the form
 `<provider>:<model>`. The default is `openai:gpt-5` with medium reasoning effort.
 
+Example:
+
+```bash
+MODEL=openai:o4-mini poetry run service-ambitions run \
+  --input-file sample-services.jsonl \
+  --output-file evolution.jsonl
+```
+
 Stage-specific model overrides live under the `models` block in
 `config/app.yaml`. Defaults are:
 
@@ -130,7 +159,9 @@ libraries for telemetry. The `LOGFIRE_TOKEN` environment variable is optional:
 without it, Logfire still records logs and metrics locally but nothing is sent
 to the cloud. Provide a token to stream traces to Logfire. The CLI instruments
 Pydantic, Pydantic AI, OpenAI and system metrics by default. Prompts are
-excluded from logs unless `--allow-prompt-logging` is specified.
+excluded from logs unless `--allow-prompt-logging` is specified. Pass
+`--json-logs` to emit logs as structured JSON and `--trace` to enable
+per‑request timing spans.
 
 See [Logging levels](docs/logging-levels.md) for guidance on TRACE through
 EXCEPTION and when to use each level.
@@ -158,6 +189,8 @@ subcommands to select the desired operation:
 poetry run service-ambitions run --input-file sample-services.jsonl --output-file evolutions.jsonl
 poetry run service-ambitions validate --input-file sample-services.jsonl
 poetry run service-ambitions reverse --input-file evolutions.jsonl --output-file features.jsonl
+# Load an alternate config and preview actions without calling the API
+poetry run service-ambitions run --config config/alt.yaml --dry-run --input-file sample-services.jsonl
 ```
 
 Alternatively, use the provided shell script which forwards all arguments to the CLI:
@@ -168,18 +201,32 @@ Alternatively, use the provided shell script which forwards all arguments to the
 ./run.sh reverse --input-file evolutions.jsonl --output-file features.jsonl
 ```
 
+### Docker
+
+Build the image and execute the CLI in an isolated container:
+
+```bash
+docker build -t service-ambitions .
+docker run --rm \
+  -e OPENAI_API_KEY=$OPENAI_API_KEY \
+  -v "$(pwd)/sample-services.jsonl:/data/input.jsonl" \
+  service-ambitions run \
+  --input-file /data/input.jsonl \
+  --output-file /data/evolutions.jsonl
+```
+
 ## Usage
 
 `sample-services.jsonl` contains example services in
 [JSON Lines](https://jsonlines.org/) format, with one JSON object per line. The
 output file will also be in JSON Lines format. Use `--concurrency` to control
 parallel workers, `--max-services` to limit how many entries are processed, and
-`--dry-run` to validate inputs without calling the API. Evolution processing
-runs concurrently with a worker pool bounded by this setting. Pass `--progress`
-to display a progress bar during long runs; it is suppressed automatically in
-CI environments or when stdout is not a TTY. Provide `--seed` to make
-stochastic behaviour such as backoff jitter deterministic during tests and
-demos.
+`--dry-run` to validate inputs without calling the API. Supply `--config` to
+point at a custom `app.yaml`. Evolution processing runs concurrently with a
+worker pool bounded by this setting. Pass `--progress` to display a progress
+bar during long runs; it is suppressed automatically in CI environments or when
+stdout is not a TTY. Provide `--seed` to make stochastic behaviour such as
+backoff jitter deterministic during tests and demos.
 
 ## Concurrency control
 
@@ -215,7 +262,7 @@ context. The seed includes the service ID and jobs to be done:
 Service ID: S01
 Service name: Learning & Teaching
 Customer type: retail
-Description: Delivers a holistic educational framework ...
+Description: Delivers a holistic educational framework that not only designs modern curricula and dynamic teaching methods but also supports learners’ entire journey. This service enables students to progress confidently from admission through to career readiness, while ensuring quality through defined performance standards and continuous stakeholder reviews.
 Jobs to be done: Access an engaging curriculum, Continually update skills
 ```
 
