@@ -27,7 +27,20 @@ class CacheManager(ABC):
 class JSONCacheManager(CacheManager):
     """Cache manager writing JSON objects to disk."""
 
-    def write_json_atomic(self, path: Path, content: Any) -> None:  # noqa: D401
+    def write_json_atomic(self, path: Path, content: Any) -> None:
+        """Write ``content`` to ``path`` as pretty-printed JSON atomically.
+
+        Args:
+            path: Destination file path for the JSON payload.
+            content: JSON-serialisable object or raw JSON string/bytes.
+
+        Returns:
+            None.
+
+        Raises:
+            TypeError: If ``content`` is not a JSON object.
+            OSError: If the file cannot be written.
+        """
         with logfire.span("cache.write_json_atomic", attributes={"path": str(path)}):
             data = (
                 content
