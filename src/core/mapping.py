@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Mapping, Sequence, cast
 
@@ -345,6 +346,16 @@ def _read_mapping_cache(
         raise RuntimeError(f"Invalid cache file: {candidate}") from exc
 
 
+@dataclass
+class CacheInfo:
+    """Details about cache interaction for a mapping request."""
+
+    payload: StrictModel | None
+    cache_file: Path | None
+    write_after_call: bool
+    cache_hit: bool
+
+
 def _load_cache(
     cache_mode: Literal["off", "read", "refresh", "write"],
     service: str | None,
@@ -352,11 +363,11 @@ def _load_cache(
     set_name: str,
     key: str,
     model_type: type[StrictModel],
-) -> tuple[StrictModel | None, Path | None, bool, bool]:
-    """Return payload, cache file, write flag and hit status."""
+) -> CacheInfo:
+    """Return cache information for the mapping request."""
 
     if cache_mode == "off":
-        return None, None, False, False
+        return CacheInfo(None, None, False, False)
     svc = service or "unknown"
     candidate, cache_file = _discover_cache_file(svc, plateau, set_name, key)
     exists_before = candidate.exists()
@@ -368,7 +379,7 @@ def _load_cache(
     write_after_call = cache_mode == "refresh" or (
         cache_mode in {"write", "read"} and not exists_before
     )
-    return payload, cache_file, write_after_call, cache_hit
+    return CacheInfo(payload, cache_file, write_after_call, cache_hit)
 
 
 def _cache_state(cache_mode: str, cache_hit: bool) -> str:
@@ -469,47 +480,34 @@ async def _request_mapping_payload(
 
 
 async def _fetch_and_cache(
-    session: "ConversationSession",
-    set_name: str,
-    items: Sequence[MappingItem],
-    features: Sequence[PlateauFeature],
-    service_name: str,
-    service_description: str,
-    plateau: int,
-    use_diag: bool,
-    cache_file: Path | None,
-    write_after_call: bool,
-    strict: bool,
-    service: str | None,
-    start: float,
-    retries: int,
+    params: FetchParams,
 ) -> tuple[StrictModel | None, int, list[PlateauFeature] | None]:
     """Fetch payload from model and optionally write to cache."""
 
     prompt, should_log_prompt, original_flag = _prepare_prompt(
-        set_name,
-        items,
-        features,
-        service_name,
-        service_description,
-        plateau,
-        use_diag,
-        session,
+        params.set_name,
+        params.items,
+        params.features,
+        params.service_name,
+        params.service_description,
+        params.plateau,
+        params.use_diag,
+        params.session,
     )
     payload, tokens, fallback = await _request_mapping_payload(
-        session,
+        params.session,
         prompt,
-        cache_file,
-        write_after_call,
-        set_name,
-        features,
-        strict,
-        service,
-        start,
-        retries,
+        params.cache_file,
+        params.write_after_call,
+        params.set_name,
+        params.features,
+        params.strict,
+        params.service,
+        params.start,
+        params.retries,
     )
     if should_log_prompt:
-        session.log_prompts = original_flag
+        params.session.log_prompts = original_flag
     return payload, tokens, fallback
 
 
@@ -561,6 +559,81 @@ _build_cache_key = build_cache_key
 _cache_path = cache_path
 
 
+@dataclass
+class MapSetParams:
+    """Options controlling ``map_set`` behaviour."""
+
+    service_name: str
+    service_description: str
+    plateau: int
+    service: str | None = None
+    strict: bool = False
+    diagnostics: bool | None = None
+    cache_mode: Literal["off", "read", "refresh", "write"] = "off"
+    catalogue_hash: str = ""
+
+
+@dataclass
+class ModelContext:
+    """Derived model details for mapping requests."""
+
+    cfg: MappingTypeConfig
+    use_diag: bool
+    model_name: str
+    model_type: type[StrictModel]
+    key: str
+
+
+@dataclass
+class FetchParams:
+    """Parameters required to fetch mapping payloads."""
+
+    session: "ConversationSession"
+    set_name: str
+    items: Sequence[MappingItem]
+    features: Sequence[PlateauFeature]
+    service_name: str
+    service_description: str
+    plateau: int
+    use_diag: bool
+    cache_file: Path | None
+    write_after_call: bool
+    strict: bool
+    service: str | None
+    start: float
+    retries: int
+
+
+def _build_context(
+    session: "ConversationSession",
+    set_name: str,
+    features: Sequence[PlateauFeature],
+    params: MapSetParams,
+) -> ModelContext:
+    """Derive model and cache details for mapping."""
+
+    cfg = MappingTypeConfig(dataset=set_name, label=set_name)
+    use_diag = (
+        params.diagnostics
+        if params.diagnostics is not None
+        else getattr(session, "diagnostics", False)
+    )
+    model_obj = getattr(session, "client", None)
+    model_name = getattr(getattr(model_obj, "model", None), "model_name", "")
+    key = build_cache_key(
+        model_name, set_name, params.catalogue_hash, features, use_diag
+    )
+    model_type = cast(
+        type[StrictModel],
+        getattr(
+            model_obj,
+            "output_type",
+            MappingDiagnosticsResponse if use_diag else MappingResponse,
+        ),
+    )
+    return ModelContext(cfg, use_diag, model_name, model_type, key)
+
+
 def _merge_mapping_results(
     features: Sequence[PlateauFeature],
     payload: MappingResponse,
@@ -590,15 +663,7 @@ async def map_set(
     set_name: str,
     items: Sequence[MappingItem],
     features: Sequence[PlateauFeature],
-    *,
-    service_name: str,
-    service_description: str,
-    plateau: int,
-    service: str | None = None,
-    strict: bool = False,
-    diagnostics: bool | None = None,
-    cache_mode: Literal["off", "read", "refresh", "write"] = "off",
-    catalogue_hash: str = "",
+    params: MapSetParams,
 ) -> list[PlateauFeature]:
     """Return ``features`` with ``set_name`` mappings populated.
 
@@ -607,14 +672,7 @@ async def map_set(
         set_name: Mapping dataset to populate.
         items: Catalogue items available for mapping.
         features: Features requiring enrichment.
-        service_name: Human readable name of the service.
-        service_description: Description of the service at ``plateau``.
-        plateau: Numeric plateau level being mapped.
-        service: Optional service identifier used for caching.
-        strict: Raise :class:`MappingError` instead of returning partial results.
-        diagnostics: Enable diagnostics mode to request rationales.
-        cache_mode: Local cache behaviour.
-        catalogue_hash: SHA256 digest representing the loaded mapping catalogues.
+        params: Options controlling mapping behaviour.
 
     The agent is queried up to twice to obtain a valid :class:`MappingResponse`.
     The second attempt appends a hint directing the model to stick to the
@@ -633,66 +691,57 @@ async def map_set(
       absent.
     """
 
-    cfg = MappingTypeConfig(dataset=set_name, label=set_name)
-    use_diag = (
-        diagnostics
-        if diagnostics is not None
-        else getattr(session, "diagnostics", False)
+    context = _build_context(session, set_name, features, params)
+    cache = _load_cache(
+        params.cache_mode,
+        params.service,
+        params.plateau,
+        set_name,
+        context.key,
+        context.model_type,
     )
-    model_obj = getattr(session, "client", None)
-    model_name = getattr(getattr(model_obj, "model", None), "model_name", "")
-    key = build_cache_key(model_name, set_name, catalogue_hash, features, use_diag)
-    model_type = cast(
-        type[StrictModel],
-        getattr(
-            model_obj,
-            "output_type",
-            MappingDiagnosticsResponse if use_diag else MappingResponse,
-        ),
-    )
-    payload, cache_file, write_after_call, cache_hit = _load_cache(
-        cache_mode, service, plateau, set_name, key, model_type
-    )
-    cache_state = _cache_state(cache_mode, cache_hit)
+    cache_state = _cache_state(params.cache_mode, cache.cache_hit)
     logfire.info(
         "mapping_set",
         set_name=set_name,
         cache=cache_state,
-        cache_key=key,
+        cache_key=context.key,
         features=len(features),
     )
 
     start = time.monotonic()
     retries = 0
     tokens = 0
+    payload = cache.payload
     if payload is None:
-        payload, tokens, fallback = await _fetch_and_cache(
-            session,
-            set_name,
-            items,
-            features,
-            service_name,
-            service_description,
-            plateau,
-            use_diag,
-            cache_file,
-            write_after_call,
-            strict,
-            service,
-            start,
-            retries,
+        fetch_params = FetchParams(
+            session=session,
+            set_name=set_name,
+            items=items,
+            features=features,
+            service_name=params.service_name,
+            service_description=params.service_description,
+            plateau=params.plateau,
+            use_diag=context.use_diag,
+            cache_file=cache.cache_file,
+            write_after_call=cache.write_after_call,
+            strict=params.strict,
+            service=params.service,
+            start=start,
+            retries=retries,
         )
+        payload, tokens, fallback = await _fetch_and_cache(fetch_params)
         if fallback is not None:
             return fallback
 
-    payload_norm = _normalise_payload(cast(StrictModel, payload), use_diag)
+    payload_norm = _normalise_payload(cast(StrictModel, payload), context.use_diag)
     merged, unknown_count = _merge_mapping_results(
         features,
         payload_norm,
-        {set_name: cfg},
+        {set_name: context.cfg},
         catalogue_items={set_name: list(items)},
-        service=service or "unknown",
-        strict=strict,
+        service=params.service or "unknown",
+        strict=params.strict,
     )
     _record_metrics(set_name, features, merged, unknown_count, start, retries, tokens)
     return merged
@@ -748,6 +797,7 @@ class MappingError(RuntimeError):
 
 
 __all__ = [
+    "MapSetParams",
     "map_set",
     "group_features_by_mapping",
     "MappingError",
