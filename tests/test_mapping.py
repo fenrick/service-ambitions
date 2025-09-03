@@ -370,7 +370,7 @@ async def test_map_set_writes_cache(monkeypatch, tmp_path) -> None:
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
-    monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
+    monkeypatch.setattr(mapping, "build_cache_key", lambda *a, **k: "key")
     response = MappingResponse.model_validate(
         {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
     )
@@ -407,7 +407,7 @@ async def test_map_set_reads_cache(monkeypatch, tmp_path) -> None:
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
-    monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
+    monkeypatch.setattr(mapping, "build_cache_key", lambda *a, **k: "key")
     cached = {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
     old_dir = Path(".cache") / "unknown" / "svc" / "mappings" / "f1" / "applications"
     old_dir.mkdir(parents=True, exist_ok=True)
@@ -451,7 +451,7 @@ async def test_map_set_invalid_cache_halts(monkeypatch, tmp_path) -> None:
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
-    monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
+    monkeypatch.setattr(mapping, "build_cache_key", lambda *a, **k: "key")
     cache_dir = Path(".cache") / "unknown" / "svc" / "1" / "mappings" / "applications"
     cache_dir.mkdir(parents=True, exist_ok=True)
     bad_file = cache_dir / "key.json"
@@ -484,7 +484,7 @@ async def test_map_set_cache_invalidation(monkeypatch, tmp_path, change) -> None
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     keys = iter(["key1", "key2"])
-    monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: next(keys))
+    monkeypatch.setattr(mapping, "build_cache_key", lambda *a, **k: next(keys))
     if change == "template":  # Template text changes between calls
         versions = iter(["v1", "v2"])
         monkeypatch.setattr(mapping, "load_prompt_text", lambda _: next(versions))
@@ -550,7 +550,7 @@ async def test_map_set_logs_cache_status(
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
-    monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
+    monkeypatch.setattr(mapping, "build_cache_key", lambda *a, **k: "key")
     response = json.dumps(
         {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]},
         separators=(",", ":"),
@@ -599,7 +599,7 @@ async def test_map_set_cache_modes(
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
-    monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
+    monkeypatch.setattr(mapping, "build_cache_key", lambda *a, **k: "key")
     response = json.dumps(
         {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
     )
