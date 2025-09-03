@@ -48,13 +48,15 @@ This project follows the principles outlined in *Clean Code: A Handbook of Agile
 
 **Good**
 ```python
-def resize(image: Image, *, max_width: int, max_height: int) -> Image: ...
-````
+def resize(image: Image, *, max_width: int, max_height: int) -> Image:
+    return image.resize((max_width, max_height))
+```
 
 **Refactor from this**
 
 ```python
-def process(a, b, c, d): ...
+def process(a, b, c, d):
+    return (a + b) * (c + d)
 ```
 
 ---
@@ -279,7 +281,8 @@ class Order:
 
 def add_tag(tags: list[str] | None = None) -> list[str]:
     tags = tags or []  # ✅
-    ...
+    tags.append("new")
+    return tags
 ```
 
 **Dependency injection over globals**
@@ -293,14 +296,17 @@ class EmailSender:
         self._client.send(to=user.email, subject="Welcome", body="Hi!")
 
 # In composition root:
-sender = EmailSender(client=SES(...))
+sender = EmailSender(client=SES(region="us-east-1"))
 ```
 
 **Async I/O separation**
 
 ```python
-async def fetch_user(session: ClientSession, user_id: str) -> User: ...
-def compute_score(user: User) -> int: ...
+async def fetch_user(session: ClientSession, user_id: str) -> User:
+    return await session.get_user(user_id)
+
+def compute_score(user: User) -> int:
+    return user.score
 ```
 
 ---
