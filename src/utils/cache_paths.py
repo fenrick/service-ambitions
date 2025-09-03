@@ -18,7 +18,7 @@ def feature_cache(service_id: str, plateau: int) -> Path:
         settings = RuntimeEnv.instance().settings
         cache_root = settings.cache_dir
         context = settings.context_id
-    except Exception:  # pragma: no cover - settings unavailable
+    except RuntimeError:  # pragma: no cover - settings unavailable
         cache_root = Path(".cache")
         context = "unknown"
 

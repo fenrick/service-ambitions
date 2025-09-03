@@ -46,7 +46,7 @@ def _prompt_cache_path(
         settings = RuntimeEnv.instance().settings
         cache_root = settings.cache_dir
         context = settings.context_id
-    except Exception:  # pragma: no cover - fallback when settings unavailable
+    except RuntimeError:  # pragma: no cover - fallback when settings unavailable
         cache_root = Path(".cache")
         context = "unknown"
 
@@ -75,7 +75,7 @@ def _service_cache_root(service: str) -> Path:
     try:
         settings = RuntimeEnv.instance().settings
         root = settings.cache_dir / settings.context_id / service
-    except Exception:  # pragma: no cover - fallback when settings unavailable
+    except RuntimeError:  # pragma: no cover - fallback when settings unavailable
         root = Path(".cache") / "unknown" / service
     return root
 
@@ -211,7 +211,7 @@ class ConversationSession:
         svc_dir = self.transcripts_dir / self._service_id
         try:
             await asyncio.to_thread(svc_dir.mkdir, parents=True, exist_ok=True)
-        except Exception:  # pragma: no cover - defensive
+        except OSError:  # pragma: no cover - defensive
             return
         stage_name = self.stage or "unknown"
         payload = {"prompt": prompt, "response": str(response)}
@@ -375,7 +375,12 @@ class ConversationSession:
                 self.last_tokens = tokens
                 await self._write_transcript(prompt, output)
                 return output
-            except Exception as exc:  # pragma: no cover - defensive logging
+            except (
+                ValidationError,
+                ValueError,
+                OSError,
+                RuntimeError,
+            ) as exc:  # pragma: no cover - defensive logging
                 self._handle_failure(
                     exc,
                     stage,
