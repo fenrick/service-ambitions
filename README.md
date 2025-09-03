@@ -137,7 +137,9 @@ libraries for telemetry. The `LOGFIRE_TOKEN` environment variable is optional:
 without it, Logfire still records logs and metrics locally but nothing is sent
 to the cloud. Provide a token to stream traces to Logfire. The CLI instruments
 Pydantic, Pydantic AI, OpenAI and system metrics by default. Prompts are
-excluded from logs unless `--allow-prompt-logging` is specified.
+excluded from logs unless `--allow-prompt-logging` is specified. Pass
+`--json-logs` to emit logs as structured JSON and `--trace` to enable
+per‑request timing spans.
 
 See [Logging levels](docs/logging-levels.md) for guidance on TRACE through
 EXCEPTION and when to use each level.

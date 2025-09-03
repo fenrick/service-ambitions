@@ -51,3 +51,25 @@ def test_init_logfire_without_token(monkeypatch):
     monitoring.init_logfire()
 
     assert "token" in called and called["token"] is None
+
+
+def test_init_logfire_json_logs(monkeypatch):
+    called: dict[str, object] = {}
+
+    class ConsoleOptions:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+
+    dummy_module = SimpleNamespace(
+        ConsoleOptions=ConsoleOptions,
+        configure=lambda **kwargs: called.update(kwargs),
+        instrument_system_metrics=lambda **kw: None,
+        instrument_pydantic_ai=lambda: None,
+        instrument_pydantic=lambda: None,
+        instrument_openai=lambda: None,
+    )
+    monkeypatch.setattr(monitoring, "logfire", dummy_module)
+
+    monitoring.init_logfire(json_logs=True)
+
+    assert called["console"].format == "json"
