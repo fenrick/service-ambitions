@@ -234,7 +234,8 @@ class ServiceExecution:
         self.refresh_settings()
         service = self.runtime.service
         self._build_generator()
-        assert self.generator is not None  # mypy safeguard
+        if self.generator is None:
+            raise RuntimeError("Plateau generator is not initialised")
         attrs = {
             "service_id": service.service_id,
             "service_name": service.name,
@@ -249,7 +250,8 @@ class ServiceExecution:
                 runtimes = await self._prepare_runtimes()
                 env = RuntimeEnv.instance()
                 meta = env.run_meta
-                assert meta is not None  # mypy safeguard
+                if meta is None:
+                    raise RuntimeError("Run metadata is not initialised")
                 evolution = await self.generator.generate_service_evolution_async(
                     service,
                     runtimes,
@@ -262,6 +264,8 @@ class ServiceExecution:
                 self.runtime.line = to_json(record).decode()
                 self.runtime.success = True
                 return True
+            except RuntimeError:
+                raise
             except Exception as exc:  # noqa: BLE001
                 quarantine_file = await asyncio.to_thread(
                     _writer.write,
