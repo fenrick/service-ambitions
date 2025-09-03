@@ -9,6 +9,7 @@ from typing import Sequence
 from uuid import uuid4
 
 import logfire
+from pydantic import ValidationError
 from pydantic_ai import Agent
 from pydantic_core import to_json
 
@@ -266,7 +267,7 @@ class ServiceExecution:
                 return True
             except RuntimeError:
                 raise
-            except Exception as exc:  # noqa: BLE001
+            except (ValidationError, ValueError, OSError) as exc:
                 quarantine_file = await asyncio.to_thread(
                     _writer.write,
                     "evolution",
