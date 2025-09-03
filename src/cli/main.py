@@ -194,7 +194,15 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
     """
 
     parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="Path to YAML configuration file",
+    )
+    parser.add_argument(
         "--model",
+        type=str,
+        default=None,
         help=(
             "Global chat model name (default openai:gpt-5). "
             "Can also be set via the MODEL env variable."
@@ -202,10 +210,14 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
     )
     parser.add_argument(
         "--descriptions-model",
+        type=str,
+        default=None,
         help="Model for plateau descriptions (default openai:o4-mini)",
     )
     parser.add_argument(
         "--features-model",
+        type=str,
+        default=None,
         help=(
             "Model for feature generation (default openai:gpt-5; "
             "use openai:o4-mini for lower cost)"
@@ -213,10 +225,14 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
     )
     parser.add_argument(
         "--mapping-model",
+        type=str,
+        default=None,
         help="Model for feature mapping (default openai:o4-mini)",
     )
     parser.add_argument(
         "--search-model",
+        type=str,
+        default=None,
         help="Model for web search (default openai:gpt-4o-search-preview)",
     )
     parser.add_argument(
@@ -238,11 +254,13 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
     parser.add_argument(
         "--concurrency",
         type=int,
+        default=None,
         help="Number of services to process concurrently",
     )
     parser.add_argument(
         "--max-services",
         type=int,
+        default=None,
         help="Process at most this many services",
     )
     parser.add_argument(
@@ -253,11 +271,13 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
     )
     parser.add_argument(
         "--mapping-data-dir",
+        type=str,
         default=None,
         help="Directory containing mapping reference data",
     )
     parser.add_argument(
         "--roles-file",
+        type=str,
         default="data/roles.json",
         help="Path to JSON file containing role identifiers",
     )
@@ -270,17 +290,20 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
     parser.add_argument(
         "--dry-run",
         action="store_true",
+        default=False,
         help="Validate inputs without calling the API",
     )
     parser.add_argument(
         "--progress",
         action="store_true",
+        default=False,
         help="Display a progress bar during execution",
     )
     parser.add_argument(
         "--continue",
         dest="resume",
         action="store_true",
+        default=False,
         help="Resume processing using processed_ids.txt",
     )
     parser.add_argument(
@@ -295,6 +318,7 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
     parser.add_argument(
         "--allow-prompt-logging",
         action="store_true",
+        default=False,
         help="Include raw prompt text in debug logs",
     )
     parser.add_argument(
@@ -325,6 +349,7 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
     )
     parser.add_argument(
         "--cache-dir",
+        type=str,
         default=None,
         help=(
             "Directory to store cache files; defaults to '.cache' in the "
@@ -333,6 +358,8 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
     )
     parser.add_argument(
         "--temp-output-dir",
+        type=str,
+        default=None,
         help="Directory for intermediate JSON records",
     )
 
@@ -348,16 +375,19 @@ def _add_map_subparser(
     parser = subparsers.add_parser(
         "map",
         parents=[common],
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         help="Populate feature mappings",
         description="Populate feature mappings for an existing features file",
     )
     parser.add_argument(
         "--input-file",
+        type=str,
         default="features.jsonl",
         help="Path to the features JSONL file",
     )
     parser.add_argument(
         "--output-file",
+        type=str,
         default="mapped.jsonl",
         help=OUTPUT_FILE_HELP,
     )
@@ -374,6 +404,7 @@ def _add_run_subparser(
     parser = subparsers.add_parser(
         "run",
         parents=[common],
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         help="Generate service evolutions via ProcessingEngine",
         description=(
             "Generate service evolutions using the ProcessingEngine and "
@@ -382,15 +413,19 @@ def _add_run_subparser(
     )
     parser.add_argument(
         "--input-file",
+        type=str,
         default="services.jsonl",
         help=SERVICES_FILE_HELP,
     )
     parser.add_argument(
         "--output-file",
+        type=str,
         default="evolutions.jsonl",
         help=OUTPUT_FILE_HELP,
     )
-    parser.add_argument("--transcripts-dir", help=TRANSCRIPTS_HELP)
+    parser.add_argument(
+        "--transcripts-dir", type=str, default=None, help=TRANSCRIPTS_HELP
+    )
     parser.set_defaults(func=_cmd_run)
     return parser
 
@@ -404,6 +439,7 @@ def _add_validate_subparser(
     parser = subparsers.add_parser(
         "validate",
         parents=[common],
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         help="Generate service evolutions via ProcessingEngine",
         description=(
             "Validate inputs without calling the API and generate service "
@@ -412,15 +448,19 @@ def _add_validate_subparser(
     )
     parser.add_argument(
         "--input-file",
+        type=str,
         default="services.jsonl",
         help=SERVICES_FILE_HELP,
     )
     parser.add_argument(
         "--output-file",
+        type=str,
         default="evolutions.jsonl",
         help=OUTPUT_FILE_HELP,
     )
-    parser.add_argument("--transcripts-dir", help=TRANSCRIPTS_HELP)
+    parser.add_argument(
+        "--transcripts-dir", type=str, default=None, help=TRANSCRIPTS_HELP
+    )
     parser.set_defaults(func=_cmd_validate)
     return parser
 
@@ -434,6 +474,7 @@ def _add_reverse_subparser(
     parser = subparsers.add_parser(
         "reverse",
         parents=[common],
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         help="Rebuild caches from an evolutions file",
         description=(
             "Reconstruct feature and mapping caches from a previously "
@@ -442,11 +483,13 @@ def _add_reverse_subparser(
     )
     parser.add_argument(
         "--input-file",
+        type=str,
         default="evolutions.jsonl",
         help="Path to the evolutions JSONL file",
     )
     parser.add_argument(
         "--output-file",
+        type=str,
         default="features.jsonl",
         help="Path to write extracted features JSONL",
     )
@@ -465,7 +508,11 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    common = _add_common_args(argparse.ArgumentParser(add_help=False))
+    common = _add_common_args(
+        argparse.ArgumentParser(
+            add_help=False, formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        )
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
     _add_map_subparser(subparsers, common)
     _add_reverse_subparser(subparsers, common)
@@ -541,7 +588,7 @@ def main() -> None:
 
     parser = _build_parser()
     args = parser.parse_args()
-    settings = load_settings()
+    settings = load_settings(args.config)
     _apply_args_to_settings(args, settings)
     _execute_subcommand(args, settings)
 

@@ -100,7 +100,10 @@ sys.modules.setdefault(
 )
 sys.modules.setdefault(
     "runtime.settings",
-    cast(types.ModuleType, SimpleNamespace(load_settings=lambda: SimpleNamespace())),
+    cast(
+        types.ModuleType,
+        SimpleNamespace(load_settings=lambda _p=None: SimpleNamespace()),
+    ),
 )
 sys.modules.setdefault(
     "io_utils.service_loader",
@@ -217,7 +220,7 @@ sys.modules.setdefault(
 import cli.main as cli  # noqa: E402
 
 
-def _settings() -> SimpleNamespace:
+def _settings(_config: str | None = None) -> SimpleNamespace:
     """Return minimal settings for the CLI."""
 
     return SimpleNamespace(

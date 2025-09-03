@@ -84,14 +84,19 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore")
 
 
-def load_settings() -> Settings:
+def load_settings(config_path: Path | str | None = None) -> Settings:
     """Load and validate application settings.
 
     Configuration values are read from the application configuration file and
     then merged with environment variables using ``pydantic-settings``. When a
     value is provided in both sources the environment variable wins. A ``.env``
     file in the working directory is loaded automatically when present. The
-    final configuration is validated and returned to the caller.
+    optional ``config_path`` parameter allows overriding the default
+    ``config/app.yaml`` location. The final configuration is validated and
+    returned to the caller.
+
+    Args:
+        config_path: Optional path to a YAML configuration file.
 
     Returns:
         Settings: Fully validated application configuration.
@@ -100,7 +105,11 @@ def load_settings() -> Settings:
         RuntimeError: If required configuration values are missing or invalid.
     """
 
-    config = load_app_config()
+    if config_path:
+        cfg_path = Path(config_path)
+        config = load_app_config(cfg_path.parent, cfg_path.name)
+    else:
+        config = load_app_config()
     env_file_path = Path(".env")
     env_file = env_file_path if env_file_path.exists() else None
     env_use_local_cache = os.getenv("USE_LOCAL_CACHE")

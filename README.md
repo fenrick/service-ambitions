@@ -136,6 +136,8 @@ subcommands to select the desired operation:
 poetry run service-ambitions run --input-file sample-services.jsonl --output-file evolutions.jsonl
 poetry run service-ambitions validate --input-file sample-services.jsonl
 poetry run service-ambitions reverse --input-file evolutions.jsonl --output-file features.jsonl
+# Load an alternate config and preview actions without calling the API
+poetry run service-ambitions run --config config/alt.yaml --dry-run --input-file sample-services.jsonl
 ```
 
 Alternatively, use the provided shell script which forwards all arguments to the CLI:
@@ -152,12 +154,12 @@ Alternatively, use the provided shell script which forwards all arguments to the
 [JSON Lines](https://jsonlines.org/) format, with one JSON object per line. The
 output file will also be in JSON Lines format. Use `--concurrency` to control
 parallel workers, `--max-services` to limit how many entries are processed, and
-`--dry-run` to validate inputs without calling the API. Evolution processing
-runs concurrently with a worker pool bounded by this setting. Pass `--progress`
-to display a progress bar during long runs; it is suppressed automatically in
-CI environments or when stdout is not a TTY. Provide `--seed` to make
-stochastic behaviour such as backoff jitter deterministic during tests and
-demos.
+`--dry-run` to validate inputs without calling the API. Supply `--config` to
+point at a custom `app.yaml`. Evolution processing runs concurrently with a
+worker pool bounded by this setting. Pass `--progress` to display a progress
+bar during long runs; it is suppressed automatically in CI environments or when
+stdout is not a TTY. Provide `--seed` to make stochastic behaviour such as
+backoff jitter deterministic during tests and demos.
 
 ## Concurrency control
 

@@ -65,7 +65,7 @@ def test_cli_reverse_generates_caches(monkeypatch, tmp_path) -> None:
         context_id="unknown",
         model="gpt-5",
     )
-    monkeypatch.setattr(cli, "load_settings", lambda: settings)
+    monkeypatch.setattr(cli, "load_settings", lambda _path=None: settings)
     monkeypatch.setattr(cli, "_configure_logging", lambda *a, **k: None)
     monkeypatch.setattr(telemetry, "reset", lambda: None)
     monkeypatch.setattr(telemetry, "print_summary", lambda: None)
