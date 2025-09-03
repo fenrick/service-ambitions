@@ -15,7 +15,7 @@ import asyncio
 import hashlib
 import json
 import time
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager, nullcontext, suppress
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Literal, cast
 
@@ -268,6 +268,85 @@ class ConversationSession:
             span.set_attribute("total_tokens", tokens)
             span.set_attribute("duration", duration)
 
+    def _load_cache_payload(
+        self,
+        path_to_use: Path,
+        cache_file: Path,
+        out_type: type[Any] | None,
+    ) -> Any:
+        """Return cached payload validating against ``out_type``."""
+
+        try:
+            with path_to_use.open("rb") as fh:
+                data = from_json(fh.read())
+            if out_type and hasattr(out_type, "model_validate"):
+                payload = cast(Any, out_type).model_validate(data)
+                dump = payload.model_dump()
+            else:
+                payload = data
+                dump = data
+            if path_to_use != cache_file:
+                cache_write_json_atomic(
+                    cache_file,
+                    dump if not isinstance(dump, str) else json.dumps(dump),
+                )
+                with suppress(OSError):
+                    path_to_use.unlink()
+            self.last_tokens = 0
+            return payload
+        except (ValidationError, ValueError, OSError) as exc:
+            raise RuntimeError(f"Invalid cache file: {path_to_use}") from exc
+
+    def _try_cache_read(
+        self,
+        prompt: str,
+        model_name: str,
+        stage: str,
+        feature_id: str | None,
+        out_type: type[Any] | None,
+    ) -> tuple[Any | None, Path | None, bool]:
+        """Return cached payload and write flag if applicable."""
+
+        if not self.use_local_cache:
+            return None, None, False
+        if self.cache_mode == "off":
+            return None, None, False
+        key = _prompt_cache_key(prompt, model_name, stage)
+        svc = self._service_id or "unknown"
+        cache_file = _prompt_cache_path(svc, stage, key, feature_id)
+        service_root = _service_cache_root(svc)
+        path_to_use = _find_cache_file(service_root, key, cache_file)
+        exists_before = path_to_use is not None
+        if self.cache_mode == "read" and path_to_use:
+            payload = self._load_cache_payload(path_to_use, cache_file, out_type)
+            return payload, cache_file, False
+        write_after_call = self.cache_mode == "refresh" or (
+            self.cache_mode in {"write", "read"} and not exists_before
+        )
+        return None, cache_file, write_after_call
+
+    async def _invoke_runner(
+        self,
+        prompt: str,
+        runner: Callable[[str, list[messages.ModelMessage]], Awaitable[Any]],
+        stage: str,
+        model_name: str,
+    ) -> tuple[Any, int]:
+        """Execute ``runner`` and return output and token count."""
+
+        self._log_prompt(prompt)
+        result = await runner(prompt, self._history)
+        return self._handle_success(result, stage, model_name)
+
+    def _write_cache_result(self, cache_file: Path, output: Any) -> None:
+        """Persist ``output`` to ``cache_file`` as JSON."""
+
+        content = output.model_dump() if hasattr(output, "model_dump") else output
+        cache_write_json_atomic(
+            cache_file,
+            content if not isinstance(content, str) else json.dumps(content),
+        )
+
     async def _ask_common(
         self,
         prompt: str,
@@ -277,65 +356,22 @@ class ConversationSession:
     ) -> Any:
         stage = self.stage or "unknown"
         model_name = getattr(getattr(self.client, "model", None), "model_name", "")
-        cache_file: Path | None = None
-        write_after_call = False
         out_type = cast(type[Any] | None, getattr(self.client, "output_type", None))
-        if self.use_local_cache and self.cache_mode != "off":
-            key = _prompt_cache_key(prompt, model_name, stage)
-            svc = self._service_id or "unknown"
-            cache_file = _prompt_cache_path(svc, stage, key, feature_id)
-            service_root = _service_cache_root(svc)
-            path_to_use = _find_cache_file(service_root, key, cache_file)
-            exists_before = path_to_use is not None
-            if self.cache_mode == "read" and path_to_use:
-                try:
-                    with path_to_use.open("rb") as fh:
-                        data = from_json(fh.read())
-                    if out_type and hasattr(out_type, "model_validate"):
-                        payload = cast(Any, out_type).model_validate(data)
-                        dump = payload.model_dump()
-                    else:
-                        payload = data
-                        dump = data
-                    if path_to_use != cache_file:
-                        cache_write_json_atomic(
-                            cache_file,
-                            dump if not isinstance(dump, str) else json.dumps(dump),
-                        )
-                        try:
-                            path_to_use.unlink()
-                        except OSError:
-                            pass
-                    self.last_tokens = 0
-                    return payload
-                except (ValidationError, ValueError, OSError) as exc:
-                    raise RuntimeError(f"Invalid cache file: {path_to_use}") from exc
-            if self.cache_mode == "refresh":
-                write_after_call = True
-            elif self.cache_mode == "write" and not exists_before:
-                write_after_call = True
-            elif self.cache_mode == "read" and not exists_before:
-                write_after_call = True
+        payload, cache_file, write_after_call = self._try_cache_read(
+            prompt, model_name, stage, feature_id, out_type
+        )
+        if payload is not None:
+            return payload
 
         tokens = 0
         start = time.monotonic()
         with self._prepare_span(span_name, stage, model_name) as span:
             try:
-                self._log_prompt(prompt)
-                result = await runner(prompt, self._history)
-                output, tokens = self._handle_success(result, stage, model_name)
+                output, tokens = await self._invoke_runner(
+                    prompt, runner, stage, model_name
+                )
                 if cache_file and write_after_call:
-                    content = (
-                        output.model_dump() if hasattr(output, "model_dump") else output
-                    )
-                    cache_write_json_atomic(
-                        cache_file,
-                        (
-                            content
-                            if not isinstance(content, str)
-                            else json.dumps(content)
-                        ),
-                    )
+                    self._write_cache_result(cache_file, output)
                 self.last_tokens = tokens
                 await self._write_transcript(prompt, output)
                 return output
