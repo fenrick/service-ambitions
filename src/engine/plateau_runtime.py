@@ -12,7 +12,12 @@ from pydantic import ValidationError
 from pydantic_core import from_json
 
 from core.conversation import ConversationSession
-from core.mapping import cache_write_json_atomic, group_features_by_mapping, map_set
+from core.mapping import (
+    MapSetParams,
+    cache_write_json_atomic,
+    group_features_by_mapping,
+    map_set,
+)
 from io_utils.loader import load_mapping_items, load_prompt_text
 from models import (
     FeatureItem,
@@ -435,11 +440,7 @@ class PlateauRuntime:
 
         set_session = session.derive()
         set_session.stage = f"mapping_{cfg.field}"
-        result = await map_set(
-            set_session,
-            cfg.field,
-            items[cfg.field],
-            list(self.features),
+        params = MapSetParams(
             service_name=service_name,
             service_description=service_description,
             plateau=self.plateau,
@@ -447,6 +448,13 @@ class PlateauRuntime:
             strict=strict,
             cache_mode=(cache_mode if use_local_cache else "off"),
             catalogue_hash=catalogue_hash,
+        )
+        result = await map_set(
+            set_session,
+            cfg.field,
+            items[cfg.field],
+            list(self.features),
+            params,
         )
         return group_features_by_mapping(result, cfg.field, items[cfg.field])
 

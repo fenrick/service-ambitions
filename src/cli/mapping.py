@@ -70,11 +70,7 @@ async def _apply_mapping_sets(
 
     mapped = list(features)
     for cfg in settings.mapping_sets:  # Apply each mapping set sequentially.
-        mapped = await mapping.map_set(
-            cast(ConversationSession, object()),
-            cfg.field,
-            items[cfg.field],
-            mapped,
+        params = mapping.MapSetParams(
             service_name="svc",
             service_description="desc",
             plateau=1,
@@ -82,6 +78,13 @@ async def _apply_mapping_sets(
             diagnostics=settings.diagnostics,
             cache_mode=cache_mode,
             catalogue_hash=catalogue_hash,
+        )
+        mapped = await mapping.map_set(
+            cast(ConversationSession, object()),
+            cfg.field,
+            items[cfg.field],
+            mapped,
+            params,
         )
     return mapped
 

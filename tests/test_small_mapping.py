@@ -2,7 +2,7 @@
 import asyncio
 import json
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import pytest
 from pydantic_core import from_json
@@ -10,6 +10,7 @@ from pydantic_core import from_json
 from core import mapping
 from core.canonical import canonicalise_record
 from core.conversation import ConversationSession
+from core.mapping import MapSetParams
 from io_utils import loader
 from models import MappingResponse, MappingSet, ServiceEvolution
 
@@ -35,6 +36,12 @@ def _load_evolutions() -> list[ServiceEvolution]:
         for line in text.splitlines()
         if line.strip()
     ]
+
+
+def _params(**kwargs: Any) -> MapSetParams:
+    return MapSetParams(
+        service_name="svc", service_description="desc", plateau=1, **kwargs
+    )
 
 
 def test_mapping_run_matches_golden(tmp_path) -> None:
@@ -67,10 +74,7 @@ def test_mapping_run_matches_golden(tmp_path) -> None:
             "applications",
             items["applications"],
             features,
-            service_name="svc",
-            service_description="desc",
-            plateau=1,
-            catalogue_hash=catalogue_hash,
+            _params(catalogue_hash=catalogue_hash),
         )
     )
     session_tech = DummySession(
@@ -91,10 +95,7 @@ def test_mapping_run_matches_golden(tmp_path) -> None:
             "technologies",
             items["technologies"],
             mapped,
-            service_name="svc",
-            service_description="desc",
-            plateau=1,
-            catalogue_hash=catalogue_hash,
+            _params(catalogue_hash=catalogue_hash),
         )
     )
     by_id = {f.feature_id: f for f in mapped}
@@ -152,10 +153,7 @@ def test_default_mode_quarantines_unknown_ids(monkeypatch, tmp_path) -> None:
             "applications",
             items["applications"],
             features,
-            service_name="svc",
-            service_description="desc",
-            plateau=1,
-            catalogue_hash=catalogue_hash,
+            _params(catalogue_hash=catalogue_hash),
         )
     )
     assert mapped[0].mappings["applications"][0].item == "app1"
@@ -196,11 +194,7 @@ def test_strict_mapping_raises_on_unknown_ids(monkeypatch, tmp_path) -> None:
                 "applications",
                 items["applications"],
                 features,
-                service_name="svc",
-                service_description="desc",
-                plateau=1,
-                strict=True,
-                catalogue_hash=catalogue_hash,
+                _params(strict=True, catalogue_hash=catalogue_hash),
             )
         )
     qfile = Path("quarantine/unknown/applications/unknown_ids_1.json")

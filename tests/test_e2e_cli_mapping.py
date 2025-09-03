@@ -45,7 +45,7 @@ def _settings() -> SimpleNamespace:
 def _stub_map_set(*args, **kwargs):
     """Return deterministic mappings for test features."""
 
-    session, set_name, _, features = args[:4]
+    session, set_name, _, features, *rest = args
     mapped = []
     for feat in features:
         mappings = dict(feat.mappings)

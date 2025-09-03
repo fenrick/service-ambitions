@@ -16,6 +16,7 @@ import hashlib
 import json
 import time
 from contextlib import contextmanager, nullcontext, suppress
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Literal, cast
 
@@ -297,6 +298,14 @@ class ConversationSession:
         except (ValidationError, ValueError, OSError) as exc:
             raise RuntimeError(f"Invalid cache file: {path_to_use}") from exc
 
+    @dataclass
+    class CacheResult:
+        """Capture cache lookup details."""
+
+        payload: Any | None
+        cache_file: Path | None
+        write_after_call: bool
+
     def _try_cache_read(
         self,
         prompt: str,
@@ -304,13 +313,13 @@ class ConversationSession:
         stage: str,
         feature_id: str | None,
         out_type: type[Any] | None,
-    ) -> tuple[Any | None, Path | None, bool]:
+    ) -> CacheResult:
         """Return cached payload and write flag if applicable."""
 
         if not self.use_local_cache:
-            return None, None, False
+            return ConversationSession.CacheResult(None, None, False)
         if self.cache_mode == "off":
-            return None, None, False
+            return ConversationSession.CacheResult(None, None, False)
         key = _prompt_cache_key(prompt, model_name, stage)
         svc = self._service_id or "unknown"
         cache_file = _prompt_cache_path(svc, stage, key, feature_id)
@@ -319,11 +328,11 @@ class ConversationSession:
         exists_before = path_to_use is not None
         if self.cache_mode == "read" and path_to_use:
             payload = self._load_cache_payload(path_to_use, cache_file, out_type)
-            return payload, cache_file, False
+            return ConversationSession.CacheResult(payload, cache_file, False)
         write_after_call = self.cache_mode == "refresh" or (
             self.cache_mode in {"write", "read"} and not exists_before
         )
-        return None, cache_file, write_after_call
+        return ConversationSession.CacheResult(None, cache_file, write_after_call)
 
     async def _invoke_runner(
         self,
@@ -347,22 +356,23 @@ class ConversationSession:
             content if not isinstance(content, str) else json.dumps(content),
         )
 
-    async def _ask_common(
+    def _session_details(self) -> tuple[str, str, type[Any] | None]:
+        """Return stage, model name and output type for the session."""
+
+        stage = self.stage or "unknown"
+        model_name = getattr(getattr(self.client, "model", None), "model_name", "")
+        out_type = cast(type[Any] | None, getattr(self.client, "output_type", None))
+        return stage, model_name, out_type
+
+    async def _execute_with_cache(
         self,
         prompt: str,
         runner: Callable[[str, list[messages.ModelMessage]], Awaitable[Any]],
         span_name: str,
-        feature_id: str | None = None,
+        stage: str,
+        model_name: str,
+        cache: CacheResult,
     ) -> Any:
-        stage = self.stage or "unknown"
-        model_name = getattr(getattr(self.client, "model", None), "model_name", "")
-        out_type = cast(type[Any] | None, getattr(self.client, "output_type", None))
-        payload, cache_file, write_after_call = self._try_cache_read(
-            prompt, model_name, stage, feature_id, out_type
-        )
-        if payload is not None:
-            return payload
-
         tokens = 0
         start = time.monotonic()
         with self._prepare_span(span_name, stage, model_name) as span:
@@ -370,8 +380,8 @@ class ConversationSession:
                 output, tokens = await self._invoke_runner(
                     prompt, runner, stage, model_name
                 )
-                if cache_file and write_after_call:
-                    self._write_cache_result(cache_file, output)
+                if cache.cache_file and cache.write_after_call:
+                    self._write_cache_result(cache.cache_file, output)
                 self.last_tokens = tokens
                 await self._write_transcript(prompt, output)
                 return output
@@ -381,15 +391,25 @@ class ConversationSession:
                 OSError,
                 RuntimeError,
             ) as exc:  # pragma: no cover - defensive logging
-                self._handle_failure(
-                    exc,
-                    stage,
-                    model_name,
-                    tokens,
-                )
+                self._handle_failure(exc, stage, model_name, tokens)
                 raise
             finally:
                 self._finalise_metrics(span, tokens, start)
+
+    async def _ask_common(
+        self,
+        prompt: str,
+        runner: Callable[[str, list[messages.ModelMessage]], Awaitable[Any]],
+        span_name: str,
+        feature_id: str | None = None,
+    ) -> Any:
+        stage, model_name, out_type = self._session_details()
+        cache = self._try_cache_read(prompt, model_name, stage, feature_id, out_type)
+        if cache.payload is not None:
+            return cache.payload
+        return await self._execute_with_cache(
+            prompt, runner, span_name, stage, model_name, cache
+        )
 
     def ask(
         self,

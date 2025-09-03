@@ -190,7 +190,9 @@ async def test_run_mapping_set_invokes_map_and_groups(monkeypatch) -> None:
     groups = [MappingFeatureGroup(id="x", name="X", mappings=[])]
     called: dict[str, object] = {}
 
-    async def fake_map_set(session, name, items_list, feats, **kwargs):  # noqa: ANN001
+    async def fake_map_set(
+        session, name, items_list, feats, params, **kwargs
+    ):  # noqa: ANN001
         called["set_name"] = name
         called["stage"] = session.stage
         return list(feats)
