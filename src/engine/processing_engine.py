@@ -217,9 +217,13 @@ class ProcessingEngine:
         self.role_ids = role_ids
         self.services = services
 
-    def _init_sessions(self, total: int) -> None:
-        """Create concurrency, progress and error-handling helpers."""
+    def _init_sessions(self) -> None:
+        """Create concurrency, progress and error-handling helpers.
 
+        The total number of services is derived from ``self.services``.
+        """
+
+        total = len(self.services or [])
         self.sem = self._setup_concurrency()
         self.progress = self._create_progress(total)
         self.temp_output_dir = (
@@ -299,11 +303,10 @@ class ProcessingEngine:
                 input_file=self.args.input_file,
             )
             self._prepare_models()
-            services = self.services or []
             if self.args.dry_run:
-                logfire.info("Validated services", count=len(services))
+                logfire.info("Validated services", count=len(self.services or []))
                 return True
-            self._init_sessions(len(services))
+            self._init_sessions()
             success = await self._generate_evolution()
             if self.progress:
                 self.progress.close()
