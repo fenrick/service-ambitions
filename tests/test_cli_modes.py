@@ -9,7 +9,7 @@ import cli.main as cli
 from runtime.environment import RuntimeEnv
 
 
-def _prepare_settings():
+def _prepare_settings(_config: str | None = None):
     """Return minimal settings namespace for CLI tests."""
 
     return SimpleNamespace(
@@ -159,3 +159,23 @@ def test_apply_args_to_settings_updates_settings():
     assert settings.cache_mode == "off"
     assert settings.cache_dir == Path("/tmp/cache")
     assert settings.strict is True
+
+
+def test_run_passes_config_path(monkeypatch, tmp_path):
+    """Providing --config forwards the path to load_settings."""
+
+    called: dict[str, str | None] = {}
+
+    def _fake_settings(path=None):
+        called["config"] = path
+        return _prepare_settings()
+
+    monkeypatch.setattr(cli, "load_settings", _fake_settings)
+    monkeypatch.setattr(cli, "_cmd_generate_evolution", lambda *a, **k: None)
+    monkeypatch.setattr(cli, "_configure_logging", lambda *a, **k: None)
+    cfg = tmp_path / "alt.yaml"
+    monkeypatch.setattr(sys, "argv", ["main", "run", "--dry-run", "--config", str(cfg)])
+
+    cli.main()
+
+    assert called["config"] == str(cfg)

@@ -10,9 +10,10 @@ def test_add_common_args_parses_model():
     """Common parser should accept shared options."""
 
     parser = cli._add_common_args(argparse.ArgumentParser())
-    args = parser.parse_args(["--model", "foo", "--verbose"])
+    args = parser.parse_args(["--model", "foo", "--verbose", "--config", "c.yaml"])
     assert args.model == "foo"
     assert args.verbose == 1
+    assert args.config == "c.yaml"
 
 
 def _setup_parser():
