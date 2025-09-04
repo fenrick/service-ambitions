@@ -16,6 +16,7 @@ from typing import Literal
 from pydantic import Field, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from constants import DEFAULT_CACHE_DIR
 from io_utils.loader import load_app_config
 from models import MappingSet, ReasoningConfig, StageModels
 
@@ -52,7 +53,7 @@ class Settings(BaseSettings):
         "read", description="Caching strategy for local cache entries."
     )
     cache_dir: Path = Field(
-        Path(".cache"), description="Directory to store cache files."
+        DEFAULT_CACHE_DIR, description="Directory to store cache files."
     )
     openai_api_key: str = Field(..., description="OpenAI API access token.")
     logfire_token: str | None = Field(
@@ -106,6 +107,20 @@ def load_settings() -> Settings:
     env_use_local_cache = os.getenv("USE_LOCAL_CACHE")
     env_cache_mode = os.getenv("CACHE_MODE")
     env_cache_dir = os.getenv("CACHE_DIR")
+    raw_cache_dir = env_cache_dir or str(
+        getattr(config, "cache_dir", DEFAULT_CACHE_DIR)
+    )
+    cache_dir = Path(os.path.expandvars(raw_cache_dir)).expanduser()
+    try:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        test_file = cache_dir / ".write_test"
+        with test_file.open("w", encoding="utf-8"):
+            pass
+        test_file.unlink(missing_ok=True)
+    except OSError as exc:
+        raise RuntimeError(
+            f"Cannot access cache directory '{cache_dir}': {exc}"
+        ) from exc
     try:
         # Validate and merge configuration from file, env file and environment.
         return Settings(
@@ -127,11 +142,7 @@ def load_settings() -> Settings:
                 else getattr(config, "use_local_cache", True)
             ),
             cache_mode=env_cache_mode or getattr(config, "cache_mode", "read"),
-            cache_dir=(
-                Path(env_cache_dir)
-                if env_cache_dir
-                else getattr(config, "cache_dir", Path(".cache"))
-            ),
+            cache_dir=cache_dir,
             web_search=config.web_search,
             mapping_data_dir=getattr(config, "mapping_data_dir", Path("data")),
             mapping_sets=getattr(config, "mapping_sets", []),

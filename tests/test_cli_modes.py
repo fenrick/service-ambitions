@@ -1,17 +1,21 @@
 # SPDX-License-Identifier: MIT
 """Integration tests for CLI subcommands."""
 
+import importlib
+import os
 import sys
 from pathlib import Path
 from types import SimpleNamespace
 
-import cli.main as cli
 from runtime.environment import RuntimeEnv
+
+cli = importlib.import_module("cli.main")
 
 
 def _prepare_settings():
     """Return minimal settings namespace for CLI tests."""
 
+    cache_dir = Path(os.environ.get("XDG_CACHE_HOME", "/tmp")) / "service-ambitions"
     return SimpleNamespace(
         log_level="INFO",
         logfire_token=None,
@@ -22,7 +26,7 @@ def _prepare_settings():
         models=None,
         use_local_cache=True,
         cache_mode="read",
-        cache_dir=Path(".cache"),
+        cache_dir=cache_dir,
     )
 
 
@@ -90,7 +94,10 @@ def test_cache_args_defaults(monkeypatch):
     assert args.cache_dir is None
     assert settings.use_local_cache is True
     assert settings.cache_mode == "read"
-    assert settings.cache_dir == Path(".cache")
+    assert (
+        settings.cache_dir
+        == Path(os.environ.get("XDG_CACHE_HOME", "/tmp")) / "service-ambitions"
+    )
 
 
 def test_cache_args_custom(monkeypatch):

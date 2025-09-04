@@ -90,13 +90,14 @@ retains an in-memory cache.  Plateau definitions, default plateau maps
 and role identifiers use similar loaders that cache results on first
 use.
 
-Feature and mapping outputs are cached on disk.  The cache layout is
-scoped by context, service and plateau:
+Feature and mapping outputs are cached on disk.  The cache root defaults to
+``${XDG_CACHE_HOME:-/tmp}/service-ambitions`` and the layout is scoped by
+context, service and plateau:
 
 ```
-.cache/<context>/<service_id>/<descriptions>.json
-.cache/<context>/<service_id>/<plateau>/<features>.json
-.cache/<context>/<service_id>/<plateau>/mappings/<set>/<file>.json
+<cache_dir>/<context>/<service_id>/<descriptions>.json
+<cache_dir>/<context>/<service_id>/<plateau>/<features>.json
+<cache_dir>/<context>/<service_id>/<plateau>/mappings/<set>/<file>.json
 ```
 
 Legacy files are discovered and relocated to the canonical structure.

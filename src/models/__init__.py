@@ -21,6 +21,8 @@ from pydantic import (
     model_validator,
 )
 
+from constants import DEFAULT_CACHE_DIR
+
 SCHEMA_VERSION = "1.0"
 
 
@@ -493,7 +495,7 @@ class AppConfig(StrictModel):
     cache_dir: Annotated[
         Path,
         Field(description="Directory to store cache files."),
-    ] = Path(".cache")
+    ] = DEFAULT_CACHE_DIR
     mapping_sets: list[MappingSet] = Field(
         default_factory=list,
         description="Mapping dataset configurations.",

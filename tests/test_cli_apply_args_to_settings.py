@@ -3,13 +3,14 @@
 
 from __future__ import annotations
 
+import importlib
 import os
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-import cli.main as cli
+cli = importlib.import_module("cli.main")
 
 os.environ.setdefault("OPENAI_API_KEY", "test-key")
 
@@ -17,6 +18,7 @@ os.environ.setdefault("OPENAI_API_KEY", "test-key")
 def _prepare_settings():
     """Return minimal settings namespace for CLI tests."""
 
+    cache_dir = Path(os.environ.get("XDG_CACHE_HOME", "/tmp")) / "service-ambitions"
     return SimpleNamespace(
         log_level="INFO",
         logfire_token=None,
@@ -27,7 +29,7 @@ def _prepare_settings():
         models=None,
         use_local_cache=True,
         cache_mode="read",
-        cache_dir=Path(".cache"),
+        cache_dir=cache_dir,
     )
 
 

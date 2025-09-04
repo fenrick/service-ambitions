@@ -13,6 +13,7 @@ from typing import Any, Callable, Coroutine, cast
 import logfire
 from pydantic_core import to_json
 
+from constants import DEFAULT_CACHE_DIR
 from core.canonical import canonicalise_record
 from core.mapping import build_cache_key, cache_path, cache_write_json_atomic
 from engine.processing_engine import ProcessingEngine
@@ -326,10 +327,7 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
     parser.add_argument(
         "--cache-dir",
         default=None,
-        help=(
-            "Directory to store cache files; defaults to '.cache' in the "
-            "current working directory"
-        ),
+        help=f"Directory to store cache files; defaults to '{DEFAULT_CACHE_DIR}'",
     )
     parser.add_argument(
         "--temp-output-dir",

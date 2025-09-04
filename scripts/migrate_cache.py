@@ -8,6 +8,8 @@ from pathlib import Path
 import logfire
 from pydantic_core import from_json, to_json
 
+from constants import DEFAULT_CACHE_DIR
+
 
 def migrate(root: Path, context: str) -> None:
     """Rewrite caches under ``root`` into context/service hierarchy."""
@@ -50,7 +52,7 @@ def main() -> None:
         print("Usage: migrate_cache.py <context> [cache_dir]", file=sys.stderr)
         raise SystemExit(1)
     context = sys.argv[1]
-    root = Path(sys.argv[2]) if len(sys.argv) > 2 else Path(".cache")
+    root = Path(sys.argv[2]) if len(sys.argv) > 2 else DEFAULT_CACHE_DIR
     migrate(root, context)
 
 

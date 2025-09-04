@@ -25,6 +25,7 @@ from pydantic import ValidationError
 from pydantic_ai import Agent, messages
 from pydantic_core import from_json, to_json
 
+from constants import DEFAULT_CACHE_DIR
 from models import ServiceInput
 from runtime.environment import RuntimeEnv
 
@@ -48,7 +49,7 @@ def _prompt_cache_path(
         cache_root = settings.cache_dir
         context = settings.context_id
     except RuntimeError:  # pragma: no cover - fallback when settings unavailable
-        cache_root = Path(".cache")
+        cache_root = DEFAULT_CACHE_DIR
         context = "unknown"
 
     if stage.startswith("mapping_"):
@@ -77,7 +78,7 @@ def _service_cache_root(service: str) -> Path:
         settings = RuntimeEnv.instance().settings
         root = settings.cache_dir / settings.context_id / service
     except RuntimeError:  # pragma: no cover - fallback when settings unavailable
-        root = Path(".cache") / "unknown" / service
+        root = DEFAULT_CACHE_DIR / "unknown" / service
     return root
 
 
