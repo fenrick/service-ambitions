@@ -375,9 +375,10 @@ stored in `config/app.yaml`; the chat model and any reasoning parameters live
 at the top level, while mapping types and their associated datasets live under
 the `mapping_types` section, allowing new categories to be added without code
 changes. Plateau definitions and their level mappings come from
-`data/service_feature_plateaus.json`. Roles are defined in `data/roles.json`,
-and the required number of features per role is controlled by
-`features_per_role` in `config/app.yaml`.
+`data/service_feature_plateaus.json`. Roles are defined in `data/roles.json`
+by default and can be overridden with the ``--roles-file`` CLI flag. The
+required number of features per role is controlled by `features_per_role` in
+`config/app.yaml`.
 
 ## Prompt examples
 

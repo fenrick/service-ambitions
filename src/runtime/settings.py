@@ -66,6 +66,10 @@ class Settings(BaseSettings):
     mapping_data_dir: Path = Field(
         Path("data"), description="Directory containing mapping reference data."
     )
+    roles_file: Path = Field(
+        Path("data/roles.json"),
+        description="Path to JSON file containing role identifiers.",
+    )
     mapping_sets: list[MappingSet] = Field(
         default_factory=list,
         description="Mapping dataset configurations.",
@@ -154,6 +158,11 @@ def load_settings(config_path: Path | str | None = None) -> Settings:
             cache_dir=cache_dir,
             web_search=config.web_search,
             mapping_data_dir=getattr(config, "mapping_data_dir", Path("data")),
+            roles_file=getattr(
+                config,
+                "roles_file",
+                Path("data/roles.json"),
+            ),
             mapping_sets=getattr(config, "mapping_sets", []),
             diagnostics=getattr(config, "diagnostics", False),
             strict=getattr(config, "strict", False),

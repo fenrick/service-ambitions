@@ -177,7 +177,7 @@ class ProcessingEngine:
         configure_prompt_dir(settings.prompt_dir)
         configure_mapping_data_dir(settings.mapping_data_dir)
         system_prompt = load_evolution_prompt(settings.context_id, settings.inspiration)
-        role_ids = load_role_ids(Path(self.args.roles_file))
+        role_ids = load_role_ids(self.settings.roles_file)
         services = _load_services_list(
             self.args.input_file, self.args.max_services, self.processed_ids
         )

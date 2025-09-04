@@ -84,7 +84,11 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
     RuntimeEnv.initialize(
         cast(
             Any,
-            SimpleNamespace(mapping_data_dir=Path("data"), prompt_dir=Path("prompts")),
+            SimpleNamespace(
+                mapping_data_dir=Path("data"),
+                prompt_dir=Path("prompts"),
+                roles_file=Path("data/roles.json"),
+            ),
         )
     )
     generator = PlateauGenerator(
