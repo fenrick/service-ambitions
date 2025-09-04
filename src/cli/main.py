@@ -605,6 +605,7 @@ def _apply_args_to_settings(args: argparse.Namespace, settings) -> None:
         "concurrency": ("concurrency", None),
         "strict_mapping": ("strict_mapping", None),
         "mapping_data_dir": ("mapping_data_dir", Path),
+        "roles_file": ("roles_file", Path),
         "web_search": ("web_search", None),
         "use_local_cache": ("use_local_cache", None),
         "cache_mode": ("cache_mode", None),

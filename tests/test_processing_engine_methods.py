@@ -34,6 +34,7 @@ def _make_settings() -> SimpleNamespace:
         reasoning=None,
         prompt_dir=Path("prompts"),
         mapping_data_dir=Path("mapping"),
+        roles_file=Path("data/roles.json"),
         context_id="ctx",
         inspiration="insp",
         concurrency=2,

@@ -139,6 +139,7 @@ async def test_map_features_maps_all_sets_with_full_list(monkeypatch) -> None:
                 mapping_sets=mapping_sets,
                 mapping_data_dir=Path("data"),
                 prompt_dir=Path("prompts"),
+                roles_file=Path("data/roles.json"),
             ),
         )
     )
@@ -1190,6 +1191,7 @@ async def test_init_runtimes_generates_defaults(monkeypatch) -> None:
         cache_mode="read",
         mapping_data_dir=Path("data"),
         prompt_dir=Path("prompts"),
+        roles_file=Path("data/roles.json"),
     )
     RuntimeEnv.initialize(cast(Any, settings))
     session = DummySession([])
