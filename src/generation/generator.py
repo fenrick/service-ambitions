@@ -12,7 +12,9 @@ import asyncio
 import os
 import random
 from asyncio import Semaphore, TaskGroup
+from collections import Counter
 from dataclasses import dataclass
+from importlib import import_module
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, TextIO, TypeVar
 
@@ -33,6 +35,7 @@ from models import ReasoningConfig, ServiceInput
 
 SERVICES_PROCESSED = logfire.metric_counter("services_processed")
 SERVICES_FAILED = logfire.metric_counter("services_failed")
+FAILURES_BY_EXCEPTION = logfire.metric_counter("failures_by_exception")
 
 T = TypeVar("T")
 
@@ -52,34 +55,101 @@ class _RunContext:
 # Transient failures that warrant a retry. Provider specific errors are optional
 # to avoid hard dependencies when the SDK is absent.
 if TYPE_CHECKING:
-    from openai import APIConnectionError as OpenAIAPIConnectionError
     from openai import OpenAIError
     from openai import RateLimitError as OpenAIRateLimitError
 else:
     try:
-        from openai import APIConnectionError as OpenAIAPIConnectionError
         from openai import OpenAIError
         from openai import RateLimitError as OpenAIRateLimitError
-    except ImportError:
-
-        class OpenAIAPIConnectionError(Exception):
-            """Fallback when OpenAI SDK is absent."""
-
-        class OpenAIRateLimitError(Exception):
-            """Fallback when OpenAI SDK is absent."""
+    except ImportError:  # pragma: no cover - optional dependency
 
         class OpenAIError(Exception):
             """Fallback when OpenAI SDK is absent."""
 
+        OpenAIRateLimitError = None  # type: ignore[assignment]
 
-TRANSIENT_EXCEPTIONS: tuple[type[BaseException], ...] = (
-    asyncio.TimeoutError,
-    ConnectionError,
-    OpenAIAPIConnectionError,
-    OpenAIRateLimitError,
-)
 
 RateLimitError = OpenAIRateLimitError
+
+
+PROVIDER_EXCEPTION_MAP: dict[str, tuple[str, ...]] = {
+    "openai": (
+        "openai.APIConnectionError",
+        "openai.RateLimitError",
+    )
+}
+
+
+def _import_exception(path: str) -> type[BaseException] | None:
+    """Return exception type from ``path`` or ``None`` if unavailable."""
+
+    try:
+        module_name, exc_name = path.rsplit(".", 1)
+        module = import_module(module_name)
+        exc = getattr(module, exc_name)
+    except Exception:  # pragma: no cover - defensive
+        return None
+    return exc if isinstance(exc, type) and issubclass(exc, BaseException) else None
+
+
+def _load_transient_exceptions() -> tuple[type[BaseException], ...]:
+    """Construct the transient exception set based on configuration."""
+
+    exceptions: list[type[BaseException]] = [asyncio.TimeoutError, ConnectionError]
+    provider = os.getenv("LLM_PROVIDER", "openai")
+    for path in PROVIDER_EXCEPTION_MAP.get(
+        provider, ()
+    ):  # pragma: no branch - simple loop
+        exc = _import_exception(path)
+        if exc is not None:
+            exceptions.append(exc)
+    extra = os.getenv("ADDITIONAL_TRANSIENT_EXCEPTIONS")
+    if extra:
+        for path in extra.split(","):
+            exc = _import_exception(path.strip())
+            if exc is not None:
+                exceptions.append(exc)
+    return tuple(exceptions)
+
+
+TRANSIENT_EXCEPTIONS: tuple[type[BaseException], ...] = _load_transient_exceptions()
+
+
+def extend_transient_exceptions(*exception_types: type[BaseException]) -> None:
+    """Extend ``TRANSIENT_EXCEPTIONS`` with additional types."""
+
+    global TRANSIENT_EXCEPTIONS
+    TRANSIENT_EXCEPTIONS = tuple({*TRANSIENT_EXCEPTIONS, *exception_types})
+
+
+class CircuitBreaker:
+    """Simple circuit breaker pausing after repeated failures."""
+
+    def __init__(self, threshold: int = 5, timeout: float = 30.0) -> None:
+        self.threshold = threshold
+        self.timeout = timeout
+        self.failures = 0
+        self._lock = asyncio.Lock()
+
+    async def record_failure(self) -> None:
+        """Record a failure and pause if the threshold is exceeded."""
+
+        async with self._lock:
+            self.failures += 1
+            if self.failures >= self.threshold:
+                logfire.warning(
+                    "Circuit breaker activated",
+                    pause=self.timeout,
+                    failures=self.failures,
+                )
+                await asyncio.sleep(self.timeout)
+                self.failures = 0
+
+    async def record_success(self) -> None:
+        """Reset the failure count after a successful call."""
+
+        async with self._lock:
+            self.failures = 0
 
 
 def _parse_retry_datetime(retry_after: str) -> float | None:
@@ -121,6 +191,8 @@ async def _with_retry(
     base: float = 0.5,
     cap: float = 8.0,
     on_retry_after: Callable[[float], None] | None = None,
+    on_failure: Callable[[BaseException], None] | None = None,
+    circuit_breaker: CircuitBreaker | None = None,
 ) -> tuple[T, int]:
     """Execute ``coro_factory`` with exponential backoff and jitter.
 
@@ -134,6 +206,10 @@ async def _with_retry(
         attempts: Maximum number of attempts before giving up.
         base: Initial delay in seconds used for backoff.
         cap: Maximum backoff in seconds.
+        on_retry_after: Optional callback invoked when a ``Retry-After`` header is
+            honoured.
+        on_failure: Optional callback recording each transient exception.
+        circuit_breaker: Optional breaker used to pause after repeated failures.
 
     Returns:
         The result of the successful coroutine.
@@ -159,6 +235,10 @@ async def _with_retry(
         try:
             result = await asyncio.wait_for(coro_factory(), timeout=request_timeout)
         except TRANSIENT_EXCEPTIONS as exc:
+            if on_failure:
+                on_failure(exc)
+            if circuit_breaker:
+                await circuit_breaker.record_failure()
             delay = _handle_retry(exc, attempt)
             logfire.warning(
                 "Retrying request",
@@ -167,6 +247,8 @@ async def _with_retry(
             )
             await asyncio.sleep(delay)
             continue
+        if circuit_breaker:
+            await circuit_breaker.record_success()
         return result, attempt
     raise RuntimeError("Unreachable retry state")
 
@@ -197,6 +279,8 @@ class ServiceAmbitionGenerator:
         request_timeout: float = 60,
         retries: int = 5,
         retry_base_delay: float = 0.5,
+        circuit_breaker_threshold: int = 5,
+        circuit_breaker_timeout: float = 30.0,
     ) -> None:
         """Initialize the generator.
 
@@ -206,6 +290,8 @@ class ServiceAmbitionGenerator:
             request_timeout: Per-request timeout in seconds.
             retries: Number of retry attempts on failure.
             retry_base_delay: Initial backoff delay in seconds.
+            circuit_breaker_threshold: Failures before tripping the breaker.
+            circuit_breaker_timeout: Pause duration once tripped, in seconds.
 
         Raises:
             ValueError: If ``concurrency`` is less than one.
@@ -219,6 +305,12 @@ class ServiceAmbitionGenerator:
         self.request_timeout = request_timeout
         self.retries = retries
         self.retry_base_delay = retry_base_delay
+        self._circuit_breaker = (
+            CircuitBreaker(circuit_breaker_threshold, circuit_breaker_timeout)
+            if circuit_breaker_threshold > 0
+            else None
+        )
+        self._failure_counts: Counter[str] = Counter()
         self._prompt: str | None = None
         self._limiter: Semaphore | None = None
 
@@ -227,6 +319,13 @@ class ServiceAmbitionGenerator:
 
         if self._limiter is None:
             self._limiter = Semaphore(self.concurrency)
+
+    def _record_failure(self, exc: BaseException) -> None:
+        """Track ``exc`` occurrences for telemetry."""
+
+        name = exc.__class__.__name__
+        self._failure_counts[name] += 1
+        FAILURES_BY_EXCEPTION.add(1, {"exception": name})
 
     async def _process_service_line(
         self, service: ServiceInput
@@ -352,6 +451,8 @@ class ServiceAmbitionGenerator:
             attempts=self.retries,
             base=self.retry_base_delay,
             on_retry_after=getattr(self._limiter, "throttle", None),
+            on_failure=self._record_failure,
+            circuit_breaker=self._circuit_breaker,
         )
         usage = result.usage()
         tokens = usage.total_tokens or 0
@@ -431,6 +532,7 @@ class ServiceAmbitionGenerator:
         with logfire.span("generate_async") as span:
             span.set_attribute("concurrency", self.concurrency)
             self._prompt = prompt
+            self._failure_counts.clear()
             try:
                 self._limiter = Semaphore(self.concurrency)
                 processed = await self._process_all(
@@ -441,6 +543,8 @@ class ServiceAmbitionGenerator:
                     temp_output_dir=temp_output_dir,
                 )
                 span.set_attribute("service_ids", list(processed))
+                if self._failure_counts:
+                    span.set_attribute("failure_counts", dict(self._failure_counts))
                 return processed
             except OSError as exc:
                 logfire.error(f"Failed to write results to {output_path}: {exc}")
@@ -512,4 +616,9 @@ def build_model(
     return OpenAIResponsesModel(model_name, settings=settings)
 
 
-__all__ = ["AmbitionModel", "ServiceAmbitionGenerator", "build_model"]
+__all__ = [
+    "AmbitionModel",
+    "ServiceAmbitionGenerator",
+    "build_model",
+    "extend_transient_exceptions",
+]
