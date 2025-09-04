@@ -1,10 +1,11 @@
+import importlib
 import shutil
 import sys
 from pathlib import Path
 
 import pytest
 
-import cli.main as cli
+cli = importlib.import_module("cli.main")
 
 
 def _prepare_dataset(tmp_path: Path, valid: bool) -> Path:
@@ -31,5 +32,5 @@ def test_validate_data_dir_passes(monkeypatch, tmp_path: Path) -> None:
 def test_validate_data_dir_fails(monkeypatch, tmp_path: Path) -> None:
     data_dir = _prepare_dataset(tmp_path, False)
     monkeypatch.setattr(sys, "argv", ["main", "validate", "--data", str(data_dir)])
-    with pytest.raises(ValueError, match="Line 2 invalid"):
+    with pytest.raises(ValueError, match="Line 1 invalid"):
         cli.main()

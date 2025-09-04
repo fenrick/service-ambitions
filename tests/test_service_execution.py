@@ -32,7 +32,7 @@ async def test_run_raises_when_run_meta_missing(monkeypatch):
         lambda self: setattr(self, "generator", DummyGenerator()),
     )
 
-    async def _fake_prepare_runtimes(self, gen):
+    async def _fake_prepare_runtimes(self):
         return []
 
     monkeypatch.setattr(ServiceExecution, "_prepare_runtimes", _fake_prepare_runtimes)

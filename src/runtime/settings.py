@@ -55,9 +55,9 @@ class Settings(BaseSettings):
     cache_dir: Path = Field(
         DEFAULT_CACHE_DIR, description="Directory to store cache files."
     )
-    openai_api_key: str = Field(..., description="OpenAI API access token.")
+    openai_api_key: str = Field(..., description="OpenAI API access token.", repr=False)
     logfire_token: str | None = Field(
-        None, description="Logfire authentication token, if available."
+        None, description="Logfire authentication token, if available.", repr=False
     )
     web_search: bool = Field(
         False, description="Enable OpenAI web search tooling for model browsing."
@@ -82,7 +82,7 @@ class Settings(BaseSettings):
     )
     mapping_mode: str = Field("per_set", description="Mapping enrichment strategy")
 
-    model_config = SettingsConfigDict(extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="SA_", extra="ignore")
 
 
 def load_settings(config_path: Path | str | None = None) -> Settings:
@@ -113,9 +113,9 @@ def load_settings(config_path: Path | str | None = None) -> Settings:
         config = load_app_config()
     env_file_path = Path(".env")
     env_file = env_file_path if env_file_path.exists() else None
-    env_use_local_cache = os.getenv("USE_LOCAL_CACHE")
-    env_cache_mode = os.getenv("CACHE_MODE")
-    env_cache_dir = os.getenv("CACHE_DIR")
+    env_use_local_cache = os.getenv("SA_USE_LOCAL_CACHE")
+    env_cache_mode = os.getenv("SA_CACHE_MODE")
+    env_cache_dir = os.getenv("SA_CACHE_DIR")
     raw_cache_dir = env_cache_dir or str(
         getattr(config, "cache_dir", DEFAULT_CACHE_DIR)
     )

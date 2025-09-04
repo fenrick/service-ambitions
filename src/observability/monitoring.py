@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: MIT
 """Helpers for enabling Pydantic Logfire telemetry."""
 
 from __future__ import annotations
@@ -7,6 +8,14 @@ import os
 from typing import Literal
 
 import logfire
+
+
+def _mask_token(value: str | None) -> str:
+    """Return ``value`` with the middle section obscured for safe logging."""
+
+    if not value:
+        return ""
+    return value[:4] + "..." if len(value) > 8 else "***"
 
 
 def init_logfire(
@@ -19,13 +28,14 @@ def init_logfire(
     """Configure Logfire and enable instrumentation.
 
     Args:
-        token: Optional Logfire API token. If omitted, ``LOGFIRE_TOKEN`` from the
+        token: Optional Logfire API token. If omitted, ``SA_LOGFIRE_TOKEN`` from the
             environment is used. Missing tokens keep telemetry local.
         min_log_level: Minimum level for console and telemetry output.
-        json_logs: Emit console logs as structured JSON when ``True``.
+        json_logs: Emit console logs as structured JSON when ``True".
     """
 
-    key = token or os.getenv("LOGFIRE_TOKEN")
+    key = token or os.getenv("SA_LOGFIRE_TOKEN")
+    logfire.debug("Initialising Logfire", token=_mask_token(key))
     if json_logs:
         console = logfire.ConsoleOptions(
             min_log_level=min_log_level,

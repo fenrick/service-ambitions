@@ -27,6 +27,8 @@ def _prepare_settings(_config: str | None = None):
         use_local_cache=True,
         cache_mode="read",
         cache_dir=cache_dir,
+        prompt_dir=Path("prompts"),
+        mapping_data_dir=Path("data"),
     )
 
 
@@ -189,6 +191,7 @@ def test_diagnostics_flag_prints_environment(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "Python" in out
 
+
 def test_run_passes_config_path(monkeypatch, tmp_path):
     """Providing --config forwards the path to load_settings."""
 
@@ -198,8 +201,11 @@ def test_run_passes_config_path(monkeypatch, tmp_path):
         called["config"] = path
         return _prepare_settings()
 
+    async def _fake_generate(*a, **k):
+        return None
+
     monkeypatch.setattr(cli, "load_settings", _fake_settings)
-    monkeypatch.setattr(cli, "_cmd_generate_evolution", lambda *a, **k: None)
+    monkeypatch.setattr(cli, "_cmd_generate_evolution", _fake_generate)
     monkeypatch.setattr(cli, "_configure_logging", lambda *a, **k: None)
     cfg = tmp_path / "alt.yaml"
     monkeypatch.setattr(sys, "argv", ["main", "run", "--dry-run", "--config", str(cfg)])

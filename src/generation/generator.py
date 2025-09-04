@@ -96,14 +96,14 @@ def _load_transient_exceptions() -> tuple[type[BaseException], ...]:
     """Construct the transient exception set based on configuration."""
 
     exceptions: list[type[BaseException]] = [asyncio.TimeoutError, ConnectionError]
-    provider = os.getenv("LLM_PROVIDER", "openai")
+    provider = os.getenv("SA_LLM_PROVIDER", "openai")
     for path in PROVIDER_EXCEPTION_MAP.get(
         provider, ()
     ):  # pragma: no branch - simple loop
         exc = _import_exception(path)
         if exc is not None:
             exceptions.append(exc)
-    extra = os.getenv("ADDITIONAL_TRANSIENT_EXCEPTIONS")
+    extra = os.getenv("SA_ADDITIONAL_TRANSIENT_EXCEPTIONS")
     if extra:
         for path in extra.split(","):
             exc = _import_exception(path.strip())
@@ -586,13 +586,13 @@ def build_model(
         A ready-to-use ``Model`` instance.
 
     Side Effects:
-        Sets ``OPENAI_API_KEY`` in the environment if ``api_key`` is provided.
+        Sets ``SA_OPENAI_API_KEY`` in the environment if ``api_key`` is provided.
     """
 
     if api_key:
         # Expose the key via environment variables for model libraries that
         # expect it there rather than accepting it directly.
-        os.environ.setdefault("OPENAI_API_KEY", api_key)
+        os.environ.setdefault("SA_OPENAI_API_KEY", api_key)
     # Allow callers to pass provider-prefixed names such as ``openai:gpt-4``.
     model_name = model_name.split(":", 1)[-1]
     settings: OpenAIResponsesModelSettings = {

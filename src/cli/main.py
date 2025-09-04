@@ -68,7 +68,7 @@ def _print_diagnostics() -> None:
     print(f"Python {platform.python_version()}")
     print(f"Platform {platform.platform()}")
 
-    missing = [var for var in ["OPENAI_API_KEY"] if not os.getenv(var)]
+    missing = [var for var in ["SA_OPENAI_API_KEY"] if not os.getenv(var)]
     if missing:
         print("Missing env vars: " + ", ".join(missing))
     else:
@@ -233,7 +233,7 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
         default=None,
         help=(
             "Global chat model name (default openai:gpt-5). "
-            "Can also be set via the MODEL env variable."
+            "Can also be set via the SA_MODEL env variable."
         ),
     )
     parser.add_argument(
@@ -566,7 +566,7 @@ def _build_parser() -> argparse.ArgumentParser:
             add_help=False, formatter_class=argparse.ArgumentDefaultsHelpFormatter
         )
     )
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(dest="command")
     _add_map_subparser(subparsers, common)
     _add_reverse_subparser(subparsers, common)
     _add_run_subparser(subparsers, common)

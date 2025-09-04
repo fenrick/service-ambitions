@@ -216,7 +216,15 @@ def test_ask_uses_cache_when_available(tmp_path, monkeypatch) -> None:
         cache_mode="read",
     )
     RuntimeEnv.initialize(
-        cast(Any, SimpleNamespace(cache_dir=tmp_path, context_id="ctx"))
+        cast(
+            Any,
+            SimpleNamespace(
+                cache_dir=tmp_path,
+                context_id="ctx",
+                prompt_dir=tmp_path,
+                mapping_data_dir=tmp_path,
+            ),
+        )
     )
     key = conversation._prompt_cache_key("hello", "", "stage")
     path = conversation._prompt_cache_path("unknown", "stage", key)
@@ -239,7 +247,15 @@ def test_ask_writes_cache_on_miss(tmp_path, monkeypatch) -> None:
         cache_mode="read",
     )
     RuntimeEnv.initialize(
-        cast(Any, SimpleNamespace(cache_dir=tmp_path, context_id="ctx"))
+        cast(
+            Any,
+            SimpleNamespace(
+                cache_dir=tmp_path,
+                context_id="ctx",
+                prompt_dir=tmp_path,
+                mapping_data_dir=tmp_path,
+            ),
+        )
     )
 
     monkeypatch.setattr(

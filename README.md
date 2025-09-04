@@ -42,9 +42,10 @@ cp config/app.example.yaml config/app.yaml
 Then edit `config/app.yaml` to set models, reasoning presets and other options.
 
 The Docker image includes these defaults at `/app/config`. Override any value via
-environment variables or by mounting a replacement configuration directory.
+environment variables using the `SA_` prefix or by mounting a replacement
+configuration directory.
 
-The CLI requires an OpenAI API key available in the `OPENAI_API_KEY` environment
+The CLI requires an OpenAI API key available in the `SA_OPENAI_API_KEY` environment
 variable. Settings are loaded via Pydantic, which reads from a `.env` file if
 present. The application will exit if the key is missing. LLM interactions are
 handled via [Pydantic AI](https://pydantic.dev/pydantic-ai/).
@@ -53,13 +54,26 @@ Create a `.env` file in the project root with:
 
 ```
 # Required for API access
-OPENAI_API_KEY=your_api_key_here
-# Optional: provide to publish telemetry to Logfire
-# LOGFIRE_TOKEN=your_logfire_token
+SA_OPENAI_API_KEY=your_api_key_here
+# Optional telemetry
+# SA_LOGFIRE_TOKEN=your_logfire_token
+# Common overrides
+# SA_MODEL=openai:gpt-5
+# SA_REQUEST_TIMEOUT=60
+# SA_USE_LOCAL_CACHE=true
+# SA_CACHE_MODE=read
+# SA_LOG_LEVEL=INFO
+# SA_DIAGNOSTICS=false
+# SA_STRICT=false
 ```
 
-For production deployments, inject the variable using your platform's secret
+For production deployments, inject the variables using your platform's secret
 manager instead of committing keys to source control.
+
+Every option in `config/app.yaml` can be overridden with an `SA_` prefixed
+environment variable (e.g. `SA_MODEL`, `SA_REQUEST_TIMEOUT`, `SA_USE_LOCAL_CACHE`,
+`SA_CACHE_MODE`, `SA_CACHE_DIR`, `SA_LOG_LEVEL`, `SA_DIAGNOSTICS`, `SA_STRICT`,
+`SA_OPENAI_API_KEY`, `SA_LOGFIRE_TOKEN`).
 
 Caching of mapping responses is enabled by default to speed up repeated runs.
 Disable or change cache behaviour in `config/app.yaml` or via environment
@@ -93,17 +107,17 @@ docker run --rm service-ambitions:latest --diagnostics
 ```
 
 The `--diagnostics` flag prints Python and platform details and reports whether
-required environment variables such as `OPENAI_API_KEY` are set. Both commands
+required environment variables such as `SA_OPENAI_API_KEY` are set. Both commands
 exit with status code 0 so they can be used in automated health checks.
 
-The chat model can be set with the `--model` flag or the `MODEL` environment
+The chat model can be set with the `--model` flag or the `SA_MODEL` environment
 variable. Model identifiers must include a provider prefix, in the form
 `<provider>:<model>`. The default is `openai:gpt-5` with medium reasoning effort.
 
 Example:
 
 ```bash
-MODEL=openai:o4-mini poetry run service-ambitions run \
+SA_MODEL=openai:o4-mini poetry run service-ambitions run \
   --input-file sample-services.jsonl \
   --output-file evolution.jsonl
 ```
@@ -158,7 +172,7 @@ directory, `--context-id` to select a situational context, and
 supports swapping sections to suit different industries.
 
 This project depends on the [Pydantic Logfire](https://logfire.pydantic.dev/)
-libraries for telemetry. The `LOGFIRE_TOKEN` environment variable is optional:
+libraries for telemetry. The `SA_LOGFIRE_TOKEN` environment variable is optional:
 without it, Logfire still records logs and metrics locally but nothing is sent
 to the cloud. Provide a token to stream traces to Logfire. The CLI instruments
 Pydantic, Pydantic AI, OpenAI and system metrics by default. Prompts are
@@ -211,7 +225,7 @@ Build the image and execute the CLI in an isolated container:
 ```bash
 docker build -t service-ambitions .
 docker run --rm \
-  -e OPENAI_API_KEY=$OPENAI_API_KEY \
+  -e SA_OPENAI_API_KEY=$SA_OPENAI_API_KEY \
   -v "$(pwd)/sample-services.jsonl:/data/input.jsonl" \
   service-ambitions run \
   --input-file /data/input.jsonl \
