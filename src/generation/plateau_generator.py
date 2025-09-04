@@ -75,7 +75,7 @@ def default_role_ids() -> list[str]:
     """Return core role identifiers."""
 
     settings = RuntimeEnv.instance().settings
-    return load_role_ids(settings.mapping_data_dir)
+    return load_role_ids(settings.roles_file)
 
 
 def _feature_cache_path(service: str, plateau: int) -> Path:

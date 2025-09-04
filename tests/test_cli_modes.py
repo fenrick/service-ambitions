@@ -29,6 +29,7 @@ def _prepare_settings(_config: str | None = None):
         cache_dir=cache_dir,
         prompt_dir=Path("prompts"),
         mapping_data_dir=Path("data"),
+        roles_file=Path("data/roles.json"),
     )
 
 

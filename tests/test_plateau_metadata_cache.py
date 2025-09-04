@@ -11,7 +11,11 @@ def test_plateau_metadata_cached(monkeypatch) -> None:
     RuntimeEnv.initialize(
         cast(
             Any,
-            SimpleNamespace(mapping_data_dir=Path("data"), prompt_dir=Path("prompts")),
+            SimpleNamespace(
+                mapping_data_dir=Path("data"),
+                prompt_dir=Path("prompts"),
+                roles_file=Path("data/roles.json"),
+            ),
         )
     )
 

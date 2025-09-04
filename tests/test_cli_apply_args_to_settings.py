@@ -30,6 +30,7 @@ def _prepare_settings():
         use_local_cache=True,
         cache_mode="read",
         cache_dir=cache_dir,
+        roles_file=Path("data/roles.json"),
     )
 
 
@@ -45,6 +46,7 @@ def _build_args(**overrides):
         concurrency=None,
         strict_mapping=None,
         mapping_data_dir=None,
+        roles_file=None,
         web_search=None,
         use_local_cache=None,
         cache_mode=None,
@@ -67,6 +69,7 @@ def _build_args(**overrides):
         ("cache_mode", "cache_mode", "off", "off"),
         ("cache_dir", "cache_dir", "/tmp/cache", Path("/tmp/cache")),
         ("strict", "strict", True, True),
+        ("roles_file", "roles_file", "/tmp/r.json", Path("/tmp/r.json")),
     ],
 )
 def test_apply_args_to_settings_simple(arg_name, attr_name, value, expected):
