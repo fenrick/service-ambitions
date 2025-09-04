@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from constants import DEFAULT_CACHE_DIR
 from runtime.environment import RuntimeEnv
 
 
@@ -18,8 +19,8 @@ def feature_cache(service_id: str, plateau: int) -> Path:
         settings = RuntimeEnv.instance().settings
         cache_root = settings.cache_dir
         context = settings.context_id
-    except Exception:  # pragma: no cover - settings unavailable
-        cache_root = Path(".cache")
+    except RuntimeError:  # pragma: no cover - settings unavailable
+        cache_root = DEFAULT_CACHE_DIR
         context = "unknown"
 
     path = cache_root / context / service_id / str(plateau) / "features.json"

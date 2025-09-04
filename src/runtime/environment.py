@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from threading import Lock
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import logfire
 
@@ -30,7 +30,12 @@ class RuntimeEnv:
         """Initialise the runtime environment."""
 
         self.settings = settings
-        self.state: dict[str, Any] = {}
+        self._state_lock = Lock()
+        self._run_meta: "ServiceMeta | None" = None
+        self._prompt_loader: PromptLoader = FilePromptLoader(settings.prompt_dir)
+        self._mapping_loader: MappingLoader = FileMappingLoader(
+            settings.mapping_data_dir
+        )
         # Debug logging helps diagnose configuration loading problems.
         logfire.debug("RuntimeEnv created", settings=str(settings))
 
@@ -38,48 +43,41 @@ class RuntimeEnv:
     def run_meta(self) -> "ServiceMeta | None":
         """Return metadata describing the current run."""
 
-        return self.state.get("run_meta")
+        with self._state_lock:
+            return self._run_meta
 
     @run_meta.setter
     def run_meta(self, meta: "ServiceMeta | None") -> None:
         """Persist run metadata for later access."""
 
-        if meta is None:
-            self.state.pop("run_meta", None)
-        else:
-            self.state["run_meta"] = meta
+        with self._state_lock:
+            self._run_meta = meta
 
     @property
     def prompt_loader(self) -> PromptLoader:
-        """Return the active prompt loader, creating a default if needed."""
+        """Return the active prompt loader."""
 
-        loader = self.state.get("prompt_loader")
-        if loader is None:
-            loader = FilePromptLoader(self.settings.prompt_dir)
-            self.state["prompt_loader"] = loader
-        return loader
+        return self._prompt_loader
 
     @prompt_loader.setter
     def prompt_loader(self, loader: PromptLoader) -> None:
         """Persist ``loader`` for later retrieval."""
 
-        self.state["prompt_loader"] = loader
+        with self._state_lock:
+            self._prompt_loader = loader
 
     @property
     def mapping_loader(self) -> MappingLoader:
-        """Return the active mapping loader, creating a default if needed."""
+        """Return the active mapping loader."""
 
-        loader = self.state.get("mapping_loader")
-        if loader is None:
-            loader = FileMappingLoader(self.settings.mapping_data_dir)
-            self.state["mapping_loader"] = loader
-        return loader
+        return self._mapping_loader
 
     @mapping_loader.setter
     def mapping_loader(self, loader: MappingLoader) -> None:
         """Persist ``loader`` for later retrieval."""
 
-        self.state["mapping_loader"] = loader
+        with self._state_lock:
+            self._mapping_loader = loader
 
     @classmethod
     def initialize(cls, settings: "Settings") -> "RuntimeEnv":
@@ -118,26 +116,18 @@ class RuntimeEnv:
         """Clear the active runtime environment and cached state.
 
         Useful for tests needing a fresh configuration or for scenarios where
-        the application must reload settings at runtime. Loader caches, run
-        metadata, and state are cleared to avoid stale data in subsequent
-        initialisations.
+        the application must reload settings at runtime. Loader caches and run
+        metadata are cleared to avoid stale data in subsequent initialisations.
         """
+
         with logfire.span("runtime_env.reset"):
             with cls._lock:
                 logfire.info("Resetting runtime environment")
                 inst = cls._instance
                 if inst is not None:
                     inst.run_meta = None  # remove any persisted run metadata
-                    prompt = inst.state.get("prompt_loader")
-                    if prompt is not None:
-                        # Discard memoised prompts to force reloads.
-                        prompt.clear_cache()
-                    mapping = inst.state.get("mapping_loader")
-                    if mapping is not None:
-                        # Discard cached mapping data to force reloads.
-                        mapping.clear_cache()
-                    # Remove any remaining state to ensure a clean instance.
-                    inst.state.clear()
+                    inst.prompt_loader.clear_cache()
+                    inst.mapping_loader.clear_cache()
                 cls._instance = None
 
 

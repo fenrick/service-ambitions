@@ -48,3 +48,27 @@ def test_load_settings_requires_key(monkeypatch) -> None:
     monkeypatch.delenv("CACHE_DIR", raising=False)
     with pytest.raises(RuntimeError):
         load_settings()
+
+
+def test_load_settings_uses_xdg_cache_home(monkeypatch, tmp_path) -> None:
+    """Default cache directory should honour ``XDG_CACHE_HOME``."""
+
+    monkeypatch.setenv("OPENAI_API_KEY", "token")
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    settings = load_settings()
+    expected = tmp_path / "service-ambitions"
+    assert settings.cache_dir == expected
+    assert expected.is_dir()
+
+
+def test_load_settings_rejects_unwritable_cache(monkeypatch, tmp_path) -> None:
+    """Cache directory should raise ``RuntimeError`` when unwritable."""
+
+    read_only = tmp_path / "no_write"
+    read_only.mkdir()
+    read_only.chmod(0o500)
+    monkeypatch.setenv("OPENAI_API_KEY", "token")
+    monkeypatch.setenv("CACHE_DIR", str(read_only))
+    with pytest.raises(RuntimeError):
+        load_settings()
+    read_only.chmod(0o700)

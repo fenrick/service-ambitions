@@ -47,7 +47,23 @@ class FileMappingLoader(MappingLoader):
 
     def load(
         self, sets: Sequence[MappingSet]
-    ) -> tuple[dict[str, list[MappingItem]], str]:  # noqa: D401
+    ) -> tuple[dict[str, list[MappingItem]], str]:
+        """Return mapping data and a combined hash for ``sets``.
+
+        Args:
+            sets: Collection of mapping definitions specifying which files and
+                fields to load.
+
+        Returns:
+            Two-item tuple containing:
+                * A mapping of field names to their corresponding list of
+                  ``MappingItem`` objects.
+                * A SHA256 digest summarising the loaded sets.
+
+        Raises:
+            FileNotFoundError: If the data directory or a mapping file is missing.
+            pydantic.ValidationError: If a mapping file contains invalid data.
+        """
         key: Tuple[Tuple[str, str], ...] = tuple((s.file, s.field) for s in sets)
         with logfire.span(
             "mapping_loader.load",

@@ -40,7 +40,19 @@ class FilePromptLoader(PromptLoader):
         self._base_dir = base_dir
         self._cache: dict[str, str] = {}
 
-    def load(self, name: str) -> str:  # noqa: D401 - short delegation
+    def load(self, name: str) -> str:
+        """Retrieve the prompt template for ``name`` from disk.
+
+        Args:
+            name: Identifier of the prompt template without file extension.
+
+        Returns:
+            Template text with surrounding whitespace removed.
+
+        Raises:
+            FileNotFoundError: If the prompt file does not exist.
+            OSError: If an error occurs while reading the file.
+        """
         with logfire.span("prompt_loader.load", attributes={"name": name}):
             if name in self._cache:
                 return self._cache[name]

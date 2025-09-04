@@ -19,15 +19,23 @@ jobs:
     permissions: read-all
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Install Poetry
+        run: |
+          pipx install poetry
+          pipx inject poetry poetry-plugin-export
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: ${{ matrix.py }}
-          cache: 'pip'
+          cache: 'poetry'
       - name: Install dependencies
-        run: pip install -e .[dev,security]
+        run: poetry install --no-interaction
+      - name: Mypy --strict
+        run: poetry run mypy --strict src tests
       - name: Pytest
-        run: pytest -q
-      - name: Install audit tools
-        run: pip install pip-audit safety
+        run: poetry run pytest -q
       - name: pip-audit
-        run: pip-audit -r requirements.txt || true
+        run: |
+          poetry export --format=requirements.txt --without-hashes --output=requirements.txt
+          poetry run pip-audit -r requirements.txt || true
+      - name: Safety
+        run: poetry run safety check --full-report || true

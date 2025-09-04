@@ -15,15 +15,18 @@ import asyncio
 import hashlib
 import json
 import time
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager, nullcontext, suppress
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Literal, cast
+from uuid import uuid4
 
 import logfire
 from pydantic import ValidationError
 from pydantic_ai import Agent, messages
 from pydantic_core import from_json, to_json
 
+from constants import DEFAULT_CACHE_DIR
 from models import ServiceInput
 from runtime.environment import RuntimeEnv
 
@@ -46,8 +49,8 @@ def _prompt_cache_path(
         settings = RuntimeEnv.instance().settings
         cache_root = settings.cache_dir
         context = settings.context_id
-    except Exception:  # pragma: no cover - fallback when settings unavailable
-        cache_root = Path(".cache")
+    except RuntimeError:  # pragma: no cover - fallback when settings unavailable
+        cache_root = DEFAULT_CACHE_DIR
         context = "unknown"
 
     if stage.startswith("mapping_"):
@@ -75,8 +78,8 @@ def _service_cache_root(service: str) -> Path:
     try:
         settings = RuntimeEnv.instance().settings
         root = settings.cache_dir / settings.context_id / service
-    except Exception:  # pragma: no cover - fallback when settings unavailable
-        root = Path(".cache") / "unknown" / service
+    except RuntimeError:  # pragma: no cover - fallback when settings unavailable
+        root = DEFAULT_CACHE_DIR / "unknown" / service
     return root
 
 
@@ -184,6 +187,7 @@ class ConversationSession:
         span_name: str,
         stage: str,
         model_name: str,
+        request_id: str,
     ) -> Any:
         """Create a logging span and attach common attributes."""
 
@@ -193,6 +197,9 @@ class ConversationSession:
                 # annotate span for observability when diagnostics enabled
                 span.set_attribute("stage", stage)
                 span.set_attribute("model_name", model_name)
+                span.set_attribute("request_id", request_id)
+                if self._service_id is not None:
+                    span.set_attribute("service_id", self._service_id)
             yield span
 
     def _log_prompt(self, prompt: str) -> None:
@@ -211,7 +218,7 @@ class ConversationSession:
         svc_dir = self.transcripts_dir / self._service_id
         try:
             await asyncio.to_thread(svc_dir.mkdir, parents=True, exist_ok=True)
-        except Exception:  # pragma: no cover - defensive
+        except OSError:  # pragma: no cover - defensive
             return
         stage_name = self.stage or "unknown"
         payload = {"prompt": prompt, "response": str(response)}
@@ -224,6 +231,7 @@ class ConversationSession:
         result: Any,
         stage: str,
         model_name: str,
+        request_id: str,
     ) -> tuple[Any, int]:
         """Process a successful model invocation."""
 
@@ -235,6 +243,8 @@ class ConversationSession:
             stage=stage,
             model_name=model_name,
             total_tokens=tokens,
+            request_id=request_id,
+            service_id=self._service_id,
         )
         return result.output, tokens
 
@@ -244,6 +254,7 @@ class ConversationSession:
         stage: str,
         model_name: str,
         tokens: int,
+        request_id: str,
     ) -> None:
         """Log failure details."""
 
@@ -253,6 +264,8 @@ class ConversationSession:
             model_name=model_name,
             total_tokens=tokens,
             error=str(exc),
+            request_id=request_id,
+            service_id=self._service_id,
         )
 
     def _finalise_metrics(
@@ -260,6 +273,7 @@ class ConversationSession:
         span: Any,
         tokens: int,
         start: float,
+        _request_id: str,
     ) -> None:
         """Record latency and token usage."""
 
@@ -268,6 +282,135 @@ class ConversationSession:
             span.set_attribute("total_tokens", tokens)
             span.set_attribute("duration", duration)
 
+    def _load_cache_payload(
+        self,
+        path_to_use: Path,
+        cache_file: Path,
+        out_type: type[Any] | None,
+    ) -> Any:
+        """Return cached payload validating against ``out_type``."""
+
+        try:
+            with path_to_use.open("rb") as fh:
+                data = from_json(fh.read())
+            if out_type and hasattr(out_type, "model_validate"):
+                payload = cast(Any, out_type).model_validate(data)
+                dump = payload.model_dump()
+            else:
+                payload = data
+                dump = data
+            if path_to_use != cache_file:
+                cache_write_json_atomic(
+                    cache_file,
+                    dump if not isinstance(dump, str) else json.dumps(dump),
+                )
+                with suppress(OSError):
+                    path_to_use.unlink()
+            self.last_tokens = 0
+            return payload
+        except (ValidationError, ValueError, OSError) as exc:
+            raise RuntimeError(f"Invalid cache file: {path_to_use}") from exc
+
+    @dataclass
+    class CacheResult:
+        """Capture cache lookup details."""
+
+        payload: Any | None
+        cache_file: Path | None
+        write_after_call: bool
+
+    def _try_cache_read(
+        self,
+        prompt: str,
+        model_name: str,
+        stage: str,
+        feature_id: str | None,
+        out_type: type[Any] | None,
+    ) -> CacheResult:
+        """Return cached payload and write flag if applicable."""
+
+        if not self.use_local_cache:
+            return ConversationSession.CacheResult(None, None, False)
+        if self.cache_mode == "off":
+            return ConversationSession.CacheResult(None, None, False)
+        key = _prompt_cache_key(prompt, model_name, stage)
+        svc = self._service_id or "unknown"
+        cache_file = _prompt_cache_path(svc, stage, key, feature_id)
+        service_root = _service_cache_root(svc)
+        path_to_use = _find_cache_file(service_root, key, cache_file)
+        exists_before = path_to_use is not None
+        if self.cache_mode == "read" and path_to_use:
+            payload = self._load_cache_payload(path_to_use, cache_file, out_type)
+            return ConversationSession.CacheResult(payload, cache_file, False)
+        write_after_call = self.cache_mode == "refresh" or (
+            self.cache_mode in {"write", "read"} and not exists_before
+        )
+        return ConversationSession.CacheResult(None, cache_file, write_after_call)
+
+    async def _invoke_runner(
+        self,
+        prompt: str,
+        runner: Callable[[str, list[messages.ModelMessage]], Awaitable[Any]],
+        stage: str,
+        model_name: str,
+        request_id: str,
+    ) -> tuple[Any, int]:
+        """Execute ``runner`` and return output and token count."""
+
+        self._log_prompt(prompt)
+        result = await runner(prompt, self._history)
+        return self._handle_success(result, stage, model_name, request_id)
+
+    def _write_cache_result(self, cache_file: Path, output: Any) -> None:
+        """Persist ``output`` to ``cache_file`` as JSON."""
+
+        content = output.model_dump() if hasattr(output, "model_dump") else output
+        cache_write_json_atomic(
+            cache_file,
+            content if not isinstance(content, str) else json.dumps(content),
+        )
+
+    def _session_details(self) -> tuple[str, str, type[Any] | None]:
+        """Return stage, model name and output type for the session."""
+
+        stage = self.stage or "unknown"
+        model_name = getattr(getattr(self.client, "model", None), "model_name", "")
+        out_type = cast(type[Any] | None, getattr(self.client, "output_type", None))
+        return stage, model_name, out_type
+
+    async def _execute_with_cache(
+        self,
+        prompt: str,
+        runner: Callable[[str, list[messages.ModelMessage]], Awaitable[Any]],
+        span_name: str,
+        stage: str,
+        model_name: str,
+        cache: CacheResult,
+    ) -> Any:
+        tokens = 0
+        start = time.monotonic()
+        request_id = uuid4().hex
+        with self._prepare_span(span_name, stage, model_name, request_id) as span:
+            try:
+                output, tokens = await self._invoke_runner(
+                    prompt, runner, stage, model_name, request_id
+                )
+                if cache.cache_file and cache.write_after_call:
+                    self._write_cache_result(cache.cache_file, output)
+                self.last_tokens = tokens
+                await self._write_transcript(prompt, output)
+                return output
+            except (
+                ValidationError,
+                ValueError,
+                OSError,
+                RuntimeError,
+            ) as exc:  # pragma: no cover - defensive logging
+                self._handle_failure(exc, stage, model_name, tokens, request_id)
+                raise
+            finally:
+                self._finalise_metrics(span, tokens, start, request_id)
+
     async def _ask_common(
         self,
         prompt: str,
@@ -275,80 +418,13 @@ class ConversationSession:
         span_name: str,
         feature_id: str | None = None,
     ) -> Any:
-        stage = self.stage or "unknown"
-        model_name = getattr(getattr(self.client, "model", None), "model_name", "")
-        cache_file: Path | None = None
-        write_after_call = False
-        out_type = cast(type[Any] | None, getattr(self.client, "output_type", None))
-        if self.use_local_cache and self.cache_mode != "off":
-            key = _prompt_cache_key(prompt, model_name, stage)
-            svc = self._service_id or "unknown"
-            cache_file = _prompt_cache_path(svc, stage, key, feature_id)
-            service_root = _service_cache_root(svc)
-            path_to_use = _find_cache_file(service_root, key, cache_file)
-            exists_before = path_to_use is not None
-            if self.cache_mode == "read" and path_to_use:
-                try:
-                    with path_to_use.open("rb") as fh:
-                        data = from_json(fh.read())
-                    if out_type and hasattr(out_type, "model_validate"):
-                        payload = cast(Any, out_type).model_validate(data)
-                        dump = payload.model_dump()
-                    else:
-                        payload = data
-                        dump = data
-                    if path_to_use != cache_file:
-                        cache_write_json_atomic(
-                            cache_file,
-                            dump if not isinstance(dump, str) else json.dumps(dump),
-                        )
-                        try:
-                            path_to_use.unlink()
-                        except OSError:
-                            pass
-                    self.last_tokens = 0
-                    return payload
-                except (ValidationError, ValueError, OSError) as exc:
-                    raise RuntimeError(f"Invalid cache file: {path_to_use}") from exc
-            if self.cache_mode == "refresh":
-                write_after_call = True
-            elif self.cache_mode == "write" and not exists_before:
-                write_after_call = True
-            elif self.cache_mode == "read" and not exists_before:
-                write_after_call = True
-
-        tokens = 0
-        start = time.monotonic()
-        with self._prepare_span(span_name, stage, model_name) as span:
-            try:
-                self._log_prompt(prompt)
-                result = await runner(prompt, self._history)
-                output, tokens = self._handle_success(result, stage, model_name)
-                if cache_file and write_after_call:
-                    content = (
-                        output.model_dump() if hasattr(output, "model_dump") else output
-                    )
-                    cache_write_json_atomic(
-                        cache_file,
-                        (
-                            content
-                            if not isinstance(content, str)
-                            else json.dumps(content)
-                        ),
-                    )
-                self.last_tokens = tokens
-                await self._write_transcript(prompt, output)
-                return output
-            except Exception as exc:  # pragma: no cover - defensive logging
-                self._handle_failure(
-                    exc,
-                    stage,
-                    model_name,
-                    tokens,
-                )
-                raise
-            finally:
-                self._finalise_metrics(span, tokens, start)
+        stage, model_name, out_type = self._session_details()
+        cache = self._try_cache_read(prompt, model_name, stage, feature_id, out_type)
+        if cache.payload is not None:
+            return cache.payload
+        return await self._execute_with_cache(
+            prompt, runner, span_name, stage, model_name, cache
+        )
 
     def ask(
         self,

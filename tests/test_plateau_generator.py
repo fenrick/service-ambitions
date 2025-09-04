@@ -120,7 +120,7 @@ async def test_map_features_maps_all_sets_with_full_list(monkeypatch) -> None:
     called: list[str] = []
     received: list[list[str]] = []
 
-    async def fake_map_set(session, name, items, feats, **kwargs):
+    async def fake_map_set(session, name, items, feats, params, **kwargs):
         called.append(name)
         received.append([f.feature_id for f in feats])
         return list(feats)

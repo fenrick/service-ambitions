@@ -21,6 +21,8 @@ from pydantic import (
     model_validator,
 )
 
+from constants import DEFAULT_CACHE_DIR
+
 SCHEMA_VERSION = "1.0"
 
 
@@ -99,7 +101,15 @@ class MaturityScore(BaseModel):
     justification: Annotated[str, Field(min_length=1)]
 
     @model_validator(mode="after")
-    def label_matches_level(self):
+    def label_matches_level(self) -> MaturityScore:
+        """Ensure the textual label corresponds to the numeric CMMI level.
+
+        Returns:
+            The validated ``MaturityScore`` instance.
+
+        Raises:
+            ValueError: If ``label`` does not match ``level``.
+        """
         if self.label != CMMI_LABELS.get(self.level):
             raise ValueError(
                 f"label must match level ({self.level} → {CMMI_LABELS[self.level]})"
@@ -485,7 +495,7 @@ class AppConfig(StrictModel):
     cache_dir: Annotated[
         Path,
         Field(description="Directory to store cache files."),
-    ] = Path(".cache")
+    ] = DEFAULT_CACHE_DIR
     mapping_sets: list[MappingSet] = Field(
         default_factory=list,
         description="Mapping dataset configurations.",

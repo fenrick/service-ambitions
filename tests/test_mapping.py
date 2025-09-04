@@ -9,7 +9,7 @@ from pydantic_core import from_json
 
 from core import mapping
 from core.conversation import ConversationSession
-from core.mapping import MappingError, cache_write_json_atomic, map_set
+from core.mapping import MappingError, MapSetParams, cache_write_json_atomic, map_set
 from models import (
     Contribution,
     FeatureMappingRef,
@@ -41,6 +41,17 @@ def _init_runtime_env() -> Iterator[None]:
     )
     RuntimeEnv.initialize(settings)
     yield
+
+
+def _params(**kwargs: Any) -> MapSetParams:
+    """Return mapping parameters with sensible defaults for tests."""
+
+    return MapSetParams(
+        service_name="svc",
+        service_description="desc",
+        plateau=1,
+        **kwargs,
+    )
     RuntimeEnv.reset()
 
 
@@ -121,10 +132,7 @@ async def test_map_set_successful_mapping(monkeypatch) -> None:
         "applications",
         [_item()],
         [_feature()],
-        service_name="svc",
-        service_description="desc",
-        plateau=1,
-        service="svc",
+        _params(service="svc"),
     )
     assert session.prompts == ["PROMPT"]
     assert mapped[0].mappings["applications"][0].item == "a"
@@ -161,10 +169,7 @@ async def test_map_set_quarantines_unknown_ids(monkeypatch, tmp_path) -> None:
         "applications",
         [_item()],
         [_feature()],
-        service_name="svc",
-        service_description="desc",
-        plateau=1,
-        service="svc",
+        _params(service="svc"),
     )
     assert [c.item for c in mapped[0].mappings["applications"]] == ["a"]
     qdir = tmp_path / "quarantine" / "svc" / "applications"
@@ -195,20 +200,14 @@ async def test_quarantine_separates_unknown_ids_by_service(
         "applications",
         [_item()],
         [_feature()],
-        service_name="svc1",
-        service_description="desc",
-        plateau=1,
-        service="svc1",
+        _params(service_name="svc1", service="svc1"),
     )
     await map_set(
         cast(ConversationSession, session),
         "applications",
         [_item()],
         [_feature()],
-        service_name="svc2",
-        service_description="desc",
-        plateau=1,
-        service="svc2",
+        _params(service_name="svc2", service="svc2"),
     )
     qfile1 = tmp_path / "quarantine" / "svc1" / "applications" / "unknown_ids_1.json"
     qfile2 = tmp_path / "quarantine" / "svc2" / "applications" / "unknown_ids_1.json"
@@ -231,11 +230,7 @@ async def test_map_set_strict_raises(monkeypatch, tmp_path) -> None:
             "applications",
             [_item()],
             [_feature()],
-            service_name="svc",
-            service_description="desc",
-            plateau=1,
-            service="svc",
-            strict=True,
+            _params(service="svc", strict=True),
         )
     # Only a single attempt is made when validation fails.
     assert session.prompts == ["PROMPT"]
@@ -264,11 +259,7 @@ async def test_map_set_strict_unknown_ids(monkeypatch, tmp_path) -> None:
             "applications",
             [_item()],
             [_feature()],
-            service_name="svc",
-            service_description="desc",
-            plateau=1,
-            service="svc",
-            strict=True,
+            _params(service="svc", strict=True),
         )
     qfile = tmp_path / "quarantine" / "svc" / "applications" / "unknown_ids_1.json"
     assert from_json(qfile.read_text()) == ["x"]
@@ -356,10 +347,7 @@ async def test_map_set_diagnostics_includes_rationale(monkeypatch) -> None:
         "applications",
         [_item()],
         [_feature()],
-        service_name="svc",
-        service_description="desc",
-        plateau=1,
-        diagnostics=True,
+        _params(diagnostics=True),
     )
     assert mapped[0].mappings["applications"][0].item == "a"
 
@@ -370,7 +358,7 @@ async def test_map_set_writes_cache(monkeypatch, tmp_path) -> None:
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
-    monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
+    monkeypatch.setattr(mapping, "build_cache_key", lambda *a, **k: "key")
     response = MappingResponse.model_validate(
         {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
     )
@@ -380,11 +368,7 @@ async def test_map_set_writes_cache(monkeypatch, tmp_path) -> None:
         "applications",
         [_item()],
         [_feature()],
-        service_name="svc",
-        service_description="desc",
-        plateau=1,
-        service="svc",
-        cache_mode="read",
+        _params(service="svc", cache_mode="read"),
     )
     cache_file = (
         Path(".cache")
@@ -407,7 +391,7 @@ async def test_map_set_reads_cache(monkeypatch, tmp_path) -> None:
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
-    monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
+    monkeypatch.setattr(mapping, "build_cache_key", lambda *a, **k: "key")
     cached = {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
     old_dir = Path(".cache") / "unknown" / "svc" / "mappings" / "f1" / "applications"
     old_dir.mkdir(parents=True, exist_ok=True)
@@ -424,11 +408,7 @@ async def test_map_set_reads_cache(monkeypatch, tmp_path) -> None:
         "applications",
         [_item()],
         [_feature()],
-        service_name="svc",
-        service_description="desc",
-        plateau=1,
-        service="svc",
-        cache_mode="read",
+        _params(service="svc", cache_mode="read"),
     )
     canonical = (
         Path(".cache")
@@ -451,7 +431,7 @@ async def test_map_set_invalid_cache_halts(monkeypatch, tmp_path) -> None:
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
-    monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
+    monkeypatch.setattr(mapping, "build_cache_key", lambda *a, **k: "key")
     cache_dir = Path(".cache") / "unknown" / "svc" / "1" / "mappings" / "applications"
     cache_dir.mkdir(parents=True, exist_ok=True)
     bad_file = cache_dir / "key.json"
@@ -466,11 +446,7 @@ async def test_map_set_invalid_cache_halts(monkeypatch, tmp_path) -> None:
             "applications",
             [_item()],
             [_feature()],
-            service_name="svc",
-            service_description="desc",
-            plateau=1,
-            service="svc",
-            cache_mode="read",
+            _params(service="svc", cache_mode="read"),
         )
     assert bad_file.exists()
     assert session.prompts == []
@@ -484,7 +460,7 @@ async def test_map_set_cache_invalidation(monkeypatch, tmp_path, change) -> None
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     keys = iter(["key1", "key2"])
-    monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: next(keys))
+    monkeypatch.setattr(mapping, "build_cache_key", lambda *a, **k: next(keys))
     if change == "template":  # Template text changes between calls
         versions = iter(["v1", "v2"])
         monkeypatch.setattr(mapping, "load_prompt_text", lambda _: next(versions))
@@ -509,22 +485,14 @@ async def test_map_set_cache_invalidation(monkeypatch, tmp_path, change) -> None
         "applications",
         [_item()],
         features1,
-        service_name="svc",
-        service_description="desc",
-        plateau=1,
-        cache_mode="read",
-        catalogue_hash=cat_hash1,
+        _params(cache_mode="read", catalogue_hash=cat_hash1),
     )
     await map_set(
         cast(ConversationSession, session),
         "applications",
         [_item()],
         features2,
-        service_name="svc",
-        service_description="desc",
-        plateau=1,
-        cache_mode="read",
-        catalogue_hash=cat_hash2,
+        _params(cache_mode="read", catalogue_hash=cat_hash2),
     )
     cache_dir = (
         Path(".cache") / "unknown" / "unknown" / "1" / "mappings" / "applications"
@@ -550,7 +518,7 @@ async def test_map_set_logs_cache_status(
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
-    monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
+    monkeypatch.setattr(mapping, "build_cache_key", lambda *a, **k: "key")
     response = json.dumps(
         {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]},
         separators=(",", ":"),
@@ -572,10 +540,7 @@ async def test_map_set_logs_cache_status(
         "applications",
         [_item()],
         [_feature()],
-        service_name="svc",
-        service_description="desc",
-        plateau=1,
-        cache_mode=mode,
+        _params(cache_mode=mode),
     )
     assert logs[0][1]["cache"] == expected
     assert logs[0][1]["cache_key"] == "key"
@@ -599,7 +564,7 @@ async def test_map_set_cache_modes(
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
-    monkeypatch.setattr(mapping, "_build_cache_key", lambda *a, **k: "key")
+    monkeypatch.setattr(mapping, "build_cache_key", lambda *a, **k: "key")
     response = json.dumps(
         {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
     )
@@ -633,11 +598,7 @@ async def test_map_set_cache_modes(
         "applications",
         [_item()],
         [_feature()],
-        service_name="svc",
-        service_description="desc",
-        plateau=1,
-        service="svc",
-        cache_mode=mode,
+        _params(service="svc", cache_mode=mode),
     )
     assert len(session.prompts) == expected_prompts
     if expected_content is None:  # off mode does not write cache
@@ -676,9 +637,7 @@ async def test_map_set_prompt_logging_respects_flags(monkeypatch) -> None:
         "applications",
         [_item()],
         [_feature()],
-        service_name="svc",
-        service_description="desc",
-        plateau=1,
+        _params(),
     )
     assert logs
     features_json = logs[0][1]["features"]
@@ -711,9 +670,7 @@ async def test_map_set_prompt_logging_skipped(monkeypatch) -> None:
         "applications",
         [_item()],
         [_feature()],
-        service_name="svc",
-        service_description="desc",
-        plateau=1,
+        _params(),
     )
     assert logs == []
 

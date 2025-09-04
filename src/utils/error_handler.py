@@ -22,7 +22,16 @@ class ErrorHandler(ABC):
 class LoggingErrorHandler(ErrorHandler):
     """Error handler that logs via ``logfire``."""
 
-    def handle(self, message: str, exc: Exception | None = None) -> None:  # noqa: D401
+    def handle(self, message: str, exc: Exception | None = None) -> None:
+        """Log an error message with optional exception context.
+
+        Args:
+            message: Description of the error to record.
+            exc: Exception instance providing additional context.
+
+        Returns:
+            None.
+        """
         if exc:
             logfire.error(f"{message}: {exc}")
         else:

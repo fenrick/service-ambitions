@@ -8,11 +8,12 @@ reading newline-delimited JSON service definitions and yielding validated
 
 from __future__ import annotations
 
+from json import JSONDecodeError
 from pathlib import Path
 from typing import Generator, Iterator
 
 import logfire
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 from pydantic_core import from_json
 
 from models import ServiceInput
@@ -30,7 +31,7 @@ def _extract_service_id(line: str) -> str | None:
 
     try:
         data = from_json(line, allow_partial=True)
-    except Exception:
+    except (ValidationError, JSONDecodeError):
         return None
     if isinstance(data, dict):
         return data.get("service_id")
@@ -61,7 +62,7 @@ def _process_line(
         service.features.clear()  # Drop feature details after load.
         VALID_SERVICES.add(1)
         return service
-    except Exception as exc:
+    except (ValidationError, JSONDecodeError, OSError) as exc:
         QUARANTINED_LINES.add(1)
         quarantine_dir = path_obj.parent / "quarantine"
         quarantine_dir.mkdir(exist_ok=True)
@@ -100,7 +101,7 @@ def _load_service_entries(path: Path | str) -> Generator[ServiceInput, None, Non
             f"{SERVICES_FILE_NOT_FOUND}. Please create a {path_obj} file in the"
             " current directory."
         ) from None
-    except Exception as exc:
+    except OSError as exc:
         logfire.error(
             "Error reading services file",
             file_path=str(path_obj),

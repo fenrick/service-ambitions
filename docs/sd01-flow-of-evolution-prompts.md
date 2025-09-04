@@ -34,7 +34,7 @@
 
 I will give you set of defined services, including description, example service features, a set of example jobs to be done with customer roles. Your actions are:
 
-1. For each services that are supplied ...
+1. For each service supplied, summarise its purpose, key features and jobs to be done.
 2. For each role for the service defined, establish what the service is doing to meet the needs of the defined jobs to be done, and any other appropriate jobs that you might consider.
 3. Iterate through the plateaus,
    1. Consider the style of the service that would exist at that plateau.

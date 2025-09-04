@@ -51,4 +51,5 @@ messages while adding more detail.
   exception propagates without being caught.
 
 Use `-q` and `-v` flags on the CLI to adjust verbosity from `fatal` through
-`trace`.
+`trace`. Structured JSON output is available via `--json-logs`, and detailed
+per-request spans can be enabled with `--trace`.

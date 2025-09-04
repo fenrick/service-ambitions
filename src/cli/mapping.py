@@ -20,12 +20,13 @@ from models import (
     PlateauResult,
     ServiceEvolution,
 )
+from runtime.settings import Settings
 from utils import ErrorHandler
 
 
 def load_catalogue(
     mapping_data_dir: Path | None,
-    settings,
+    settings: Settings,
     error_handler: ErrorHandler | None = None,
 ) -> tuple[dict[str, list[MappingItem]], str]:
     """Return mapping catalogue items and hash.
@@ -69,11 +70,7 @@ async def _apply_mapping_sets(
 
     mapped = list(features)
     for cfg in settings.mapping_sets:  # Apply each mapping set sequentially.
-        mapped = await mapping.map_set(
-            cast(ConversationSession, object()),
-            cfg.field,
-            items[cfg.field],
-            mapped,
+        params = mapping.MapSetParams(
             service_name="svc",
             service_description="desc",
             plateau=1,
@@ -81,6 +78,13 @@ async def _apply_mapping_sets(
             diagnostics=settings.diagnostics,
             cache_mode=cache_mode,
             catalogue_hash=catalogue_hash,
+        )
+        mapped = await mapping.map_set(
+            cast(ConversationSession, object()),
+            cfg.field,
+            items[cfg.field],
+            mapped,
+            params,
         )
     return mapped
 
@@ -159,7 +163,7 @@ def _assemble_mapping_groups(
 async def remap_features(
     evolutions: Sequence[ServiceEvolution],
     items: dict[str, list[MappingItem]],
-    settings,
+    settings: Settings,
     cache_mode: Literal["off", "read", "refresh", "write"],
     catalogue_hash: str,
 ) -> None:

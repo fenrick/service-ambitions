@@ -1,5 +1,6 @@
 """End-to-end tests for the CLI reverse command."""
 
+import importlib
 import json
 import sys
 import types
@@ -10,7 +11,6 @@ from typing import cast
 
 from pydantic_core import to_json
 
-import cli.main as cli
 from core import mapping
 from io_utils import loader
 from models import (
@@ -25,6 +25,8 @@ from models import (
     ServiceMeta,
 )
 from observability import telemetry
+
+cli = importlib.import_module("cli.main")
 
 dummy_logfire = types.SimpleNamespace(
     metric_counter=lambda name: types.SimpleNamespace(add=lambda *a, **k: None),
@@ -65,7 +67,7 @@ def test_cli_reverse_generates_caches(monkeypatch, tmp_path) -> None:
         context_id="unknown",
         model="gpt-5",
     )
-    monkeypatch.setattr(cli, "load_settings", lambda: settings)
+    monkeypatch.setattr(cli, "load_settings", lambda _path=None: settings)
     monkeypatch.setattr(cli, "_configure_logging", lambda *a, **k: None)
     monkeypatch.setattr(telemetry, "reset", lambda: None)
     monkeypatch.setattr(telemetry, "print_summary", lambda: None)
@@ -168,7 +170,7 @@ def test_cli_reverse_generates_caches(monkeypatch, tmp_path) -> None:
         }
     }
 
-    key = mapping._build_cache_key(
+    key = mapping.build_cache_key(
         settings.model, "applications", "0" * 64, [feat], settings.diagnostics
     )
     map_cache = (

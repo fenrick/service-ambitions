@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Mapping, Sequence, cast
 
@@ -18,6 +19,7 @@ import logfire
 from pydantic import ValidationError
 from pydantic_core import from_json, to_json
 
+from constants import DEFAULT_CACHE_DIR
 from io_utils.loader import load_mapping_items, load_prompt_text
 from io_utils.quarantine import QuarantineWriter
 from models import (
@@ -104,7 +106,7 @@ def _features_hash(features: Sequence[PlateauFeature]) -> str:
     return hashlib.sha256(combined.encode("utf-8")).hexdigest()
 
 
-def _build_cache_key(
+def build_cache_key(
     model_name: str,
     set_name: str,
     catalogue_hash: str,
@@ -134,7 +136,7 @@ def _build_cache_key(
     return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:32]
 
 
-def _cache_path(service: str, plateau: int, set_name: str, key: str) -> Path:
+def cache_path(service: str, plateau: int, set_name: str, key: str) -> Path:
     """Return canonical cache path for ``service`` and ``set_name``.
 
     Cache files are grouped by context, service identifier and plateau level.
@@ -145,7 +147,7 @@ def _cache_path(service: str, plateau: int, set_name: str, key: str) -> Path:
         cache_root = settings.cache_dir
         context = settings.context_id
     except Exception:  # pragma: no cover - settings unavailable
-        cache_root = Path(".cache")
+        cache_root = DEFAULT_CACHE_DIR
         context = "unknown"
 
     path = (
@@ -172,7 +174,7 @@ def _discover_cache_file(
     canonical path.
     """
 
-    canonical = _cache_path(service, plateau, set_name, key)
+    canonical = cache_path(service, plateau, set_name, key)
     if canonical.exists():
         return canonical, canonical
 
@@ -189,6 +191,450 @@ def cache_write_json_atomic(path: Path, content: Any) -> None:
     _cache_manager.write_json_atomic(path, content)
 
 
+def _catalogues_for_merge(
+    mapping_types: Mapping[str, MappingTypeConfig],
+    catalogue_items: Mapping[str, list[MappingItem]] | None,
+) -> Mapping[str, list[MappingItem]]:
+    """Return catalogue mapping for ``mapping_types``."""
+
+    env = RuntimeEnv.instance()
+    return (
+        catalogue_items
+        or load_mapping_items(env.settings.mapping_sets, error_handler=_error_handler)[
+            0
+        ]
+    )
+
+
+def _build_valid_ids(
+    mapping_types: Mapping[str, MappingTypeConfig],
+    catalogues: Mapping[str, list[MappingItem]],
+) -> dict[str, set[str]]:
+    """Return valid identifier lookup for each mapping type."""
+
+    return {
+        key: {item.id for item in catalogues[cfg.dataset]}
+        for key, cfg in mapping_types.items()
+    }
+
+
+def _merge_feature(
+    feature: PlateauFeature,
+    keys: Sequence[str],
+    mapped_lookup: Mapping[str, dict[str, list[Contribution]]],
+    valid_ids: Mapping[str, set[str]],
+    dropped: dict[str, list[str]],
+    missing: dict[str, int],
+    missing_features: dict[str, list[str]],
+) -> PlateauFeature:
+    """Merge mappings for a single ``feature``."""
+
+    mapped = mapped_lookup.get(feature.feature_id)
+    update_data: dict[str, list[Contribution]]
+    if mapped is None:
+        logfire.warning("missing mapping", feature_id=feature.feature_id)
+        for key in keys:
+            missing_features.setdefault(key, []).append(feature.feature_id)
+        update_data = {key: [] for key in keys}
+        return feature.model_copy(update={"mappings": feature.mappings | update_data})
+    update_data = {}
+    for key in keys:
+        original = mapped.get(key, [])
+        cleaned = [item for item in original if item.item in valid_ids[key]]
+        unknown = [item.item for item in original if item.item not in valid_ids[key]]
+        if unknown:
+            dropped.setdefault(key, []).extend(unknown)
+        if not cleaned:
+            missing[key] = missing.get(key, 0) + 1
+        update_data[key] = cleaned
+    return feature.model_copy(update={"mappings": feature.mappings | update_data})
+
+
+def _merge_all_features(
+    features: Sequence[PlateauFeature],
+    keys: Sequence[str],
+    mapped_lookup: Mapping[str, dict[str, list[Contribution]]],
+    valid_ids: Mapping[str, set[str]],
+) -> tuple[
+    list[PlateauFeature],
+    dict[str, list[str]],
+    dict[str, int],
+    dict[str, list[str]],
+]:
+    """Return merged features and tracking dictionaries."""
+
+    results: list[PlateauFeature] = []
+    dropped: dict[str, list[str]] = {}
+    missing: dict[str, int] = {}
+    missing_features: dict[str, list[str]] = {}
+    for feature in features:
+        merged = _merge_feature(
+            feature, keys, mapped_lookup, valid_ids, dropped, missing, missing_features
+        )
+        results.append(merged)
+    return results, dropped, missing, missing_features
+
+
+def _log_unknown_ids(
+    dropped: Mapping[str, list[str]],
+    service: str,
+    strict: bool,
+) -> int:
+    """Log and optionally raise for unknown identifiers."""
+
+    if not dropped:
+        return 0
+    unknown_total = 0
+    for key, ids in dropped.items():
+        logfire.warning(
+            "Dropped unknown mapping IDs",
+            set_name=key,
+            count=len(ids),
+            examples=ids[:UNKNOWN_ID_LOG_LIMIT],
+        )
+        unknown_total += len(ids)
+        _writer.write(key, service or "unknown", "unknown_ids", sorted(ids))
+    if strict:
+        raise MappingError("Unknown mapping identifiers returned")
+    return unknown_total
+
+
+def _log_missing_features(
+    missing_features: Mapping[str, list[str]],
+    strict: bool,
+) -> None:
+    """Log and optionally raise for features missing mappings."""
+
+    if not missing_features:
+        return
+    for key, ids in missing_features.items():
+        logfire.warning(
+            "Missing mapping features",
+            set_name=key,
+            count=len(ids),
+            examples=ids[:UNKNOWN_ID_LOG_LIMIT],
+        )
+    if strict:
+        raise MappingError("Mappings missing for one or more features")
+
+
+def _log_missing_counts(missing: Mapping[str, int], strict: bool) -> None:
+    """Log and optionally raise for features lacking valid mappings."""
+
+    if not missing:
+        return
+    for key, count in missing.items():
+        logfire.warning(f"{key}.missing={count}")
+    if strict:
+        raise MappingError("Mappings missing for one or more features")
+
+
+def _read_mapping_cache(
+    candidate: Path, cache_file: Path, model_type: type[StrictModel]
+) -> StrictModel:
+    """Return cached mapping payload from ``candidate``."""
+
+    try:
+        with candidate.open("rb") as fh:
+            data = from_json(fh.read())
+        payload = model_type.model_validate(data)
+        if candidate != cache_file:
+            cache_write_json_atomic(cache_file, payload.model_dump())
+            candidate.unlink()
+        return payload
+    except (ValidationError, ValueError) as exc:
+        _error_handler.handle(f"Invalid cache file: {candidate}", exc)
+        raise RuntimeError(f"Invalid cache file: {candidate}") from exc
+
+
+@dataclass
+class CacheInfo:
+    """Details about cache interaction for a mapping request."""
+
+    payload: StrictModel | None
+    cache_file: Path | None
+    write_after_call: bool
+    cache_hit: bool
+
+
+def _load_cache(
+    cache_mode: Literal["off", "read", "refresh", "write"],
+    service: str | None,
+    plateau: int,
+    set_name: str,
+    key: str,
+    model_type: type[StrictModel],
+) -> CacheInfo:
+    """Return cache information for the mapping request."""
+
+    if cache_mode == "off":
+        return CacheInfo(None, None, False, False)
+    svc = service or "unknown"
+    candidate, cache_file = _discover_cache_file(svc, plateau, set_name, key)
+    exists_before = candidate.exists()
+    payload: StrictModel | None = None
+    cache_hit = False
+    if cache_mode == "read" and exists_before:
+        payload = _read_mapping_cache(candidate, cache_file, model_type)
+        cache_hit = True
+    write_after_call = cache_mode == "refresh" or (
+        cache_mode in {"write", "read"} and not exists_before
+    )
+    return CacheInfo(payload, cache_file, write_after_call, cache_hit)
+
+
+def _cache_state(cache_mode: str, cache_hit: bool) -> str:
+    """Return human readable cache status."""
+
+    if cache_mode == "refresh":
+        return "refresh"
+    return "hit" if cache_hit else "miss"
+
+
+def _prepare_prompt(
+    set_name: str,
+    items: Sequence[MappingItem],
+    features: Sequence[PlateauFeature],
+    service_name: str,
+    service_description: str,
+    plateau: int,
+    diagnostics: bool,
+    session: "ConversationSession",
+) -> tuple[str, bool, bool]:
+    """Return rendered prompt and prompt logging state."""
+
+    prompt = render_set_prompt(
+        set_name,
+        list(items),
+        features,
+        service_name=service_name,
+        service_description=service_description,
+        plateau=plateau,
+        diagnostics=diagnostics,
+    )
+    should_log_prompt = diagnostics and getattr(session, "log_prompts", False)
+    original_flag = getattr(session, "log_prompts", False)
+    if should_log_prompt:
+        features_json = _json_bytes(
+            [
+                {
+                    "id": f.feature_id,
+                    "name": f.name,
+                    "description": f.description,
+                }
+                for f in sorted(features, key=lambda fe: fe.feature_id)
+            ],
+            indent=2,
+        ).decode("utf-8")
+        logfire.debug(
+            "mapping_prompt",
+            set_name=set_name,
+            features=features_json,
+        )
+        session.log_prompts = False
+    return prompt, should_log_prompt, original_flag
+
+
+async def _request_mapping_payload(
+    session: "ConversationSession",
+    prompt: str,
+    cache_file: Path | None,
+    write_after_call: bool,
+    set_name: str,
+    features: Sequence[PlateauFeature],
+    strict: bool,
+    service: str | None,
+    start: float,
+    retries: int,
+) -> tuple[StrictModel | None, int, list[PlateauFeature] | None]:
+    """Return mapping payload or fallback features on error."""
+
+    try:
+        payload = await session.ask_async(prompt)
+        tokens = getattr(session, "last_tokens", 0)
+    except Exception as exc:  # noqa: BLE001
+        svc = service or "unknown"
+        _writer.write(set_name, svc, "json_parse_error", str(exc))
+        _error_handler.handle("Invalid mapping response", exc)
+        if strict:
+            raise MappingError(
+                f"Invalid mapping response for {svc}/{set_name}"
+            ) from exc
+        record_mapping_set(
+            set_name,
+            features=len(features),
+            mapped_ids=0,
+            unknown_ids=0,
+            retries=retries,
+            latency=time.monotonic() - start,
+            tokens=0,
+        )
+        empty = [
+            feat.model_copy(update={"mappings": feat.mappings | {set_name: []}})
+            for feat in features
+        ]
+        return None, 0, empty
+    if cache_file and write_after_call:
+        data = payload.model_dump() if hasattr(payload, "model_dump") else payload
+        cache_write_json_atomic(cache_file, data)
+    return payload, tokens, None
+
+
+async def _fetch_and_cache(
+    params: FetchParams,
+) -> tuple[StrictModel | None, int, list[PlateauFeature] | None]:
+    """Fetch payload from model and optionally write to cache."""
+
+    prompt, should_log_prompt, original_flag = _prepare_prompt(
+        params.set_name,
+        params.items,
+        params.features,
+        params.service_name,
+        params.service_description,
+        params.plateau,
+        params.use_diag,
+        params.session,
+    )
+    payload, tokens, fallback = await _request_mapping_payload(
+        params.session,
+        prompt,
+        params.cache_file,
+        params.write_after_call,
+        params.set_name,
+        params.features,
+        params.strict,
+        params.service,
+        params.start,
+        params.retries,
+    )
+    if should_log_prompt:
+        params.session.log_prompts = original_flag
+    return payload, tokens, fallback
+
+
+def _normalise_payload(payload: StrictModel, use_diag: bool) -> MappingResponse:
+    """Return mapping response normalised for diagnostics."""
+
+    if use_diag:
+        diag_payload = cast(MappingDiagnosticsResponse, payload)
+        plain = [
+            MappingFeature(
+                feature_id=feat.feature_id,
+                mappings={
+                    key: [Contribution(item=c.item) for c in vals]
+                    for key, vals in feat.mappings.items()
+                },
+            )
+            for feat in diag_payload.features
+        ]
+        return MappingResponse(features=plain)
+    return cast(MappingResponse, payload)
+
+
+def _record_metrics(
+    set_name: str,
+    features: Sequence[PlateauFeature],
+    merged: Sequence[PlateauFeature],
+    unknown_count: int,
+    start: float,
+    retries: int,
+    tokens: int,
+) -> None:
+    """Record telemetry for a mapping operation."""
+
+    latency = time.monotonic() - start
+    mapped_ids = sum(len(f.mappings.get(set_name, [])) for f in merged)
+    record_mapping_set(
+        set_name,
+        features=len(features),
+        mapped_ids=mapped_ids,
+        unknown_ids=unknown_count,
+        retries=retries,
+        latency=latency,
+        tokens=tokens,
+    )
+
+
+# Backwards compatibility for renamed helpers
+_build_cache_key = build_cache_key
+_cache_path = cache_path
+
+
+@dataclass
+class MapSetParams:
+    """Options controlling ``map_set`` behaviour."""
+
+    service_name: str
+    service_description: str
+    plateau: int
+    service: str | None = None
+    strict: bool = False
+    diagnostics: bool | None = None
+    cache_mode: Literal["off", "read", "refresh", "write"] = "off"
+    catalogue_hash: str = ""
+
+
+@dataclass
+class ModelContext:
+    """Derived model details for mapping requests."""
+
+    cfg: MappingTypeConfig
+    use_diag: bool
+    model_name: str
+    model_type: type[StrictModel]
+    key: str
+
+
+@dataclass
+class FetchParams:
+    """Parameters required to fetch mapping payloads."""
+
+    session: "ConversationSession"
+    set_name: str
+    items: Sequence[MappingItem]
+    features: Sequence[PlateauFeature]
+    service_name: str
+    service_description: str
+    plateau: int
+    use_diag: bool
+    cache_file: Path | None
+    write_after_call: bool
+    strict: bool
+    service: str | None
+    start: float
+    retries: int
+
+
+def _build_context(
+    session: "ConversationSession",
+    set_name: str,
+    features: Sequence[PlateauFeature],
+    params: MapSetParams,
+) -> ModelContext:
+    """Derive model and cache details for mapping."""
+
+    cfg = MappingTypeConfig(dataset=set_name, label=set_name)
+    use_diag = (
+        params.diagnostics
+        if params.diagnostics is not None
+        else getattr(session, "diagnostics", False)
+    )
+    model_obj = getattr(session, "client", None)
+    model_name = getattr(getattr(model_obj, "model", None), "model_name", "")
+    key = build_cache_key(
+        model_name, set_name, params.catalogue_hash, features, use_diag
+    )
+    model_type = cast(
+        type[StrictModel],
+        getattr(
+            model_obj,
+            "output_type",
+            MappingDiagnosticsResponse if use_diag else MappingResponse,
+        ),
+    )
+    return ModelContext(cfg, use_diag, model_name, model_type, key)
+
+
 def _merge_mapping_results(
     features: Sequence[PlateauFeature],
     payload: MappingResponse,
@@ -198,92 +644,18 @@ def _merge_mapping_results(
     service: str = "unknown",
     strict: bool = False,
 ) -> tuple[list[PlateauFeature], int]:
-    """Return ``features`` merged with mapping ``payload`` and unknown count.
+    """Return ``features`` merged with mapping ``payload`` and unknown count."""
 
-    All mapping identifiers are validated against ``valid_ids``. Invented
-    identifiers are removed from the result and logged with up to
-    ``UNKNOWN_ID_LOG_LIMIT`` examples per set. When ``strict`` is ``True`` the
-    presence of unknown or missing identifiers raises :class:`MappingError`.
-    """
-
-    env = RuntimeEnv.instance()
-    catalogues = (
-        catalogue_items
-        or load_mapping_items(env.settings.mapping_sets, error_handler=_error_handler)[
-            0
-        ]
-    )
-    valid_ids: dict[str, set[str]] = {
-        key: {item.id for item in catalogues[cfg.dataset]}
-        for key, cfg in mapping_types.items()
-    }
-
+    catalogues = _catalogues_for_merge(mapping_types, catalogue_items)
+    valid_ids = _build_valid_ids(mapping_types, catalogues)
     mapped_lookup = {item.feature_id: item.mappings for item in payload.features}
-    results: list[PlateauFeature] = []
-    dropped: dict[str, list[str]] = {}
-    missing: dict[str, int] = {}
-    missing_features: dict[str, list[str]] = {}
-    for feature in features:
-        update_data: dict[str, list[Contribution]]
-        mapped = mapped_lookup.get(feature.feature_id)
-        if mapped is None:
-            # Record and warn when the response omits a feature entirely.
-            logfire.warning("missing mapping", feature_id=feature.feature_id)
-            for key in mapping_types.keys():
-                missing_features.setdefault(key, []).append(feature.feature_id)
-            update_data = {key: [] for key in mapping_types.keys()}
-            merged = feature.model_copy(
-                update={"mappings": feature.mappings | update_data}
-            )
-            results.append(merged)
-            continue
-        update_data = {}
-        for key in mapping_types.keys():
-            original = mapped.get(key, [])
-            cleaned: list[Contribution] = []
-            unknown: list[str] = []
-            for item in original:
-                # Guard against invented identifiers by dropping unknown IDs.
-                if item.item not in valid_ids[key]:
-                    unknown.append(item.item)
-                    continue
-                cleaned.append(item)
-            if unknown:
-                dropped.setdefault(key, []).extend(unknown)
-            if not cleaned:
-                # Track features missing any valid mappings for this set.
-                missing[key] = missing.get(key, 0) + 1
-            update_data[key] = cleaned
-        merged = feature.model_copy(update={"mappings": feature.mappings | update_data})
-        results.append(merged)
-    unknown_total = 0
-    if dropped:
-        for key, ids in dropped.items():
-            logfire.warning(
-                "Dropped unknown mapping IDs",
-                set_name=key,
-                count=len(ids),
-                examples=ids[:UNKNOWN_ID_LOG_LIMIT],
-            )
-            unknown_total += len(ids)
-            _writer.write(key, service or "unknown", "unknown_ids", sorted(ids))
-        if strict:
-            raise MappingError("Unknown mapping identifiers returned")
-    if missing_features:
-        for key, ids in missing_features.items():
-            logfire.warning(
-                "Missing mapping features",
-                set_name=key,
-                count=len(ids),
-                examples=ids[:UNKNOWN_ID_LOG_LIMIT],
-            )
-        if strict:
-            raise MappingError("Mappings missing for one or more features")
-    if missing:
-        for key, count in missing.items():
-            logfire.warning(f"{key}.missing={count}")
-        if strict:
-            raise MappingError("Mappings missing for one or more features")
+    keys = list(mapping_types.keys())
+    results, dropped, missing, missing_features = _merge_all_features(
+        features, keys, mapped_lookup, valid_ids
+    )
+    unknown_total = _log_unknown_ids(dropped, service or "unknown", strict)
+    _log_missing_features(missing_features, strict)
+    _log_missing_counts(missing, strict)
     return results, unknown_total
 
 
@@ -292,15 +664,7 @@ async def map_set(
     set_name: str,
     items: Sequence[MappingItem],
     features: Sequence[PlateauFeature],
-    *,
-    service_name: str,
-    service_description: str,
-    plateau: int,
-    service: str | None = None,
-    strict: bool = False,
-    diagnostics: bool | None = None,
-    cache_mode: Literal["off", "read", "refresh", "write"] = "off",
-    catalogue_hash: str = "",
+    params: MapSetParams,
 ) -> list[PlateauFeature]:
     """Return ``features`` with ``set_name`` mappings populated.
 
@@ -309,14 +673,7 @@ async def map_set(
         set_name: Mapping dataset to populate.
         items: Catalogue items available for mapping.
         features: Features requiring enrichment.
-        service_name: Human readable name of the service.
-        service_description: Description of the service at ``plateau``.
-        plateau: Numeric plateau level being mapped.
-        service: Optional service identifier used for caching.
-        strict: Raise :class:`MappingError` instead of returning partial results.
-        diagnostics: Enable diagnostics mode to request rationales.
-        cache_mode: Local cache behaviour.
-        catalogue_hash: SHA256 digest representing the loaded mapping catalogues.
+        params: Options controlling mapping behaviour.
 
     The agent is queried up to twice to obtain a valid :class:`MappingResponse`.
     The second attempt appends a hint directing the model to stick to the
@@ -335,163 +692,59 @@ async def map_set(
       absent.
     """
 
-    cfg = MappingTypeConfig(dataset=set_name, label=set_name)
-    use_diag = (
-        diagnostics
-        if diagnostics is not None
-        else getattr(session, "diagnostics", False)
+    context = _build_context(session, set_name, features, params)
+    cache = _load_cache(
+        params.cache_mode,
+        params.service,
+        params.plateau,
+        set_name,
+        context.key,
+        context.model_type,
     )
-    model_obj = getattr(session, "client", None)
-    model_name = getattr(getattr(model_obj, "model", None), "model_name", "")
-    key = _build_cache_key(model_name, set_name, catalogue_hash, features, use_diag)
-    model_type = cast(
-        type[StrictModel],
-        getattr(
-            model_obj,
-            "output_type",
-            MappingDiagnosticsResponse if use_diag else MappingResponse,
-        ),
-    )
-    cache_file: Path | None = None
-    payload: StrictModel | None = None
-    write_after_call = False
-    cache_hit = False
-    if cache_mode != "off":
-        svc = service or "unknown"
-        candidate, cache_file = _discover_cache_file(svc, plateau, set_name, key)
-        exists_before = candidate.exists()
-        if cache_mode == "read" and exists_before:
-            try:
-                with candidate.open("rb") as fh:
-                    data = from_json(fh.read())
-                payload = model_type.model_validate(data)
-                cache_hit = True
-                if candidate != cache_file:
-                    cache_write_json_atomic(cache_file, payload.model_dump())
-                    candidate.unlink()
-            except (ValidationError, ValueError) as exc:
-                _error_handler.handle(f"Invalid cache file: {candidate}", exc)
-                raise RuntimeError(f"Invalid cache file: {candidate}") from exc
-        if cache_mode == "refresh":
-            write_after_call = True
-        elif cache_mode == "write" and not exists_before:
-            write_after_call = True
-        elif cache_mode == "read" and not exists_before:
-            write_after_call = True
-
-    cache_state = (
-        "refresh" if cache_mode == "refresh" else ("hit" if cache_hit else "miss")
-    )
+    cache_state = _cache_state(params.cache_mode, cache.cache_hit)
     logfire.info(
         "mapping_set",
         set_name=set_name,
         cache=cache_state,
-        cache_key=key,
+        cache_key=context.key,
         features=len(features),
     )
 
     start = time.monotonic()
     retries = 0
     tokens = 0
+    payload = cache.payload
     if payload is None:
-        # Cache miss or refresh triggers a network request.
-        prompt = render_set_prompt(
-            set_name,
-            list(items),
-            features,
-            service_name=service_name,
-            service_description=service_description,
-            plateau=plateau,
-            diagnostics=use_diag,
+        fetch_params = FetchParams(
+            session=session,
+            set_name=set_name,
+            items=items,
+            features=features,
+            service_name=params.service_name,
+            service_description=params.service_description,
+            plateau=params.plateau,
+            use_diag=context.use_diag,
+            cache_file=cache.cache_file,
+            write_after_call=cache.write_after_call,
+            strict=params.strict,
+            service=params.service,
+            start=start,
+            retries=retries,
         )
-        should_log_prompt = use_diag and getattr(session, "log_prompts", False)
-        if should_log_prompt:
-            features_json = _json_bytes(
-                [
-                    {
-                        "id": f.feature_id,
-                        "name": f.name,
-                        "description": f.description,
-                    }
-                    for f in sorted(features, key=lambda fe: fe.feature_id)
-                ],
-                indent=2,
-            ).decode("utf-8")
-            logfire.debug(
-                "mapping_prompt",
-                set_name=set_name,
-                features=features_json,
-            )
-            session_log_prompts = getattr(session, "log_prompts", False)
-            session.log_prompts = False
-        try:
-            payload = await session.ask_async(prompt)
-            tokens += getattr(session, "last_tokens", 0)
-        except Exception as exc:  # noqa: BLE001
-            svc = service or "unknown"
-            _writer.write(set_name, svc, "json_parse_error", str(exc))
-            _error_handler.handle("Invalid mapping response", exc)
-            if strict:
-                raise MappingError(
-                    f"Invalid mapping response for {svc}/{set_name}"
-                ) from exc
-            record_mapping_set(
-                set_name,
-                features=len(features),
-                mapped_ids=0,
-                unknown_ids=0,
-                retries=retries,
-                latency=time.monotonic() - start,
-                tokens=tokens,
-            )
-            if should_log_prompt:
-                session.log_prompts = session_log_prompts
-            return [
-                feat.model_copy(update={"mappings": feat.mappings | {set_name: []}})
-                for feat in features
-            ]
-        if cache_file and write_after_call:
-            # Persist successful responses for future runs.
-            data = payload.model_dump() if hasattr(payload, "model_dump") else payload
-            cache_write_json_atomic(cache_file, data)
-        if should_log_prompt:
-            session.log_prompts = session_log_prompts
+        payload, tokens, fallback = await _fetch_and_cache(fetch_params)
+        if fallback is not None:
+            return fallback
 
-    if use_diag:
-        diag_payload = cast(MappingDiagnosticsResponse, payload)
-        plain = [
-            MappingFeature(
-                feature_id=feat.feature_id,
-                mappings={
-                    key: [Contribution(item=c.item) for c in vals]
-                    for key, vals in feat.mappings.items()
-                },
-            )
-            for feat in diag_payload.features
-        ]
-        payload_norm = MappingResponse(features=plain)
-    else:
-        payload_norm = cast(MappingResponse, payload)
-
+    payload_norm = _normalise_payload(cast(StrictModel, payload), context.use_diag)
     merged, unknown_count = _merge_mapping_results(
         features,
         payload_norm,
-        {set_name: cfg},
+        {set_name: context.cfg},
         catalogue_items={set_name: list(items)},
-        service=service or "unknown",
-        strict=strict,
+        service=params.service or "unknown",
+        strict=params.strict,
     )
-    latency = time.monotonic() - start
-    mapped_ids = sum(len(f.mappings.get(set_name, [])) for f in merged)
-    record_mapping_set(
-        set_name,
-        features=len(features),
-        mapped_ids=mapped_ids,
-        unknown_ids=unknown_count,
-        retries=retries,
-        latency=latency,
-        tokens=tokens,
-    )
+    _record_metrics(set_name, features, merged, unknown_count, start, retries, tokens)
     return merged
 
 
@@ -545,7 +798,10 @@ class MappingError(RuntimeError):
 
 
 __all__ = [
+    "MapSetParams",
     "map_set",
     "group_features_by_mapping",
     "MappingError",
+    "build_cache_key",
+    "cache_path",
 ]

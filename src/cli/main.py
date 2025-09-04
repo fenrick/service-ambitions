@@ -6,15 +6,19 @@ from __future__ import annotations
 import argparse
 import asyncio
 import inspect
+import os
+import platform
 import random
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any, Callable, Coroutine, cast
 
 import logfire
 from pydantic_core import to_json
 
-from core import mapping
+from constants import DEFAULT_CACHE_DIR
 from core.canonical import canonicalise_record
+from core.mapping import build_cache_key, cache_path, cache_write_json_atomic
 from engine.processing_engine import ProcessingEngine
 from generation.plateau_generator import _feature_cache_path
 from io_utils.loader import configure_mapping_data_dir, load_mapping_items
@@ -24,6 +28,7 @@ from models import (
     MappingFeature,
     MappingResponse,
     PlateauFeaturesResponse,
+    PlateauResult,
     ServiceEvolution,
     StageModels,
 )
@@ -32,6 +37,7 @@ from observability.monitoring import init_logfire
 from runtime.environment import RuntimeEnv
 from runtime.settings import load_settings
 
+from .data_validation import validate_data_dir
 from .mapping import load_catalogue, remap_features, write_output
 
 SERVICES_FILE_HELP = "Path to the services JSONL file"
@@ -45,13 +51,37 @@ TRANSCRIPTS_HELP = (
 LOG_LEVELS = ["fatal", "error", "warn", "notice", "info", "debug", "trace"]
 
 
+def _print_version() -> None:
+    """Print the installed package version."""
+
+    try:
+        pkg_version = version("service-ambitions")
+    except PackageNotFoundError:  # pragma: no cover - fallback for editable installs
+        pkg_version = "unknown"
+    print(f"service-ambitions {pkg_version}")
+
+
+def _print_diagnostics() -> None:
+    """Output basic environment information for health checks."""
+
+    _print_version()
+    print(f"Python {platform.python_version()}")
+    print(f"Platform {platform.platform()}")
+
+    missing = [var for var in ["OPENAI_API_KEY"] if not os.getenv(var)]
+    if missing:
+        print("Missing env vars: " + ", ".join(missing))
+    else:
+        print("Required env vars present")
+
+
 def _configure_logging(args: argparse.Namespace, settings) -> None:
     """Configure Logfire based on verbosity flags."""
 
     index = 2 + args.verbose - args.quiet
     index = max(0, min(len(LOG_LEVELS) - 1, index))
     min_log_level = LOG_LEVELS[index]
-    init_logfire(settings.logfire_token, min_log_level)
+    init_logfire(settings.logfire_token, min_log_level, json_logs=args.json_logs)
 
 
 async def _cmd_run(args: argparse.Namespace, transcripts_dir: Path | None) -> None:
@@ -62,7 +92,6 @@ async def _cmd_run(args: argparse.Namespace, transcripts_dir: Path | None) -> No
 
 async def _cmd_validate(args: argparse.Namespace, transcripts_dir: Path | None) -> None:
     """Validate inputs without invoking the language model."""
-
     args.dry_run = True
     await _cmd_generate_evolution(args, transcripts_dir)
 
@@ -93,12 +122,58 @@ async def _cmd_map(args: argparse.Namespace, transcripts_dir: Path | None) -> No
     write_output(evolutions, Path(args.output_file))
 
 
+def _reconstruct_feature_cache(svc_id: str, plateau: PlateauResult) -> None:
+    """Write grouped features for ``plateau`` to the cache."""
+
+    block: dict[str, list[FeatureItem]] = {}
+    for feat in plateau.features:
+        item = FeatureItem(
+            name=feat.name, description=feat.description, score=feat.score
+        )
+        block.setdefault(feat.customer_type, []).append(item)
+    payload = PlateauFeaturesResponse(features=block)
+    feat_path = _feature_cache_path(svc_id, plateau.plateau)
+    cache_write_json_atomic(feat_path, payload.model_dump())
+
+
+def _rebuild_mapping_cache(
+    svc_id: str,
+    plateau: PlateauResult,
+    settings: Any,
+    catalogue_hash: str,
+) -> None:
+    """Write mapping cache entries for all configured mapping sets."""
+
+    for cfg in settings.mapping_sets:
+        features_by_id: dict[str, MappingFeature] = {
+            f.feature_id: MappingFeature(feature_id=f.feature_id)
+            for f in plateau.features
+        }
+        for group in plateau.mappings.get(cfg.field, []):
+            for ref in group.mappings:
+                contrib = Contribution(item=group.id)
+                features_by_id[ref.feature_id].mappings.setdefault(
+                    cfg.field, []
+                ).append(contrib)
+        key = build_cache_key(
+            settings.model,
+            cfg.field,
+            catalogue_hash,
+            plateau.features,
+            settings.diagnostics,
+        )
+        cache_file = cache_path(svc_id, plateau.plateau, cfg.field, key)
+        payload = MappingResponse(features=list(features_by_id.values()))
+        cache_write_json_atomic(cache_file, payload.model_dump())
+    plateau.mappings = {}
+
+
 def _cmd_reverse(args: argparse.Namespace, transcripts_dir: Path | None) -> None:
     """Backfill feature and mapping caches from ``evolutions.jsonl``."""
 
     settings = RuntimeEnv.instance().settings
     configure_mapping_data_dir(args.mapping_data_dir or settings.mapping_data_dir)
-    items, catalogue_hash = load_mapping_items(settings.mapping_sets)
+    _, catalogue_hash = load_mapping_items(settings.mapping_sets)
 
     input_path = Path(args.input_file)
     output_path = Path(args.output_file)
@@ -113,50 +188,8 @@ def _cmd_reverse(args: argparse.Namespace, transcripts_dir: Path | None) -> None
         for evo in evolutions:
             svc_id = evo.service.service_id
             for plateau in evo.plateaus:
-                # Reconstruct feature cache grouped by role
-                block: dict[str, list[FeatureItem]] = {}
-                for feat in plateau.features:
-                    item = FeatureItem(
-                        name=feat.name,
-                        description=feat.description,
-                        score=feat.score,
-                    )
-                    block.setdefault(feat.customer_type, []).append(item)
-                feat_payload = PlateauFeaturesResponse(features=block)
-                feat_path = _feature_cache_path(svc_id, plateau.plateau)
-                mapping.cache_write_json_atomic(feat_path, feat_payload.model_dump())
-
-                # Rebuild mapping cache per mapping set
-                for cfg in settings.mapping_sets:
-                    features_by_id: dict[str, MappingFeature] = {
-                        f.feature_id: MappingFeature(feature_id=f.feature_id)
-                        for f in plateau.features
-                    }
-                    for group in plateau.mappings.get(cfg.field, []):
-                        for ref in group.mappings:
-                            contrib = Contribution(item=group.id)
-                            features_by_id[ref.feature_id].mappings.setdefault(
-                                cfg.field, []
-                            ).append(contrib)
-                    key = mapping._build_cache_key(
-                        settings.model,
-                        cfg.field,
-                        catalogue_hash,
-                        plateau.features,
-                        settings.diagnostics,
-                    )
-                    cache_file = mapping._cache_path(
-                        svc_id, plateau.plateau, cfg.field, key
-                    )
-                    map_payload = MappingResponse(
-                        features=list(features_by_id.values())
-                    )
-                    mapping.cache_write_json_atomic(
-                        cache_file, map_payload.model_dump()
-                    )
-
-                plateau.mappings = {}
-
+                _reconstruct_feature_cache(svc_id, plateau)
+                _rebuild_mapping_cache(svc_id, plateau, settings, catalogue_hash)
             evo.meta.mapping_types = []
             record = canonicalise_record(evo.model_dump(mode="json"))
             out_fh.write(to_json(record).decode() + "\n")
@@ -189,7 +222,15 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
     """
 
     parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="Path to YAML configuration file",
+    )
+    parser.add_argument(
         "--model",
+        type=str,
+        default=None,
         help=(
             "Global chat model name (default openai:gpt-5). "
             "Can also be set via the MODEL env variable."
@@ -197,10 +238,14 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
     )
     parser.add_argument(
         "--descriptions-model",
+        type=str,
+        default=None,
         help="Model for plateau descriptions (default openai:o4-mini)",
     )
     parser.add_argument(
         "--features-model",
+        type=str,
+        default=None,
         help=(
             "Model for feature generation (default openai:gpt-5; "
             "use openai:o4-mini for lower cost)"
@@ -208,10 +253,14 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
     )
     parser.add_argument(
         "--mapping-model",
+        type=str,
+        default=None,
         help="Model for feature mapping (default openai:o4-mini)",
     )
     parser.add_argument(
         "--search-model",
+        type=str,
+        default=None,
         help="Model for web search (default openai:gpt-4o-search-preview)",
     )
     parser.add_argument(
@@ -233,11 +282,13 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
     parser.add_argument(
         "--concurrency",
         type=int,
+        default=None,
         help="Number of services to process concurrently",
     )
     parser.add_argument(
         "--max-services",
         type=int,
+        default=None,
         help="Process at most this many services",
     )
     parser.add_argument(
@@ -248,11 +299,13 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
     )
     parser.add_argument(
         "--mapping-data-dir",
+        type=str,
         default=None,
         help="Directory containing mapping reference data",
     )
     parser.add_argument(
         "--roles-file",
+        type=str,
         default="data/roles.json",
         help="Path to JSON file containing role identifiers",
     )
@@ -265,17 +318,20 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
     parser.add_argument(
         "--dry-run",
         action="store_true",
+        default=False,
         help="Validate inputs without calling the API",
     )
     parser.add_argument(
         "--progress",
         action="store_true",
+        default=False,
         help="Display a progress bar during execution",
     )
     parser.add_argument(
         "--continue",
         dest="resume",
         action="store_true",
+        default=False,
         help="Resume processing using processed_ids.txt",
     )
     parser.add_argument(
@@ -290,7 +346,19 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
     parser.add_argument(
         "--allow-prompt-logging",
         action="store_true",
+        default=False,
         help="Include raw prompt text in debug logs",
+    )
+    parser.add_argument(
+        "--json-logs",
+        action="store_true",
+        help="Emit logs as structured JSON for container log scraping",
+    )
+    parser.add_argument(
+        "--trace",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Enable detailed diagnostics and per-request timing spans",
     )
     parser.add_argument(
         "--strict",
@@ -320,14 +388,14 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
     )
     parser.add_argument(
         "--cache-dir",
+        type=str,
         default=None,
-        help=(
-            "Directory to store cache files; defaults to '.cache' in the "
-            "current working directory"
-        ),
+        help=f"Directory to store cache files; defaults to '{DEFAULT_CACHE_DIR}'",
     )
     parser.add_argument(
         "--temp-output-dir",
+        type=str,
+        default=None,
         help="Directory for intermediate JSON records",
     )
 
@@ -343,16 +411,19 @@ def _add_map_subparser(
     parser = subparsers.add_parser(
         "map",
         parents=[common],
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         help="Populate feature mappings",
         description="Populate feature mappings for an existing features file",
     )
     parser.add_argument(
         "--input-file",
+        type=str,
         default="features.jsonl",
         help="Path to the features JSONL file",
     )
     parser.add_argument(
         "--output-file",
+        type=str,
         default="mapped.jsonl",
         help=OUTPUT_FILE_HELP,
     )
@@ -369,6 +440,7 @@ def _add_run_subparser(
     parser = subparsers.add_parser(
         "run",
         parents=[common],
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         help="Generate service evolutions via ProcessingEngine",
         description=(
             "Generate service evolutions using the ProcessingEngine and "
@@ -377,15 +449,19 @@ def _add_run_subparser(
     )
     parser.add_argument(
         "--input-file",
+        type=str,
         default="services.jsonl",
         help=SERVICES_FILE_HELP,
     )
     parser.add_argument(
         "--output-file",
+        type=str,
         default="evolutions.jsonl",
         help=OUTPUT_FILE_HELP,
     )
-    parser.add_argument("--transcripts-dir", help=TRANSCRIPTS_HELP)
+    parser.add_argument(
+        "--transcripts-dir", type=str, default=None, help=TRANSCRIPTS_HELP
+    )
     parser.set_defaults(func=_cmd_run)
     return parser
 
@@ -399,6 +475,7 @@ def _add_validate_subparser(
     parser = subparsers.add_parser(
         "validate",
         parents=[common],
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         help="Generate service evolutions via ProcessingEngine",
         description=(
             "Validate inputs without calling the API and generate service "
@@ -407,15 +484,26 @@ def _add_validate_subparser(
     )
     parser.add_argument(
         "--input-file",
+        type=str,
         default="services.jsonl",
         help=SERVICES_FILE_HELP,
     )
     parser.add_argument(
         "--output-file",
+        type=str,
         default="evolutions.jsonl",
         help=OUTPUT_FILE_HELP,
     )
-    parser.add_argument("--transcripts-dir", help=TRANSCRIPTS_HELP)
+    parser.add_argument(
+        "--transcripts-dir", type=str, default=None, help=TRANSCRIPTS_HELP
+    )
+    parser.add_argument(
+        "--data",
+        help=(
+            "Directory containing services.jsonl and an optional catalogue "
+            "subdirectory for standalone validation"
+        ),
+    )
     parser.set_defaults(func=_cmd_validate)
     return parser
 
@@ -429,6 +517,7 @@ def _add_reverse_subparser(
     parser = subparsers.add_parser(
         "reverse",
         parents=[common],
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         help="Rebuild caches from an evolutions file",
         description=(
             "Reconstruct feature and mapping caches from a previously "
@@ -437,11 +526,13 @@ def _add_reverse_subparser(
     )
     parser.add_argument(
         "--input-file",
+        type=str,
         default="evolutions.jsonl",
         help="Path to the evolutions JSONL file",
     )
     parser.add_argument(
         "--output-file",
+        type=str,
         default="features.jsonl",
         help="Path to write extracted features JSONL",
     )
@@ -460,7 +551,21 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    common = _add_common_args(argparse.ArgumentParser(add_help=False))
+    parser.add_argument(
+        "--version",
+        action="store_true",
+        help="Print the service-ambitions version and exit.",
+    )
+    parser.add_argument(
+        "--diagnostics",
+        action="store_true",
+        help="Print environment diagnostics and exit.",
+    )
+    common = _add_common_args(
+        argparse.ArgumentParser(
+            add_help=False, formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        )
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
     _add_map_subparser(subparsers, common)
     _add_reverse_subparser(subparsers, common)
@@ -505,6 +610,7 @@ def _apply_args_to_settings(args: argparse.Namespace, settings) -> None:
         "cache_mode": ("cache_mode", None),
         "cache_dir": ("cache_dir", Path),
         "strict": ("strict", None),
+        "trace": ("diagnostics", None),
     }
     for arg_name, (attr, converter) in arg_mapping.items():
         value = getattr(args, arg_name, None)
@@ -536,7 +642,19 @@ def main() -> None:
 
     parser = _build_parser()
     args = parser.parse_args()
-    settings = load_settings()
+    if args.version:
+        _print_version()
+        return
+    if args.diagnostics:
+        _print_diagnostics()
+        return
+    if args.command is None:
+        parser.print_help()
+        raise SystemExit(1)
+    if args.command == "validate" and getattr(args, "data", None):
+        validate_data_dir(Path(args.data))
+        return
+    settings = load_settings(args.config)
     _apply_args_to_settings(args, settings)
     _execute_subcommand(args, settings)
 

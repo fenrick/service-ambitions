@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import importlib
 import sys
 import types
 from contextlib import nullcontext
@@ -31,6 +32,8 @@ dummy_pydantic = types.SimpleNamespace(
     messages=types.SimpleNamespace(ModelMessage=object),
 )
 sys.modules.setdefault("pydantic_ai", cast(types.ModuleType, dummy_pydantic))
+
+cli = importlib.import_module("cli.main")  # noqa: E402
 sys.modules.setdefault(
     "pydantic_ai.models",
     cast(types.ModuleType, types.SimpleNamespace(Model=object)),
@@ -100,7 +103,10 @@ sys.modules.setdefault(
 )
 sys.modules.setdefault(
     "runtime.settings",
-    cast(types.ModuleType, SimpleNamespace(load_settings=lambda: SimpleNamespace())),
+    cast(
+        types.ModuleType,
+        SimpleNamespace(load_settings=lambda _p=None: SimpleNamespace()),
+    ),
 )
 sys.modules.setdefault(
     "io_utils.service_loader",
@@ -214,10 +220,8 @@ sys.modules.setdefault(
     cast(types.ModuleType, types.SimpleNamespace(PlateauGenerator=object)),
 )
 
-import cli.main as cli  # noqa: E402
 
-
-def _settings() -> SimpleNamespace:
+def _settings(_config: str | None = None) -> SimpleNamespace:
     """Return minimal settings for the CLI."""
 
     return SimpleNamespace(

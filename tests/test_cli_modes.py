@@ -1,17 +1,21 @@
 # SPDX-License-Identifier: MIT
 """Integration tests for CLI subcommands."""
 
+import importlib
+import os
 import sys
 from pathlib import Path
 from types import SimpleNamespace
 
-import cli.main as cli
 from runtime.environment import RuntimeEnv
 
+cli = importlib.import_module("cli.main")
 
-def _prepare_settings():
+
+def _prepare_settings(_config: str | None = None):
     """Return minimal settings namespace for CLI tests."""
 
+    cache_dir = Path(os.environ.get("XDG_CACHE_HOME", "/tmp")) / "service-ambitions"
     return SimpleNamespace(
         log_level="INFO",
         logfire_token=None,
@@ -22,7 +26,7 @@ def _prepare_settings():
         models=None,
         use_local_cache=True,
         cache_mode="read",
-        cache_dir=Path(".cache"),
+        cache_dir=cache_dir,
     )
 
 
@@ -90,7 +94,10 @@ def test_cache_args_defaults(monkeypatch):
     assert args.cache_dir is None
     assert settings.use_local_cache is True
     assert settings.cache_mode == "read"
-    assert settings.cache_dir == Path(".cache")
+    assert (
+        settings.cache_dir
+        == Path(os.environ.get("XDG_CACHE_HOME", "/tmp")) / "service-ambitions"
+    )
 
 
 def test_cache_args_custom(monkeypatch):
@@ -159,3 +166,44 @@ def test_apply_args_to_settings_updates_settings():
     assert settings.cache_mode == "off"
     assert settings.cache_dir == Path("/tmp/cache")
     assert settings.strict is True
+
+
+def test_version_flag_prints_version(monkeypatch, capsys):
+    """`--version` should output the package version and exit."""
+
+    monkeypatch.setattr(sys, "argv", ["main", "--version"])
+
+    cli.main()
+
+    out = capsys.readouterr().out
+    assert "service-ambitions" in out
+
+
+def test_diagnostics_flag_prints_environment(monkeypatch, capsys):
+    """`--diagnostics` should output environment information."""
+
+    monkeypatch.setattr(sys, "argv", ["main", "--diagnostics"])
+
+    cli.main()
+
+    out = capsys.readouterr().out
+    assert "Python" in out
+
+def test_run_passes_config_path(monkeypatch, tmp_path):
+    """Providing --config forwards the path to load_settings."""
+
+    called: dict[str, str | None] = {}
+
+    def _fake_settings(path=None):
+        called["config"] = path
+        return _prepare_settings()
+
+    monkeypatch.setattr(cli, "load_settings", _fake_settings)
+    monkeypatch.setattr(cli, "_cmd_generate_evolution", lambda *a, **k: None)
+    monkeypatch.setattr(cli, "_configure_logging", lambda *a, **k: None)
+    cfg = tmp_path / "alt.yaml"
+    monkeypatch.setattr(sys, "argv", ["main", "run", "--dry-run", "--config", str(cfg)])
+
+    cli.main()
+
+    assert called["config"] == str(cfg)

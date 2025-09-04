@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -107,3 +108,23 @@ def test_ensure_run_meta_initialises_once(monkeypatch):
     exec_obj._ensure_run_meta()
     assert RuntimeEnv.instance().run_meta is meta
     env.run_meta = None
+
+
+def test_prepare_runtimes_uses_internal_generator(monkeypatch):
+    exec_obj = _execution()
+
+    class DummyGenerator:
+        description_session = object()
+
+        async def _request_descriptions_async(self, names, session):
+            return {n: f"{n}-desc" for n in names}
+
+    exec_obj.generator = DummyGenerator()
+    monkeypatch.setattr(se, "default_plateau_names", lambda: ["p1", "p2"])
+    monkeypatch.setattr(se, "default_plateau_map", lambda: {"p1": 1, "p2": 2})
+
+    runtimes = asyncio.run(exec_obj._prepare_runtimes())
+
+    assert len(runtimes) == 2
+    assert runtimes[0].plateau == 1
+    assert runtimes[0].description == "p1-desc"

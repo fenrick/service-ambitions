@@ -9,6 +9,7 @@ from typing import Sequence
 from uuid import uuid4
 
 import logfire
+from pydantic import ValidationError
 from pydantic_ai import Agent
 from pydantic_core import to_json
 
@@ -189,10 +190,12 @@ class ServiceExecution:
             created=datetime.now(timezone.utc),
         )
 
-    async def _prepare_runtimes(
-        self, generator: PlateauGenerator
-    ) -> list[PlateauRuntime]:
+    async def _prepare_runtimes(self) -> list[PlateauRuntime]:
         """Return plateau runtimes with descriptions."""
+
+        generator = self.generator
+        if generator is None:  # pragma: no cover - defensive
+            raise RuntimeError("Generator not initialised")
 
         names = list(default_plateau_names())
         desc_map = await generator._request_descriptions_async(
@@ -232,7 +235,8 @@ class ServiceExecution:
         self.refresh_settings()
         service = self.runtime.service
         self._build_generator()
-        assert self.generator is not None  # mypy safeguard
+        if self.generator is None:
+            raise RuntimeError("Plateau generator is not initialised")
         attrs = {
             "service_id": service.service_id,
             "service_name": service.name,
@@ -244,10 +248,11 @@ class ServiceExecution:
             try:
                 SERVICES_PROCESSED.add(1)
                 self._ensure_run_meta()
-                runtimes = await self._prepare_runtimes(self.generator)
+                runtimes = await self._prepare_runtimes()
                 env = RuntimeEnv.instance()
                 meta = env.run_meta
-                assert meta is not None  # mypy safeguard
+                if meta is None:
+                    raise RuntimeError("Run metadata is not initialised")
                 evolution = await self.generator.generate_service_evolution_async(
                     service,
                     runtimes,
@@ -260,7 +265,9 @@ class ServiceExecution:
                 self.runtime.line = to_json(record).decode()
                 self.runtime.success = True
                 return True
-            except Exception as exc:  # noqa: BLE001
+            except RuntimeError:
+                raise
+            except (ValidationError, ValueError, OSError) as exc:
                 quarantine_file = await asyncio.to_thread(
                     _writer.write,
                     "evolution",

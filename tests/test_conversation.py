@@ -12,6 +12,7 @@ from pydantic_core import from_json
 
 from core import conversation
 from core.conversation import ConversationSession
+from core.mapping import cache_write_json_atomic
 from models import ServiceFeature, ServiceInput
 from runtime.environment import RuntimeEnv
 
@@ -24,13 +25,23 @@ class DummyAgent:
     def __init__(self) -> None:
         self.called_with: list[str] = []
 
+    class _Response:
+        def __init__(self, prompt: str) -> None:
+            self.output = "pong"
+            self.prompt = prompt
+
+        def model_dump(self) -> dict[str, str]:
+            return {"prompt": self.prompt, "response": self.output}
+
+        def new_messages(self) -> list[str]:
+            return ["msg"]
+
+        def usage(self) -> SimpleNamespace:
+            return SimpleNamespace(total_tokens=5)
+
     def run_sync(self, prompt: str, message_history: list[str]):
         self.called_with.append(prompt)
-        return SimpleNamespace(
-            output="pong",
-            new_messages=lambda: ["msg"],
-            usage=lambda: SimpleNamespace(total_tokens=5),
-        )
+        return self._Response(prompt)
 
 
 def test_add_parent_materials_records_history() -> None:
@@ -215,3 +226,30 @@ def test_ask_uses_cache_when_available(tmp_path, monkeypatch) -> None:
 
     assert reply == "cached"
     assert agent.called_with == []
+
+
+def test_ask_writes_cache_on_miss(tmp_path, monkeypatch) -> None:
+    """Cache misses should persist responses for future calls."""
+
+    agent = DummyAgent()
+    session = ConversationSession(
+        cast(Agent[None, str], agent),
+        stage="stage",
+        use_local_cache=True,
+        cache_mode="read",
+    )
+    RuntimeEnv.initialize(
+        cast(Any, SimpleNamespace(cache_dir=tmp_path, context_id="ctx"))
+    )
+
+    monkeypatch.setattr(
+        ConversationSession,
+        "_write_cache_result",
+        lambda self, path, output: cache_write_json_atomic(path, {"response": output}),
+    )
+
+    session.ask("hello")
+
+    key = conversation._prompt_cache_key("hello", "", "stage")
+    path = conversation._prompt_cache_path("unknown", "stage", key)
+    assert path.exists()

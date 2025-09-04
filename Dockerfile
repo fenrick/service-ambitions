@@ -12,4 +12,5 @@ FROM gcr.io/distroless/python3-debian12:nonroot
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 WORKDIR /app
+COPY config /app/config
 ENTRYPOINT ["service-ambitions"]

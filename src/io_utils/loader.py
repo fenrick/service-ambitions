@@ -16,12 +16,13 @@ from typing import Sequence, TypeVar
 
 import logfire
 import yaml
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 from pydantic_core import to_json
 
 from models import (
     AppConfig,
     DefinitionBlock,
+    DefinitionItem,
     MappingItem,
     MappingSet,
     MappingTypeConfig,
@@ -87,7 +88,7 @@ def _read_file(path: Path, error_handler: ErrorHandler | None = None) -> str:
     except FileNotFoundError as exc:
         handler.handle(f"Prompt file not found: {path}", exc)
         raise
-    except Exception as exc:
+    except OSError as exc:
         handler.handle(f"Error reading prompt file {path}", exc)
         raise RuntimeError(
             f"An error occurred while reading the prompt file: {exc}"
@@ -114,7 +115,7 @@ def _read_json_file(
         return adapter.validate_json(_read_file(path, handler))
     except FileNotFoundError:
         raise
-    except Exception as exc:
+    except (RuntimeError, ValidationError, ValueError) as exc:
         handler.handle(f"Error reading JSON file {path}", exc)
         raise RuntimeError(
             f"An error occurred while reading the JSON file: {exc}"
@@ -190,7 +191,7 @@ def _read_yaml_file(
         return adapter.validate_python(yaml.safe_load(_read_file(path, handler)))
     except FileNotFoundError:
         raise
-    except Exception as exc:
+    except (RuntimeError, ValidationError, yaml.YAMLError, ValueError) as exc:
         handler.handle(f"Error reading YAML file {path}", exc)
         raise RuntimeError(
             f"An error occurred while reading the YAML file: {exc}"
@@ -210,7 +211,7 @@ def load_prompt_text(prompt_name: str, base_dir: Path | str | None = None) -> st
     loader = env.prompt_loader if base_dir is None else FilePromptLoader(Path(base_dir))
     try:
         return loader.load(prompt_name)
-    except Exception as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         LoggingErrorHandler().handle(f"Error loading prompt {prompt_name}", exc)
         raise
 
@@ -249,7 +250,7 @@ def load_mapping_items(
     handler = error_handler or LoggingErrorHandler()
     try:
         return loader.load(sets)
-    except Exception as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         handler.handle("Error loading mapping items", exc)
         raise
 
@@ -306,7 +307,7 @@ def load_plateau_definitions(
     path = Path(base_dir) / Path(filename)
     try:
         return _read_json_file(path, list[ServiceFeaturePlateau], handler)
-    except Exception as exc:
+    except (RuntimeError, ValidationError, ValueError) as exc:
         handler.handle(f"Invalid plateau definition data in {path}", exc)
         raise RuntimeError(f"Invalid plateau definitions: {exc}") from exc
 
@@ -339,7 +340,7 @@ def load_roles(
     path = base_path / Path(filename) if base_path.is_dir() else base_path
     try:
         return _read_json_file(path, list[Role], handler)
-    except Exception as exc:
+    except (RuntimeError, ValidationError, ValueError) as exc:
         handler.handle(f"Invalid role data in {path}", exc)
         raise RuntimeError(f"Invalid roles: {exc}") from exc
 
@@ -391,7 +392,7 @@ def load_definitions(
     path = Path(base_dir) / Path(filename)
     try:
         data = _read_json_file(path, DefinitionBlock)
-    except Exception as exc:
+    except (RuntimeError, ValidationError, ValueError) as exc:
         logfire.error(f"Invalid definition data in {path}: {exc}")
         raise RuntimeError(f"Invalid definitions: {exc}") from exc
 
@@ -400,27 +401,37 @@ def load_definitions(
         bullets = [item for item in bullets if item.id in keys]
     lines = [f"## {data.title}", ""]
     for idx, item in enumerate(bullets, start=1):
-        header = f"{idx}. **{item.name}**"
-        if item.aliases:  # Show alternative terms in-line
-            header += f" ({', '.join(item.aliases)})"
-        lines.append(header)
-        if item.short_definition:  # Include concise explanation when present
-            lines.append(f"   - Short definition: {item.short_definition}")
-        lines.append(f"   - Definition: {item.definition}")
-        _append_list(lines, "Decision rules", item.decision_rules)
-        _append_list(lines, "Use when", item.use_when)
-        _append_list(lines, "Avoid confusion with", item.avoid_confusion_with)
-        _append_list(lines, "Examples", item.examples)
-        _append_list(lines, "Non-examples", item.non_examples)
-        if item.related_terms:  # Join identifiers inline
-            lines.append(f"   - Related terms: {', '.join(item.related_terms)}")
-        if item.tags:  # Tag list summarises categorisation
-            lines.append(f"   - Tags: {', '.join(item.tags)}")
-        if item.owner:  # Identify definition steward
-            lines.append(f"   - Owner: {item.owner}")
-        if item.last_updated:  # Track provenance
-            lines.append(f"   - Last updated: {item.last_updated}")
+        lines.extend(_format_definition_item(idx, item))
     return "\n".join(lines)
+
+
+def _format_definition_item(idx: int, item: DefinitionItem) -> list[str]:
+    """Return formatted lines for a single definition item."""
+
+    header = f"{idx}. **{item.name}**"
+    if item.aliases:
+        header += f" ({', '.join(item.aliases)})"
+    lines = [header]
+    if item.short_definition:
+        lines.append(f"   - Short definition: {item.short_definition}")
+    lines.append(f"   - Definition: {item.definition}")
+    for label, values in [
+        ("Decision rules", item.decision_rules),
+        ("Use when", item.use_when),
+        ("Avoid confusion with", item.avoid_confusion_with),
+        ("Examples", item.examples),
+        ("Non-examples", item.non_examples),
+    ]:
+        _append_list(lines, label, values)
+    for label, value in [
+        ("Related terms", item.related_terms and ", ".join(item.related_terms)),
+        ("Tags", item.tags and ", ".join(item.tags)),
+        ("Owner", item.owner),
+        ("Last updated", item.last_updated),
+    ]:
+        if value:
+            lines.append(f"   - {label}: {value}")
+    return lines
 
 
 def load_plateau_text(

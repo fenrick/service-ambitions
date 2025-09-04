@@ -14,6 +14,7 @@ def init_logfire(
     min_log_level: Literal[
         "fatal", "error", "warn", "notice", "info", "debug", "trace"
     ] = "warn",
+    json_logs: bool = False,
 ) -> None:
     """Configure Logfire and enable instrumentation.
 
@@ -21,17 +22,27 @@ def init_logfire(
         token: Optional Logfire API token. If omitted, ``LOGFIRE_TOKEN`` from the
             environment is used. Missing tokens keep telemetry local.
         min_log_level: Minimum level for console and telemetry output.
+        json_logs: Emit console logs as structured JSON when ``True``.
     """
 
     key = token or os.getenv("LOGFIRE_TOKEN")
-    logfire.configure(
-        token=key,
-        service_name="service-ambition-generator",
-        console=logfire.ConsoleOptions(
+    if json_logs:
+        console = logfire.ConsoleOptions(
             min_log_level=min_log_level,
             show_project_link=False,
             verbose=True,
-        ),
+            format="json",
+        )  # type: ignore[call-arg]
+    else:
+        console = logfire.ConsoleOptions(
+            min_log_level=min_log_level,
+            show_project_link=False,
+            verbose=True,
+        )
+    logfire.configure(
+        token=key,
+        service_name="service-ambition-generator",
+        console=console,
         min_level=min_log_level,
     )
 
