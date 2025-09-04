@@ -3,13 +3,15 @@
 
 from __future__ import annotations
 
+import importlib
 import sys
 from pathlib import Path
 from types import SimpleNamespace
 
-import cli.main as cli
 from core import mapping
 from models import Contribution, MappingSet
+
+cli = importlib.import_module("cli.main")
 
 
 def _settings() -> SimpleNamespace:

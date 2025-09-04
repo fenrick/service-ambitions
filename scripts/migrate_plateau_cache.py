@@ -9,6 +9,8 @@ from typing import Iterable
 import logfire
 from pydantic_core import from_json
 
+from constants import DEFAULT_CACHE_DIR
+
 
 def _load_feature_plateaus(files: Iterable[Path]) -> dict[str, dict[str, str]]:
     """Return mapping of service to feature plateau levels."""
@@ -97,7 +99,7 @@ def main() -> None:
     """CLI entrypoint."""
 
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("output")
-    cache = Path(sys.argv[2]) if len(sys.argv) > 2 else Path(".cache")
+    cache = Path(sys.argv[2]) if len(sys.argv) > 2 else DEFAULT_CACHE_DIR
     migrate(out, cache)
 
 

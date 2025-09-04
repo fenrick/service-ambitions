@@ -2,8 +2,9 @@
 """Unit tests for CLI parser helper functions."""
 
 import argparse
+import importlib
 
-import cli.main as cli
+cli = importlib.import_module("cli.main")
 
 
 def test_add_common_args_parses_model():

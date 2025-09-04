@@ -1,5 +1,6 @@
 """End-to-end tests for the CLI reverse command."""
 
+import importlib
 import json
 import sys
 import types
@@ -10,7 +11,6 @@ from typing import cast
 
 from pydantic_core import to_json
 
-import cli.main as cli
 from core import mapping
 from io_utils import loader
 from models import (
@@ -25,6 +25,8 @@ from models import (
     ServiceMeta,
 )
 from observability import telemetry
+
+cli = importlib.import_module("cli.main")
 
 dummy_logfire = types.SimpleNamespace(
     metric_counter=lambda name: types.SimpleNamespace(add=lambda *a, **k: None),

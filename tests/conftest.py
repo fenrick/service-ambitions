@@ -93,12 +93,44 @@ sys.modules.setdefault("logfire", dummy_logfire)
 
 # Minimal ``pydantic_ai`` stub to avoid heavyweight dependencies.
 dummy_pydantic_ai = cast(Any, ModuleType("pydantic_ai"))
-dummy_pydantic_ai.Agent = SimpleNamespace
-dummy_pydantic_ai.messages = SimpleNamespace
+
+
+class _DummyAgent:
+    def __class_getitem__(cls, _):  # pragma: no cover - simple generic stub
+        return cls
+
+
+dummy_pydantic_ai.Agent = _DummyAgent
+
+
+class _DummyModelRequest:
+    def __init__(self, parts=None, **kwargs) -> None:
+        self.parts = parts
+
+
+class _DummyUserPromptPart:
+    def __init__(self, content=None, **kwargs) -> None:
+        self.content = content
+
+
+dummy_pydantic_ai.messages = SimpleNamespace(
+    ModelRequest=_DummyModelRequest, UserPromptPart=_DummyUserPromptPart
+)
 sys.modules.setdefault("pydantic_ai", dummy_pydantic_ai)
 dummy_pydantic_models = cast(Any, ModuleType("pydantic_ai.models"))
 dummy_pydantic_models.Model = SimpleNamespace
 sys.modules.setdefault("pydantic_ai.models", dummy_pydantic_models)
+dummy_openai_models = cast(Any, ModuleType("pydantic_ai.models.openai"))
+
+
+class _DummyOpenAIResponsesModel:
+    def __init__(self, *args, **kwargs) -> None:
+        self._settings = kwargs.get("settings")
+
+
+dummy_openai_models.OpenAIResponsesModel = _DummyOpenAIResponsesModel
+dummy_openai_models.OpenAIResponsesModelSettings = SimpleNamespace
+sys.modules.setdefault("pydantic_ai.models.openai", dummy_openai_models)
 dummy_model_factory = cast(Any, ModuleType("models.factory"))
 dummy_model_factory.ModelFactory = SimpleNamespace
 sys.modules.setdefault("models.factory", dummy_model_factory)

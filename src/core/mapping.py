@@ -19,6 +19,7 @@ import logfire
 from pydantic import ValidationError
 from pydantic_core import from_json, to_json
 
+from constants import DEFAULT_CACHE_DIR
 from io_utils.loader import load_mapping_items, load_prompt_text
 from io_utils.quarantine import QuarantineWriter
 from models import (
@@ -146,7 +147,7 @@ def cache_path(service: str, plateau: int, set_name: str, key: str) -> Path:
         cache_root = settings.cache_dir
         context = settings.context_id
     except Exception:  # pragma: no cover - settings unavailable
-        cache_root = Path(".cache")
+        cache_root = DEFAULT_CACHE_DIR
         context = "unknown"
 
     path = (
