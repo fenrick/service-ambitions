@@ -31,6 +31,7 @@ def _settings(tmp_path):
         model="gpt-5",
         diagnostics=False,
         prompt_dir=tmp_path,
+        mapping_data_dir=tmp_path,
     )
 
 

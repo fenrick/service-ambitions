@@ -45,14 +45,10 @@ def _init_runtime_env() -> Iterator[None]:
 
 def _params(**kwargs: Any) -> MapSetParams:
     """Return mapping parameters with sensible defaults for tests."""
-
-    return MapSetParams(
-        service_name="svc",
-        service_description="desc",
-        plateau=1,
-        **kwargs,
-    )
-    RuntimeEnv.reset()
+    kwargs.setdefault("service_name", "svc")
+    kwargs.setdefault("service_description", "desc")
+    kwargs.setdefault("plateau", 1)
+    return MapSetParams(**kwargs)
 
 
 class DummySession:

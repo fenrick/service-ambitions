@@ -12,7 +12,7 @@ import pytest
 
 cli = importlib.import_module("cli.main")
 
-os.environ.setdefault("OPENAI_API_KEY", "test-key")
+os.environ.setdefault("SA_OPENAI_API_KEY", "test-key")
 
 
 def _prepare_settings():

@@ -60,7 +60,7 @@ simply omitted.
 
 ## Troubleshooting
 
-- Ensure `OPENAI_API_KEY` is set and valid.
+- Ensure `SA_OPENAI_API_KEY` is set and valid.
 - Use `--dry-run` to validate input files without making API calls.
 - Check network access and API quotas if mapping requests fail repeatedly.
 

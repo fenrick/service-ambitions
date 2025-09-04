@@ -8,7 +8,12 @@ from runtime.environment import RuntimeEnv
 
 def test_plateau_metadata_cached(monkeypatch) -> None:
     RuntimeEnv.reset()
-    RuntimeEnv.initialize(cast(Any, SimpleNamespace(mapping_data_dir=Path("data"))))
+    RuntimeEnv.initialize(
+        cast(
+            Any,
+            SimpleNamespace(mapping_data_dir=Path("data"), prompt_dir=Path("prompts")),
+        )
+    )
 
     defs_calls = 0
     roles_calls = 0
