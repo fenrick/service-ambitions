@@ -41,6 +41,9 @@ cp config/app.example.yaml config/app.yaml
 
 Then edit `config/app.yaml` to set models, reasoning presets and other options.
 
+The Docker image includes these defaults at `/app/config`. Override any value via
+environment variables or by mounting a replacement configuration directory.
+
 The CLI requires an OpenAI API key available in the `OPENAI_API_KEY` environment
 variable. Settings are loaded via Pydantic, which reads from a `.env` file if
 present. The application will exit if the key is missing. LLM interactions are
