@@ -20,18 +20,25 @@ cp config/app.example.yaml config/app.yaml
 
 Then edit `config/app.yaml` to set models, reasoning presets and other options.
 
-The CLI requires an OpenAI API key available in the `OPENAI_API_KEY` environment
-variable. Settings are loaded via Pydantic, which reads from a `.env` file if
-present. The application will exit if the key is missing. LLM interactions are
-handled via [Pydantic AI](https://pydantic.dev/pydantic-ai/).
+All environment variables controlling the application use the `SA_` prefix. The
+CLI requires an OpenAI API key available in the `SA_OPENAI_API_KEY`
+environment variable. Settings are loaded via Pydantic, which reads from a
+`.env` file if present. The application will exit if the key is missing. LLM
+interactions are handled via
+[Pydantic AI](https://pydantic.dev/pydantic-ai/).
 
-Create a `.env` file in the project root with:
+Create a `.env` file in the project root with all variables prefixed by
+`SA_`:
 
 ```
 # Required for API access
-OPENAI_API_KEY=your_api_key_here
+SA_OPENAI_API_KEY=your_api_key_here
 # Optional: provide to publish telemetry to Logfire
-# LOGFIRE_TOKEN=your_logfire_token
+# SA_LOGFIRE_TOKEN=your_logfire_token
+# SA_MODEL=openai:gpt-5
+# SA_LOG_LEVEL=INFO
+# SA_REQUEST_TIMEOUT=60
+# SA_CACHE_MODE=read
 ```
 
 For production deployments, inject the variable using your platform's secret
@@ -39,7 +46,7 @@ manager instead of committing keys to source control.
 
 Caching of mapping responses is enabled by default to speed up repeated runs.
 Disable or change cache behaviour in `config/app.yaml` or via environment
-variables:
+variables using the `SA_` prefix:
 
 ```yaml
 use_local_cache: true # Enable reading/writing the cache directory.
@@ -50,7 +57,7 @@ cache_dir: .cache # Directory to store cache files.
 Set `use_local_cache: false` or `cache_mode: "off"` to bypass the cache, or use
 `write` to record new entries and `refresh` to rewrite existing ones.
 
-The chat model can be set with the `--model` flag or the `MODEL` environment
+The chat model can be set with the `--model` flag or the `SA_MODEL` environment
 variable. Model identifiers must include a provider prefix, in the form
 `<provider>:<model>`. The default is `openai:gpt-5` with medium reasoning effort.
 
@@ -104,7 +111,7 @@ directory, `--context-id` to select a situational context, and
 supports swapping sections to suit different industries.
 
 This project depends on the [Pydantic Logfire](https://logfire.pydantic.dev/)
-libraries for telemetry. The `LOGFIRE_TOKEN` environment variable is optional:
+libraries for telemetry. The `SA_LOGFIRE_TOKEN` environment variable is optional:
 without it, Logfire still records logs and metrics locally but nothing is sent
 to the cloud. Provide a token to stream traces to Logfire. The CLI instruments
 Pydantic, Pydantic AI, OpenAI and system metrics by default. Prompts are

@@ -18,7 +18,7 @@ import pytest
 def _mock_openai(monkeypatch):
     """Provide dummy credentials and block outbound OpenAI requests."""
 
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("SA_OPENAI_API_KEY", "test-key")
     try:
         import openai
 

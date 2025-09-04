@@ -31,8 +31,11 @@ class RuntimeEnv:
 
         self.settings = settings
         self.state: dict[str, Any] = {}
-        # Debug logging helps diagnose configuration loading problems.
-        logfire.debug("RuntimeEnv created", settings=str(settings))
+        mask_fields = settings.model_dump()
+        mask_fields["openai_api_key"] = "***"
+        if mask_fields.get("logfire_token"):
+            mask_fields["logfire_token"] = "***"
+        logfire.debug("RuntimeEnv created", settings=str(mask_fields))
 
     @property
     def run_meta(self) -> "ServiceMeta | None":

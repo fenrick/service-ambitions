@@ -73,15 +73,14 @@ class Settings(BaseSettings):
         False, description="Enable verbose diagnostics and tracing."
     )
     strict: bool = Field(
-        False,
-        description="Fail when features or mappings are missing.",
+        False, description="Fail when features or mappings are missing."
     )
     strict_mapping: bool = Field(
         False, description="Fail when feature mappings are missing."
     )
     mapping_mode: str = Field("per_set", description="Mapping enrichment strategy")
 
-    model_config = SettingsConfigDict(extra="ignore")
+    model_config = SettingsConfigDict(extra="ignore", env_prefix="SA_")
 
 
 def load_settings() -> Settings:
@@ -103,46 +102,30 @@ def load_settings() -> Settings:
     config = load_app_config()
     env_file_path = Path(".env")
     env_file = env_file_path if env_file_path.exists() else None
-    env_use_local_cache = os.getenv("USE_LOCAL_CACHE")
-    env_cache_mode = os.getenv("CACHE_MODE")
-    env_cache_dir = os.getenv("CACHE_DIR")
+
+    data = config.model_dump()
+    prefix = "SA_"
+
+    if env_file is not None:
+        for line in env_file.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            if key.startswith(prefix):
+                field = key[len(prefix) :].lower()
+                if field in Settings.model_fields:
+                    data[field] = value.strip()
+
+    for field in Settings.model_fields:
+        env_name = f"{prefix}{field.upper()}"
+        if env_name in os.environ:
+            data[field] = os.environ[env_name]
+
     try:
-        # Validate and merge configuration from file, env file and environment.
-        return Settings(
-            model=config.model,
-            models=config.models,
-            reasoning=config.reasoning,
-            log_level=config.log_level,
-            prompt_dir=config.prompt_dir,
-            context_id=config.context_id,
-            inspiration=config.inspiration,
-            concurrency=config.concurrency,
-            request_timeout=config.request_timeout,
-            retries=config.retries,
-            retry_base_delay=config.retry_base_delay,
-            features_per_role=config.features_per_role,
-            use_local_cache=(
-                env_use_local_cache.lower() in {"1", "true", "yes"}
-                if env_use_local_cache is not None
-                else getattr(config, "use_local_cache", True)
-            ),
-            cache_mode=env_cache_mode or getattr(config, "cache_mode", "read"),
-            cache_dir=(
-                Path(env_cache_dir)
-                if env_cache_dir
-                else getattr(config, "cache_dir", Path(".cache"))
-            ),
-            web_search=config.web_search,
-            mapping_data_dir=getattr(config, "mapping_data_dir", Path("data")),
-            mapping_sets=getattr(config, "mapping_sets", []),
-            diagnostics=getattr(config, "diagnostics", False),
-            strict=getattr(config, "strict", False),
-            strict_mapping=getattr(config, "strict_mapping", False),
-            mapping_mode=getattr(config, "mapping_mode", "per_set"),
-            _env_file=env_file,
-        )
+        return Settings(**data, _env_file=None)
     except ValidationError as exc:
-        # Summarise validation issues so the caller receives clear feedback.
         details = "; ".join(
             f"{'.'.join(map(str, error['loc']))}: {error['msg']}"
             for error in exc.errors()

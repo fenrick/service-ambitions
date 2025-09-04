@@ -14,10 +14,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 def test_load_settings_reads_env(monkeypatch) -> None:
     """Environment variables should populate the settings model."""
 
-    monkeypatch.setenv("OPENAI_API_KEY", "token")
-    monkeypatch.setenv("USE_LOCAL_CACHE", "1")
-    monkeypatch.setenv("CACHE_MODE", "write")
-    monkeypatch.setenv("CACHE_DIR", "/tmp/cache")
+    monkeypatch.setenv("SA_OPENAI_API_KEY", "token")
+    monkeypatch.setenv("SA_USE_LOCAL_CACHE", "1")
+    monkeypatch.setenv("SA_CACHE_MODE", "write")
+    monkeypatch.setenv("SA_CACHE_DIR", "/tmp/cache")
     settings = load_settings()
     assert settings.openai_api_key == "token"
     assert settings.model == "openai:gpt-5-mini"
@@ -42,9 +42,9 @@ def test_load_settings_reads_env(monkeypatch) -> None:
 def test_load_settings_requires_key(monkeypatch) -> None:
     """Missing API key should raise ``RuntimeError``."""
 
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.delenv("USE_LOCAL_CACHE", raising=False)
-    monkeypatch.delenv("CACHE_MODE", raising=False)
-    monkeypatch.delenv("CACHE_DIR", raising=False)
+    monkeypatch.delenv("SA_OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("SA_USE_LOCAL_CACHE", raising=False)
+    monkeypatch.delenv("SA_CACHE_MODE", raising=False)
+    monkeypatch.delenv("SA_CACHE_DIR", raising=False)
     with pytest.raises(RuntimeError):
         load_settings()

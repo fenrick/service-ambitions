@@ -482,13 +482,13 @@ def build_model(
         A ready-to-use ``Model`` instance.
 
     Side Effects:
-        Sets ``OPENAI_API_KEY`` in the environment if ``api_key`` is provided.
+        Sets ``SA_OPENAI_API_KEY`` in the environment if ``api_key`` is provided.
     """
 
     if api_key:
         # Expose the key via environment variables for model libraries that
         # expect it there rather than accepting it directly.
-        os.environ.setdefault("OPENAI_API_KEY", api_key)
+        os.environ.setdefault("SA_OPENAI_API_KEY", api_key)
     # Allow callers to pass provider-prefixed names such as ``openai:gpt-4``.
     model_name = model_name.split(":", 1)[-1]
     settings: OpenAIResponsesModelSettings = {

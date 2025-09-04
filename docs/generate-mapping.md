@@ -28,9 +28,10 @@ Telemetry via Logfire is always enabled. Prompt text is omitted unless
 
 `--use-local-cache` reads mapping responses under `.cache/<service>/mappings` and
 optionally writes new entries to avoid repeated network requests during
-development. `--cache-mode` controls
-how the cache is used (`off`, `read`, `refresh`, `write`) with `read` as the
-default, and `--cache-dir` sets the cache storage location.
+development. `--cache-mode` controls how the cache is used (`off`, `read`,
+`refresh`, `write`) with `read` as the default, and `--cache-dir` sets the cache
+storage location. Equivalent environment variables prefixed with `SA_` can
+override these settings.
 
 Mapping runs once per configured set. Each prompt receives the relevant
 reference list—`applications`, `technologies` and `information` by default—and
@@ -59,7 +60,7 @@ simply omitted.
 
 ## Troubleshooting
 
-- Ensure `OPENAI_API_KEY` is set and valid.
+- Ensure `SA_OPENAI_API_KEY` is set and valid.
 - Use `--dry-run` to validate input files without making API calls.
 - Check network access and API quotas if mapping requests fail repeatedly.
 
