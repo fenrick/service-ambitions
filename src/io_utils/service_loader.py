@@ -31,7 +31,7 @@ def _extract_service_id(line: str) -> str | None:
 
     try:
         data = from_json(line, allow_partial=True)
-    except (ValidationError, JSONDecodeError):
+    except (ValidationError, JSONDecodeError, ValueError):
         return None
     if isinstance(data, dict):
         return data.get("service_id")
@@ -62,7 +62,7 @@ def _process_line(
         service.features.clear()  # Drop feature details after load.
         VALID_SERVICES.add(1)
         return service
-    except (ValidationError, JSONDecodeError, OSError) as exc:
+    except (ValidationError, JSONDecodeError, OSError, ValueError) as exc:
         QUARANTINED_LINES.add(1)
         quarantine_dir = path_obj.parent / "quarantine"
         quarantine_dir.mkdir(exist_ok=True)

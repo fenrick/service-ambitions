@@ -18,6 +18,7 @@ def test_init_logfire_configures_and_instruments(monkeypatch):
         instrument_pydantic_ai=lambda: instruments.append("ai"),
         instrument_pydantic=lambda: instruments.append("pydantic"),
         instrument_openai=lambda: instruments.append("openai"),
+        debug=lambda *a, **k: None,
     )
     monkeypatch.setattr(monitoring, "logfire", dummy_module)
 
@@ -44,9 +45,10 @@ def test_init_logfire_without_token(monkeypatch):
         instrument_pydantic_ai=lambda: None,
         instrument_pydantic=lambda: None,
         instrument_openai=lambda: None,
+        debug=lambda *a, **k: None,
     )
     monkeypatch.setattr(monitoring, "logfire", dummy_module)
-    monkeypatch.delenv("LOGFIRE_TOKEN", raising=False)
+    monkeypatch.delenv("SA_LOGFIRE_TOKEN", raising=False)
 
     monitoring.init_logfire()
 
@@ -67,9 +69,37 @@ def test_init_logfire_json_logs(monkeypatch):
         instrument_pydantic_ai=lambda: None,
         instrument_pydantic=lambda: None,
         instrument_openai=lambda: None,
+        debug=lambda *a, **k: None,
     )
     monkeypatch.setattr(monitoring, "logfire", dummy_module)
 
     monitoring.init_logfire(json_logs=True)
 
     assert called["console"].format == "json"
+
+
+def test_init_logfire_masks_token(monkeypatch):
+    calls: list[dict[str, object]] = []
+
+    class ConsoleOptions:
+        def __init__(self, **kwargs) -> None:
+            self.__dict__.update(kwargs)
+
+    def debug(**kwargs) -> None:
+        calls.append(kwargs)
+
+    dummy_module = SimpleNamespace(
+        ConsoleOptions=ConsoleOptions,
+        configure=lambda **_: None,
+        instrument_system_metrics=lambda **__: None,
+        instrument_pydantic_ai=lambda: None,
+        instrument_pydantic=lambda: None,
+        instrument_openai=lambda: None,
+        debug=lambda *a, **k: debug(**k),
+    )
+    monkeypatch.setattr(monitoring, "logfire", dummy_module)
+
+    monitoring.init_logfire("secret-token", "info")
+
+    assert calls[0]["token"] == "secr..."
+    assert "secret-token" not in calls[0]["token"]

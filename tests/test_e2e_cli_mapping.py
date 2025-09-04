@@ -28,6 +28,7 @@ def _settings() -> SimpleNamespace:
         use_local_cache=True,
         cache_mode="off",
         cache_dir=Path(".cache"),
+        prompt_dir=Path("prompts"),
         mapping_data_dir=Path("tests/fixtures/catalogue"),
         mapping_sets=[
             MappingSet(
