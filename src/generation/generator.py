@@ -26,6 +26,11 @@ from pydantic_ai.models.openai import (
     OpenAIResponsesModel,
     OpenAIResponsesModelSettings,
 )
+
+if TYPE_CHECKING:
+    from pydantic_ai.agent import AgentRunResult as _AgentRunResult
+else:  # pragma: no cover - imported for typing only
+    _AgentRunResult = Any
 from pydantic_core import to_json
 from tqdm import tqdm  # type: ignore[import-untyped]
 
@@ -443,8 +448,11 @@ class ServiceAmbitionGenerator:
         if instructions is None:
             # Without instructions the agent cannot operate.
             raise ValueError("prompt must be provided")
-        agent = Agent(self.model, instructions=instructions, output_type=AmbitionModel)
+        agent: Agent[None, AmbitionModel] = Agent(
+            self.model, instructions=instructions, output_type=AmbitionModel
+        )
         service_details = service.model_dump_json()
+        result: _AgentRunResult[AmbitionModel]
         result, retries = await _with_retry(
             lambda: agent.run(service_details),
             request_timeout=self.request_timeout,

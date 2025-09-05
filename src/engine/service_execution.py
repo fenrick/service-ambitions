@@ -105,22 +105,23 @@ class ServiceExecution:
         self.map_name = self.factory.model_name("mapping")
         self.feat_model = feat_model
 
-        desc_agent = Agent(
+        desc_agent: Agent[None, PlateauDescriptionsResponse] = Agent(
             desc_model,
             instructions=self.system_prompt,
             output_type=PlateauDescriptionsResponse,
         )
-        feat_agent = Agent(
+        feat_agent: Agent[None, PlateauFeaturesResponse] = Agent(
             feat_model,
             instructions=self.system_prompt,
             output_type=PlateauFeaturesResponse,
         )
-        map_agent = Agent(
+        map_output = (
+            MappingDiagnosticsResponse if settings.diagnostics else MappingResponse
+        )
+        map_agent: Agent[None, MappingDiagnosticsResponse | MappingResponse] = Agent(
             map_model,
             instructions=self.system_prompt,
-            output_type=(
-                MappingDiagnosticsResponse if settings.diagnostics else MappingResponse
-            ),
+            output_type=map_output,
         )
 
         desc_session = ConversationSession(
