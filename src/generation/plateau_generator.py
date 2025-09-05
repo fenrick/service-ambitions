@@ -127,8 +127,10 @@ class PlateauGenerator:
             mapping_session: Session used for feature mapping.
             strict: Enforce feature and mapping completeness when ``True``.
             use_local_cache: Read and write mapping results from the cache
-                directory (default ``${XDG_CACHE_HOME:-/tmp}/service-ambitions``)
-                when ``True``. Caching is enabled by default.
+                directory (default ``${XDG_CACHE_HOME}/service-ambitions`` and
+                falling back to ``/tmp/service-ambitions`` when
+                ``XDG_CACHE_HOME`` is unset) when ``True``. Caching is enabled
+                by default.
             cache_mode: Caching strategy controlling read/write behaviour.
                 Defaults to ``"read"`` for read-only access.
         """

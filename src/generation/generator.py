@@ -16,7 +16,16 @@ from collections import Counter
 from dataclasses import dataclass
 from importlib import import_module
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, TextIO, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    Iterable,
+    TextIO,
+    TypeVar,
+    cast,
+)
 
 import logfire
 from pydantic import BaseModel
@@ -612,7 +621,7 @@ def build_model(
         # Allow optional access to the ``web_search_preview`` tool which provides
         # browsing capabilities. Disabling keeps runs deterministic and avoids
         # additional cost for schema-only generation.
-        settings["openai_builtin_tools"] = [{"type": "web_search_preview"}]
+        settings["openai_builtin_tools"] = cast(Any, [{"type": "web_search_preview"}])
     if reasoning:
         # Map each supported reasoning field to the ``openai_reasoning_*``
         # parameter. Extra fields allowed by ``ReasoningConfig`` are ignored to
