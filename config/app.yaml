@@ -60,4 +60,4 @@ retry_base_delay: 0.5       # Initial backoff delay in seconds.
 features_per_role: 5        # Required number of features per role.
 use_local_cache: true       # Enable reading/writing the cache directory.
 cache_mode: "read"          # Cache behaviour: off, read, refresh or write.
-cache_dir: ${XDG_CACHE_HOME:-/tmp}/service-ambitions # Directory to store cache files.
+cache_dir: ${XDG_CACHE_HOME}/service-ambitions # Directory to store cache files. Falls back to /tmp/service-ambitions when XDG_CACHE_HOME is unset.

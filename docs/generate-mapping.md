@@ -28,7 +28,7 @@ Telemetry via Logfire is always enabled. Prompt text is omitted unless
 
 `--use-local-cache` reads mapping responses under
 `<cache_dir>/<service>/mappings` (default cache dir:
-`${XDG_CACHE_HOME:-/tmp}/service-ambitions`) and optionally writes new entries to
+`${XDG_CACHE_HOME}/service-ambitions`, falling back to `/tmp/service-ambitions` when `XDG_CACHE_HOME` is unset) and optionally writes new entries to
 avoid repeated network requests during development. `--cache-mode` controls how
 the cache is used (`off`, `read`, `refresh`, `write`) with `read` as the default,
 and `--cache-dir` sets the cache storage location.
