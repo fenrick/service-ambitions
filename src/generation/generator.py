@@ -22,12 +22,14 @@ from typing import (
     Awaitable,
     Callable,
     Iterable,
+    Literal,
     TextIO,
     TypeVar,
     cast,
 )
 
 import logfire
+from openai import AsyncOpenAI
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.models import Model
@@ -35,6 +37,8 @@ from pydantic_ai.models.openai import (
     OpenAIResponsesModel,
     OpenAIResponsesModelSettings,
 )
+from pydantic_ai.providers import Provider
+from pydantic_ai.providers.openai import OpenAIProvider
 
 if TYPE_CHECKING:
     from pydantic_ai.agent import AgentRunResult as _AgentRunResult
@@ -601,17 +605,13 @@ def build_model(
 
     Returns:
         A ready-to-use ``Model`` instance.
-
-    Side Effects:
-        Sets ``SA_OPENAI_API_KEY`` in the environment if ``api_key`` is provided.
     """
 
-    if api_key:
-        # Expose the key via environment variables for model libraries that
-        # expect it there rather than accepting it directly.
-        os.environ.setdefault("SA_OPENAI_API_KEY", api_key)
     # Allow callers to pass provider-prefixed names such as ``openai:gpt-4``.
     model_name = model_name.split(":", 1)[-1]
+    provider: Provider[AsyncOpenAI] | Literal["openai"] = (
+        OpenAIProvider(api_key=api_key) if api_key else "openai"
+    )
     settings: OpenAIResponsesModelSettings = {
         "temperature": 0,
         "top_p": 1,
@@ -630,7 +630,7 @@ def build_model(
             settings["openai_reasoning_effort"] = reasoning.effort
         if reasoning.summary is not None:
             settings["openai_reasoning_summary"] = reasoning.summary
-    return OpenAIResponsesModel(model_name, settings=settings)
+    return OpenAIResponsesModel(model_name, provider=provider, settings=settings)
 
 
 __all__ = [
