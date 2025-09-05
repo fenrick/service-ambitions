@@ -126,11 +126,25 @@ dummy_openai_models = cast(Any, ModuleType("pydantic_ai.models.openai"))
 class _DummyOpenAIResponsesModel:
     def __init__(self, *args, **kwargs) -> None:
         self._settings = kwargs.get("settings")
+        self._provider = kwargs.get("provider")
 
 
 dummy_openai_models.OpenAIResponsesModel = _DummyOpenAIResponsesModel
 dummy_openai_models.OpenAIResponsesModelSettings = SimpleNamespace
 sys.modules.setdefault("pydantic_ai.models.openai", dummy_openai_models)
+dummy_pydantic_providers = cast(Any, ModuleType("pydantic_ai.providers"))
+dummy_pydantic_providers.Provider = SimpleNamespace
+sys.modules.setdefault("pydantic_ai.providers", dummy_pydantic_providers)
+dummy_openai_providers = cast(Any, ModuleType("pydantic_ai.providers.openai"))
+
+
+class _DummyOpenAIProvider:
+    def __init__(self, api_key=None, **_kwargs) -> None:
+        self._client = SimpleNamespace(api_key=api_key)
+
+
+dummy_openai_providers.OpenAIProvider = _DummyOpenAIProvider
+sys.modules.setdefault("pydantic_ai.providers.openai", dummy_openai_providers)
 dummy_model_factory = cast(Any, ModuleType("models.factory"))
 dummy_model_factory.ModelFactory = SimpleNamespace
 sys.modules.setdefault("models.factory", dummy_model_factory)

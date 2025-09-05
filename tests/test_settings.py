@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from constants import DEFAULT_CACHE_DIR
 from runtime.settings import load_settings
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -61,6 +62,16 @@ def test_load_settings_uses_xdg_cache_home(monkeypatch, tmp_path) -> None:
     expected = tmp_path / "service-ambitions"
     assert settings.cache_dir == expected
     assert expected.is_dir()
+
+
+def test_load_settings_falls_back_without_xdg(monkeypatch) -> None:
+    """Cache directory should default when ``XDG_CACHE_HOME`` is unset."""
+
+    monkeypatch.setenv("SA_OPENAI_API_KEY", "token")
+    monkeypatch.delenv("SA_CACHE_DIR", raising=False)
+    monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
+    settings = load_settings()
+    assert settings.cache_dir == DEFAULT_CACHE_DIR
 
 
 def test_load_settings_rejects_unwritable_cache(monkeypatch, tmp_path) -> None:
