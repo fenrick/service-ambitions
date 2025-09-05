@@ -8,11 +8,11 @@ authors = [
 ]
 requires-python = ">=3.11,<4.0"
 dependencies = [
-    "openai",
-    "pydantic-ai",
+    "openai (>=1.100)",
+    "pydantic-ai (>=1)",
     "logfire[system-metrics] (>=4.3.3,<5.0.0)",
-    "pydantic",
-    "pydantic-settings",
+    "pydantic (>=2.11)",
+    "pydantic-settings (>=2.10)",
     "tqdm",
     "pyyaml (>=6.0.2,<7.0.0)",
 ]
