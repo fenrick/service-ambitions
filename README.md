@@ -82,7 +82,7 @@ variables:
 ```yaml
 use_local_cache: true # Enable reading/writing the cache directory.
 cache_mode: "read" # Cache behaviour: off, read, refresh or write.
-cache_dir: ${XDG_CACHE_HOME:-/tmp}/service-ambitions # Directory to store cache files.
+cache_dir: ${XDG_CACHE_HOME}/service-ambitions # Directory to store cache files. Falls back to /tmp/service-ambitions when XDG_CACHE_HOME is unset.
 ```
 
 Set `use_local_cache: false` or `cache_mode: "off"` to bypass the cache, or use

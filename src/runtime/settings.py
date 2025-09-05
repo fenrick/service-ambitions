@@ -123,7 +123,10 @@ def load_settings(config_path: Path | str | None = None) -> Settings:
     raw_cache_dir = env_cache_dir or str(
         getattr(config, "cache_dir", DEFAULT_CACHE_DIR)
     )
-    cache_dir = Path(os.path.expandvars(raw_cache_dir)).expanduser()
+    expanded_cache_dir = os.path.expandvars(raw_cache_dir)
+    if "$" in expanded_cache_dir:
+        expanded_cache_dir = str(DEFAULT_CACHE_DIR)
+    cache_dir = Path(expanded_cache_dir).expanduser()
     try:
         cache_dir.mkdir(parents=True, exist_ok=True)
         test_file = cache_dir / ".write_test"

@@ -91,7 +91,8 @@ and role identifiers use similar loaders that cache results on first
 use.
 
 Feature and mapping outputs are cached on disk.  The cache root defaults to
-``${XDG_CACHE_HOME:-/tmp}/service-ambitions`` and the layout is scoped by
+``${XDG_CACHE_HOME}/service-ambitions`` (falling back to ``/tmp/service-ambitions`` when
+``XDG_CACHE_HOME`` is unset) and the layout is scoped by
 context, service and plateau:
 
 ```
