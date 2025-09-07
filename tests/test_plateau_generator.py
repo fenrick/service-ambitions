@@ -952,7 +952,7 @@ def test_generate_service_evolution_unknown_plateau_raises(monkeypatch) -> None:
     assert evolution.plateaus[0].plateau_name == "Mystery"
 
 
-def test_generate_service_evolution_deduplicates_features(monkeypatch) -> None:
+def test_generate_service_evolution_preserves_duplicates(monkeypatch) -> None:
     service = ServiceInput(
         service_id="svc-1",
         name="svc",
@@ -978,8 +978,8 @@ def test_generate_service_evolution_deduplicates_features(monkeypatch) -> None:
 
     async def fake_generate_plateau_async(self, runtime, *, session=None):
         item = FeatureItem(
-            name="A",
-            description="d",
+            name=" A ",
+            description=" d ",
             score=MaturityScore(level=3, label="Defined", justification="j"),
         )
         feat1 = self._to_feature(item, "learners", runtime.plateau_name)
@@ -1009,8 +1009,11 @@ def test_generate_service_evolution_deduplicates_features(monkeypatch) -> None:
     )
 
     features = evo.plateaus[0].features
-    assert len(features) == 1
-    assert features[0].feature_id == "H4R765"
+    assert len(features) == 2
+    assert features[0].feature_id == features[1].feature_id
+    assert features[0].feature_id
+    assert features[0].name == "A"
+    assert features[0].description == "d"
 
 
 def test_validate_plateau_results_strict_checks() -> None:
