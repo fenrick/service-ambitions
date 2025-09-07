@@ -1,0 +1,31 @@
+[
+  {
+    "name": "International Undergraduate",
+    "role_id": "ROL0109",
+    "description": "Overseas bachelor’s students developing foundational academic knowledge while navigating cultural, financial, and visa-related challenges."  },
+  {
+    "name": "International Postgraduate",
+    "role_id": "ROL0110",
+    "description": "International students enrolled in advanced coursework or research programmes who bring specialised academic backgrounds and global perspectives."
+  },
+  {
+    "name": "International Recruitment Agent",
+    "role_id": "ROL1104",
+    "description": "External representatives contracted to promote the institution abroad, guide prospective students through applications, advise on visas, and facilitate compliant enrolment pipelines."
+  },
+  {
+    "name": "International Sponsor Organisation",
+    "role_id": "ROL0602",
+    "description": "Organisations such as governments, NGOs, or employers funding international students’ tuition or living expenses, and requiring compliance and reporting from the institution."
+  },
+  {
+    "name": "International Admissions Staff",
+    "role_id": "ROL0303",
+    "description": "Professional staff overseeing the application, assessment, and enrolment of international students, ensuring compliance with immigration regulations and institutional policies."
+  },
+  {
+    "name": "Systems Administration Staff",
+    "role_id": "ROL1403",
+    "description": "IT professionals responsible for maintaining institutional systems and infrastructure, ensuring secure, reliable, and scalable platforms for teaching, learning, and administration."
+  }
+]

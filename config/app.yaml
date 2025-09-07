@@ -48,12 +48,12 @@ mapping_sets:
 # Directory containing prompt components.
 prompt_dir: prompts
 # Identifier for context-specific prompts.
-context_id: uwa
+context_id: sut
 # Optional inspiration list to influence outputs.
 inspiration: general
 
 # Concurrency controls for API requests.
-concurrency: 5              # Number of services processed in parallel.
+concurrency: 1              # Number of services processed in parallel.
 request_timeout: 60         # Per-request timeout in seconds.
 retries: 5                  # Number of retry attempts.
 retry_base_delay: 0.5       # Initial backoff delay in seconds.
