@@ -51,6 +51,10 @@ jobs:
         run: poetry run pytest --maxfail=1 -q -m "not slow" \
           --cov=src --cov-report=xml --cov-report=term \
           --cov-fail-under=85
+      - name: Diff coverage (changed lines)
+        run: |
+          pipx install diff-cover
+          poetry run diff-cover coverage.xml --compare-branch "${GITHUB_BASE_REF:-origin/main}" --fail-under=85
       - name: Coverage summary
         run: poetry run coverage report >> "$GITHUB_STEP_SUMMARY"
       - name: Upload coverage
