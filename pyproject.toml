@@ -72,7 +72,10 @@ src = ["src", "tests"]
 extend-exclude = [".idea"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B"]
+select = ["E", "F", "I", "B", "C901"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 8
 
 [tool.mypy]
 plugins = ["pydantic.mypy"]
