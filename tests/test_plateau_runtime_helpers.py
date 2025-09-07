@@ -91,7 +91,6 @@ async def test_dispatch_features_caches_payload(monkeypatch, tmp_path) -> None:
         service_id="svc",
         service_name="svc",
         roles=["r"],
-        required_count=1,
         cache_file=cache_file,
         use_local_cache=True,
         cache_mode="write",

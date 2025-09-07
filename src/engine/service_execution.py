@@ -154,7 +154,6 @@ class ServiceExecution:
 
         self.generator = PlateauGenerator(
             feat_session,
-            required_count=settings.features_per_role,
             roles=self.role_ids,
             description_session=desc_session,
             mapping_session=map_session,

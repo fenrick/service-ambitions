@@ -480,10 +480,6 @@ class AppConfig(StrictModel):
         float,
         Field(gt=0, description="Initial backoff delay in seconds."),
     ] = 0.5
-    features_per_role: Annotated[
-        int,
-        Field(ge=1, description="Required number of features per role."),
-    ] = 5
     use_local_cache: bool = Field(
         True,
         description="Enable reading and writing the cache directory.",

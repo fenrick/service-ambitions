@@ -243,7 +243,6 @@ def _settings(_config: str | None = None) -> SimpleNamespace:
         cache_dir=Path(".cache"),
         mapping_data_dir=Path("data"),
         mapping_sets=[],
-        features_per_role=5,
         web_search=False,
         mapping_mode="per_set",
     )

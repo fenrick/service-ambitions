@@ -376,9 +376,7 @@ at the top level, while mapping types and their associated datasets live under
 the `mapping_types` section, allowing new categories to be added without code
 changes. Plateau definitions and their level mappings come from
 `data/service_feature_plateaus.json`. Roles are defined in `data/roles.json`
-by default and can be overridden with the ``--roles-file`` CLI flag. The
-required number of features per role is controlled by `features_per_role` in
-`config/app.yaml`.
+by default and can be overridden with the ``--roles-file`` CLI flag.
 
 ## Prompt examples
 
@@ -393,8 +391,7 @@ Generate service features for the {service_name} service at plateau {plateau}.
 
 - Use the service description: {service_description}.
 - Provide keys for each role: {roles}.
-- Each key must map to an array containing at least {required_count} feature
-  objects.
+- Each key must map to an array containing feature objects.
 - Every feature must provide:
   - "name": short feature title.
   - "description": explanation of the feature.
