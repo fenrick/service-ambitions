@@ -213,3 +213,4 @@ ambitions.jsonl.tmp
 evolutions.jsonl
 *.tmp
 /output
+.DS_Store
