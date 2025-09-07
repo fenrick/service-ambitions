@@ -43,9 +43,6 @@ class Settings(BaseSettings):
     retry_base_delay: float = Field(
         0.5, gt=0, description="Initial backoff delay in seconds."
     )
-    features_per_role: int = Field(
-        5, ge=1, description="Required number of features per role."
-    )
     use_local_cache: bool = Field(
         True, description="Enable reading and writing the cache directory."
     )
@@ -151,7 +148,6 @@ def load_settings(config_path: Path | str | None = None) -> Settings:
             request_timeout=config.request_timeout,
             retries=config.retries,
             retry_base_delay=config.retry_base_delay,
-            features_per_role=config.features_per_role,
             use_local_cache=(
                 env_use_local_cache.lower() in {"1", "true", "yes"}
                 if env_use_local_cache is not None

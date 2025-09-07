@@ -108,7 +108,6 @@ class PlateauGenerator:
     def __init__(
         self,
         session: ConversationSession,
-        required_count: int = 5,
         roles: Sequence[str] | None = None,
         *,
         description_session: ConversationSession | None = None,
@@ -121,7 +120,6 @@ class PlateauGenerator:
 
         Args:
             session: Active conversation session for feature generation.
-            required_count: Minimum number of features per role.
             roles: Role identifiers to include during generation.
             description_session: Session used for plateau descriptions.
             mapping_session: Session used for feature mapping.
@@ -134,12 +132,9 @@ class PlateauGenerator:
             cache_mode: Caching strategy controlling read/write behaviour.
                 Defaults to ``"read"`` for read-only access.
         """
-        if required_count < 1:
-            raise ValueError("required_count must be positive")
         self.session = session
         self.description_session = description_session or session
         self.mapping_session = mapping_session or session
-        self.required_count = required_count
         self.roles = list(roles or default_role_ids())
         self.strict = strict
         self.use_local_cache = use_local_cache
@@ -282,7 +277,6 @@ class PlateauGenerator:
         template = load_prompt_text("plateau_prompt")
         roles_str = ", ".join(f'"{r}"' for r in self.roles)
         return template.format(
-            required_count=self.required_count,
             service_name=self._service.name if self._service else "",
             service_description=description,
             plateau=str(level),
@@ -325,7 +319,7 @@ class PlateauGenerator:
         *,
         strict: bool = False,
     ) -> tuple[list[PlateauResult], dict[str, bool]]:
-        """Validate ``results`` and remove duplicates.
+        """Validate ``results`` and normalise feature fields.
 
         Args:
             results: Plateau results with features for each maturity level.
@@ -340,7 +334,6 @@ class PlateauGenerator:
         """
 
         plateaus: list[PlateauResult] = []
-        seen: set[str] = set()
         roles_seen: dict[str, bool] = {r: False for r in role_ids}
         for result in results:
             if result.plateau_name not in plateau_names:
@@ -350,16 +343,19 @@ class PlateauGenerator:
                 if feat.customer_type not in role_ids:
                     raise ValueError(f"Unknown customer_type: {feat.customer_type}")
                 roles_seen[feat.customer_type] = True
-                if feat.feature_id in seen:
-                    logfire.warning(
-                        "Duplicate feature removed",
-                        feature=feat.name,
-                        role=feat.customer_type,
-                        plateau=result.plateau_name,
+                feature_id = feat.feature_id.strip()
+                if not feature_id:
+                    raise ValueError("feature_id must be non-empty")
+                valid.append(
+                    PlateauFeature(
+                        feature_id=feature_id,
+                        name=feat.name.strip(),
+                        description=feat.description.strip(),
+                        score=feat.score,
+                        customer_type=feat.customer_type,
+                        mappings=feat.mappings,
                     )
-                    continue
-                seen.add(feat.feature_id)
-                valid.append(feat)
+                )
             if strict and (
                 not result.mappings
                 or any(len(v) == 0 for v in result.mappings.values())
@@ -447,7 +443,6 @@ class PlateauGenerator:
             service_id=self._service.service_id,
             service_name=self._service.name,
             roles=self.roles,
-            required_count=self.required_count,
             code_registry=self.code_registry,
             use_local_cache=self.use_local_cache,
             cache_mode=self.cache_mode,

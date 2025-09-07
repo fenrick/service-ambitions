@@ -51,7 +51,7 @@ Generate service features for the {service_name} service at plateau {plateau} us
 ## Output rules
 
 - "features" must include keys for each role: {roles}.
-- Each role key must map to an array containing at least {required_count} feature objects.
+- Each role key must map to an array containing feature objects.
 - Every feature object must include:
   - "name": short feature title.
   - "description": concise explanation of the feature.
