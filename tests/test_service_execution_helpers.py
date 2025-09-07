@@ -113,8 +113,12 @@ def test_ensure_run_meta_initialises_once(monkeypatch):
 def test_prepare_runtimes_uses_internal_generator(monkeypatch):
     exec_obj = _execution()
 
+    class DummySession:
+        def add_parent_materials(self, _service):
+            return None
+
     class DummyGenerator:
-        description_session = object()
+        description_session = DummySession()
 
         async def _request_descriptions_async(self, names, session):
             return {n: f"{n}-desc" for n in names}
