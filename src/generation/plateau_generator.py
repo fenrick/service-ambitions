@@ -325,7 +325,7 @@ class PlateauGenerator:
         *,
         strict: bool = False,
     ) -> tuple[list[PlateauResult], dict[str, bool]]:
-        """Validate ``results`` and remove duplicates.
+        """Validate ``results`` and normalise feature fields.
 
         Args:
             results: Plateau results with features for each maturity level.
@@ -340,7 +340,6 @@ class PlateauGenerator:
         """
 
         plateaus: list[PlateauResult] = []
-        seen: set[str] = set()
         roles_seen: dict[str, bool] = {r: False for r in role_ids}
         for result in results:
             if result.plateau_name not in plateau_names:
@@ -350,16 +349,19 @@ class PlateauGenerator:
                 if feat.customer_type not in role_ids:
                     raise ValueError(f"Unknown customer_type: {feat.customer_type}")
                 roles_seen[feat.customer_type] = True
-                if feat.feature_id in seen:
-                    logfire.warning(
-                        "Duplicate feature removed",
-                        feature=feat.name,
-                        role=feat.customer_type,
-                        plateau=result.plateau_name,
+                feature_id = feat.feature_id.strip()
+                if not feature_id:
+                    raise ValueError("feature_id must be non-empty")
+                valid.append(
+                    PlateauFeature(
+                        feature_id=feature_id,
+                        name=feat.name.strip(),
+                        description=feat.description.strip(),
+                        score=feat.score,
+                        customer_type=feat.customer_type,
+                        mappings=feat.mappings,
                     )
-                    continue
-                seen.add(feat.feature_id)
-                valid.append(feat)
+                )
             if strict and (
                 not result.mappings
                 or any(len(v) == 0 for v in result.mappings.values())
