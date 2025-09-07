@@ -93,7 +93,6 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
     )
     generator = PlateauGenerator(
         session,
-        required_count=5,
         use_local_cache=False,
         cache_mode="off",
     )
@@ -118,7 +117,7 @@ def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
         self.success = True
 
     monkeypatch.setattr(PlateauRuntime, "generate_mappings", _fake_generate_mappings)
-    template = "{required_count} {service_name} {service_description} {plateau} {roles}"
+    template = "{service_name} {service_description} {plateau} {roles}"
 
     def fake_loader(name, *_, **__):
         if name == "plateau_prompt":

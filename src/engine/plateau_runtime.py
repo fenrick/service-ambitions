@@ -81,14 +81,12 @@ class PlateauRuntime:
         service_name: str,
         description: str,
         roles: Sequence[str],
-        required_count: int,
     ) -> str:
         """Return a prompt requesting features for this plateau."""
 
         template = load_prompt_text("plateau_prompt")
         roles_str = ", ".join(f'"{r}"' for r in roles)
         return template.format(
-            required_count=required_count,
             service_name=service_name,
             service_description=description,
             plateau=str(self.plateau),
@@ -142,7 +140,6 @@ class PlateauRuntime:
         service_id: str,
         service_name: str,
         roles: Sequence[str],
-        required_count: int,
         cache_file: Path | None,
         use_local_cache: bool,
         cache_mode: Literal["off", "read", "refresh", "write"],
@@ -172,7 +169,6 @@ class PlateauRuntime:
         service_id: str,
         service_name: str,
         roles: Sequence[str],
-        required_count: int,
         code_registry: ShortCodeRegistry,
         use_local_cache: bool,
         cache_mode: Literal["off", "read", "refresh", "write"],
@@ -188,7 +184,6 @@ class PlateauRuntime:
                 service_id=service_id,
                 service_name=service_name,
                 roles=roles,
-                required_count=required_count,
                 cache_file=cache_file,
                 use_local_cache=use_local_cache,
                 cache_mode=cache_mode,

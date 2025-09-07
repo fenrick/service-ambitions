@@ -222,7 +222,7 @@ def test_to_feature_hashes_name_role_and_plateau() -> None:
 
 
 def test_generate_plateau_returns_results(monkeypatch) -> None:
-    template = "{required_count} {service_name} {service_description} {plateau} {roles}"
+    template = "{service_name} {service_description} {plateau} {roles}"
 
     def fake_loader(name, *_, **__):
         if name == "plateau_prompt":
@@ -269,7 +269,6 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
 
     generator = PlateauGenerator(
         cast(ConversationSession, session),
-        required_count=1,
         use_local_cache=False,
         cache_mode="off",
     )
@@ -302,7 +301,7 @@ def test_generate_plateau_returns_results(monkeypatch) -> None:
 
 
 def test_generate_plateau_missing_features_unrepaired(monkeypatch) -> None:
-    template = "{required_count} {service_name} {service_description} {plateau} {roles}"
+    template = "{service_name} {service_description} {plateau} {roles}"
 
     def fake_loader(name, *_, **__):
         if name == "plateau_prompt":
@@ -354,7 +353,6 @@ def test_generate_plateau_missing_features_unrepaired(monkeypatch) -> None:
 
     generator = PlateauGenerator(
         cast(ConversationSession, session),
-        required_count=1,
         use_local_cache=False,
         cache_mode="off",
     )
@@ -381,7 +379,7 @@ def test_generate_plateau_missing_features_unrepaired(monkeypatch) -> None:
 
 
 def test_generate_plateau_does_not_request_missing_features(monkeypatch) -> None:
-    template = "{required_count} {service_name} {service_description} {plateau} {roles}"
+    template = "{service_name} {service_description} {plateau} {roles}"
 
     def fake_loader(name, *_, **__):
         if name == "plateau_prompt":
@@ -445,7 +443,6 @@ def test_generate_plateau_does_not_request_missing_features(monkeypatch) -> None
 
     generator = PlateauGenerator(
         cast(ConversationSession, session),
-        required_count=2,
         use_local_cache=False,
         cache_mode="off",
     )
@@ -483,7 +480,7 @@ def test_generate_plateau_does_not_request_missing_features(monkeypatch) -> None
 def test_generate_plateau_does_not_raise_on_insufficient_features(
     monkeypatch,
 ) -> None:
-    template = "{required_count} {service_name} {service_description} {plateau} {roles}"
+    template = "{service_name} {service_description} {plateau} {roles}"
 
     def fake_loader(name, *_, **__):
         if name == "plateau_prompt":
@@ -509,7 +506,6 @@ def test_generate_plateau_does_not_raise_on_insufficient_features(
     session = DummySession(responses)
     generator = PlateauGenerator(
         cast(ConversationSession, session),
-        required_count=2,
         use_local_cache=False,
         cache_mode="off",
     )
@@ -535,7 +531,7 @@ def test_generate_plateau_does_not_raise_on_insufficient_features(
 
 
 def test_generate_plateau_missing_features(monkeypatch) -> None:
-    template = "{required_count} {service_name} {service_description} {plateau} {roles}"
+    template = "{service_name} {service_description} {plateau} {roles}"
 
     def fake_loader(name, *_, **__):
         if name == "plateau_prompt":
@@ -560,7 +556,6 @@ def test_generate_plateau_missing_features(monkeypatch) -> None:
     session = DummySession(responses)
     generator = PlateauGenerator(
         cast(ConversationSession, session),
-        required_count=1,
         use_local_cache=False,
         cache_mode="off",
     )
@@ -587,7 +582,7 @@ def test_generate_plateau_missing_features(monkeypatch) -> None:
 async def test_generate_plateau_supports_custom_roles(monkeypatch) -> None:
     """Generator should handle arbitrary role identifiers."""
 
-    template = "{required_count} {service_name} {service_description} {plateau} {roles}"
+    template = "{service_name} {service_description} {plateau} {roles}"
 
     def fake_loader(name, *_, **__):
         if name == "plateau_prompt":
@@ -622,7 +617,6 @@ async def test_generate_plateau_supports_custom_roles(monkeypatch) -> None:
     session = DummySession([payload])
     generator = PlateauGenerator(
         cast(ConversationSession, session),
-        required_count=1,
         roles=["researchers", "students"],
         use_local_cache=False,
         cache_mode="off",
@@ -672,7 +666,6 @@ async def test_request_descriptions_async(monkeypatch) -> None:
     session = DummySession([good])
     generator = PlateauGenerator(
         cast(ConversationSession, session),
-        required_count=1,
         use_local_cache=False,
         cache_mode="off",
     )
@@ -706,7 +699,6 @@ def test_request_description_strips_preamble(monkeypatch) -> None:
     session = DummySession([payload])
     generator = PlateauGenerator(
         cast(ConversationSession, session),
-        required_count=1,
         use_local_cache=False,
         cache_mode="off",
     )
@@ -737,7 +729,6 @@ def test_request_descriptions_returns_mapping(monkeypatch) -> None:
     session = DummySession([payload])
     generator = PlateauGenerator(
         cast(ConversationSession, session),
-        required_count=1,
         use_local_cache=False,
         cache_mode="off",
     )
@@ -1125,7 +1116,6 @@ async def test_generate_plateau_reads_feature_cache(monkeypatch, tmp_path) -> No
     generator = PlateauGenerator(
         cast(ConversationSession, session),
         roles=["learners"],
-        required_count=1,
         use_local_cache=True,
         cache_mode="read",
     )
@@ -1168,7 +1158,6 @@ async def test_init_runtimes_generates_defaults(monkeypatch) -> None:
     session = DummySession([])
     generator = PlateauGenerator(
         cast(ConversationSession, session),
-        required_count=1,
         roles=["r"],
         description_session=cast(ConversationSession, session),
     )
