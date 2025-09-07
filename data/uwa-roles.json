@@ -1,0 +1,22 @@
+[
+  {
+    "role_id": "dom-ug",
+    "name": "Domestic Undergraduate",
+    "description": "Local bachelor’s student eligible for domestic funding and support services, building foundational academic knowledge and professional skills."
+  },
+  {
+    "role_id": "int-pg",
+    "name": "Postgraduate international",
+    "description": "nternational master’s or doctoral student enrolled in a structured, coursework-based program, requiring tailored visa assistance and cultural support."
+  },
+  {
+    "role_id": "academics",
+    "name": "Academics",
+    "description": "Educators and researchers responsible for designing curricula, delivering instruction, and advancing scholarly knowledge."
+  },
+  {
+    "role_id": "professional_staff",
+    "name": "Professional staff",
+    "description": "Staff managing daily operations, student administration, finances, human resources, and strategic planning."
+  }
+]
