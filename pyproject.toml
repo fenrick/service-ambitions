@@ -62,12 +62,12 @@ packages = [
 
 [tool.black]
 line-length = 88
-target-version = ["py313"]
+target-version = ["py311"]
 extend-exclude = '\.idea'
 
 [tool.ruff]
 line-length = 88
-target-version = "py313"
+target-version = "py311"
 src = ["src", "tests"]
 extend-exclude = [".idea"]
 
