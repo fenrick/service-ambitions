@@ -199,6 +199,8 @@ class ServiceExecution:
             raise RuntimeError("Generator not initialised")
 
         names = list(default_plateau_names())
+        generator.description_session.add_parent_materials(self.runtime.service)
+
         desc_map = await generator._request_descriptions_async(
             names, session=generator.description_session
         )
