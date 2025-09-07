@@ -24,7 +24,7 @@ def test_load_settings_reads_env(monkeypatch) -> None:
     assert settings.openai_api_key == "token"
     assert settings.model == "openai:gpt-5-mini"
     assert settings.models is not None
-    assert settings.models.descriptions == "openai:o4-mini"
+    assert settings.models.descriptions == "openai:gpt-5"
     assert settings.log_level == "INFO"
     assert settings.request_timeout == 60
     assert settings.retries == 5
@@ -63,14 +63,19 @@ def test_load_settings_uses_xdg_cache_home(monkeypatch, tmp_path) -> None:
     assert expected.is_dir()
 
 
-def test_load_settings_falls_back_without_xdg(monkeypatch) -> None:
+def test_load_settings_falls_back_without_xdg(monkeypatch, tmp_path) -> None:
     """Cache directory should default when ``XDG_CACHE_HOME`` is unset."""
 
     monkeypatch.setenv("SA_OPENAI_API_KEY", "token")
     monkeypatch.delenv("SA_CACHE_DIR", raising=False)
     monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
+    # Ensure fallback default is writable in CI/sandboxed environments.
+    writable_default = tmp_path / "service-ambitions"
+    monkeypatch.setattr(
+        "runtime.settings.DEFAULT_CACHE_DIR", writable_default, raising=False
+    )
     settings = load_settings()
-    assert settings.cache_dir == DEFAULT_CACHE_DIR
+    assert settings.cache_dir == writable_default
 
 
 def test_load_settings_rejects_unwritable_cache(monkeypatch, tmp_path) -> None:

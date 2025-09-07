@@ -150,7 +150,6 @@ class PlateauRuntime:
             service_name=service_name,
             description=self.description,
             roles=roles,
-            required_count=required_count,
         )
         logfire.info("Requesting features", plateau=self.plateau, service=service_id)
         raw = await session.ask_async(prompt)
