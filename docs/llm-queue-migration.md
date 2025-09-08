@@ -6,26 +6,22 @@ stable. Each step is independently shippable and guarded behind a feature flag.
 
 ## Status
 
-- Done (scaffold):
+- Done:
   - Added `LLMQueue` (src/llm/queue.py) with bounded concurrency.
   - Added `llm_queue_enabled` and `llm_queue_concurrency` settings.
   - Bootstrapped queue in `RuntimeEnv` when enabled.
   - Routed `ConversationSession.ask_async` through the queue when enabled.
+  - Pipelined plateau stages (features overlapping with mappings) when flag is on.
+  - Unified ambitions generator to route via the queue when flag is on (local limiter disabled).
 
 ## Step 1 – Verify parity (flag off by default)
 
 - Ensure CI passes with the flag off. No behavior change expected.
 - Manual check: enable the flag locally and run a small set; outputs should match.
 
-## Step 2 – Add queue-level retry/backoff and circuit breaker
+## Step 2 – (Skipped) queue-level retry/backoff and circuit breaker
 
-- Reuse the backoff logic from `generation/generator.py` (`_with_retry`).
-- Extract into a shared utility (e.g., `src/utils/retry.py`) to avoid cycles.
-- Extend `LLMQueue.submit()` to wrap the factory with the retry strategy.
-
-TODO:
-- [ ] Extract retry util and tests.
-- [ ] Integrate into `LLMQueue.submit()` behind the feature flag.
+Decision: Not required for this iteration. Keep queue minimal; existing components may retain their own handling.
 
 ## Step 3 – Pipeline plateau stages
 
@@ -41,14 +37,9 @@ TODO:
 - [ ] Implement pipelined scheduling (guarded by a new `llm_queue_pipeline` flag or reuse `llm_queue_enabled`).
 - [ ] Add tests to assert overlapping occurs (e.g., by tracking stage invocation order/timestamps).
 
-## Step 4 – Unify other generators (optional)
+## Step 4 – Unify other generators
 
-- Align `generation/ServiceAmbitionGenerator` to use the queue for consistency.
-- Keep its own semaphore either removed or configured to 1 when queue is on.
-
-TODO:
-- [ ] Wire ambition generator through the global queue.
-- [ ] Provide a compatibility setting to keep legacy behavior.
+Status: Done for `ServiceAmbitionGenerator`.
 
 ## Step 5 – Observability and tuning
 
@@ -61,4 +52,3 @@ TODO:
 - [ ] Set `llm_queue_enabled: true` and tune `llm_queue_concurrency`.
 - [ ] Confirm provider-side rate limits are respected.
 - [ ] Monitor throughput and error rates; adjust concurrency accordingly.
-
