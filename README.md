@@ -2,12 +2,12 @@
 
 ## Architecture
 
-The generator runs on a layered engine design.  `ProcessingEngine`
+The generator runs on a layered engine design. `ProcessingEngine`
 coordinates work across services while `ServiceRuntime` holds
-per‑service artefacts.  `ServiceExecution` populates each runtime and
-spawns `PlateauRuntime` instances for every plateau.  A thread‑safe
+per‑service artefacts. `ServiceExecution` populates each runtime and
+spawns `PlateauRuntime` instances for every plateau. A thread‑safe
 `RuntimeEnv` singleton holds configuration and shared state such as
-caches.  See [runtime-architecture](docs/runtime-architecture.md) for a
+caches. See [runtime-architecture](docs/runtime-architecture.md) for a
 detailed walkthrough.
 
 ### File layout
@@ -376,7 +376,7 @@ at the top level, while mapping types and their associated datasets live under
 the `mapping_types` section, allowing new categories to be added without code
 changes. Plateau definitions and their level mappings come from
 `data/service_feature_plateaus.json`. Roles are defined in `data/roles.json`
-by default and can be overridden with the ``--roles-file`` CLI flag.
+by default and can be overridden with the `--roles-file` CLI flag.
 
 ## Prompt examples
 

@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-# Use the CLI module directly rather than relying on an installed
-# entry point.  The project is configured with `package-mode = false`
-# so `service-ambitions` is not available on the `PATH`.
-poetry run python src/cli.py "$@"
+# Use the installed console script via Poetry's environment. The project
+# exposes an entry point `service-ambitions = "cli:main"` and is packaged
+# (package-mode = true), so the console script is available.
+poetry run service-ambitions "$@"
