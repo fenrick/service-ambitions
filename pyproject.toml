@@ -8,12 +8,12 @@ authors = [
 ]
 requires-python = ">=3.11,<4.0"
 dependencies = [
-    "openai (>=1.100)",
-    "pydantic-ai (>=1)",
+    "openai (>=1.100,<2.0.0)",
+    "pydantic-ai (>=1,<2.0.0)",
     "logfire[system-metrics] (>=4.3.3,<5.0.0)",
-    "pydantic (>=2.11)",
-    "pydantic-settings (>=2.10)",
-    "tqdm",
+    "pydantic (>=2.11,<3.0.0)",
+    "pydantic-settings (>=2.10,<3.0.0)",
+    "tqdm (>=4.66,<5.0.0)",
     "pyyaml (>=6.0.2,<7.0.0)",
 ]
 
@@ -62,17 +62,27 @@ packages = [
 
 [tool.black]
 line-length = 88
-target-version = ["py313"]
+target-version = ["py311"]
 extend-exclude = '\.idea'
 
 [tool.ruff]
 line-length = 88
-target-version = "py313"
+target-version = "py311"
 src = ["src", "tests"]
 extend-exclude = [".idea"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B"]
+select = ["E", "F", "I", "B", "C901", "D"]
+ignore = [
+  # Enforce module docstrings first; expand later
+  "D101", "D102", "D103", "D104", "D105", "D106", "D107",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.mccabe]
+max-complexity = 8
 
 [tool.mypy]
 plugins = ["pydantic.mypy"]
@@ -80,6 +90,14 @@ warn_redundant_casts = true
 disallow_any_generics = true
 warn_unused_ignores = true
 files = ["src"]
+strict = true
+
+[[tool.mypy.overrides]]
+# Keep tests non-strict initially while we incrementally improve hints.
+module = [
+  "tests.*",
+]
+strict = false
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
