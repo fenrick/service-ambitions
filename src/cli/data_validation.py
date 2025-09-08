@@ -1,10 +1,16 @@
 # SPDX-License-Identifier: MIT
-"""Utilities for validating dataset inputs."""
+"""Utilities for validating dataset inputs.
+
+This module emits informational messages via the logging framework instead of
+printing directly to stdout so logs integrate with the CLI's logging config.
+"""
 
 from __future__ import annotations
 
 import json
 import logging
+
+logger = logging.getLogger(__name__)
 from pathlib import Path
 
 from io_utils import validate_jsonl
@@ -32,7 +38,7 @@ def validate_data_dir(data_dir: Path) -> None:
         raise FileNotFoundError(services_file)
 
     count = validate_jsonl(services_file, ServiceInput)
-    logging.info("%s: %d valid records", services_file, count)
+    logger.info("%s: %d valid records", services_file, count)
 
     catalogue_dir = data_dir / "catalogue"
     if not catalogue_dir.is_dir():
@@ -51,4 +57,4 @@ def validate_data_dir(data_dir: Path) -> None:
                 MappingItem.model_validate(item)
             except Exception as exc:  # pragma: no cover - unexpected errors
                 raise ValueError(f"{path} item {idx} invalid: {exc}") from exc
-        logging.info("%s: %d valid items", path, len(items))
+        logger.info("%s: %d valid items", path, len(items))
