@@ -638,6 +638,11 @@ class PlateauDescriptionsResponse(StrictModel):
 
 
 class FeatureItem(BaseModel):
+    """Feature payload with strict validation to prevent shape drift.
+
+    Unknown fields are rejected (``extra='forbid'``) and input types are
+    validated strictly, aligning with the repository typing standards.
+    """
     model_config = ConfigDict(extra="forbid", strict=True)
     name: Annotated[
         str,
@@ -655,7 +660,7 @@ FeaturesBlock = dict[str, list[FeatureItem]]
 
 
 class PlateauFeaturesResponse(BaseModel):
-    """Schema for plateau feature generation responses.
+    """Schema for plateau feature generation responses (strict validation).
 
     Features are grouped by role identifier to simplify downstream rendering.
     """
