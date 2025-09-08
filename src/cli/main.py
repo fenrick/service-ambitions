@@ -18,11 +18,10 @@ from pydantic_core import to_json
 
 from constants import DEFAULT_CACHE_DIR
 from core.canonical import canonicalise_record
-from core.mapping import build_cache_key, cache_path, cache_write_json_atomic
 from core.conversation import _prompt_cache_key, _prompt_cache_path
-from generation.plateau_generator import default_plateau_names
+from core.mapping import build_cache_key, cache_path, cache_write_json_atomic
 from engine.processing_engine import ProcessingEngine
-from generation.plateau_generator import _feature_cache_path
+from generation.plateau_generator import _feature_cache_path, default_plateau_names
 from io_utils.loader import (
     configure_mapping_data_dir,
     load_mapping_items,
@@ -158,15 +157,20 @@ def _reconstruct_feature_cache(
         payload = PlateauFeaturesResponse(features=block)
         # Write canonical human-friendly file for quick inspection
         feat_path = _feature_cache_path(svc_id, plateau.plateau)
-        if _should_write_cache(getattr(settings, "cache_mode", "read"), feat_path.exists()):
+        if _should_write_cache(
+            getattr(settings, "cache_mode", "read"), feat_path.exists()
+        ):
             cache_write_json_atomic(feat_path, payload.model_dump())
 
         # Also write hashed prompt-cache entry so different contexts co-exist
         try:
-            from generation.plateau_generator import default_role_ids
+            from generation.plateau_generator import (
+                default_role_ids as _role_ids_fn,
+            )
+            roles = list(_role_ids_fn())
         except Exception:  # pragma: no cover - defensive import
-            default_role_ids = lambda: []  # type: ignore[misc,assignment]
-        roles = default_role_ids()
+            # Fallback when defaults are unavailable during import time
+            roles = []
         roles_str = ", ".join(f'"{r}"' for r in roles)
         template = load_prompt_text("plateau_prompt")
         prompt = template.format(
@@ -182,7 +186,9 @@ def _reconstruct_feature_cache(
         stage = f"features_{plateau.plateau}"
         f_key = _prompt_cache_key(prompt, feature_model, stage)
         f_cache = _prompt_cache_path(svc_id, stage, f_key)
-        if _should_write_cache(getattr(settings, "cache_mode", "read"), f_cache.exists()):
+        if _should_write_cache(
+            getattr(settings, "cache_mode", "read"), f_cache.exists()
+        ):
             cache_write_json_atomic(f_cache, payload.model_dump())
 
 
@@ -233,7 +239,9 @@ def _rebuild_mapping_cache(
         plateau.mappings = {}
 
 
-def _rebuild_description_cache(svc_id: str, evo: ServiceEvolution, settings: Settings) -> None:
+def _rebuild_description_cache(
+    svc_id: str, evo: ServiceEvolution, settings: Settings
+) -> None:
     """Write the descriptions prompt-cache entry for ``svc_id``.
 
     Reconstructs the same prompt used by the descriptions stage so future runs
@@ -264,7 +272,9 @@ def _rebuild_description_cache(svc_id: str, evo: ServiceEvolution, settings: Set
         )
         key = _prompt_cache_key(prompt, model_name, "descriptions")
         cache_file = _prompt_cache_path(svc_id, "descriptions", key)
-        if not _should_write_cache(getattr(settings, "cache_mode", "read"), cache_file.exists()):
+        if not _should_write_cache(
+            getattr(settings, "cache_mode", "read"), cache_file.exists()
+        ):
             return
         # Build payload with all plateau descriptions in the expected schema
         desc_lookup = {p.plateau_name: p.service_description for p in evo.plateaus}
