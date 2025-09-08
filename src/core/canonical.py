@@ -20,6 +20,14 @@ def _sort_feature(feature: Dict[str, Any]) -> Dict[str, Any]:
     return feature
 
 
+def _sort_role(role: Dict[str, Any]) -> Dict[str, Any]:
+    """Return ``role`` with sorted features and contributions."""
+    feats = role.get("features")
+    if isinstance(feats, list):
+        role["features"] = _sort_features(feats)
+    return role
+
+
 def _sort_feature_refs(refs: List[Dict[str, Any]]) -> None:
     """Order feature references by ``feature_id``."""
     refs.sort(key=lambda r: r.get("feature_id", ""))
@@ -61,6 +69,11 @@ def _normalise_plateaus(record: Dict[str, Any]) -> None:
             feats = plateau.get("features")
             if isinstance(feats, list):
                 plateau["features"] = _sort_features(feats)
+            roles = plateau.get("roles")
+            if isinstance(roles, list):
+                plateau["roles"] = sorted(
+                    (_sort_role(r) for r in roles), key=lambda r: r.get("role_id", "")
+                )
             mappings = plateau.get("mappings")
             if isinstance(mappings, dict):
                 _sort_grouped_mappings(mappings)

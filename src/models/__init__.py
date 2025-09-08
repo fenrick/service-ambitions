@@ -137,6 +137,20 @@ class DiagnosticContribution(Contribution):
     ]
 
 
+class EnrichedContribution(Contribution):
+    """Contribution with catalogue details for readability."""
+
+    name: Annotated[
+        str, Field(min_length=1, description="Human readable item name.")
+    ]
+    description: Annotated[
+        str, Field(min_length=1, description="Explanation of the item.")
+    ]
+    justification: str | None = Field(
+        default=None, description="Optional rationale for the contribution."
+    )
+
+
 class DefinitionItem(StrictModel):
     """Detailed definition entry rendered in reference sections."""
 
@@ -556,6 +570,12 @@ class PlateauFeature(StrictModel):
         str,
         Field(min_length=1, description="Audience that benefits from the feature."),
     ]
+    # Include full role details in output for easier downstream consumption.
+    # Optional for backward compatibility with previously generated files.
+    role: Role | None = Field(
+        default=None,
+        description="Full role details (id, name, description).",
+    )
     mappings: dict[str, list[Contribution]] = Field(
         default_factory=dict,
         description="Mapping contributions keyed by mapping type.",
@@ -579,6 +599,10 @@ class PlateauResult(StrictModel):
     features: list[PlateauFeature] = Field(
         default_factory=list,
         description="Features identified for this plateau level.",
+    )
+    roles: list["PlateauRole"] = Field(
+        default_factory=list,
+        description="Denormalised view of features grouped by role.",
     )
     mappings: dict[str, list[MappingFeatureGroup]] = Field(
         default_factory=dict,
@@ -846,6 +870,22 @@ class MappingFeatureGroup(StrictModel):
     )
 
 
+class PlateauRole(StrictModel):
+    """Denormalised role container within a plateau."""
+
+    role_id: Annotated[
+        str, Field(min_length=1, description="Unique role identifier.")
+    ]
+    name: Annotated[str, Field(min_length=1, description="Human readable role name.")]
+    description: Annotated[
+        str, Field(min_length=1, description="Explanation of the role.")
+    ]
+    features: list[PlateauFeature] = Field(
+        default_factory=list,
+        description="Features applicable to this role for the plateau.",
+    )
+
+
 __all__ = [
     "AppConfig",
     "Contribution",
@@ -858,6 +898,7 @@ __all__ = [
     "FeatureItem",
     "FeaturesBlock",
     "JobToBeDone",
+    "EnrichedContribution",
     "MappingFeature",
     "MappingItem",
     "MappingResponse",
@@ -872,6 +913,7 @@ __all__ = [
     "PlateauFeaturesResponse",
     "RoleFeaturesResponse",
     "PlateauResult",
+    "PlateauRole",
     "StageModels",
     "ReasoningConfig",
     "Role",

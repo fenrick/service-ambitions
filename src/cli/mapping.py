@@ -10,12 +10,14 @@ from typing import Iterable, Literal, Sequence, cast
 from core import mapping
 from core.canonical import canonicalise_record
 from core.conversation import ConversationSession
-from io_utils.loader import configure_mapping_data_dir, load_mapping_items
+from io_utils.loader import configure_mapping_data_dir, load_mapping_items, load_roles
 from models import (
     FeatureMappingRef,
+    EnrichedContribution,
     MappingFeatureGroup,
     MappingItem,
     MappingSet,
+    PlateauRole,
     PlateauFeature,
     PlateauResult,
     ServiceEvolution,
@@ -182,6 +184,68 @@ async def remap_features(
     mapped = await _apply_mapping_sets(
         features, items, settings, cache_mode, catalogue_hash
     )
+    # Propagate per-feature mappings back into the evolutions for denormalised output
+    # and enrich with full role details and mapping item details.
+    mapped_by_id = {f.feature_id: f for f in mapped}
+    role_lookup = {r.role_id: r for r in load_roles(settings.roles_file)}
+    # Build catalogue lookups by field for enrichment
+    catalogue_by_field = {
+        field: {it.id: it for it in items[field]} for field in items
+    }
+    for evo in evolutions:
+        for plateau in evo.plateaus:
+            updated: list[PlateauFeature] = []
+            for f in plateau.features:
+                mf = mapped_by_id.get(f.feature_id, f)
+                # Attach role details if missing and lookup is available.
+                if getattr(mf, "role", None) is None and mf.customer_type in role_lookup:
+                    mf.role = role_lookup[mf.customer_type]
+                # Enrich mapping entries with human-friendly details
+                enriched: dict[str, list[EnrichedContribution]] = {}
+                for field, contribs in mf.mappings.items():
+                    cat = catalogue_by_field.get(field, {})
+                    enriched[field] = []
+                    for c in contribs:
+                        item = cat.get(c.item)
+                        if item is None:
+                            # Fallback to id placeholders if catalogue missing
+                            enriched[field].append(
+                                EnrichedContribution(
+                                    item=c.item,
+                                    name=c.item,
+                                    description="",
+                                    justification=None,
+                                )
+                            )
+                        else:
+                            enriched[field].append(
+                                EnrichedContribution(
+                                    item=c.item,
+                                    name=item.name,
+                                    description=item.description,
+                                    justification=None,
+                                )
+                            )
+                mf.mappings = enriched  # type: ignore[assignment]
+                updated.append(mf)
+            plateau.features = updated
+            # Build denormalised roles[] view for progressive readability
+            role_groups: dict[str, list[PlateauFeature]] = {}
+            for feat in plateau.features:
+                role_groups.setdefault(feat.customer_type, []).append(feat)
+            plateau.roles = [
+                PlateauRole(
+                    role_id=rid,
+                    name=role_lookup[rid].name if rid in role_lookup else rid,
+                    description=(
+                        role_lookup[rid].description if rid in role_lookup else ""
+                    ),
+                    features=sorted(
+                        feats, key=lambda x: x.feature_id
+                    ),
+                )
+                for rid, feats in sorted(role_groups.items())
+            ]
     _assemble_mapping_groups(evolutions, mapped, items, settings)
 
 
@@ -195,7 +259,15 @@ def write_output(evolutions: Iterable[ServiceEvolution], output_path: Path) -> N
     Side Effects:
         Creates or overwrites ``output_path`` with one line per evolution.
     """
+    # Keep schemas lightweight for JSONL; placeholder for now.
+    schemas = {}
+
     with output_path.open("w", encoding="utf-8") as fh:
         for evo in evolutions:
             record = canonicalise_record(evo.model_dump(mode="json"))
+            # Embed schemas into meta for self-describing output
+            meta = record.get("meta", {})
+            if isinstance(meta, dict):
+                meta["schemas"] = schemas
+                record["meta"] = meta
             fh.write(json.dumps(record, separators=(",", ":"), sort_keys=True) + "\n")

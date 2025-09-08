@@ -26,12 +26,14 @@ from io_utils.loader import (
     load_plateau_definitions,
     load_prompt_text,
     load_role_ids,
+    load_roles,
 )
 from models import (
     FeatureItem,
     PlateauDescriptionsResponse,
     PlateauFeature,
     PlateauResult,
+    Role,
     ServiceEvolution,
     ServiceFeaturePlateau,
     ServiceInput,
@@ -73,6 +75,14 @@ def default_role_ids() -> list[str]:
     """Return core role identifiers."""
     settings = RuntimeEnv.instance().settings
     return load_role_ids(settings.roles_file)
+
+
+@lru_cache(maxsize=1)
+def default_role_lookup() -> dict[str, Role]:
+    """Return mapping of role_id to Role details."""
+    settings = RuntimeEnv.instance().settings
+    roles = load_roles(settings.roles_file)
+    return {r.role_id: r for r in roles}
 
 
 def _feature_cache_path(service: str, plateau: int) -> Path:
@@ -420,6 +430,7 @@ class PlateauGenerator:
             if result.plateau_name not in plateau_names:
                 raise ValueError(f"Unknown plateau name: {result.plateau_name}")
             valid: list[PlateauFeature] = []
+            role_lookup = default_role_lookup()
             for feat in result.features:
                 if feat.customer_type not in role_ids:
                     raise ValueError(f"Unknown customer_type: {feat.customer_type}")
@@ -434,6 +445,7 @@ class PlateauGenerator:
                         description=feat.description.strip(),
                         score=feat.score,
                         customer_type=feat.customer_type,
+                        role=role_lookup.get(feat.customer_type),
                         mappings=feat.mappings,
                     )
                 )
