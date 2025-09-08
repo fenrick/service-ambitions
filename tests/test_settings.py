@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-from constants import DEFAULT_CACHE_DIR
 from runtime.settings import load_settings
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -15,7 +14,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 def test_load_settings_reads_env(monkeypatch) -> None:
     """Environment variables should populate the settings model."""
-
     monkeypatch.setenv("SA_OPENAI_API_KEY", "token")
     monkeypatch.setenv("SA_USE_LOCAL_CACHE", "1")
     monkeypatch.setenv("SA_CACHE_MODE", "write")
@@ -24,7 +22,7 @@ def test_load_settings_reads_env(monkeypatch) -> None:
     assert settings.openai_api_key == "token"
     assert settings.model == "openai:gpt-5-mini"
     assert settings.models is not None
-    assert settings.models.descriptions == "openai:o4-mini"
+    assert settings.models.descriptions == "openai:gpt-5"
     assert settings.log_level == "INFO"
     assert settings.request_timeout == 60
     assert settings.retries == 5
@@ -42,7 +40,6 @@ def test_load_settings_reads_env(monkeypatch) -> None:
 
 def test_load_settings_requires_key(monkeypatch) -> None:
     """Missing API key should raise ``RuntimeError``."""
-
     monkeypatch.delenv("SA_OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("SA_USE_LOCAL_CACHE", raising=False)
     monkeypatch.delenv("SA_CACHE_MODE", raising=False)
@@ -53,7 +50,6 @@ def test_load_settings_requires_key(monkeypatch) -> None:
 
 def test_load_settings_uses_xdg_cache_home(monkeypatch, tmp_path) -> None:
     """Default cache directory should honour ``XDG_CACHE_HOME``."""
-
     monkeypatch.setenv("SA_OPENAI_API_KEY", "token")
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
     monkeypatch.setenv("SA_CACHE_DIR", "$XDG_CACHE_HOME/service-ambitions")
@@ -63,19 +59,22 @@ def test_load_settings_uses_xdg_cache_home(monkeypatch, tmp_path) -> None:
     assert expected.is_dir()
 
 
-def test_load_settings_falls_back_without_xdg(monkeypatch) -> None:
+def test_load_settings_falls_back_without_xdg(monkeypatch, tmp_path) -> None:
     """Cache directory should default when ``XDG_CACHE_HOME`` is unset."""
-
     monkeypatch.setenv("SA_OPENAI_API_KEY", "token")
     monkeypatch.delenv("SA_CACHE_DIR", raising=False)
     monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
+    # Ensure fallback default is writable in CI/sandboxed environments.
+    writable_default = tmp_path / "service-ambitions"
+    monkeypatch.setattr(
+        "runtime.settings.DEFAULT_CACHE_DIR", writable_default, raising=False
+    )
     settings = load_settings()
-    assert settings.cache_dir == DEFAULT_CACHE_DIR
+    assert settings.cache_dir == writable_default
 
 
 def test_load_settings_rejects_unwritable_cache(monkeypatch, tmp_path) -> None:
     """Cache directory should raise ``RuntimeError`` when unwritable."""
-
     read_only = tmp_path / "no_write"
     read_only.mkdir()
     read_only.chmod(0o500)

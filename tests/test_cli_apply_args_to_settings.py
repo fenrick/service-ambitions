@@ -17,7 +17,6 @@ os.environ.setdefault("SA_OPENAI_API_KEY", "test-key")
 
 def _prepare_settings():
     """Return minimal settings namespace for CLI tests."""
-
     cache_dir = Path(os.environ.get("XDG_CACHE_HOME", "/tmp")) / "service-ambitions"
     return SimpleNamespace(
         log_level="INFO",
@@ -36,7 +35,6 @@ def _prepare_settings():
 
 def _build_args(**overrides):
     """Construct an ``argparse.Namespace`` like object for tests."""
-
     base = dict(
         model=None,
         descriptions_model=None,
@@ -74,7 +72,6 @@ def _build_args(**overrides):
 )
 def test_apply_args_to_settings_simple(arg_name, attr_name, value, expected):
     """Each simple flag should override the corresponding setting."""
-
     args = _build_args(**{arg_name: value})
     settings = _prepare_settings()
     cli._apply_args_to_settings(args, settings)
@@ -92,7 +89,6 @@ def test_apply_args_to_settings_simple(arg_name, attr_name, value, expected):
 )
 def test_apply_args_to_settings_stage_models(arg_name, field):
     """Per-stage model flags should populate ``settings.models``."""
-
     args = _build_args(**{arg_name: "m"})
     settings = _prepare_settings()
     cli._apply_args_to_settings(args, settings)

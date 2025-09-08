@@ -22,7 +22,6 @@ def validate_jsonl(path: Path, model: Type[BaseModel]) -> int:
     Raises:
         ValueError: If any line fails validation.
     """
-
     count = 0
     with path.open("r", encoding="utf-8") as handle:
         for idx, line in enumerate(handle, start=1):

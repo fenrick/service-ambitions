@@ -1,6 +1,6 @@
 # Generate mapping
 
-Remap feature mappings for existing service evolution results.  The
+Remap feature mappings for existing service evolution results. The
 command reuses the same runtime environment and caching strategy as the
 evolution workflow, ensuring that relocated cache files and lazy
 loading behave consistently across both commands.
@@ -36,6 +36,46 @@ and `--cache-dir` sets the cache storage location.
 Mapping runs once per configured set. Each prompt receives the relevant
 reference list—`applications`, `technologies` and `information` by default—and
 returns items matched to the feature.
+
+## Dataset format (self‑contained)
+
+Mapping datasets can be provided either as a plain list of items or as a
+self‑contained object that embeds configuration alongside the catalogue. The
+loader accepts both formats:
+
+- List form (existing behaviour):
+
+  ```json
+  [
+    {
+      "id": "APP001",
+      "name": "CRM",
+      "description": "Customer relationship mgmt."
+    }
+  ]
+  ```
+
+- Object form (flexible, self‑describing):
+
+  ```json
+  {
+    "field": "applications",
+    "label": "Business Applications",
+    "items": [
+      {
+        "id": "APP001",
+        "name": "CRM",
+        "description": "Customer relationship mgmt."
+      }
+    ]
+  }
+  ```
+
+When the object form is used, the embedded `field` and `label` are included in
+digest calculations (cache keys) and validated against external configuration
+if provided. External `mapping_sets` still determine which files are loaded and
+the target feature field; if the file’s `field` disagrees, a warning is logged
+to help you reconcile configuration.
 
 ## Input format
 

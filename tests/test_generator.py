@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: MIT
+"""Tests for ambition generator orchestration."""
 import asyncio
 from types import SimpleNamespace
 

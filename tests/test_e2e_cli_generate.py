@@ -223,7 +223,6 @@ sys.modules.setdefault(
 
 def _settings(_config: str | None = None) -> SimpleNamespace:
     """Return minimal settings for the CLI."""
-
     return SimpleNamespace(
         model="model",
         openai_api_key="key",

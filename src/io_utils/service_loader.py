@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from json import JSONDecodeError
 from pathlib import Path
+from types import TracebackType
 from typing import Generator, Iterator
 
 import logfire
@@ -28,7 +29,6 @@ SERVICE_ID_ATTR = "service.id"
 
 def _extract_service_id(line: str) -> str | None:
     """Return service identifier from ``line`` when available."""
-
     try:
         data = from_json(line, allow_partial=True)
     except (ValidationError, JSONDecodeError, ValueError):
@@ -49,7 +49,6 @@ def _process_line(
     Any ``features`` provided on the service are cleared to ensure the loader
     only returns baseline service metadata.
     """
-
     if not line:
         logfire.debug(
             "Skipping blank line",
@@ -83,33 +82,41 @@ def _process_line(
 
 def _load_service_entries(path: Path | str) -> Generator[ServiceInput, None, None]:
     """Yield services from ``path`` while validating each JSON line."""
-
     path_obj = Path(path)
     adapter = TypeAdapter(ServiceInput)
-    try:
-        with path_obj.open("r", encoding="utf-8") as file:
-            for line_number, raw_line in enumerate(file, start=1):
-                TOTAL_LINES.add(1)
-                service = _process_line(
-                    raw_line.strip(), line_number, path_obj, adapter
-                )
-                if service is not None:
-                    yield service
-    except FileNotFoundError:
-        logfire.error(SERVICES_FILE_NOT_FOUND, file_path=str(path_obj))
-        raise FileNotFoundError(
-            f"{SERVICES_FILE_NOT_FOUND}. Please create a {path_obj} file in the"
-            " current directory."
-        ) from None
-    except OSError as exc:
-        logfire.error(
-            "Error reading services file",
-            file_path=str(path_obj),
-            error=str(exc),
-        )
-        raise RuntimeError(
-            f"An error occurred while reading the services file: {exc}"
-        ) from exc
+    with logfire.span("services.load_entries", attributes={"path": str(path_obj)}):
+        try:
+            emitted = 0
+            with path_obj.open("r", encoding="utf-8") as file:
+                for line_number, raw_line in enumerate(file, start=1):
+                    TOTAL_LINES.add(1)
+                    service = _process_line(
+                        raw_line.strip(), line_number, path_obj, adapter
+                    )
+                    if service is not None:
+                        emitted += 1
+                        yield service
+            logfire.debug(
+                "Loaded services",
+                file_path=str(path_obj),
+                total_lines=line_number if "line_number" in locals() else 0,
+                valid=emitted,
+            )
+        except FileNotFoundError:
+            logfire.error(SERVICES_FILE_NOT_FOUND, file_path=str(path_obj))
+            raise FileNotFoundError(
+                f"{SERVICES_FILE_NOT_FOUND}. Please create a {path_obj} file in the"
+                " current directory."
+            ) from None
+        except OSError as exc:
+            logfire.error(
+                "Error reading services file",
+                file_path=str(path_obj),
+                error=str(exc),
+            )
+            raise RuntimeError(
+                f"An error occurred while reading the services file: {exc}"
+            ) from exc
 
 
 class ServiceLoader:
@@ -124,13 +131,17 @@ class ServiceLoader:
     def __enter__(self) -> Iterator[ServiceInput]:
         return self.__iter__()
 
-    def __exit__(self, exc_type, exc, tb) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
         return None
 
 
 def load_services(path: Path | str) -> ServiceLoader:
     """Return an iterable over services defined in ``path``."""
-
     return ServiceLoader(path)
 
 

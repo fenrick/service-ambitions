@@ -32,7 +32,6 @@ class SetMetrics:
         tokens: int,
     ) -> None:
         """Update metrics with a new mapping result."""
-
         self.features += features
         self.mapped_ids += mapped_ids
         self.unknown_ids += unknown_ids
@@ -43,7 +42,6 @@ class SetMetrics:
     @property
     def average_latency(self) -> float:
         """Return the average latency for the mapping set."""
-
         if not self.latencies:
             return 0.0
         return sum(self.latencies) / len(self.latencies)
@@ -56,7 +54,6 @@ _error_handler: ErrorHandler = LoggingErrorHandler()
 
 def configure_error_handler(handler: ErrorHandler) -> None:
     """Override the telemetry error handler."""
-
     global _error_handler
     _error_handler = handler
 
@@ -72,7 +69,6 @@ def record_mapping_set(
     tokens: int,
 ) -> None:
     """Record metrics for a mapping ``set_name``."""
-
     _metrics[set_name].add(
         features=features,
         mapped_ids=mapped_ids,
@@ -85,26 +81,22 @@ def record_mapping_set(
 
 def record_quarantine(path: Path) -> None:
     """Track creation of a quarantine ``path``."""
-
     _quarantine_paths.append(path)
 
 
 def has_quarantines() -> bool:
     """Return ``True`` when any quarantine files were created."""
-
     return bool(_quarantine_paths)
 
 
 def reset() -> None:
     """Clear all recorded metrics and quarantine paths."""
-
     _metrics.clear()
     _quarantine_paths.clear()
 
 
 def print_summary() -> None:
     """Write a summary of collected metrics to ``stdout``."""
-
     if not _metrics:
         return
     try:

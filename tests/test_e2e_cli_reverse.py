@@ -43,7 +43,6 @@ sys.modules.setdefault("logfire", cast(types.ModuleType, dummy_logfire))
 
 def test_cli_reverse_generates_caches(monkeypatch, tmp_path) -> None:
     """The reverse subcommand writes feature and mapping caches."""
-
     cache_dir = tmp_path / ".cache"
     settings = SimpleNamespace(
         log_level="INFO",

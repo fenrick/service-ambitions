@@ -14,7 +14,6 @@ def feature_cache(service_id: str, plateau: int) -> Path:
 
     Ensures the parent directory exists before returning the final path.
     """
-
     try:
         settings = RuntimeEnv.instance().settings
         cache_root = settings.cache_dir

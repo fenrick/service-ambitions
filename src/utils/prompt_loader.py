@@ -64,5 +64,4 @@ class FilePromptLoader(PromptLoader):
 
     def clear_cache(self) -> None:
         """Reset memoised prompt text."""
-
         self._cache.clear()

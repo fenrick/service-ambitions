@@ -115,7 +115,6 @@ def _feature_payload(count: int, level: int = 1) -> str:
 @pytest.mark.asyncio()
 async def test_map_features_maps_all_sets_with_full_list(monkeypatch) -> None:
     """Each mapping set processes the full feature list exactly once."""
-
     called: list[str] = []
     received: list[list[str]] = []
 
@@ -183,7 +182,6 @@ async def test_map_features_maps_all_sets_with_full_list(monkeypatch) -> None:
 
 def test_build_plateau_prompt_excludes_feature_id() -> None:
     """Old FEAT-* identifiers should not appear in prompts."""
-
     session = DummySession([])
     generator = PlateauGenerator(
         cast(ConversationSession, session),
@@ -205,7 +203,6 @@ def test_build_plateau_prompt_excludes_feature_id() -> None:
 
 def test_to_feature_hashes_name_role_and_plateau() -> None:
     """_to_feature should hash name, role and plateau."""
-
     session = DummySession([])
     generator = PlateauGenerator(
         cast(ConversationSession, session),
@@ -581,7 +578,6 @@ def test_generate_plateau_missing_features(monkeypatch) -> None:
 @pytest.mark.asyncio()
 async def test_generate_plateau_supports_custom_roles(monkeypatch) -> None:
     """Generator should handle arbitrary role identifiers."""
-
     template = "{service_name} {service_description} {plateau} {roles}"
 
     def fake_loader(name, *_, **__):
@@ -1009,7 +1005,6 @@ def test_generate_service_evolution_preserves_duplicates(monkeypatch) -> None:
 
 def test_validate_plateau_results_strict_checks() -> None:
     """Strict mode should validate roles and mappings."""
-
     session = DummySession([])
     generator = PlateauGenerator(
         cast(ConversationSession, session),
@@ -1065,7 +1060,6 @@ def test_validate_plateau_results_strict_checks() -> None:
 
 def test_write_transcript_writes_payload(tmp_path) -> None:
     """Transcript writing should persist payloads without modification."""
-
     session = DummySession([])
     generator = PlateauGenerator(
         cast(ConversationSession, session),
@@ -1091,7 +1085,6 @@ def test_write_transcript_writes_payload(tmp_path) -> None:
 @pytest.mark.asyncio()
 async def test_generate_plateau_reads_feature_cache(monkeypatch, tmp_path) -> None:
     """Legacy feature caches are relocated and reused."""
-
     monkeypatch.chdir(tmp_path)
     loader.configure_prompt_dir(Path(__file__).resolve().parents[1] / "prompts")
     payload = PlateauFeaturesResponse(

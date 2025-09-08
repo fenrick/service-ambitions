@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from pydantic_core import from_json
 
 from core.conversation import ConversationSession
+from core.dry_run import DryRunInvocation
 from core.mapping import (
     MapSetParams,
     cache_write_json_atomic,
@@ -44,12 +45,10 @@ class PlateauRuntime:
 
     def _feature_cache_path(self, service: str) -> Path:
         """Return canonical cache path for features."""
-
         return feature_cache(service, self.plateau)
 
     def _discover_feature_cache(self, service: str) -> tuple[Path, Path]:
         """Return existing feature cache and canonical destination."""
-
         canonical = self._feature_cache_path(service)
         if canonical.exists():
             return canonical, canonical
@@ -64,7 +63,6 @@ class PlateauRuntime:
         self, item: FeatureItem, role: str, code_registry: ShortCodeRegistry
     ) -> PlateauFeature:
         """Return a :class:`PlateauFeature` built from ``item``."""
-
         canonical = f"{item.name}|{role}|{self.plateau_name}"
         feature_id = code_registry.generate(canonical)
         return PlateauFeature(
@@ -83,7 +81,6 @@ class PlateauRuntime:
         roles: Sequence[str],
     ) -> str:
         """Return a prompt requesting features for this plateau."""
-
         template = load_prompt_text("plateau_prompt")
         roles_str = ", ".join(f'"{r}"' for r in roles)
         return template.format(
@@ -101,7 +98,6 @@ class PlateauRuntime:
         code_registry: ShortCodeRegistry,
     ) -> list[PlateauFeature]:
         """Return PlateauFeature records extracted from ``payload``."""
-
         features: list[PlateauFeature] = []
         for role in roles:
             raw_features = payload.features.get(role, [])
@@ -116,7 +112,6 @@ class PlateauRuntime:
         cache_mode: Literal["off", "read", "refresh", "write"],
     ) -> tuple[PlateauFeaturesResponse | None, Path | None]:
         """Return cached feature payload when available."""
-
         payload: PlateauFeaturesResponse | None = None
         cache_file: Path | None = None
         if use_local_cache and cache_mode != "off":
@@ -145,15 +140,14 @@ class PlateauRuntime:
         cache_mode: Literal["off", "read", "refresh", "write"],
     ) -> PlateauFeaturesResponse:
         """Return feature payload from a single prompt and optionally cache it."""
-
         prompt = self._build_plateau_prompt(
             service_name=service_name,
             description=self.description,
             roles=roles,
-            required_count=required_count,
         )
         logfire.info("Requesting features", plateau=self.plateau, service=service_id)
         raw = await session.ask_async(prompt)
+        logfire.info("Validating features", pleateau=self.plateau, service=service_id)
         payload = PlateauFeaturesResponse.model_validate(raw)
         if use_local_cache and cache_mode != "off":
             cache_write_json_atomic(
@@ -174,11 +168,24 @@ class PlateauRuntime:
         cache_mode: Literal["off", "read", "refresh", "write"],
     ) -> None:
         """Populate ``self.features`` using ``session``."""
-
         payload, cache_file = self._load_cached_payload(
             service_id, use_local_cache, cache_mode
         )
         if payload is None:
+            # In dry-run mode, halt before making the agent call.
+            if getattr(RuntimeEnv.instance().settings, "dry_run", False):
+                stage_name = f"features_{self.plateau}"
+                model_name = getattr(
+                    getattr(getattr(session, "client", None), "model", None),
+                    "model_name",
+                    "",
+                )
+                raise DryRunInvocation(
+                    stage=stage_name,
+                    model=model_name,
+                    cache_file=cache_file,
+                    service_id=service_id,
+                )
             payload = await self._dispatch_features(
                 session,
                 service_id=service_id,
@@ -224,7 +231,6 @@ class PlateauRuntime:
         Returns:
             Grouped mapping results keyed by mapping item identifier.
         """
-
         set_session = session.derive()
         set_session.stage = f"mapping_{cfg.field}"
         params = MapSetParams(
@@ -257,7 +263,6 @@ class PlateauRuntime:
         cache_mode: Literal["off", "read", "refresh", "write"],
     ) -> None:
         """Populate ``self.mappings`` for ``self.features``."""
-
         settings = RuntimeEnv.instance().settings
         items, catalogue_hash = load_mapping_items(settings.mapping_sets)
 
@@ -286,7 +291,6 @@ class PlateauRuntime:
         mappings: dict[str, list[MappingFeatureGroup]],
     ) -> None:
         """Store ``features`` and ``mappings`` for this plateau."""
-
         with logfire.span(
             "plateau_runtime.set_results",
             attributes={"plateau": self.plateau_name},
@@ -303,7 +307,6 @@ class PlateauRuntime:
 
     def status(self) -> bool:
         """Return ``True`` when generation succeeded."""
-
         logfire.debug(
             "Plateau status checked",
             plateau=self.plateau_name,

@@ -1,3 +1,5 @@
+"""Tests for service execution helper functions."""
+
 import asyncio
 from pathlib import Path
 from types import SimpleNamespace

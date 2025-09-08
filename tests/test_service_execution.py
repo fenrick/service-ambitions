@@ -1,3 +1,5 @@
+"""Tests for service execution behaviour."""
+
 from __future__ import annotations
 
 from types import SimpleNamespace

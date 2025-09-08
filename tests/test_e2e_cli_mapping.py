@@ -16,7 +16,6 @@ cli = importlib.import_module("cli.main")
 
 def _settings() -> SimpleNamespace:
     """Return minimal settings for the mapping CLI."""
-
     return SimpleNamespace(
         log_level="INFO",
         logfire_token=None,
@@ -47,7 +46,6 @@ def _settings() -> SimpleNamespace:
 
 def _stub_map_set(*args, **kwargs):
     """Return deterministic mappings for test features."""
-
     session, set_name, _, features, *rest = args
     mapped = []
     for feat in features:
@@ -68,7 +66,6 @@ async def _stub_map_set_async(*args, **kwargs):
 
 def test_cli_map_matches_golden(monkeypatch, tmp_path) -> None:
     """The map subcommand produces the locked golden output."""
-
     monkeypatch.setattr(mapping, "map_set", _stub_map_set_async)
     monkeypatch.setattr(cli, "load_settings", lambda _path=None: _settings())
     monkeypatch.setattr(cli, "_configure_logging", lambda *a, **k: None)

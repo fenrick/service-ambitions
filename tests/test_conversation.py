@@ -46,7 +46,6 @@ class DummyAgent:
 
 def test_add_parent_materials_records_history() -> None:
     """``add_parent_materials`` should append service info to history."""
-
     session = ConversationSession(
         cast(Agent[None, str], DummyAgent()),
         use_local_cache=False,
@@ -77,7 +76,6 @@ def test_add_parent_materials_records_history() -> None:
 
 def test_add_parent_materials_includes_features() -> None:
     """Seed materials should list existing service features when provided."""
-
     session = ConversationSession(
         cast(Agent[None, str], DummyAgent()),
         use_local_cache=False,
@@ -113,7 +111,6 @@ def test_add_parent_materials_includes_features() -> None:
 
 def test_ask_adds_responses_to_history() -> None:
     """``ask`` should forward prompts and store new messages."""
-
     session = ConversationSession(
         cast(Agent[None, str], DummyAgent()),
         use_local_cache=False,
@@ -139,7 +136,6 @@ def test_ask_forwards_prompt_to_agent() -> None:
 
 def test_ask_omits_prompt_logging_when_disabled(tmp_path, monkeypatch) -> None:
     """Prompts should not be logged when logging is disabled."""
-
     agent = DummyAgent()
     session = ConversationSession(
         cast(Agent[None, str], agent),
@@ -159,7 +155,6 @@ def test_ask_omits_prompt_logging_when_disabled(tmp_path, monkeypatch) -> None:
 
 def test_catalogue_strings_not_logged_by_default(monkeypatch) -> None:
     """Catalogue details should not leak to logs without explicit opt-in."""
-
     agent = DummyAgent()
     session = ConversationSession(
         cast(Agent[None, str], agent),
@@ -179,7 +174,6 @@ def test_catalogue_strings_not_logged_by_default(monkeypatch) -> None:
 
 def test_diagnostics_writes_transcript(tmp_path) -> None:
     """Diagnostics mode should persist prompt/response transcripts."""
-
     agent = DummyAgent()
     session = ConversationSession(
         cast(Agent[None, str], agent),
@@ -207,7 +201,6 @@ def test_diagnostics_writes_transcript(tmp_path) -> None:
 
 def test_ask_uses_cache_when_available(tmp_path, monkeypatch) -> None:
     """Existing cache entries should bypass agent invocation."""
-
     agent = DummyAgent()
     session = ConversationSession(
         cast(Agent[None, str], agent),
@@ -238,7 +231,6 @@ def test_ask_uses_cache_when_available(tmp_path, monkeypatch) -> None:
 
 def test_ask_writes_cache_on_miss(tmp_path, monkeypatch) -> None:
     """Cache misses should persist responses for future calls."""
-
     agent = DummyAgent()
     session = ConversationSession(
         cast(Agent[None, str], agent),

@@ -34,7 +34,6 @@ class ShortCodeRegistry:
         Returns:
             Deterministic 6 character uppercase code.
         """
-
         # UUIDv5 provides a reproducible 128-bit value for the input string.
         uuid_val = uuid5(NAMESPACE_URL, canonical)
         # Base32 encode and take the first 6 characters without padding.
@@ -44,5 +43,4 @@ class ShortCodeRegistry:
 
     def validate(self, code: str) -> bool:
         """Return ``True`` when ``code`` is known to the registry."""
-
         return code in self.mapping

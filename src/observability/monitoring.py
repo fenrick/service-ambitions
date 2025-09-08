@@ -12,7 +12,6 @@ import logfire
 
 def _mask_token(value: str | None) -> str:
     """Return ``value`` with the middle section obscured for safe logging."""
-
     if not value:
         return ""
     return value[:4] + "..." if len(value) > 8 else "***"
@@ -33,7 +32,6 @@ def init_logfire(
         min_log_level: Minimum level for console and telemetry output.
         json_logs: Emit console logs as structured JSON when ``True".
     """
-
     key = token or os.getenv("SA_LOGFIRE_TOKEN")
     logfire.debug("Initialising Logfire", token=_mask_token(key))
     if json_logs:

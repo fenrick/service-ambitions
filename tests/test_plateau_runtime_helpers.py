@@ -1,3 +1,5 @@
+"""Tests for plateau runtime helper functions."""
+
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast

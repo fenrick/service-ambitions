@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: MIT
+"""Tests for service loading utilities."""
 import sys
 from pathlib import Path
 
@@ -209,7 +210,6 @@ def test_load_roles_accepts_file_path(tmp_path):
 
 def test_load_role_ids_extracts_identifiers(tmp_path):
     """``load_role_ids`` returns role identifiers for any path type."""
-
     data_dir = tmp_path / "data"
     data_dir.mkdir()
     roles_file = data_dir / "roles.json"
@@ -226,7 +226,6 @@ def test_load_role_ids_extracts_identifiers(tmp_path):
 
 def test_load_services_reads_jsonl(tmp_path):
     """Services are parsed while dropping any provided features."""
-
     data = tmp_path / "services.jsonl"
     data.write_text(
         '{"service_id": "a1", "name": "alpha", "description": "d", "jobs_to_be_done":'
@@ -249,7 +248,6 @@ def test_load_services_missing(tmp_path):
 
 def test_load_services_quarantines_and_continues(tmp_path):
     """Invalid entries are quarantined while valid ones are yielded."""
-
     bad = tmp_path / "bad.jsonl"
     bad.write_text(
         '{"service_id": "a1", "name": "alpha", "jobs_to_be_done":'
@@ -285,7 +283,6 @@ def test_load_services_with_job_objects(tmp_path):
 
 def test_valid_fixture_parses():
     """Fixtures load successfully with features removed."""
-
     path = Path(__file__).parent / "fixtures" / "services-valid.jsonl"
     services = list(load_services(str(path)))
     assert services[0].service_id == "svc1"
@@ -296,7 +293,6 @@ def test_valid_fixture_parses():
 
 def test_invalid_fixture_quarantines(tmp_path):
     """Invalid fixture entries are quarantined without raising errors."""
-
     src = Path(__file__).parent / "fixtures" / "services-invalid.jsonl"
     data = tmp_path / "services-invalid.jsonl"
     data.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")

@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: MIT
+"""Tests for small mapping scenarios."""
 import asyncio
 import json
 from pathlib import Path
@@ -46,7 +47,6 @@ def _params(**kwargs: Any) -> MapSetParams:
 
 def test_mapping_run_matches_golden(tmp_path) -> None:
     """End-to-end mapping run matches locked golden output."""
-
     loader.configure_mapping_data_dir("tests/fixtures/catalogue")
     mapping.render_set_prompt = lambda *a, **k: "PROMPT"
     sets = [
@@ -121,7 +121,6 @@ def test_mapping_run_matches_golden(tmp_path) -> None:
 
 def test_default_mode_quarantines_unknown_ids(monkeypatch, tmp_path) -> None:
     """Unknown IDs are dropped and quarantined when strict mode is off."""
-
     loader.configure_mapping_data_dir("tests/fixtures/catalogue")
     mapping.render_set_prompt = lambda *a, **k: "PROMPT"
     sets = [
@@ -165,7 +164,6 @@ def test_default_mode_quarantines_unknown_ids(monkeypatch, tmp_path) -> None:
 
 def test_strict_mapping_raises_on_unknown_ids(monkeypatch, tmp_path) -> None:
     """Strict mapping mode raises when the agent invents IDs."""
-
     loader.configure_mapping_data_dir("tests/fixtures/catalogue")
     mapping.render_set_prompt = lambda *a, **k: "PROMPT"
     sets = [

@@ -1,12 +1,16 @@
-[
-  {
-    "id": "TECH001",
-    "name": "AI Engine",
-    "description": "Provides intelligent features."
-  },
-  {
-    "id": "TECH002",
-    "name": "Cloud Storage",
-    "description": "Stores data securely."
-  }
-]
+{
+  "field": "technologies",
+  "label": "Technologies",
+  "items": [
+    {
+      "id": "TECH001",
+      "name": "AI Engine",
+      "description": "Provides intelligent features."
+    },
+    {
+      "id": "TECH002",
+      "name": "Cloud Storage",
+      "description": "Stores data securely."
+    }
+  ]
+}

@@ -9,6 +9,12 @@ once all stages succeed. The CLI evaluates all plateaus in this file alongside
 all roles defined in `data/roles.json`.
 Plateau name to level mappings are derived from the order of the JSON entries.
 
+Policy: one‑shot per plateau
+
+- Each plateau is generated with a single model call. There are no orchestration
+  "top‑ups" or content retries. Only transport‑level retries (timeouts,
+  connection errors, rate limits) may occur with bounded backoff.
+
 Runtime configuration and shared state live in the thread‑safe `RuntimeEnv`
 singleton initialised by the CLI. Modules access settings via
 `RuntimeEnv.instance().settings`, avoiding repeated file reads.
@@ -33,6 +39,13 @@ contain unknown identifiers.
 Telemetry via Logfire is always enabled. Prompt text is hidden from logs unless
 `--allow-prompt-logging` is passed.
 Use `--roles-file` to supply an alternative roles definition file when needed.
+
+Force fresh calls / control caching and diagnostics
+
+- `--cache-mode refresh` forces fresh calls (ignoring existing cache entries).
+- `--cache-mode off` disables cache reads/writes.
+- `--concurrency` tunes parallelism across services.
+- `--trace` enables per‑request diagnostics and spans.
 
 Logfire is required by the CLI but the `SA_LOGFIRE_TOKEN` environment variable is
 optional for local runs. Set the token to stream traces to Logfire; without it,

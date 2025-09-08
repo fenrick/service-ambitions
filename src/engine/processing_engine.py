@@ -48,11 +48,15 @@ def _prepare_paths(output: Path, resume: bool) -> tuple[Path, Path]:
     Side effects:
         None.
     """
-    part_path = output.with_suffix(
-        output.suffix + ".tmp" if not resume else output.suffix + ".tmp.part"
-    )
-    processed_path = output.with_name("processed_ids.txt")
-    return part_path, processed_path
+    with logfire.span(
+        "processing_engine.prepare_paths",
+        attributes={"output": str(output), "resume": resume},
+    ):
+        part_path = output.with_suffix(
+            output.suffix + ".tmp" if not resume else output.suffix + ".tmp.part"
+        )
+        processed_path = output.with_name("processed_ids.txt")
+        return part_path, processed_path
 
 
 def _load_resume_state(
@@ -71,9 +75,17 @@ def _load_resume_state(
     Side effects:
         Reads from the file system when ``resume`` is ``True``.
     """
-    processed_ids = set(read_lines(processed_path)) if resume else set()
-    existing_lines = read_lines(output_path) if resume else []
-    return processed_ids, existing_lines
+    with logfire.span(
+        "processing_engine.load_resume_state",
+        attributes={
+            "processed_path": str(processed_path),
+            "output_path": str(output_path),
+            "resume": resume,
+        },
+    ):
+        processed_ids = set(read_lines(processed_path)) if resume else set()
+        existing_lines = read_lines(output_path) if resume else []
+        return processed_ids, existing_lines
 
 
 def _ensure_transcripts_dir(path: str | None, output: Path) -> Path:
@@ -89,9 +101,15 @@ def _ensure_transcripts_dir(path: str | None, output: Path) -> Path:
     Side effects:
         Creates the directory if it does not exist.
     """
-    transcripts_dir = Path(path) if path is not None else output.parent / "_transcripts"
-    transcripts_dir.mkdir(parents=True, exist_ok=True)
-    return transcripts_dir
+    with logfire.span(
+        "processing_engine.ensure_transcripts_dir",
+        attributes={"path": path, "output": str(output)},
+    ):
+        transcripts_dir = (
+            Path(path) if path is not None else output.parent / "_transcripts"
+        )
+        transcripts_dir.mkdir(parents=True, exist_ok=True)
+        return transcripts_dir
 
 
 def _load_services_list(
@@ -110,10 +128,20 @@ def _load_services_list(
     Side effects:
         Reads services from the file system.
     """
-    with load_services(Path(input_file)) as svc_iter:
-        if max_services is not None:
-            svc_iter = islice(svc_iter, max_services)
-        return [s for s in svc_iter if s.service_id not in processed_ids]
+    with logfire.span(
+        "processing_engine.load_services_list",
+        attributes={
+            "input_file": input_file,
+            "max_services": max_services if max_services is not None else 0,
+            "processed_ids": len(processed_ids),
+        },
+    ):
+        with load_services(Path(input_file)) as svc_iter:
+            if max_services is not None:
+                svc_iter = islice(svc_iter, max_services)
+            result = [s for s in svc_iter if s.service_id not in processed_ids]
+            logfire.debug("Loaded service list", count=len(result))
+            return result
 
 
 class ProcessingEngine:
@@ -154,12 +182,10 @@ class ProcessingEngine:
             Updates ``self.settings`` to reflect the current runtime
             configuration.
         """
-
         self.settings = RuntimeEnv.instance().settings
 
     def _create_model_factory(self) -> ModelFactory:
         """Create a model factory from ``self.settings``."""
-
         settings = self.settings
         return ModelFactory(
             settings.model,
@@ -172,7 +198,6 @@ class ProcessingEngine:
 
     def _load_services(self) -> tuple[str, list[str], list[ServiceInput]]:
         """Load system prompt, role identifiers and service definitions."""
-
         settings = self.settings
         configure_prompt_dir(settings.prompt_dir)
         configure_mapping_data_dir(settings.mapping_data_dir)
@@ -185,7 +210,6 @@ class ProcessingEngine:
 
     def _setup_concurrency(self) -> asyncio.Semaphore:
         """Create a semaphore limiting concurrent executions."""
-
         concurrency = self.settings.concurrency
         if concurrency < 1:  # Guard against invalid configuration
             raise ValueError("concurrency must be a positive integer")
@@ -210,7 +234,6 @@ class ProcessingEngine:
 
     def _prepare_models(self) -> None:
         """Initialise shared models and service definitions."""
-
         self.factory = self._create_model_factory()
         system_prompt, role_ids, services = self._load_services()
         self.system_prompt = system_prompt
@@ -222,7 +245,6 @@ class ProcessingEngine:
 
         The total number of services is derived from ``self.services``.
         """
-
         total = len(self.services or [])
         self.sem = self._setup_concurrency()
         self.progress = self._create_progress(total)
@@ -254,19 +276,23 @@ class ProcessingEngine:
         if self.error_handler is None:
             raise RuntimeError("Error handler is not configured")
         async with self.sem:
-            runtime = ServiceRuntime(service)
-            execution = ServiceExecution(
-                runtime,
-                factory=self.factory,
-                system_prompt=self.system_prompt,
-                transcripts_dir=self.transcripts_dir,
-                role_ids=self.role_ids,
-                temp_output_dir=self.temp_output_dir,
-                allow_prompt_logging=self.args.allow_prompt_logging,
-                error_handler=self.error_handler,
-            )
-            success = await execution.run()
-            self.runtimes.append(runtime)
+            with logfire.span(
+                "processing_engine.run_service",
+                attributes={"service_id": service.service_id},
+            ):
+                runtime = ServiceRuntime(service)
+                execution = ServiceExecution(
+                    runtime,
+                    factory=self.factory,
+                    system_prompt=self.system_prompt,
+                    transcripts_dir=self.transcripts_dir,
+                    role_ids=self.role_ids,
+                    temp_output_dir=self.temp_output_dir,
+                    allow_prompt_logging=self.args.allow_prompt_logging,
+                    error_handler=self.error_handler,
+                )
+                success = await execution.run()
+                self.runtimes.append(runtime)
         if self.progress:
             self.progress.update(1)
         return success
@@ -284,9 +310,12 @@ class ProcessingEngine:
             Operates on services stored in ``self.services``.
         """
         services = self.services or []
-        async with asyncio.TaskGroup() as tg:
-            tasks = [tg.create_task(self._run_service(svc)) for svc in services]
-        return all(task.result() for task in tasks)
+        with logfire.span(
+            "processing_engine.generate_evolution", attributes={"count": len(services)}
+        ):
+            async with asyncio.TaskGroup() as tg:
+                tasks = [tg.create_task(self._run_service(svc)) for svc in services]
+            return all(task.result() for task in tasks)
 
     async def run(self) -> bool:
         """Execute the full processing pipeline.
@@ -295,7 +324,6 @@ class ProcessingEngine:
             ``True`` when all service executions succeed. Results are stored on
             per-service runtimes and written out by :meth:`finalise`.
         """
-
         self.refresh_settings()
         with logfire.span("processing_engine.run"):
             logfire.info(
@@ -303,11 +331,33 @@ class ProcessingEngine:
                 input_file=self.args.input_file,
             )
             self._prepare_models()
-            if self.args.dry_run:
-                logfire.info("Validated services", count=len(self.services or []))
-                return True
             self._init_sessions()
-            success = await self._generate_evolution()
+            try:
+                success = await self._generate_evolution()
+            except Exception as exc:
+                # When running in dry-run mode, allow graceful halt when an agent
+                # invocation would be required (cache miss). Otherwise re-raise.
+                if getattr(self.settings, "dry_run", False):
+                    try:
+                        # Try to introspect DryRunInvocation details if available
+                        from core.dry_run import DryRunInvocation
+
+                        if isinstance(exc, DryRunInvocation):
+                            cache_path = str(exc.cache_file) if exc.cache_file else ""
+                            logfire.info(
+                                "Dry-run halted before agent invocation",
+                                stage=exc.stage,
+                                model=exc.model,
+                                service_id=exc.service_id,
+                                cache_file=cache_path,
+                            )
+                        else:
+                            logfire.info("Dry-run halted", error=str(exc))
+                    except Exception:  # pragma: no cover - defensive
+                        logfire.info("Dry-run halted", error=str(exc))
+                    self.success = False
+                    return False
+                raise
             if self.progress:
                 self.progress.close()
             self.success = success

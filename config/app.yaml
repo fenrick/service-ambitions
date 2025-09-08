@@ -3,7 +3,7 @@ model: openai:gpt-5-mini
 
 models:
   # Model used for plateau descriptions.
-  descriptions: openai:o4-mini
+  descriptions: openai:gpt-5
   # Model used for feature generation.
   features: openai:gpt-5-mini
   # Model used for mapping tasks.
@@ -40,7 +40,7 @@ mapping_sets:
     field: applications  # Field name used in mapping results.
   - name: Technologies
     file: technologies.json
-    field: technology
+    field: technologies
   - name: Data
     file: information.json
     field: data

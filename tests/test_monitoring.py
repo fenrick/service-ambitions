@@ -1,3 +1,5 @@
+"""Tests for monitoring helpers."""
+
 from types import SimpleNamespace
 
 from observability import monitoring

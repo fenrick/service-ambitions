@@ -17,7 +17,6 @@ import pytest
 @pytest.fixture(autouse=True)
 def _mock_openai(monkeypatch):
     """Provide dummy credentials and block outbound OpenAI requests."""
-
     monkeypatch.setenv("SA_OPENAI_API_KEY", "test-key")
     try:
         import openai
@@ -56,7 +55,6 @@ def _clear_prompt_cache():
 @pytest.fixture(autouse=True)
 def _init_runtime_env():
     """Initialise a default runtime environment for tests."""
-
     from runtime.environment import RuntimeEnv
     from runtime.settings import load_settings
 
@@ -200,7 +198,6 @@ class DummyAgent:
 
     async def run(self, user_prompt: str) -> SimpleNamespace:
         """Return predictable payload for the supplied prompt."""
-
         return SimpleNamespace(
             output=SimpleNamespace(model_dump=lambda: {"service": user_prompt}),
             usage=lambda: SimpleNamespace(total_tokens=1),
@@ -210,5 +207,4 @@ class DummyAgent:
 @pytest.fixture()
 def dummy_agent() -> type[DummyAgent]:
     """Provide deterministic :class:`DummyAgent` for agent-dependent tests."""
-
     return DummyAgent

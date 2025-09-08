@@ -40,19 +40,16 @@ class ModelFactory:
     @property
     def seed(self) -> int | None:
         """Return the deterministic seed configured for model generation."""
-
         return self._seed
 
     def model_name(self, stage: str, override: str | None = None) -> str:
         """Return the resolved model name for ``stage``."""
-
         if override:
             return override
         return getattr(self._stage_models, stage, None) or self._default
 
     def get(self, stage: str, override: str | None = None) -> Model:
         """Return a model instance for ``stage``."""
-
         name = self.model_name(stage, override)
         model = self._cache.get(name)
         if model is None:

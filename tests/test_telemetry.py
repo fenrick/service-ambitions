@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: MIT
+"""Tests for telemetry utilities and reporting."""
 from __future__ import annotations
 
 import sys
@@ -16,7 +17,6 @@ from observability.telemetry import (
 
 def test_summary_and_quarantine(monkeypatch) -> None:
     """Metrics aggregate and report a summary."""
-
     reset()
     record_mapping_set(
         "applications",

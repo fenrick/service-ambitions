@@ -1,12 +1,16 @@
-[
-  {
-    "id": "APP001",
-    "name": "Learning Platform",
-    "description": "Software used for courses."
-  },
-  {
-    "id": "APP002",
-    "name": "Analytics Dashboard",
-    "description": "Provides insights into performance."
-  }
-]
+{
+  "field": "applications",
+  "label": "Applications",
+  "items": [
+    {
+      "id": "APP001",
+      "name": "Learning Platform",
+      "description": "Software used for courses."
+    },
+    {
+      "id": "APP002",
+      "name": "Analytics Dashboard",
+      "description": "Provides insights into performance."
+    }
+  ]
+}

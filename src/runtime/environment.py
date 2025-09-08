@@ -28,7 +28,6 @@ class RuntimeEnv:
 
     def __init__(self, settings: "Settings") -> None:
         """Initialise the runtime environment."""
-
         self.settings = settings
         self._state_lock = Lock()
         self._run_meta: "ServiceMeta | None" = None
@@ -42,40 +41,34 @@ class RuntimeEnv:
     @property
     def run_meta(self) -> "ServiceMeta | None":
         """Return metadata describing the current run."""
-
         with self._state_lock:
             return self._run_meta
 
     @run_meta.setter
     def run_meta(self, meta: "ServiceMeta | None") -> None:
         """Persist run metadata for later access."""
-
         with self._state_lock:
             self._run_meta = meta
 
     @property
     def prompt_loader(self) -> PromptLoader:
         """Return the active prompt loader."""
-
         return self._prompt_loader
 
     @prompt_loader.setter
     def prompt_loader(self, loader: PromptLoader) -> None:
         """Persist ``loader`` for later retrieval."""
-
         with self._state_lock:
             self._prompt_loader = loader
 
     @property
     def mapping_loader(self) -> MappingLoader:
         """Return the active mapping loader."""
-
         return self._mapping_loader
 
     @mapping_loader.setter
     def mapping_loader(self, loader: MappingLoader) -> None:
         """Persist ``loader`` for later retrieval."""
-
         with self._state_lock:
             self._mapping_loader = loader
 
@@ -119,7 +112,6 @@ class RuntimeEnv:
         the application must reload settings at runtime. Loader caches and run
         metadata are cleared to avoid stale data in subsequent initialisations.
         """
-
         with logfire.span("runtime_env.reset"):
             with cls._lock:
                 logfire.info("Resetting runtime environment")

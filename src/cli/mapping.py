@@ -34,6 +34,8 @@ def load_catalogue(
     Args:
         mapping_data_dir: Optional directory override for catalogue files.
         settings: Runtime settings containing ``mapping_data_dir`` and ``mapping_sets``.
+        error_handler: Optional error handler for reporting invalid catalogue
+            files. When ``None``, the default loader handler is used.
 
     Returns:
         A tuple of ``(items, catalogue_hash)`` where ``items`` is a mapping of
@@ -43,7 +45,6 @@ def load_catalogue(
         Adjusts the global loader state by configuring the mapping data
         directory before reading items from disk.
     """
-
     configure_mapping_data_dir(mapping_data_dir or settings.mapping_data_dir)
     return load_mapping_items(settings.mapping_sets, error_handler=error_handler)
 
@@ -51,7 +52,7 @@ def load_catalogue(
 async def _apply_mapping_sets(
     features: Sequence[PlateauFeature],
     items: dict[str, list[MappingItem]],
-    settings,
+    settings: Settings,
     cache_mode: Literal["off", "read", "refresh", "write"],
     catalogue_hash: str,
 ) -> list[PlateauFeature]:
@@ -67,7 +68,6 @@ async def _apply_mapping_sets(
     Returns:
         List of features augmented with mapping contributions.
     """
-
     mapped = list(features)
     for cfg in settings.mapping_sets:  # Apply each mapping set sequentially.
         params = mapping.MapSetParams(
@@ -106,7 +106,6 @@ def _group_plateau_mappings(
     Side Effects:
         ``plateau.mappings`` is replaced with grouped mapping references.
     """
-
     mapped_feats = [features_by_id[f.feature_id] for f in plateau.features]
     plateau.mappings = {}
     for cfg in mapping_sets:  # Build groups for each mapping set.
@@ -134,7 +133,7 @@ def _assemble_mapping_groups(
     evolutions: Sequence[ServiceEvolution],
     mapped: Sequence[PlateauFeature],
     items: dict[str, list[MappingItem]],
-    settings,
+    settings: Settings,
 ) -> None:
     """Populate plateau mapping groups on ``evolutions`` in place.
 
@@ -147,7 +146,6 @@ def _assemble_mapping_groups(
     Side Effects:
         Each plateau within ``evolutions`` gains grouped mapping references.
     """
-
     catalogue_lookup = {
         cfg.field: {item.id: item.name for item in items[cfg.field]}
         for cfg in settings.mapping_sets
@@ -180,7 +178,6 @@ async def remap_features(
         Evolutions are mutated in place; each plateau gains populated
         ``mappings`` derived from the mapping catalogue and remote service.
     """
-
     features = [f for evo in evolutions for p in evo.plateaus for f in p.features]
     mapped = await _apply_mapping_sets(
         features, items, settings, cache_mode, catalogue_hash
@@ -198,7 +195,6 @@ def write_output(evolutions: Iterable[ServiceEvolution], output_path: Path) -> N
     Side Effects:
         Creates or overwrites ``output_path`` with one line per evolution.
     """
-
     with output_path.open("w", encoding="utf-8") as fh:
         for evo in evolutions:
             record = canonicalise_record(evo.model_dump(mode="json"))

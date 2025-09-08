@@ -29,7 +29,6 @@ if TYPE_CHECKING:  # pragma: no cover - import for type checking only
 
 def configure_prompt_dir(path: Path | str) -> None:
     """Set the base directory for prompt templates."""
-
     from .loader import configure_prompt_dir as _configure_prompt_dir
 
     _configure_prompt_dir(path)
@@ -37,7 +36,6 @@ def configure_prompt_dir(path: Path | str) -> None:
 
 def configure_mapping_data_dir(path: Path | str) -> None:
     """Set the base directory for mapping catalogues."""
-
     from .loader import configure_mapping_data_dir as _configure_mapping_data_dir
 
     _configure_mapping_data_dir(path)
@@ -45,7 +43,6 @@ def configure_mapping_data_dir(path: Path | str) -> None:
 
 def load_prompt_text(prompt_name: str, base_dir: Path | str | None = None) -> str:
     """Return the contents of a prompt template."""
-
     from .loader import load_prompt_text as _load_prompt_text
 
     return _load_prompt_text(prompt_name, base_dir)
@@ -57,7 +54,6 @@ def load_mapping_items(
     error_handler: "ErrorHandler" | None = None,
 ) -> tuple[dict[str, list["MappingItem"]], str]:
     """Return mapping reference data and a catalogue hash."""
-
     from .loader import load_mapping_items as _load_mapping_items
 
     return _load_mapping_items(sets, data_dir, error_handler)

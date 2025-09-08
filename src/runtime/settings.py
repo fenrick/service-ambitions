@@ -60,6 +60,18 @@ class Settings(BaseSettings):
         False, description="Enable OpenAI web search tooling for model browsing."
     )
 
+    # Dry-run mode: proceed through the pipeline but do not invoke agents.
+    # When enabled, cached artifacts are read as usual; if a cache miss occurs
+    # at any point where an agent call would be required, execution halts with
+    # a clear error so users can see what would have been invoked.
+    dry_run: bool = Field(
+        False,
+        description=(
+            "Enable dry-run mode that reads from cache and halts before invoking"
+            " any agent when a cache miss occurs."
+        ),
+    )
+
     mapping_data_dir: Path = Field(
         Path("data"), description="Directory containing mapping reference data."
     )
@@ -106,7 +118,6 @@ def load_settings(config_path: Path | str | None = None) -> Settings:
     Raises:
         RuntimeError: If required configuration values are missing or invalid.
     """
-
     if config_path:
         cfg_path = Path(config_path)
         config = load_app_config(cfg_path.parent, cfg_path.name)
@@ -167,6 +178,7 @@ def load_settings(config_path: Path | str | None = None) -> Settings:
             strict=getattr(config, "strict", False),
             strict_mapping=getattr(config, "strict_mapping", False),
             mapping_mode=getattr(config, "mapping_mode", "per_set"),
+            dry_run=getattr(config, "dry_run", False),
             _env_file=env_file,
         )
     except ValidationError as exc:

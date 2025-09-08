@@ -23,8 +23,8 @@ telemetry.
 
 The command‑line interface wires these pieces together. It parses user
 flags, constructs application settings and initialises the global
-``RuntimeEnv``. After configuration, the CLI launches a
-``ProcessingEngine`` which loads service data, spawns per‑service and
+`RuntimeEnv`. After configuration, the CLI launches a
+`ProcessingEngine` which loads service data, spawns per‑service and
 per‑plateau runtimes and finally writes the aggregated output.
 
 ## Runtime environment
@@ -46,11 +46,11 @@ stored alongside these caches and exposed through
 
 ## Processing engine
 
-`ProcessingEngine` orchestrates the overall workflow.  It iterates over
+`ProcessingEngine` orchestrates the overall workflow. It iterates over
 services from the input file, builds a `ServiceRuntime` for each and
-invokes a `ServiceExecution` to populate it.  The engine reports whether
+invokes a `ServiceExecution` to populate it. The engine reports whether
 the batch succeeded and later flushes successful runtime artefacts to
-disk.  Because per‑service state is confined to the runtime object,
+disk. Because per‑service state is confined to the runtime object,
 processing remains deterministic and easy to reason about.
 
 ## Service runtime and execution
@@ -76,23 +76,23 @@ the processing engine.
 ## Telemetry and logging
 
 Structured logging and spans are provided by
-[Logfire](https://logfire.pydantic.dev/).  The runtime environment
+[Logfire](https://logfire.pydantic.dev/). The runtime environment
 initialiser, the processing engine and each plateau runtime emit
 contextual `debug` and `info` events and wrap long‑running operations in
-spans.  These spans enable fine‑grained tracing across services and
+spans. These spans enable fine‑grained tracing across services and
 plateaus, while log levels allow operators to dial in the desired amount
 of detail.
 
 ## Lazy loading and caching
 
 Prompt templates are lazily loaded with `FilePromptLoader`, which
-retains an in-memory cache.  Plateau definitions, default plateau maps
+retains an in-memory cache. Plateau definitions, default plateau maps
 and role identifiers use similar loaders that cache results on first
 use.
 
-Feature and mapping outputs are cached on disk.  The cache root defaults to
-``${XDG_CACHE_HOME}/service-ambitions`` (falling back to ``/tmp/service-ambitions`` when
-``XDG_CACHE_HOME`` is unset) and the layout is scoped by
+Feature and mapping outputs are cached on disk. The cache root defaults to
+`${XDG_CACHE_HOME}/service-ambitions` (falling back to `/tmp/service-ambitions` when
+`XDG_CACHE_HOME` is unset) and the layout is scoped by
 context, service and plateau:
 
 ```
@@ -102,7 +102,7 @@ context, service and plateau:
 ```
 
 Legacy files are discovered and relocated to the canonical structure.
-Caches are indented JSON dictionaries for easy inspection.  Invalid or
+Caches are indented JSON dictionaries for easy inspection. Invalid or
 non‑dictionary content halts processing with a descriptive error.
 
 ## Flow overview
@@ -127,4 +127,3 @@ sequenceDiagram
     end
     PE->>PE: flush outputs
 ```
-

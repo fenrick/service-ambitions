@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: MIT
+"""Tests for async processing workflows."""
 import asyncio
 import sys
 from pathlib import Path
@@ -45,7 +46,6 @@ def test_process_service_async(monkeypatch):
 
 def test_process_service_retries(monkeypatch):
     """Transient failures trigger retries with backoff."""
-
     attempts = {"count": 0}
 
     class FlakyAgent(DummyAgent):
@@ -58,7 +58,6 @@ def test_process_service_retries(monkeypatch):
 
     async def fast_sleep(_: float) -> None:
         """Skip real waiting during backoff."""
-
         return None
 
     monkeypatch.setattr(generator, "Agent", FlakyAgent)
@@ -81,7 +80,6 @@ def test_process_service_retries(monkeypatch):
 
 def test_with_retry_logs_attempt(monkeypatch):
     """Retry events emit structured log entries."""
-
     events: list[tuple[str, dict[str, Any]]] = []
 
     async def flaky() -> str:
@@ -117,7 +115,6 @@ def test_generator_rejects_invalid_concurrency():
 
 def test_with_retry_fails_fast_on_non_transient(monkeypatch):
     """Non-transient errors are not retried."""
-
     calls = {"count": 0}
 
     async def fail():
@@ -142,7 +139,6 @@ def test_with_retry_fails_fast_on_non_transient(monkeypatch):
 
 def test_with_retry_fails_fast_on_provider_api_error(monkeypatch):
     """Generic provider API errors are not retried."""
-
     from openai import OpenAIError
 
     calls = {"count": 0}
@@ -219,7 +215,6 @@ def test_with_retry_honours_retry_after(monkeypatch):
 
 def test_generate_async_saves_transcripts(tmp_path, monkeypatch):
     """Setting ``transcripts_dir`` writes per-service transcripts."""
-
     monkeypatch.setattr(generator, "Agent", DummyAgent)
     service = ServiceInput(
         service_id="svc-123",
@@ -247,7 +242,6 @@ def test_generate_async_saves_transcripts(tmp_path, monkeypatch):
 @pytest.mark.asyncio()
 async def test_process_all_fsyncs(tmp_path, monkeypatch):
     """Writer flushes and fsyncs periodically to ensure durability."""
-
     fsync_calls: list[int] = []
 
     def fake_fsync(fd: int) -> None:
@@ -399,7 +393,6 @@ async def test_run_one_counters_failure(tmp_path, monkeypatch):
 
 def test_temp_output_dir_writes_progress(tmp_path, monkeypatch):
     """Intermediate records are persisted after each prompt."""
-
     records = [
         {"stage": 1},
         {"stage": 2},

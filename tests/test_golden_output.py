@@ -70,7 +70,6 @@ class MiniGenerator:
 
 def test_sample_run_matches_golden(tmp_path, dummy_agent):
     """A small end-to-end run should match the stored golden JSONL file."""
-
     service = ServiceInput(
         service_id="svc",
         name="alpha",

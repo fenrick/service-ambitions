@@ -1,3 +1,5 @@
+"""Tests for ProcessingEngine integration."""
+
 import argparse
 import asyncio
 from pathlib import Path

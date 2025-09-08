@@ -9,6 +9,7 @@ throughout the system.
 
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated, List, Literal
@@ -29,7 +30,7 @@ SCHEMA_VERSION = "1.0"
 class StrictModel(BaseModel):
     """Base model with strict settings to prevent shape drift."""
 
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=False, strict=True)
 
 
 class ServiceMeta(StrictModel):
@@ -78,7 +79,6 @@ class ServiceMeta(StrictModel):
     @classmethod
     def _validate_hash(cls, value: str | None) -> str | None:
         """Ensure ``catalogue_hash`` is a 64 character hex string when provided."""
-
         if value is None:
             return value
         if len(value) != 64 or any(c not in "0123456789abcdef" for c in value.lower()):
@@ -96,8 +96,12 @@ CMMI_LABELS = {
 
 
 class MaturityScore(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
     level: Annotated[int, Field(ge=1, le=5, description="CMMI level (1–5).")]
-    label: Annotated[str, Field(min_length=1, description="CMMI label matching level.")]
+    label: Annotated[
+        str,
+        Field(min_length=1, description="CMMI label matching level."),
+    ]
     justification: Annotated[str, Field(min_length=1)]
 
     @model_validator(mode="after")
@@ -270,7 +274,6 @@ class ServiceInput(StrictModel):
     @classmethod
     def _coerce_job_objects(cls, value: list[object]) -> list[object]:
         """Coerce string job entries into objects while preserving details."""
-
         if not isinstance(value, list):
             raise TypeError("jobs_to_be_done must be a list")
 
@@ -376,6 +379,26 @@ class MappingSet(StrictModel):
         str,
         Field(min_length=1, description="Feature mapping field name."),
     ]
+
+
+class MappingDatasetFile(StrictModel):
+    """Self-contained mapping dataset file format.
+
+    Allows a dataset JSON to carry its own configuration for flexible setups.
+    When present, ``field`` and ``label`` provide defaults/metadata, and
+    ``items`` contains the catalogue entries equivalent to a plain list of
+    :class:`MappingItem`.
+    """
+
+    field: str | None = Field(
+        default=None, description="Optional feature mapping field name"
+    )
+    label: str | None = Field(
+        default=None, description="Optional human readable label for the set"
+    )
+    items: list[MappingItem] = Field(
+        default_factory=list, description="Catalogue entries for this dataset"
+    )
 
 
 class ReasoningConfig(StrictModel):
@@ -496,6 +519,21 @@ class AppConfig(StrictModel):
         default_factory=list,
         description="Mapping dataset configurations.",
     )
+
+    @field_validator("prompt_dir", "cache_dir", mode="before")
+    @classmethod
+    def _coerce_paths(cls, value: object) -> Path:
+        """Allow YAML strings for path fields by expanding and coercing to Path.
+
+        Supports environment variables (e.g. "$XDG_CACHE_HOME") and user tildes.
+        """
+        if isinstance(value, Path):
+            return value
+        if isinstance(value, str):
+            expanded = os.path.expanduser(os.path.expandvars(value))
+            return Path(expanded)
+        raise TypeError("Path fields must be a string or Path instance")
+
     mapping_types: dict[str, MappingTypeConfig] = Field(
         default_factory=dict,
         description="Mapping type definitions keyed by field name.",
@@ -510,13 +548,23 @@ class PlateauFeature(StrictModel):
     """
 
     feature_id: Annotated[
-        str, Field(min_length=1, description="Unique identifier for the feature.")
+        str,
+        Field(
+            min_length=6,
+            max_length=6,
+            description="Deterministic 6-char code (A–Z, 2–7).",
+            pattern=r"^[A-Z2-7]{6}$",
+        ),
     ]
     name: Annotated[str, Field(min_length=1, description="Feature name.")]
-    description: str = Field(..., description="Explanation of the feature.")
+    description: Annotated[
+        str,
+        Field(min_length=1, description="Explanation of the feature."),
+    ]
     score: MaturityScore
     customer_type: Annotated[
-        str, Field(min_length=1, description="Audience that benefits from the feature.")
+        str,
+        Field(min_length=1, description="Audience that benefits from the feature."),
     ]
     mappings: dict[str, list[Contribution]] = Field(
         default_factory=dict,
@@ -590,9 +638,15 @@ class PlateauDescriptionsResponse(StrictModel):
 
 
 class FeatureItem(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    name: Annotated[str, Field(min_length=1)]
-    description: Annotated[str, Field(min_length=1)]
+    # model_config = ConfigDict(extra="forbid", strict=True)
+    name: Annotated[
+        str,
+        Field(min_length=1, description="Feature name (trimmed, non-empty)."),
+    ]
+    description: Annotated[
+        str,
+        Field(min_length=1, description="Feature description (trimmed, non-empty)."),
+    ]
     score: MaturityScore
 
 
@@ -602,16 +656,18 @@ FeaturesBlock = dict[str, list[FeatureItem]]
 
 class PlateauFeaturesResponse(BaseModel):
     """Schema for plateau feature generation responses.
-    Features are grouped by role identifier to simplify downstream rendering."""
 
-    model_config = ConfigDict(extra="forbid")
+    Features are grouped by role identifier to simplify downstream rendering.
+    """
+
+    # model_config = ConfigDict(extra="forbid", strict=True)
     features: FeaturesBlock
 
 
 class RoleFeaturesResponse(BaseModel):
     """Schema used when repairing missing role features."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
     features: list[FeatureItem]
 
 
@@ -639,7 +695,6 @@ def _normalize_mapping_values(
     mapping: dict[str, object],
 ) -> dict[str, list[object]]:
     """Return mapping dictionary with nested structures flattened."""
-
     return {key: _extract_mapping_list(value, key) for key, value in mapping.items()}
 
 
@@ -650,7 +705,15 @@ class MappingFeature(StrictModel):
     consolidated into the ``mappings`` dictionary by ``_collect_mappings``.
     """
 
-    feature_id: Annotated[str, Field(min_length=1, description="Feature identifier.")]
+    feature_id: Annotated[
+        str,
+        Field(
+            min_length=6,
+            max_length=6,
+            pattern=r"^[A-Z2-7]{6}$",
+            description="Deterministic 6-char feature code.",
+        ),
+    ]
     mappings: dict[str, list[Contribution]] = Field(
         default_factory=dict, description="Mapping contributions by type."
     )
@@ -689,23 +752,38 @@ class MappingResponse(StrictModel):
         ..., description="Collection of features with mapping details."
     )
 
+    @field_validator("features")
+    @classmethod
+    def _unique_feature_ids(cls, v: list[MappingFeature]) -> list[MappingFeature]:
+        ids = [f.feature_id for f in v]
+        if len(ids) != len(set(ids)):
+            raise ValueError("Duplicate feature ids are not allowed in mappings")
+        return v
+
 
 class MappingDiagnosticsFeature(StrictModel):
     """Schema for mapped features with rationales during diagnostics."""
 
-    feature_id: Annotated[str, Field(min_length=1, description="Feature identifier.")]
+    feature_id: Annotated[
+        str,
+        Field(
+            min_length=6,
+            max_length=6,
+            pattern=r"^[A-Z2-7]{6}$",
+            description="Deterministic 6-char feature code.",
+        ),
+    ]
     mappings: dict[str, list[DiagnosticContribution]] = Field(
         default_factory=dict,
         description="Mapping contributions with rationales by type.",
     )
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     @model_validator(mode="before")
     @classmethod
     def _collect_mappings(cls, data: dict[str, object]) -> dict[str, object]:
         """Collect arbitrary mapping lists into ``mappings``."""
-
         mapping: dict[str, object] = {}
         for key in tuple(data):
             if key == "feature_id":
@@ -726,11 +804,31 @@ class MappingDiagnosticsResponse(StrictModel):
         ..., description="Collection of features with mapping details and rationales."
     )
 
+    @field_validator("features")
+    @classmethod
+    def _unique_feature_ids(
+        cls, v: list[MappingDiagnosticsFeature]
+    ) -> list[MappingDiagnosticsFeature]:
+        ids = [f.feature_id for f in v]
+        if len(ids) != len(set(ids)):
+            raise ValueError(
+                "Duplicate feature ids are not allowed in diagnostic mappings"
+            )
+        return v
+
 
 class FeatureMappingRef(StrictModel):
     """Reference to a feature associated with a mapping item."""
 
-    feature_id: Annotated[str, Field(min_length=1, description="Feature identifier.")]
+    feature_id: Annotated[
+        str,
+        Field(
+            min_length=6,
+            max_length=6,
+            pattern=r"^[A-Z2-7]{6}$",
+            description="Deterministic 6-char feature code.",
+        ),
+    ]
     description: Annotated[
         str, Field(min_length=1, description="Explanation of the feature.")
     ]
@@ -767,6 +865,7 @@ __all__ = [
     "MappingFeature",
     "MappingItem",
     "MappingResponse",
+    "MappingDatasetFile",
     "MappingDiagnosticsFeature",
     "MappingDiagnosticsResponse",
     "FeatureMappingRef",

@@ -1,3 +1,5 @@
+"""Tests for plateau metadata cache helpers."""
+
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast

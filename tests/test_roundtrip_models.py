@@ -70,7 +70,6 @@ def mapping_features(draw) -> MappingFeature:
 @given(plateau_features())
 def test_plateau_feature_round_trip(feature: PlateauFeature) -> None:
     """Dumping and reloading ``PlateauFeature`` should yield an identical model."""
-
     payload = feature.model_dump()
     result = PlateauFeature.model_validate(payload)
     assert result.model_dump() == payload
@@ -79,7 +78,6 @@ def test_plateau_feature_round_trip(feature: PlateauFeature) -> None:
 @given(st.lists(mapping_features(), min_size=1, max_size=4))
 def test_mapping_response_round_trip(features: list[MappingFeature]) -> None:
     """``MappingResponse`` serialisation round-trips correctly."""
-
     response = MappingResponse(features=features)
     payload = response.model_dump()
     result = MappingResponse.model_validate(payload)

@@ -30,12 +30,12 @@ from constants import DEFAULT_CACHE_DIR
 from models import ServiceInput
 from runtime.environment import RuntimeEnv
 
+from .dry_run import DryRunInvocation
 from .mapping import cache_write_json_atomic
 
 
 def _prompt_cache_key(prompt: str, model: str, stage: str) -> str:
     """Return a stable cache key for ``prompt`` and ``model``."""
-
     data = to_json([prompt, model, stage]).decode()
     return hashlib.sha256(data.encode("utf-8")).hexdigest()[:32]
 
@@ -44,7 +44,6 @@ def _prompt_cache_path(
     service: str, stage: str, key: str, feature_id: str | None = None
 ) -> Path:
     """Return cache path for ``key`` grouped by context and identifiers."""
-
     try:
         settings = RuntimeEnv.instance().settings
         cache_root = settings.cache_dir
@@ -74,7 +73,6 @@ def _prompt_cache_path(
 
 def _service_cache_root(service: str) -> Path:
     """Return cache root for ``service`` using runtime settings."""
-
     try:
         settings = RuntimeEnv.instance().settings
         root = settings.cache_dir / settings.context_id / service
@@ -85,7 +83,6 @@ def _service_cache_root(service: str) -> Path:
 
 def _find_cache_file(service_root: Path, key: str, cache_file: Path) -> Path | None:
     """Return existing cache file matching ``key`` under ``service_root``."""
-
     for path in service_root.glob(f"**/{key}.json"):
         return path
     return cache_file if cache_file.exists() else None
@@ -125,12 +122,15 @@ class ConversationSession:
             cache_mode: Behaviour when interacting with the cache. Defaults to
                 ``"read"`` for read-only access.
         """
-
         self.client = client
         self.stage = stage
         self.diagnostics = diagnostics
         self.log_prompts = log_prompts
         self._history: list[messages.ModelMessage] = []
+        # Track model invocation counts per stage for observability/tests.
+        self._invocations_by_stage: dict[str, int] = {}
+        # Metric counter for actual model calls (excludes cache hits).
+        self._prompt_calls = logfire.metric_counter("prompt_calls")
         self.transcripts_dir = (
             transcripts_dir
             if transcripts_dir is not None
@@ -162,7 +162,6 @@ class ConversationSession:
 
     def derive(self) -> "ConversationSession":
         """Return a new session copying the current history."""
-
         clone = ConversationSession(
             self.client,
             stage=self.stage,
@@ -178,7 +177,6 @@ class ConversationSession:
 
     def _record_new_messages(self, msgs: list[messages.ModelMessage]) -> None:
         """Append ``msgs`` to history."""
-
         self._history.extend(msgs)
 
     @contextmanager
@@ -190,7 +188,6 @@ class ConversationSession:
         request_id: str,
     ) -> Any:
         """Create a logging span and attach common attributes."""
-
         span_ctx = logfire.span(span_name) if self.diagnostics else nullcontext()
         with span_ctx as span:
             if span and self.diagnostics:
@@ -204,13 +201,11 @@ class ConversationSession:
 
     def _log_prompt(self, prompt: str) -> None:
         """Optionally log the prompt text for debugging."""
-
         if self.diagnostics and self.log_prompts:
             logfire.debug(f"Sending prompt: {prompt}")
 
     async def _write_transcript(self, prompt: str, response: Any) -> None:
         """Persist ``prompt`` and ``response`` when diagnostics are enabled."""
-
         if not (
             self.diagnostics and self.transcripts_dir and self._service_id is not None
         ):
@@ -234,7 +229,6 @@ class ConversationSession:
         request_id: str,
     ) -> tuple[Any, int]:
         """Process a successful model invocation."""
-
         self._record_new_messages(list(result.new_messages()))
         usage = result.usage()
         tokens = usage.total_tokens or 0
@@ -257,7 +251,6 @@ class ConversationSession:
         request_id: str,
     ) -> None:
         """Log failure details."""
-
         logfire.error(
             "Prompt failed",
             stage=stage,
@@ -276,7 +269,6 @@ class ConversationSession:
         _request_id: str,
     ) -> None:
         """Record latency and token usage."""
-
         duration = time.monotonic() - start
         if span and self.diagnostics:
             span.set_attribute("total_tokens", tokens)
@@ -289,7 +281,6 @@ class ConversationSession:
         out_type: type[Any] | None,
     ) -> Any:
         """Return cached payload validating against ``out_type``."""
-
         try:
             with path_to_use.open("rb") as fh:
                 data = from_json(fh.read())
@@ -328,7 +319,6 @@ class ConversationSession:
         out_type: type[Any] | None,
     ) -> CacheResult:
         """Return cached payload and write flag if applicable."""
-
         if not self.use_local_cache:
             return ConversationSession.CacheResult(None, None, False)
         if self.cache_mode == "off":
@@ -356,14 +346,12 @@ class ConversationSession:
         request_id: str,
     ) -> tuple[Any, int]:
         """Execute ``runner`` and return output and token count."""
-
         self._log_prompt(prompt)
         result = await runner(prompt, self._history)
         return self._handle_success(result, stage, model_name, request_id)
 
     def _write_cache_result(self, cache_file: Path, output: Any) -> None:
         """Persist ``output`` to ``cache_file`` as JSON."""
-
         content = output.model_dump() if hasattr(output, "model_dump") else output
         cache_write_json_atomic(
             cache_file,
@@ -372,7 +360,6 @@ class ConversationSession:
 
     def _session_details(self) -> tuple[str, str, type[Any] | None]:
         """Return stage, model name and output type for the session."""
-
         stage = self.stage or "unknown"
         model_name = getattr(getattr(self.client, "model", None), "model_name", "")
         out_type = cast(type[Any] | None, getattr(self.client, "output_type", None))
@@ -422,6 +409,22 @@ class ConversationSession:
         cache = self._try_cache_read(prompt, model_name, stage, feature_id, out_type)
         if cache.payload is not None:
             return cache.payload
+        # Dry-run: stop before making an agent call when cache is missing.
+        try:
+            settings = RuntimeEnv.instance().settings
+        except RuntimeError:
+            settings = None  # pragma: no cover - defensive fallback
+        if getattr(settings, "dry_run", False):
+            cache_file = cache.cache_file
+            raise DryRunInvocation(
+                stage=stage,
+                model=model_name,
+                cache_file=cache_file,
+                service_id=self._service_id,
+            )
+        # Record a single invocation per actual model call (no cache).
+        self._invocations_by_stage[stage] = self._invocations_by_stage.get(stage, 0) + 1
+        self._prompt_calls.add(1)
         return await self._execute_with_cache(
             prompt, runner, span_name, stage, model_name, cache
         )
@@ -448,6 +451,15 @@ class ConversationSession:
                 feature_id,
             )
         )
+
+    @property
+    def invocations_by_stage(self) -> dict[str, int]:
+        """Return a mapping of stage name to actual model invocation count.
+
+        Cache hits do not increment this counter. Useful for tests asserting
+        one-shot behaviour (e.g., at most one call per plateau stage).
+        """
+        return dict(self._invocations_by_stage)
 
     async def ask_async(
         self,

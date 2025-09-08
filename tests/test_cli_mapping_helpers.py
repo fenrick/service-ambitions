@@ -17,7 +17,6 @@ from runtime.settings import Settings
 
 def _settings() -> Settings:
     """Return minimal settings for helper tests."""
-
     return cast(
         Settings,
         SimpleNamespace(
@@ -38,7 +37,6 @@ def _settings() -> Settings:
 
 def _stub_map_set(*args, **kwargs):
     """Return deterministic mappings for test features."""
-
     session, set_name, _, features, *rest = args
     mapped = []
     for feat in features:
@@ -60,7 +58,6 @@ async def _stub_map_set_async(*args, **kwargs):
 @pytest.mark.asyncio
 async def test_apply_mapping_sets_invokes_map_set(monkeypatch) -> None:
     """Applying mapping sets invokes ``map_set`` for each configuration."""
-
     settings = _settings()
     items, catalogue_hash = cli_mapping.load_catalogue(None, settings)
 
@@ -91,7 +88,6 @@ async def test_apply_mapping_sets_invokes_map_set(monkeypatch) -> None:
 @pytest.mark.asyncio
 async def test_assemble_mapping_groups_groups_features(monkeypatch) -> None:
     """Grouping helper assigns plateau mapping groups."""
-
     settings = _settings()
     items, catalogue_hash = cli_mapping.load_catalogue(None, settings)
 
@@ -116,7 +112,6 @@ async def test_assemble_mapping_groups_groups_features(monkeypatch) -> None:
 
 def test_load_catalogue_invokes_loader(monkeypatch) -> None:
     """Catalogue loading delegates to loader helpers."""
-
     calls = {}
 
     def fake_configure(path):
@@ -144,7 +139,6 @@ def test_load_catalogue_invokes_loader(monkeypatch) -> None:
 @pytest.mark.asyncio
 async def test_remap_features_populates_mappings(monkeypatch) -> None:
     """Feature remapping populates plateau mappings."""
-
     settings = _settings()
     items, catalogue_hash = cli_mapping.load_catalogue(None, settings)
 
@@ -169,7 +163,6 @@ async def test_remap_features_populates_mappings(monkeypatch) -> None:
 @pytest.mark.asyncio
 async def test_write_output_matches_golden(monkeypatch, tmp_path) -> None:
     """Writing mapped output produces the locked golden file."""
-
     settings = _settings()
     items, catalogue_hash = cli_mapping.load_catalogue(None, settings)
     text = Path("tests/fixtures/mapping_services.jsonl").read_text(encoding="utf-8")

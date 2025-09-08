@@ -14,7 +14,6 @@ cli = importlib.import_module("cli.main")
 
 def _prepare_settings(_config: str | None = None):
     """Return minimal settings namespace for CLI tests."""
-
     cache_dir = Path(os.environ.get("XDG_CACHE_HOME", "/tmp")) / "service-ambitions"
     return SimpleNamespace(
         log_level="INFO",
@@ -35,7 +34,6 @@ def _prepare_settings(_config: str | None = None):
 
 def test_run_invokes_generator(monkeypatch):
     """The run subcommand should call the generator without enabling diagnostics."""
-
     called = {}
 
     async def fake_generate(args, transcripts_dir):
@@ -55,7 +53,6 @@ def test_run_invokes_generator(monkeypatch):
 
 def test_validate_sets_dry_run(monkeypatch):
     """Validate subcommand performs a dry run by default."""
-
     called = {}
 
     async def fake_generate(args, transcripts_dir):
@@ -76,7 +73,6 @@ def test_validate_sets_dry_run(monkeypatch):
 
 def test_cache_args_defaults(monkeypatch):
     """Cache CLI options default to read-only caching."""
-
     called = {}
 
     async def fake_generate(args, transcripts_dir):
@@ -105,7 +101,6 @@ def test_cache_args_defaults(monkeypatch):
 
 def test_cache_args_custom(monkeypatch):
     """Custom cache options propagate to runtime."""
-
     called = {}
 
     async def fake_generate(args, transcripts_dir):
@@ -173,7 +168,6 @@ def test_apply_args_to_settings_updates_settings():
 
 def test_version_flag_prints_version(monkeypatch, capsys):
     """`--version` should output the package version and exit."""
-
     monkeypatch.setattr(sys, "argv", ["main", "--version"])
 
     cli.main()
@@ -184,7 +178,6 @@ def test_version_flag_prints_version(monkeypatch, capsys):
 
 def test_diagnostics_flag_prints_environment(monkeypatch, capsys):
     """`--diagnostics` should output environment information."""
-
     monkeypatch.setattr(sys, "argv", ["main", "--diagnostics"])
 
     cli.main()
@@ -195,7 +188,6 @@ def test_diagnostics_flag_prints_environment(monkeypatch, capsys):
 
 def test_run_passes_config_path(monkeypatch, tmp_path):
     """Providing --config forwards the path to load_settings."""
-
     called: dict[str, str | None] = {}
 
     def _fake_settings(path=None):

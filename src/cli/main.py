@@ -35,7 +35,7 @@ from models import (
 from observability import telemetry
 from observability.monitoring import init_logfire
 from runtime.environment import RuntimeEnv
-from runtime.settings import load_settings
+from runtime.settings import Settings, load_settings
 
 from .data_validation import validate_data_dir
 from .mapping import load_catalogue, remap_features, write_output
@@ -53,7 +53,6 @@ LOG_LEVELS = ["fatal", "error", "warn", "notice", "info", "debug", "trace"]
 
 def _print_version() -> None:
     """Print the installed package version."""
-
     try:
         pkg_version = version("service-ambitions")
     except PackageNotFoundError:  # pragma: no cover - fallback for editable installs
@@ -63,7 +62,6 @@ def _print_version() -> None:
 
 def _print_diagnostics() -> None:
     """Output basic environment information for health checks."""
-
     _print_version()
     print(f"Python {platform.python_version()}")
     print(f"Platform {platform.platform()}")
@@ -75,9 +73,8 @@ def _print_diagnostics() -> None:
         print("Required env vars present")
 
 
-def _configure_logging(args: argparse.Namespace, settings) -> None:
+def _configure_logging(args: argparse.Namespace, settings: Settings) -> None:
     """Configure Logfire based on verbosity flags."""
-
     index = 2 + args.verbose - args.quiet
     index = max(0, min(len(LOG_LEVELS) - 1, index))
     min_log_level = LOG_LEVELS[index]
@@ -86,7 +83,6 @@ def _configure_logging(args: argparse.Namespace, settings) -> None:
 
 async def _cmd_run(args: argparse.Namespace, transcripts_dir: Path | None) -> None:
     """Execute the default evolution generation workflow."""
-
     await _cmd_generate_evolution(args, transcripts_dir)
 
 
@@ -122,55 +118,89 @@ async def _cmd_map(args: argparse.Namespace, transcripts_dir: Path | None) -> No
     write_output(evolutions, Path(args.output_file))
 
 
-def _reconstruct_feature_cache(svc_id: str, plateau: PlateauResult) -> None:
-    """Write grouped features for ``plateau`` to the cache."""
+def _should_write_cache(mode: str, exists_before: bool) -> bool:
+    """Return True when cache policy permits writing.
 
-    block: dict[str, list[FeatureItem]] = {}
-    for feat in plateau.features:
-        item = FeatureItem(
-            name=feat.name, description=feat.description, score=feat.score
-        )
-        block.setdefault(feat.customer_type, []).append(item)
-    payload = PlateauFeaturesResponse(features=block)
-    feat_path = _feature_cache_path(svc_id, plateau.plateau)
-    cache_write_json_atomic(feat_path, payload.model_dump())
+    - off: never write
+    - refresh: always write (overwrite)
+    - read/write: write only when the file is absent
+    """
+    if mode == "off":
+        return False
+    if mode == "refresh":
+        return True
+    return not exists_before
+
+
+def _reconstruct_feature_cache(svc_id: str, plateau: PlateauResult) -> None:
+    """Write grouped features for ``plateau`` to the cache respecting flags."""
+    with logfire.span(
+        "cli.reconstruct_feature_cache",
+        attributes={"service_id": svc_id, "plateau": plateau.plateau},
+    ):
+        settings = RuntimeEnv.instance().settings
+        if not getattr(settings, "use_local_cache", True):
+            return
+        block: dict[str, list[FeatureItem]] = {}
+        for feat in plateau.features:
+            item = FeatureItem(
+                name=feat.name, description=feat.description, score=feat.score
+            )
+            block.setdefault(feat.customer_type, []).append(item)
+        feat_path = _feature_cache_path(svc_id, plateau.plateau)
+        if _should_write_cache(
+            getattr(settings, "cache_mode", "read"), feat_path.exists()
+        ):
+            payload = PlateauFeaturesResponse(features=block)
+            cache_write_json_atomic(feat_path, payload.model_dump())
 
 
 def _rebuild_mapping_cache(
     svc_id: str,
     plateau: PlateauResult,
-    settings: Any,
+    settings: Settings,
     catalogue_hash: str,
 ) -> None:
-    """Write mapping cache entries for all configured mapping sets."""
+    """Write mapping cache entries for all configured mapping sets.
 
-    for cfg in settings.mapping_sets:
-        features_by_id: dict[str, MappingFeature] = {
-            f.feature_id: MappingFeature(feature_id=f.feature_id)
-            for f in plateau.features
-        }
-        for group in plateau.mappings.get(cfg.field, []):
-            for ref in group.mappings:
-                contrib = Contribution(item=group.id)
-                features_by_id[ref.feature_id].mappings.setdefault(
-                    cfg.field, []
-                ).append(contrib)
-        key = build_cache_key(
-            settings.model,
-            cfg.field,
-            catalogue_hash,
-            plateau.features,
-            settings.diagnostics,
-        )
-        cache_file = cache_path(svc_id, plateau.plateau, cfg.field, key)
-        payload = MappingResponse(features=list(features_by_id.values()))
-        cache_write_json_atomic(cache_file, payload.model_dump())
-    plateau.mappings = {}
+    Respects ``settings.use_local_cache`` and ``settings.cache_mode``.
+    """
+    with logfire.span(
+        "cli.rebuild_mapping_cache",
+        attributes={"service_id": svc_id, "plateau": plateau.plateau},
+    ):
+        if not getattr(settings, "use_local_cache", True):
+            plateau.mappings = {}
+            return
+        for cfg in settings.mapping_sets:
+            features_by_id: dict[str, MappingFeature] = {
+                f.feature_id: MappingFeature(feature_id=f.feature_id)
+                for f in plateau.features
+            }
+            for group in plateau.mappings.get(cfg.field, []):
+                for ref in group.mappings:
+                    contrib = Contribution(item=group.id)
+                    features_by_id[ref.feature_id].mappings.setdefault(
+                        cfg.field, []
+                    ).append(contrib)
+            key = build_cache_key(
+                settings.model,
+                cfg.field,
+                catalogue_hash,
+                plateau.features,
+                settings.diagnostics,
+            )
+            cache_file = cache_path(svc_id, plateau.plateau, cfg.field, key)
+            if _should_write_cache(
+                getattr(settings, "cache_mode", "read"), cache_file.exists()
+            ):
+                payload = MappingResponse(features=list(features_by_id.values()))
+                cache_write_json_atomic(cache_file, payload.model_dump())
+        plateau.mappings = {}
 
 
 def _cmd_reverse(args: argparse.Namespace, transcripts_dir: Path | None) -> None:
     """Backfill feature and mapping caches from ``evolutions.jsonl``."""
-
     settings = RuntimeEnv.instance().settings
     configure_mapping_data_dir(args.mapping_data_dir or settings.mapping_data_dir)
     _, catalogue_hash = load_mapping_items(settings.mapping_sets)
@@ -199,7 +229,6 @@ async def _cmd_generate_evolution(
     args: argparse.Namespace, transcripts_dir: Path | None
 ) -> None:
     """Generate service evolution summaries via ``ProcessingEngine``."""
-
     engine = ProcessingEngine(args, transcripts_dir)
     success = await engine.run()
     await engine.finalise()
@@ -215,12 +244,11 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
     parser:
         Parser to augment with common arguments.
 
-    Returns
+    Returns:
     -------
     argparse.ArgumentParser
         The parser instance with added arguments.
     """
-
     parser.add_argument(
         "--config",
         type=str,
@@ -358,7 +386,10 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
         "--trace",
         action=argparse.BooleanOptionalAction,
         default=None,
-        help="Enable detailed diagnostics and per-request timing spans",
+        help=(
+            "Enable per-request diagnostics/spans (one-shot generation; no content"
+            " retries)"
+        ),
     )
     parser.add_argument(
         "--strict",
@@ -380,10 +411,9 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
         choices=("off", "read", "refresh", "write"),
         default=None,
         help=(
-            "Caching behaviour (default 'read'): 'off' disables caching, "
-            "'read' uses existing entries without writing, 'refresh' "
-            "refetches and overwrites cache entries, and 'write' reads and "
-            "writes to the cache"
+            "Caching behaviour (default 'read'): 'off' disables caching; 'read' uses"
+            " existing entries and writes only on miss; 'refresh' refetches and"
+            " overwrites; 'write' does not read and only writes on miss"
         ),
     )
     parser.add_argument(
@@ -407,7 +437,6 @@ def _add_map_subparser(
     common: argparse.ArgumentParser,
 ) -> argparse.ArgumentParser:
     """Create the ``map`` subcommand parser."""
-
     parser = subparsers.add_parser(
         "map",
         parents=[common],
@@ -436,15 +465,16 @@ def _add_run_subparser(
     common: argparse.ArgumentParser,
 ) -> argparse.ArgumentParser:
     """Create the ``run`` subcommand parser."""
-
     parser = subparsers.add_parser(
         "run",
         parents=[common],
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        help="Generate service evolutions via ProcessingEngine",
+        help="Generate service evolutions (one model call per plateau)",
         description=(
-            "Generate service evolutions using the ProcessingEngine and "
-            "RuntimeEnv architecture"
+            "Generate service evolutions using the ProcessingEngine (one-shot per"
+            " plateau; no orchestration retries of model content). Use --cache-mode"
+            " refresh to force fresh calls, --concurrency to adjust parallelism, and"
+            " --trace for per-request diagnostics."
         ),
     )
     parser.add_argument(
@@ -471,15 +501,16 @@ def _add_validate_subparser(
     common: argparse.ArgumentParser,
 ) -> argparse.ArgumentParser:
     """Create the ``validate`` subcommand parser."""
-
     parser = subparsers.add_parser(
         "validate",
         parents=[common],
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        help="Generate service evolutions via ProcessingEngine",
+        help="Validate inputs (one model call per plateau when enabled)",
         description=(
-            "Validate inputs without calling the API and generate service "
-            "evolutions using the ProcessingEngine runtime"
+            "Validate inputs without calling the API by default. When used to generate,"
+            " the flow is one-shot per plateau with no orchestration content retries."
+            " Use --cache-mode refresh to force fresh calls, --concurrency to adjust"
+            " parallelism, and --trace for diagnostics."
         ),
     )
     parser.add_argument(
@@ -513,7 +544,6 @@ def _add_reverse_subparser(
     common: argparse.ArgumentParser,
 ) -> argparse.ArgumentParser:
     """Create the ``reverse`` subcommand parser."""
-
     parser = subparsers.add_parser(
         "reverse",
         parents=[common],
@@ -574,9 +604,8 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _update_stage_models(args: argparse.Namespace, settings) -> None:
+def _update_stage_models(args: argparse.Namespace, settings: Settings) -> None:
     """Apply per-stage model overrides from CLI arguments."""
-
     stage_models = settings.models or StageModels(
         descriptions=None,
         features=None,
@@ -596,9 +625,8 @@ def _update_stage_models(args: argparse.Namespace, settings) -> None:
     settings.models = stage_models
 
 
-def _apply_args_to_settings(args: argparse.Namespace, settings) -> None:
+def _apply_args_to_settings(args: argparse.Namespace, settings: Settings) -> None:
     """Override settings fields based on CLI arguments."""
-
     _update_stage_models(args, settings)
     arg_mapping: dict[str, tuple[str, Callable[[Any], Any] | None]] = {
         "model": ("model", None),
@@ -612,6 +640,7 @@ def _apply_args_to_settings(args: argparse.Namespace, settings) -> None:
         "cache_dir": ("cache_dir", Path),
         "strict": ("strict", None),
         "trace": ("diagnostics", None),
+        "dry_run": ("dry_run", None),
     }
     for arg_name, (attr, converter) in arg_mapping.items():
         value = getattr(args, arg_name, None)
@@ -621,9 +650,8 @@ def _apply_args_to_settings(args: argparse.Namespace, settings) -> None:
         settings.mapping_mode = "per_set"
 
 
-def _execute_subcommand(args: argparse.Namespace, settings) -> None:
+def _execute_subcommand(args: argparse.Namespace, settings: Settings) -> None:
     """Initialise runtime and dispatch to the chosen subcommand."""
-
     RuntimeEnv.initialize(settings)
     if args.seed is not None:
         random.seed(args.seed)
@@ -640,7 +668,6 @@ def _execute_subcommand(args: argparse.Namespace, settings) -> None:
 
 def main() -> None:
     """Parse arguments and dispatch to the requested subcommand."""
-
     parser = _build_parser()
     args = parser.parse_args()
     if args.version:

@@ -61,7 +61,6 @@ def migrate_record(
             ],
         }
     """
-
     if from_version == to_version:
         # Already on the requested version; return a copy to preserve immutability.
         return deepcopy(data)

@@ -52,7 +52,6 @@ NORTH_STAR = (
 
 def configure_prompt_dir(path: Path | str) -> None:
     """Set the base directory for prompt templates."""
-
     env = RuntimeEnv.instance()
     env.prompt_loader = FilePromptLoader(Path(path))
     clear_prompt_cache()
@@ -60,7 +59,6 @@ def configure_prompt_dir(path: Path | str) -> None:
 
 def configure_mapping_data_dir(path: Path | str) -> None:
     """Set the base directory for mapping reference data."""
-
     env = RuntimeEnv.instance()
     env.mapping_loader = FileMappingLoader(Path(path))
     clear_mapping_cache()
@@ -80,19 +78,21 @@ def _read_file(path: Path, error_handler: ErrorHandler | None = None) -> str:
         FileNotFoundError: If the file does not exist.
         RuntimeError: If the file cannot be read.
     """
-
     handler = error_handler or LoggingErrorHandler()
-    try:
-        with path.open("r", encoding="utf-8") as file:
-            return file.read().strip()
-    except FileNotFoundError as exc:
-        handler.handle(f"Prompt file not found: {path}", exc)
-        raise
-    except OSError as exc:
-        handler.handle(f"Error reading prompt file {path}", exc)
-        raise RuntimeError(
-            f"An error occurred while reading the prompt file: {exc}"
-        ) from exc
+    with logfire.span("fs.read_text", attributes={"path": str(path)}):
+        try:
+            with path.open("r", encoding="utf-8") as file:
+                text = file.read().strip()
+                logfire.debug("Read text file", path=str(path), bytes=len(text))
+                return text
+        except FileNotFoundError as exc:
+            handler.handle(f"Prompt file not found: {path}", exc)
+            raise
+        except OSError as exc:
+            handler.handle(f"Error reading prompt file {path}", exc)
+            raise RuntimeError(
+                f"An error occurred while reading the prompt file: {exc}"
+            ) from exc
 
 
 T = TypeVar("T")
@@ -108,23 +108,22 @@ def _read_json_file(
     ``schema`` may be any type understood by :class:`pydantic.TypeAdapter`, such
     as a Pydantic model or standard container type.
     """
-
     handler = error_handler or LoggingErrorHandler()
-    try:
-        adapter = TypeAdapter(schema)
-        return adapter.validate_json(_read_file(path, handler))
-    except FileNotFoundError:
-        raise
-    except (RuntimeError, ValidationError, ValueError) as exc:
-        handler.handle(f"Error reading JSON file {path}", exc)
-        raise RuntimeError(
-            f"An error occurred while reading the JSON file: {exc}"
-        ) from exc
+    with logfire.span("fs.read_json", attributes={"path": str(path)}):
+        try:
+            adapter = TypeAdapter(schema)
+            return adapter.validate_json(_read_file(path, handler))
+        except FileNotFoundError:
+            raise
+        except (RuntimeError, ValidationError, ValueError) as exc:
+            handler.handle(f"Error reading JSON file {path}", exc)
+            raise RuntimeError(
+                f"An error occurred while reading the JSON file: {exc}"
+            ) from exc
 
 
 def _sanitize(value: str) -> str:
     """Return ``value`` with newlines and tabs replaced by spaces."""
-
     return value.replace("\n", " ").replace("\t", " ")
 
 
@@ -134,7 +133,6 @@ def _append_list(lines: list[str], label: str, values: Sequence[str]) -> None:
     If ``values`` contains a single entry, it is added inline after the label.
     Otherwise the values are rendered as an indented sub-list.
     """
-
     if not values:  # No values to record
         return
     if len(values) == 1:  # Single value rendered inline
@@ -154,7 +152,6 @@ def compile_catalogue_for_set(
     catalogue items, ensuring consistent hashes across runs regardless of input
     order or whitespace variations.
     """
-
     ordered = sorted(items, key=lambda item: item.id)
     canonical = [
         {
@@ -184,18 +181,18 @@ def _read_yaml_file(
         schema: Pydantic-compatible schema to validate against.
         error_handler: Processor for any errors encountered.
     """
-
     handler = error_handler or LoggingErrorHandler()
-    try:
-        adapter = TypeAdapter(schema)
-        return adapter.validate_python(yaml.safe_load(_read_file(path, handler)))
-    except FileNotFoundError:
-        raise
-    except (RuntimeError, ValidationError, yaml.YAMLError, ValueError) as exc:
-        handler.handle(f"Error reading YAML file {path}", exc)
-        raise RuntimeError(
-            f"An error occurred while reading the YAML file: {exc}"
-        ) from exc
+    with logfire.span("fs.read_yaml", attributes={"path": str(path)}):
+        try:
+            adapter = TypeAdapter(schema)
+            return adapter.validate_python(yaml.safe_load(_read_file(path, handler)))
+        except FileNotFoundError:
+            raise
+        except (RuntimeError, ValidationError, yaml.YAMLError, ValueError) as exc:
+            handler.handle(f"Error reading YAML file {path}", exc)
+            raise RuntimeError(
+                f"An error occurred while reading the YAML file: {exc}"
+            ) from exc
 
 
 @lru_cache(maxsize=None)
@@ -206,26 +203,30 @@ def load_prompt_text(prompt_name: str, base_dir: Path | str | None = None) -> st
     :func:`clear_prompt_cache` to invalidate the cache when template files
     change.
     """
-
     env = RuntimeEnv.instance()
     loader = env.prompt_loader if base_dir is None else FilePromptLoader(Path(base_dir))
-    try:
-        return loader.load(prompt_name)
-    except (OSError, ValueError, RuntimeError) as exc:
-        LoggingErrorHandler().handle(f"Error loading prompt {prompt_name}", exc)
-        raise
+    with logfire.span(
+        "loader.load_prompt_text",
+        attributes={
+            "name": prompt_name,
+            "base_dir": str(base_dir or getattr(env, "prompt_loader", "")),
+        },
+    ):
+        try:
+            return loader.load(prompt_name)
+        except (OSError, ValueError, RuntimeError) as exc:
+            LoggingErrorHandler().handle(f"Error loading prompt {prompt_name}", exc)
+            raise
 
 
 def clear_prompt_cache() -> None:
     """Invalidate memoised prompt text."""
-
     load_prompt_text.cache_clear()
     RuntimeEnv.instance().prompt_loader.clear_cache()
 
 
 def clear_mapping_cache() -> None:
     """Invalidate memoised mapping catalogues."""
-
     RuntimeEnv.instance().mapping_loader.clear_cache()
 
 
@@ -237,22 +238,36 @@ def load_mapping_items(
     """Return mapping reference data and a combined catalogue hash.
 
     Args:
-        sets: Catalogue definitions to load.
+        sets: Catalogue definitions to load. When empty, object‑form datasets are
+            auto‑discovered from ``data_dir`` (or the runtime mapping directory).
         data_dir: Optional directory override for catalogue files.
         error_handler: Processor for any errors encountered.
     """
-
     loader = (
         FileMappingLoader(Path(data_dir))
         if data_dir is not None
         else RuntimeEnv.instance().mapping_loader
     )
     handler = error_handler or LoggingErrorHandler()
-    try:
-        return loader.load(sets)
-    except (OSError, ValueError, RuntimeError) as exc:
-        handler.handle("Error loading mapping items", exc)
-        raise
+    with logfire.span(
+        "loader.load_mapping_items",
+        attributes={
+            "sets": len(sets),
+            "data_dir": str(data_dir) if data_dir is not None else None,
+        },
+    ):
+        try:
+            if not sets:
+                # Auto‑discover object‑form datasets: files that embed a "field".
+                if not isinstance(
+                    loader, FileMappingLoader
+                ):  # pragma: no cover - defensive
+                    raise RuntimeError("Auto-discovery requires FileMappingLoader")
+                return loader.discover()
+            return loader.load(sets)
+        except (OSError, ValueError, RuntimeError) as exc:
+            handler.handle("Error loading mapping items", exc)
+            raise
 
 
 @lru_cache(maxsize=None)
@@ -264,7 +279,6 @@ def load_app_config(
 
     Results are cached for the lifetime of the process.
     """
-
     path = Path(base_dir) / Path(filename)
     return _read_yaml_file(path, AppConfig)
 
@@ -278,7 +292,6 @@ def load_mapping_type_config(
 
     Results are cached for the lifetime of the process.
     """
-
     return load_app_config(base_dir, filename).mapping_types
 
 
@@ -302,14 +315,16 @@ def load_plateau_definitions(
         FileNotFoundError: If the file does not exist.
         RuntimeError: If the file cannot be read or parsed.
     """
-
     handler = error_handler or LoggingErrorHandler()
     path = Path(base_dir) / Path(filename)
-    try:
-        return _read_json_file(path, list[ServiceFeaturePlateau], handler)
-    except (RuntimeError, ValidationError, ValueError) as exc:
-        handler.handle(f"Invalid plateau definition data in {path}", exc)
-        raise RuntimeError(f"Invalid plateau definitions: {exc}") from exc
+    with logfire.span(
+        "loader.load_plateau_definitions", attributes={"path": str(path)}
+    ):
+        try:
+            return _read_json_file(path, list[ServiceFeaturePlateau], handler)
+        except (RuntimeError, ValidationError, ValueError) as exc:
+            handler.handle(f"Invalid plateau definition data in {path}", exc)
+            raise RuntimeError(f"Invalid plateau definitions: {exc}") from exc
 
 
 @lru_cache(maxsize=None)
@@ -332,17 +347,17 @@ def load_roles(
         FileNotFoundError: If the file does not exist.
         RuntimeError: If the file cannot be read or parsed.
     """
-
     handler = error_handler or LoggingErrorHandler()
     base_path = Path(base_dir)
     # If ``base_dir`` points to a directory append ``filename``; otherwise treat
     # it as the full path to the roles file.
     path = base_path / Path(filename) if base_path.is_dir() else base_path
-    try:
-        return _read_json_file(path, list[Role], handler)
-    except (RuntimeError, ValidationError, ValueError) as exc:
-        handler.handle(f"Invalid role data in {path}", exc)
-        raise RuntimeError(f"Invalid roles: {exc}") from exc
+    with logfire.span("loader.load_roles", attributes={"path": str(path)}):
+        try:
+            return _read_json_file(path, list[Role], handler)
+        except (RuntimeError, ValidationError, ValueError) as exc:
+            handler.handle(f"Invalid role data in {path}", exc)
+            raise RuntimeError(f"Invalid roles: {exc}") from exc
 
 
 @lru_cache(maxsize=None)
@@ -363,8 +378,11 @@ def load_role_ids(
         FileNotFoundError: If the roles file does not exist.
         RuntimeError: If the file cannot be read or parsed.
     """
-
-    return [role.role_id for role in load_roles(base_dir, filename)]
+    with logfire.span(
+        "loader.load_role_ids",
+        attributes={"path": str(Path(base_dir) / Path(filename))},
+    ):
+        return [role.role_id for role in load_roles(base_dir, filename)]
 
 
 @lru_cache(maxsize=None)
@@ -388,13 +406,16 @@ def load_definitions(
         FileNotFoundError: If the file does not exist.
         RuntimeError: If the file cannot be read or parsed.
     """
-
     path = Path(base_dir) / Path(filename)
-    try:
-        data = _read_json_file(path, DefinitionBlock)
-    except (RuntimeError, ValidationError, ValueError) as exc:
-        logfire.error(f"Invalid definition data in {path}: {exc}")
-        raise RuntimeError(f"Invalid definitions: {exc}") from exc
+    with logfire.span(
+        "loader.load_definitions",
+        attributes={"path": str(path), "keys": None if keys is None else len(keys)},
+    ):
+        try:
+            data = _read_json_file(path, DefinitionBlock)
+        except (RuntimeError, ValidationError, ValueError) as exc:
+            logfire.error(f"Invalid definition data in {path}: {exc}")
+            raise RuntimeError(f"Invalid definitions: {exc}") from exc
 
     bullets = data.bullets
     if keys:
@@ -407,7 +428,6 @@ def load_definitions(
 
 def _format_definition_item(idx: int, item: DefinitionItem) -> list[str]:
     """Return formatted lines for a single definition item."""
-
     header = f"{idx}. **{item.name}**"
     if item.aliases:
         header += f" ({', '.join(item.aliases)})"
@@ -451,8 +471,11 @@ def load_plateau_text(
         FileNotFoundError: If the data file does not exist.
         RuntimeError: If the data cannot be read or parsed.
     """
-
-    plateaus = load_plateau_definitions(base_dir, filename)
+    with logfire.span(
+        "loader.load_plateau_text",
+        attributes={"path": str(Path(base_dir) / Path(filename))},
+    ):
+        plateaus = load_plateau_definitions(base_dir, filename)
     lines = ["## Service feature plateaus", ""]
     for idx, plateau in enumerate(plateaus, start=1):
         lines.append(f"{idx}. **{plateau.name}**")
@@ -498,15 +521,21 @@ def load_evolution_prompt(
         FileNotFoundError: If a component file does not exist.
         RuntimeError: If a component file cannot be read.
     """
-
-    components = [
-        NORTH_STAR,
-        load_prompt_text(f"situational_context/{context_id}", base_dir),
-        load_plateau_text(plateaus_dir, plateaus_file),
-        load_definitions(definitions_dir, definitions_file, definition_keys),
-        load_prompt_text(f"inspirations/{inspirations_id}", base_dir),
-    ]
-    return "\n\n".join(components)
+    with logfire.span(
+        "loader.load_evolution_prompt",
+        attributes={
+            "context_id": context_id,
+            "inspirations_id": inspirations_id,
+        },
+    ):
+        components = [
+            NORTH_STAR,
+            load_prompt_text(f"situational_context/{context_id}", base_dir),
+            load_plateau_text(plateaus_dir, plateaus_file),
+            load_definitions(definitions_dir, definitions_file, definition_keys),
+            load_prompt_text(f"inspirations/{inspirations_id}", base_dir),
+        ]
+        return "\n\n".join(components)
 
 
 def load_ambition_prompt(
@@ -543,16 +572,23 @@ def load_ambition_prompt(
         FileNotFoundError: If a component file does not exist.
         RuntimeError: If a component file cannot be read.
     """
-
-    components = [
-        NORTH_STAR,
-        load_prompt_text(f"situational_context/{context_id}", base_dir),
-        load_plateau_text(plateaus_dir, plateaus_file),
-        load_definitions(definitions_dir, definitions_file, definition_keys),
-        load_prompt_text(f"inspirations/{inspirations_id}", base_dir),
-        load_prompt_text(str(task_file), base_dir),
-    ]
-    return "\n\n".join(components)
+    with logfire.span(
+        "loader.load_ambition_prompt",
+        attributes={
+            "context_id": context_id,
+            "inspirations_id": inspirations_id,
+            "task_file": str(task_file),
+        },
+    ):
+        components = [
+            NORTH_STAR,
+            load_prompt_text(f"situational_context/{context_id}", base_dir),
+            load_plateau_text(plateaus_dir, plateaus_file),
+            load_definitions(definitions_dir, definitions_file, definition_keys),
+            load_prompt_text(f"inspirations/{inspirations_id}", base_dir),
+            load_prompt_text(str(task_file), base_dir),
+        ]
+        return "\n\n".join(components)
 
 
 # Backward compatibility alias

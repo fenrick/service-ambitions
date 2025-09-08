@@ -10,7 +10,8 @@ from uuid import uuid4
 
 import logfire
 from pydantic import ValidationError
-from pydantic_ai import Agent
+from pydantic_ai import Agent, NativeOutput
+from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_core import to_json
 
 from core.canonical import canonicalise_record
@@ -83,7 +84,6 @@ class ServiceExecution:
             Updates ``self.settings`` to reflect any changes in the runtime
             configuration.
         """
-
         self.settings = RuntimeEnv.instance().settings
 
     def _build_generator(self) -> None:
@@ -93,37 +93,71 @@ class ServiceExecution:
             Sets ``generator``, ``desc_name``, ``feat_name``, ``map_name`` and
             ``feat_model`` attributes using the current ``settings``.
         """
+        with logfire.span("service_execution.build_generator"):
+            settings = self.settings
 
-        settings = self.settings
+            desc_model = self.factory.get("descriptions")
+            feat_model = self.factory.get("features")
+            map_model = self.factory.get("mapping")
 
-        desc_model = self.factory.get("descriptions")
-        feat_model = self.factory.get("features")
-        map_model = self.factory.get("mapping")
+            self.desc_name = self.factory.model_name("descriptions")
+            self.feat_name = self.factory.model_name("features")
+            self.map_name = self.factory.model_name("mapping")
+            self.feat_model = feat_model
 
-        self.desc_name = self.factory.model_name("descriptions")
-        self.feat_name = self.factory.model_name("features")
-        self.map_name = self.factory.model_name("mapping")
-        self.feat_model = feat_model
+            desc_agent: Agent[None, PlateauDescriptionsResponse] = Agent(
+                desc_model,
+                instructions=self.system_prompt,
+                output_type=NativeOutput(
+                    [PlateauDescriptionsResponse],
+                    name="plateau_descriptions",
+                    description=(
+                        "Return ordered descriptions for each plateau of the service. "
+                        "Provide a 'descriptions' array, where each item contains: "
+                        "plateau (int), plateau_name (str), and description (str)."
+                    ),
+                ),
+            )
+            feat_agent: Agent[None, PlateauFeaturesResponse] = Agent(
+                feat_model,
+                instructions=self.system_prompt,
+                output_type=NativeOutput(
+                    [PlateauFeaturesResponse],
+                    name="plateau_features",
+                    description=(
+                        "Return generated features grouped by role identifier. "
+                        "The 'features' object maps role_id → list of FeatureItem. "
+                        "Each FeatureItem includes name, description, and a 'score' "
+                        "(MaturityScore with level, label, justification)."
+                    ),
+                ),
+            )
+            map_output = (
+                MappingDiagnosticsResponse if settings.diagnostics else MappingResponse
+            )
+            map_agent: Agent[None, MappingDiagnosticsResponse | MappingResponse] = (
+                Agent(
+                    map_model,
+                    instructions=self.system_prompt,
+                    output_type=NativeOutput(
+                        [map_output],
+                        name=(
+                            "diagnostic_feature_mappings"
+                            if settings.diagnostics
+                            else "feature_mappings"
+                        ),
+                        description=(
+                            "Return mapping contributions for each feature. Provide a"
+                            " 'features' list where each item includes feature_id and a"
+                            " 'mappings' object keyed by mapping type, each containing"
+                            " a list of contributions. When diagnostics are enabled,"
+                            " include rationales for each contribution."
+                        ),
+                    ),
+                )
+            )
 
-        desc_agent: Agent[None, PlateauDescriptionsResponse] = Agent(
-            desc_model,
-            instructions=self.system_prompt,
-            output_type=PlateauDescriptionsResponse,
-        )
-        feat_agent: Agent[None, PlateauFeaturesResponse] = Agent(
-            feat_model,
-            instructions=self.system_prompt,
-            output_type=PlateauFeaturesResponse,
-        )
-        map_output = (
-            MappingDiagnosticsResponse if settings.diagnostics else MappingResponse
-        )
-        map_agent: Agent[None, MappingDiagnosticsResponse | MappingResponse] = Agent(
-            map_model,
-            instructions=self.system_prompt,
-            output_type=map_output,
-        )
-
+        # Build conversation sessions and plateau generator
         desc_session = ConversationSession(
             desc_agent,
             stage="descriptions",
@@ -164,67 +198,78 @@ class ServiceExecution:
 
     def _ensure_run_meta(self) -> None:
         """Initialise and store run metadata in ``RuntimeEnv``."""
-
-        env = RuntimeEnv.instance()
-        if env.run_meta is not None:  # run metadata already exists
-            return
-        models_map = {
-            "descriptions": self.desc_name,
-            "features": self.feat_name,
-            "mapping": self.map_name,
-            "search": self.factory.model_name("search"),
-        }
-        _, catalogue_hash = load_mapping_items(
-            self.settings.mapping_sets, error_handler=self.error_handler
-        )
-        context_window = getattr(self.feat_model, "max_input_tokens", 0)
-        env.run_meta = ServiceMeta(
-            run_id=str(uuid4()),
-            seed=self.factory.seed,
-            models=models_map,
-            web_search=getattr(self.factory, "_web_search", False),
-            mapping_types=sorted(getattr(self.settings, "mapping_types", {}).keys()),
-            context_window=context_window,
-            diagnostics=self.settings.diagnostics,
-            catalogue_hash=catalogue_hash,
-            created=datetime.now(timezone.utc),
-        )
+        with logfire.span("service_execution.ensure_run_meta") as span:
+            env = RuntimeEnv.instance()
+            if env.run_meta is not None:  # run metadata already exists
+                return
+            models_map = {
+                "descriptions": self.desc_name,
+                "features": self.feat_name,
+                "mapping": self.map_name,
+                "search": self.factory.model_name("search"),
+            }
+            _, catalogue_hash = load_mapping_items(
+                self.settings.mapping_sets, error_handler=self.error_handler
+            )
+            context_window = getattr(self.feat_model, "max_input_tokens", 0)
+            meta = ServiceMeta(
+                run_id=str(uuid4()),
+                seed=self.factory.seed,
+                models=models_map,
+                web_search=getattr(self.factory, "_web_search", False),
+                mapping_types=sorted(
+                    getattr(self.settings, "mapping_types", {}).keys()
+                ),
+                context_window=context_window,
+                diagnostics=self.settings.diagnostics,
+                catalogue_hash=catalogue_hash,
+                created=datetime.now(timezone.utc),
+            )
+            env.run_meta = meta
+            span.set_attribute("run_id", meta.run_id)
 
     async def _prepare_runtimes(self) -> list[PlateauRuntime]:
         """Return plateau runtimes with descriptions."""
+        with logfire.span("service_execution.prepare_runtimes") as span:
+            generator = self.generator
+            if generator is None:  # pragma: no cover - defensive
+                raise RuntimeError("Generator not initialised")
 
-        generator = self.generator
-        if generator is None:  # pragma: no cover - defensive
-            raise RuntimeError("Generator not initialised")
+            names = list(default_plateau_names())
+            span.set_attribute("plateau_count", len(names))
+            generator.description_session.add_parent_materials(self.runtime.service)
 
-        names = list(default_plateau_names())
-        generator.description_session.add_parent_materials(self.runtime.service)
-
-        desc_map = await generator._request_descriptions_async(
-            names, session=generator.description_session
-        )
-        pmap = default_plateau_map()
-        return [
-            PlateauRuntime(
-                plateau=pmap[name],
-                plateau_name=name,
-                description=desc_map[name],
+            desc_map = await generator._request_descriptions_async(
+                names, session=generator.description_session
             )
-            for name in names
-        ]
+            pmap = default_plateau_map()
+            return [
+                PlateauRuntime(
+                    plateau=pmap[name],
+                    plateau_name=name,
+                    description=desc_map[name],
+                )
+                for name in names
+            ]
 
     def _write_temp_output(
         self, service: ServiceInput, record: dict[str, object]
     ) -> None:
         """Persist intermediate JSON record when enabled."""
-
         if self.temp_output_dir is None:
             return
-        self.temp_output_dir.mkdir(parents=True, exist_ok=True)
-        atomic_write(
-            self.temp_output_dir / f"{service.service_id}.json",
-            [to_json(record).decode()],
-        )
+        with logfire.span(
+            "service_execution.write_temp_output",
+            attributes={
+                "service_id": service.service_id,
+                "dir": str(self.temp_output_dir),
+            },
+        ):
+            self.temp_output_dir.mkdir(parents=True, exist_ok=True)
+            atomic_write(
+                self.temp_output_dir / f"{service.service_id}.json",
+                [to_json(record).decode()],
+            )
 
     async def run(self) -> bool:
         """Populate ``runtime`` and report success.
@@ -233,7 +278,6 @@ class ServiceExecution:
             ``True`` when evolution generation succeeds. Generated artefacts
             are stored on :attr:`runtime` and are not returned to callers.
         """
-
         self.refresh_settings()
         service = self.runtime.service
         self._build_generator()
@@ -269,7 +313,12 @@ class ServiceExecution:
                 return True
             except RuntimeError:
                 raise
-            except (ValidationError, ValueError, OSError) as exc:
+            except (
+                ValidationError,
+                ValueError,
+                OSError,
+                UnexpectedModelBehavior,
+            ) as exc:
                 quarantine_file = await asyncio.to_thread(
                     _writer.write,
                     "evolution",

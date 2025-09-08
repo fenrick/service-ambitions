@@ -19,14 +19,13 @@ def validate_data_dir(data_dir: Path) -> None:
         Directory containing ``services.jsonl`` and an optional ``catalogue``
         subdirectory with JSON files.
 
-    Raises
+    Raises:
     ------
     FileNotFoundError
         If ``services.jsonl`` is missing.
     ValueError
         If any record fails validation.
     """
-
     services_file = data_dir / "services.jsonl"
     if not services_file.is_file():
         raise FileNotFoundError(services_file)

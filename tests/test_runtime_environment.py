@@ -1,3 +1,5 @@
+"""Tests for runtime environment configuration and lifecycle."""
+
 import asyncio
 from types import SimpleNamespace
 

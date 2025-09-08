@@ -25,7 +25,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 def test_service_evolution_contains_plateaus() -> None:
     """Constructing a ServiceEvolution should retain nested models."""
-
     service = ServiceInput(
         service_id="svc-1",
         name="svc",
@@ -62,7 +61,6 @@ def test_service_evolution_contains_plateaus() -> None:
 
 def test_plateau_feature_validates_score() -> None:
     """Scores must lie within the inclusive range [0, 1]."""
-
     with pytest.raises(ValidationError):
         PlateauFeature(
             feature_id="f1",
@@ -151,14 +149,12 @@ def test_mapping_diagnostics_response_parses_rationale() -> None:
 
 def test_service_meta_validates_context_window() -> None:
     """context_window must be non-negative."""
-
     with pytest.raises(ValidationError):
         ServiceMeta(run_id="run", context_window=-1)
 
 
 def test_service_meta_validates_catalogue_hash() -> None:
     """catalogue_hash must be a 64 character hex string when set."""
-
     with pytest.raises(ValidationError):
         ServiceMeta(run_id="run", catalogue_hash="abc")
     # valid hash should not raise

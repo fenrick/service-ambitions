@@ -13,7 +13,6 @@ from constants import DEFAULT_CACHE_DIR
 
 def migrate(root: Path, context: str) -> None:
     """Rewrite caches under ``root`` into context/service hierarchy."""
-
     with logfire.span(
         "cache.migrate_legacy", attributes={"root": str(root), "context": context}
     ):

@@ -2,7 +2,8 @@
 """Prompt rendering utilities for feature mappings.
 
 This module provides deterministic formatting for mapping prompts to ensure
-consistent interaction with the language model."""
+consistent interaction with the language model.
+"""
 
 from __future__ import annotations
 
@@ -16,7 +17,6 @@ from models import MappingItem, PlateauFeature
 
 def _sanitize(value: str) -> str:
     """Replace newlines and tabs with spaces."""
-
     return value.replace("\n", " ").replace("\t", " ")
 
 
@@ -27,7 +27,6 @@ def _render_items(items: Sequence[MappingItem]) -> str:
     and ``description`` fields. Newline and tab characters are normalised to
     spaces to provide deterministic prompts for the language model.
     """
-
     data = [
         {
             "id": _sanitize(entry.id),
@@ -47,7 +46,6 @@ def _render_features(features: Sequence[PlateauFeature]) -> str:
     embedded newlines or tabs before serialisation to ensure deterministic
     prompts.
     """
-
     data = [
         {
             "id": _sanitize(feat.feature_id),
@@ -79,6 +77,8 @@ def render_set_prompt(
         service_name: Human readable name of the service.
         service_description: Description of the service at ``plateau``.
         plateau: Numeric plateau level being evaluated.
+        diagnostics: When ``True``, use the diagnostics template variant which
+            logs additional context for debugging.
 
     Returns:
         Fully rendered prompt string.

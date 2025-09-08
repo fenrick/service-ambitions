@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: MIT
+"""Tests for diagnostics output helpers."""
 from pathlib import Path
 
 import pytest

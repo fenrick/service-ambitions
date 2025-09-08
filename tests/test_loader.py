@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: MIT
+"""Tests for IO loader helpers."""
 import hashlib
 import json
 from pathlib import Path
@@ -22,7 +23,6 @@ from utils.mapping_loader import FileMappingLoader
 
 def test_load_mapping_items_missing_dir(tmp_path: Path) -> None:
     """load_mapping_items should error when directory is absent."""
-
     missing = tmp_path / "missing"
     with pytest.raises(FileNotFoundError):
         load_mapping_items([], data_dir=missing)
@@ -30,7 +30,6 @@ def test_load_mapping_items_missing_dir(tmp_path: Path) -> None:
 
 def test_load_mapping_items_sorted(tmp_path: Path) -> None:
     """Items are returned sorted by identifier while preserving duplicates."""
-
     data_dir = tmp_path / "data"
     data_dir.mkdir()
     items = [
@@ -54,7 +53,6 @@ def test_load_mapping_items_sorted(tmp_path: Path) -> None:
 
 def test_file_mapping_loader_caches(monkeypatch, tmp_path: Path) -> None:
     """FileMappingLoader caches data and can be reset."""
-
     data_dir = tmp_path / "data"
     data_dir.mkdir()
     items = [{"id": "1", "name": "A", "description": "a"}]
@@ -86,7 +84,6 @@ class DummyHandler(ErrorHandler):
 
 def test_read_file_invokes_handler(tmp_path: Path) -> None:
     """_read_file should delegate errors to the handler."""
-
     handler = DummyHandler()
     missing = tmp_path / "absent.txt"
     with pytest.raises(FileNotFoundError):
@@ -98,7 +95,6 @@ def test_read_file_invokes_handler(tmp_path: Path) -> None:
 
 def test_read_json_file_invokes_handler(tmp_path: Path) -> None:
     """_read_json_file should delegate errors to the handler."""
-
     handler = DummyHandler()
     bad = tmp_path / "data.json"
     bad.write_text("not json", encoding="utf-8")
@@ -111,7 +107,6 @@ def test_read_json_file_invokes_handler(tmp_path: Path) -> None:
 
 def test_read_yaml_file_invokes_handler(tmp_path: Path) -> None:
     """_read_yaml_file should delegate errors to the handler."""
-
     handler = DummyHandler()
     bad = tmp_path / "data.yaml"
     bad.write_text("[:", encoding="utf-8")
@@ -124,7 +119,6 @@ def test_read_yaml_file_invokes_handler(tmp_path: Path) -> None:
 
 def test_load_plateau_definitions_invokes_handler(tmp_path: Path) -> None:
     """load_plateau_definitions should delegate errors to the handler."""
-
     handler = DummyHandler()
     data_dir = tmp_path / "data"
     data_dir.mkdir()
@@ -143,7 +137,6 @@ def test_load_plateau_definitions_invokes_handler(tmp_path: Path) -> None:
 
 def test_load_mapping_items_invokes_handler(tmp_path: Path) -> None:
     """load_mapping_items should delegate errors to the handler."""
-
     handler = DummyHandler()
     data_dir = tmp_path / "data"
     data_dir.mkdir()
@@ -157,7 +150,6 @@ def test_load_mapping_items_invokes_handler(tmp_path: Path) -> None:
 
 def test_load_roles_invokes_handler(tmp_path: Path) -> None:
     """load_roles should delegate errors to the handler."""
-
     handler = DummyHandler()
     data_dir = tmp_path / "data"
     data_dir.mkdir()

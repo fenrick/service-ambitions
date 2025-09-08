@@ -73,7 +73,6 @@ def _feature_payload(count: int) -> str:
 
 def test_service_evolution_across_four_plateaus(monkeypatch) -> None:
     """``generate_service_evolution`` should aggregate all plateaus."""
-
     responses: list[str] = [_feature_payload(5) for _ in range(4)]
     agent = DummyAgent(responses)
     session = ConversationSession(

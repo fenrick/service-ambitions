@@ -1,3 +1,5 @@
+"""Tests for CLI data validation helpers."""
+
 import importlib
 import shutil
 import sys

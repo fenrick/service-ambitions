@@ -27,7 +27,6 @@ class ServiceRuntime:
 
     def status(self) -> bool:
         """Return ``True`` when execution succeeded."""
-
         return self.success
 
 

@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: MIT
+"""Tests for mapping utilities and behaviours."""
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -28,7 +29,6 @@ from runtime.environment import RuntimeEnv
 @pytest.fixture(autouse=True)
 def _init_runtime_env() -> Iterator[None]:
     """Initialise a minimal runtime environment for caching."""
-
     settings = cast(
         Any,
         SimpleNamespace(
@@ -98,7 +98,6 @@ def _item() -> MappingItem:
 
 def test_cache_write_json_atomic_rejects_invalid_json(tmp_path) -> None:
     """Invalid JSON content is not persisted to disk."""
-
     path = tmp_path / "file.json"
     with pytest.raises(ValueError):
         cache_write_json_atomic(path, "{bad")
@@ -107,7 +106,6 @@ def test_cache_write_json_atomic_rejects_invalid_json(tmp_path) -> None:
 
 def test_cache_write_json_atomic_requires_dict(tmp_path) -> None:
     """Non-dictionary content is rejected."""
-
     path = tmp_path / "file.json"
     with pytest.raises(TypeError):
         cache_write_json_atomic(path, [1, 2, 3])
@@ -117,7 +115,6 @@ def test_cache_write_json_atomic_requires_dict(tmp_path) -> None:
 @pytest.mark.asyncio()
 async def test_map_set_successful_mapping(monkeypatch) -> None:
     """Agent response is merged into features."""
-
     monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     valid = json.dumps(
         {"features": [{"feature_id": "f1", "applications": [{"item": "a"}]}]}
@@ -137,7 +134,6 @@ async def test_map_set_successful_mapping(monkeypatch) -> None:
 @pytest.mark.asyncio()
 async def test_map_set_quarantines_unknown_ids(monkeypatch, tmp_path) -> None:
     """Unknown IDs are dropped and quarantined for later review."""
-
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     # Response contains one valid and one unknown ID.
@@ -184,7 +180,6 @@ async def test_quarantine_separates_unknown_ids_by_service(
     monkeypatch, tmp_path
 ) -> None:
     """Unknown IDs are quarantined per service ID."""
-
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     response = json.dumps(
@@ -238,7 +233,6 @@ async def test_map_set_strict_raises(monkeypatch, tmp_path) -> None:
 @pytest.mark.asyncio()
 async def test_map_set_strict_unknown_ids(monkeypatch, tmp_path) -> None:
     """Strict mode raises when the agent invents mapping identifiers."""
-
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     response = json.dumps(
@@ -264,7 +258,6 @@ async def test_map_set_strict_unknown_ids(monkeypatch, tmp_path) -> None:
 
 def test_merge_mapping_missing_feature(monkeypatch, tmp_path) -> None:
     """Missing features result in empty mappings and a warning."""
-
     monkeypatch.chdir(tmp_path)
     features = [_feature("f1"), _feature("f2")]
     payload = MappingResponse(
@@ -298,7 +291,6 @@ def test_merge_mapping_missing_feature(monkeypatch, tmp_path) -> None:
 
 def test_merge_mapping_missing_feature_strict(monkeypatch, tmp_path) -> None:
     """Strict mode raises when features are missing from the response."""
-
     monkeypatch.chdir(tmp_path)
     features = [_feature("f1"), _feature("f2")]
     payload = MappingResponse(
@@ -325,7 +317,6 @@ def test_merge_mapping_missing_feature_strict(monkeypatch, tmp_path) -> None:
 @pytest.mark.asyncio()
 async def test_map_set_diagnostics_includes_rationale(monkeypatch) -> None:
     """Diagnostics responses with rationales are accepted."""
-
     monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     response = json.dumps(
         {
@@ -351,7 +342,6 @@ async def test_map_set_diagnostics_includes_rationale(monkeypatch) -> None:
 @pytest.mark.asyncio()
 async def test_map_set_writes_cache(monkeypatch, tmp_path) -> None:
     """Cache miss writes indented JSON to the filesystem."""
-
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     monkeypatch.setattr(mapping, "build_cache_key", lambda *a, **k: "key")
@@ -384,7 +374,6 @@ async def test_map_set_writes_cache(monkeypatch, tmp_path) -> None:
 @pytest.mark.asyncio()
 async def test_map_set_reads_cache(monkeypatch, tmp_path) -> None:
     """Cache hit bypasses the network call."""
-
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     monkeypatch.setattr(mapping, "build_cache_key", lambda *a, **k: "key")
@@ -424,7 +413,6 @@ async def test_map_set_reads_cache(monkeypatch, tmp_path) -> None:
 @pytest.mark.asyncio()
 async def test_map_set_invalid_cache_halts(monkeypatch, tmp_path) -> None:
     """Unreadable cache files abort processing with an error."""
-
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     monkeypatch.setattr(mapping, "build_cache_key", lambda *a, **k: "key")
@@ -452,7 +440,6 @@ async def test_map_set_invalid_cache_halts(monkeypatch, tmp_path) -> None:
 @pytest.mark.parametrize("change", ["catalogue", "template", "feature"])
 async def test_map_set_cache_invalidation(monkeypatch, tmp_path, change) -> None:
     """Cache key changes when inputs differ."""
-
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     keys = iter(["key1", "key2"])
@@ -511,7 +498,6 @@ async def test_map_set_logs_cache_status(
     monkeypatch, tmp_path, mode, prepopulate, expected
 ) -> None:
     """Cache operations emit a single status log line."""
-
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     monkeypatch.setattr(mapping, "build_cache_key", lambda *a, **k: "key")
@@ -557,7 +543,6 @@ async def test_map_set_cache_modes(
     monkeypatch, tmp_path, mode, prepopulate, expected_prompts, expected_content
 ) -> None:
     """Different cache modes control read/write behaviour."""
-
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     monkeypatch.setattr(mapping, "build_cache_key", lambda *a, **k: "key")
@@ -611,7 +596,6 @@ async def test_map_set_cache_modes(
 @pytest.mark.asyncio()
 async def test_map_set_prompt_logging_respects_flags(monkeypatch) -> None:
     """Prompt logging only occurs when permitted and excludes catalogue items."""
-
     monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     response = json.dumps(
         {
@@ -644,7 +628,6 @@ async def test_map_set_prompt_logging_respects_flags(monkeypatch) -> None:
 @pytest.mark.asyncio()
 async def test_map_set_prompt_logging_skipped(monkeypatch) -> None:
     """Prompt logging is skipped when not explicitly allowed."""
-
     monkeypatch.setattr(mapping, "render_set_prompt", lambda *a, **k: "PROMPT")
     response = json.dumps(
         {
@@ -673,7 +656,6 @@ async def test_map_set_prompt_logging_skipped(monkeypatch) -> None:
 
 def test_group_features_by_mapping() -> None:
     """Features are grouped under mapping items."""
-
     feat1 = _feature("f1")
     feat2 = _feature("f2")
     feat1.mappings["applications"] = [Contribution(item="a")]

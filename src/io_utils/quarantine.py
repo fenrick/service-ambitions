@@ -35,53 +35,61 @@ class QuarantineWriter:
         payload:
             Offending data to store.
 
-        Returns
+        Returns:
         -------
         Path
             Location of the written payload file.
         """
+        with logfire.span(
+            "quarantine.write",
+            attributes={
+                "set_name": set_name,
+                "service_id": service_id,
+                "kind": kind,
+            },
+        ) as span:
+            if kind not in ALLOWED_KINDS:
+                raise ValueError(f"Unsupported quarantine kind: {kind}")
 
-        if kind not in ALLOWED_KINDS:
-            raise ValueError(f"Unsupported quarantine kind: {kind}")
+            qdir = self.base_dir / service_id / set_name
+            qdir.mkdir(parents=True, exist_ok=True)
 
-        qdir = self.base_dir / service_id / set_name
-        qdir.mkdir(parents=True, exist_ok=True)
+            index = sum(1 for _ in qdir.glob(f"{kind}_*.json")) + 1
+            file_path = qdir / f"{kind}_{index}.json"
 
-        index = sum(1 for _ in qdir.glob(f"{kind}_*.json")) + 1
-        file_path = qdir / f"{kind}_{index}.json"
+            if isinstance(payload, str):
+                file_path.write_text(payload, encoding="utf-8")
+            else:
+                file_path.write_text(
+                    to_json(payload, indent=2).decode("utf-8"),
+                    encoding="utf-8",
+                )
 
-        if isinstance(payload, str):
-            file_path.write_text(payload, encoding="utf-8")
-        else:
-            file_path.write_text(
-                to_json(payload, indent=2).decode("utf-8"),
+            manifest_path = qdir / MANIFEST
+            if manifest_path.exists():
+                manifest = from_json(manifest_path.read_text(encoding="utf-8"))
+            else:
+                manifest = {}
+            entry = manifest.setdefault(kind, {"count": 0, "examples": []})
+            entry["count"] += 1
+            if len(entry["examples"]) < 3:
+                entry["examples"].append(payload)
+            manifest_path.write_text(
+                to_json(manifest, indent=2).decode("utf-8"),
                 encoding="utf-8",
             )
 
-        manifest_path = qdir / MANIFEST
-        if manifest_path.exists():
-            manifest = from_json(manifest_path.read_text(encoding="utf-8"))
-        else:
-            manifest = {}
-        entry = manifest.setdefault(kind, {"count": 0, "examples": []})
-        entry["count"] += 1
-        if len(entry["examples"]) < 3:
-            entry["examples"].append(payload)
-        manifest_path.write_text(
-            to_json(manifest, indent=2).decode("utf-8"),
-            encoding="utf-8",
-        )
+            span.set_attribute("path", str(file_path))
+            logfire.warning(
+                "Quarantined payload",
+                path=str(file_path),
+                kind=kind,
+                service_id=service_id,
+                set_name=set_name,
+            )
 
-        logfire.warning(
-            "Quarantined payload",
-            path=str(file_path),
-            kind=kind,
-            service_id=service_id,
-            set_name=set_name,
-        )
-
-        telemetry.record_quarantine(file_path)
-        return file_path
+            telemetry.record_quarantine(file_path)
+            return file_path
 
 
 __all__ = ["QuarantineWriter"]

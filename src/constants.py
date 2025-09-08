@@ -1,3 +1,9 @@
+"""Project-wide constants and default paths.
+
+This module centralises small constants that are imported across the
+application. Keep this file minimal and free of side effects.
+"""
+
 from __future__ import annotations
 
 import os

@@ -92,15 +92,16 @@ RateLimitError = OpenAIRateLimitError
 
 PROVIDER_EXCEPTION_MAP: dict[str, tuple[str, ...]] = {
     "openai": (
-        "openai.APIConnectionError",
-        "openai.RateLimitError",
+        # v1 OpenAI Python client exceptions for transient transport faults
+        "openai.APIConnectionError",  # network connectivity issues
+        "openai.RateLimitError",  # 429 rate limiting
+        "openai.APITimeoutError",  # server/client timeouts
     )
 }
 
 
 def _import_exception(path: str) -> type[BaseException] | None:
     """Return exception type from ``path`` or ``None`` if unavailable."""
-
     try:
         module_name, exc_name = path.rsplit(".", 1)
         module = import_module(module_name)
@@ -112,7 +113,6 @@ def _import_exception(path: str) -> type[BaseException] | None:
 
 def _load_transient_exceptions() -> tuple[type[BaseException], ...]:
     """Construct the transient exception set based on configuration."""
-
     exceptions: list[type[BaseException]] = [asyncio.TimeoutError, ConnectionError]
     provider = os.getenv("SA_LLM_PROVIDER", "openai")
     for path in PROVIDER_EXCEPTION_MAP.get(
@@ -135,7 +135,6 @@ TRANSIENT_EXCEPTIONS: tuple[type[BaseException], ...] = _load_transient_exceptio
 
 def extend_transient_exceptions(*exception_types: type[BaseException]) -> None:
     """Extend ``TRANSIENT_EXCEPTIONS`` with additional types."""
-
     global TRANSIENT_EXCEPTIONS
     TRANSIENT_EXCEPTIONS = tuple({*TRANSIENT_EXCEPTIONS, *exception_types})
 
@@ -151,7 +150,6 @@ class CircuitBreaker:
 
     async def record_failure(self) -> None:
         """Record a failure and pause if the threshold is exceeded."""
-
         async with self._lock:
             self.failures += 1
             if self.failures >= self.threshold:
@@ -165,14 +163,12 @@ class CircuitBreaker:
 
     async def record_success(self) -> None:
         """Reset the failure count after a successful call."""
-
         async with self._lock:
             self.failures = 0
 
 
 def _parse_retry_datetime(retry_after: str) -> float | None:
     """Return seconds until ``retry_after`` datetime or ``None``."""
-
     try:
         from datetime import datetime, timezone
         from email.utils import parsedate_to_datetime
@@ -187,7 +183,6 @@ def _parse_retry_datetime(retry_after: str) -> float | None:
 
 def _retry_after_seconds(exc: BaseException) -> float | None:
     """Return ``Retry-After`` hint in seconds if available."""
-
     if RateLimitError is None or not isinstance(exc, RateLimitError):
         return None
 
@@ -199,6 +194,55 @@ def _retry_after_seconds(exc: BaseException) -> float | None:
         return float(retry_after)
     except (TypeError, ValueError):
         return _parse_retry_datetime(retry_after)
+
+
+def _compute_backoff_delay(
+    exc: BaseException,
+    attempt: int,
+    *,
+    attempts: int,
+    base: float,
+    cap: float,
+    on_retry_after: Callable[[float], None] | None,
+) -> float:
+    """Return backoff delay with jitter and optional Retry-After honouring."""
+    if attempt == attempts - 1:
+        raise exc
+    delay: float = float(min(cap, base * (2**attempt)))
+    delay *= 1 + random.random() * 0.25
+    hint = _retry_after_seconds(exc)
+    if hint is not None:
+        delay = float(max(delay, hint))
+        if on_retry_after:
+            on_retry_after(hint)
+    return delay
+
+
+async def _record_and_wait(
+    exc: BaseException,
+    attempt: int,
+    *,
+    attempts: int,
+    base: float,
+    cap: float,
+    on_retry_after: Callable[[float], None] | None,
+    on_failure: Callable[[BaseException], None] | None,
+    circuit_breaker: "CircuitBreaker | None",
+) -> None:
+    if on_failure:
+        on_failure(exc)
+    if circuit_breaker:
+        await circuit_breaker.record_failure()
+    delay = _compute_backoff_delay(
+        exc,
+        attempt,
+        attempts=attempts,
+        base=base,
+        cap=cap,
+        on_retry_after=on_retry_after,
+    )
+    logfire.warning("Retrying request", attempt=attempt + 1, backoff_delay=delay)
+    await asyncio.sleep(delay)
 
 
 async def _with_retry(
@@ -221,6 +265,7 @@ async def _with_retry(
 
     Args:
         coro_factory: Factory returning the coroutine to execute.
+        request_timeout: Max time, in seconds, to allow each attempt.
         attempts: Maximum number of attempts before giving up.
         base: Initial delay in seconds used for backoff.
         cap: Maximum backoff in seconds.
@@ -236,34 +281,20 @@ async def _with_retry(
         Exception: Propagates the last exception if all attempts fail or if the
             error is not transient.
     """
-
-    def _handle_retry(exc: BaseException, attempt: int) -> float:
-        if attempt == attempts - 1:
-            raise
-        delay = min(cap, base * (2**attempt))
-        delay *= 1 + random.random() * 0.25
-        hint = _retry_after_seconds(exc)
-        if hint is not None:
-            delay = max(delay, hint)
-            if on_retry_after:
-                on_retry_after(hint)
-        return delay
-
     for attempt in range(attempts):
         try:
             result = await asyncio.wait_for(coro_factory(), timeout=request_timeout)
         except TRANSIENT_EXCEPTIONS as exc:
-            if on_failure:
-                on_failure(exc)
-            if circuit_breaker:
-                await circuit_breaker.record_failure()
-            delay = _handle_retry(exc, attempt)
-            logfire.warning(
-                "Retrying request",
-                attempt=attempt + 1,
-                backoff_delay=delay,
+            await _record_and_wait(
+                exc,
+                attempt,
+                attempts=attempts,
+                base=base,
+                cap=cap,
+                on_retry_after=on_retry_after,
+                on_failure=on_failure,
+                circuit_breaker=circuit_breaker,
             )
-            await asyncio.sleep(delay)
             continue
         if circuit_breaker:
             await circuit_breaker.record_success()
@@ -314,7 +345,6 @@ class ServiceAmbitionGenerator:
         Raises:
             ValueError: If ``concurrency`` is less than one.
         """
-
         if concurrency < 1:
             # Guard against a misconfiguration that would deadlock the semaphore.
             raise ValueError("concurrency must be a positive integer")
@@ -334,13 +364,11 @@ class ServiceAmbitionGenerator:
 
     def _setup_controls(self) -> None:
         """Ensure rate limiter is initialised."""
-
         if self._limiter is None:
             self._limiter = Semaphore(self.concurrency)
 
     def _record_failure(self, exc: BaseException) -> None:
         """Track ``exc`` occurrences for telemetry."""
-
         name = exc.__class__.__name__
         self._failure_counts[name] += 1
         FAILURES_BY_EXCEPTION.add(1, {"exception": name})
@@ -349,7 +377,6 @@ class ServiceAmbitionGenerator:
         self, service: ServiceInput
     ) -> tuple[dict[str, Any] | None, str, int, int, str]:
         """Return ambitions payload and metrics or ``None`` on failure."""
-
         logfire.info(f"Processing service {service.name}")
         try:
             result, tokens, retries = await self.process_service(service)
@@ -382,7 +409,6 @@ class ServiceAmbitionGenerator:
         ``process_service`` is rate limited via ``self._limiter`` while the final
         JSONL write is protected by ``ctx.lock`` to keep output consistent.
         """
-
         limiter = self._limiter
         if limiter is None:  # pragma: no cover - defensive
             raise RuntimeError("Limiter not initialized")
@@ -455,7 +481,6 @@ class ServiceAmbitionGenerator:
         passed as the prompt input and the model response is converted back
         into a standard dictionary for downstream processing.
         """
-
         # Prefer the per-call prompt but fall back to the cached version.
         instructions = prompt if prompt is not None else self._prompt
         if instructions is None:
@@ -498,6 +523,8 @@ class ServiceAmbitionGenerator:
             progress: Optional progress bar updated as services complete.
             transcripts_dir: Directory to store per-service transcripts. ``None``
                 disables transcript persistence.
+            temp_output_dir: Optional directory to write per-service JSON files
+                as they are processed before consolidation.
         """
         with logfire.span("process_all") as span:
             span.set_attribute("concurrency", self.concurrency)
@@ -541,6 +568,8 @@ class ServiceAmbitionGenerator:
             progress: Optional progress bar updated as services complete.
             transcripts_dir: Optional directory used to persist per-service
                 request/response transcripts.
+            temp_output_dir: Optional directory to write per-service JSON files
+                as they are processed before consolidation.
 
         Side Effects:
             Creates/overwrites ``output_path`` with one JSON record per line and
@@ -549,7 +578,6 @@ class ServiceAmbitionGenerator:
         Raises:
             OSError: Propagated if writing to ``output_path`` fails.
         """
-
         with logfire.span("generate_async") as span:
             span.set_attribute("concurrency", self.concurrency)
             self._prompt = prompt
@@ -581,7 +609,6 @@ class ServiceAmbitionGenerator:
         output_path: str,
     ) -> set[str]:
         """Backward compatible wrapper for ``generate_async``."""
-
         return await self.generate_async(services, prompt, output_path)
 
 
@@ -606,7 +633,6 @@ def build_model(
     Returns:
         A ready-to-use ``Model`` instance.
     """
-
     # Allow callers to pass provider-prefixed names such as ``openai:gpt-4``.
     model_name = model_name.split(":", 1)[-1]
     provider: Provider[AsyncOpenAI] | Literal["openai"] = (

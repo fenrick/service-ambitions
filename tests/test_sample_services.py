@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: MIT
+"""Tests for sample services and fixtures."""
 from pathlib import Path
 
 from pydantic_core import from_json

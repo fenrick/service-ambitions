@@ -1,5 +1,11 @@
 # SD01 Flow of Evolution Prompts
 
+> Policy note
+>
+> Generation is one‑shot per request. The prompts below are not accompanied by
+> any multi‑pass content‑retry behaviour. Any iteration described refers to
+> progressing across plateau levels, not re‑asking the same question.
+
 ## Service Overview
 
 - **Service ID:** S01
@@ -36,7 +42,7 @@ I will give you set of defined services, including description, example service 
 
 1. For each service supplied, summarise its purpose, key features and jobs to be done.
 2. For each role for the service defined, establish what the service is doing to meet the needs of the defined jobs to be done, and any other appropriate jobs that you might consider.
-3. Iterate through the plateaus,
+3. Iterate across the plateaus (single pass per plateau),
    1. Consider the style of the service that would exist at that plateau.
       2.Determine a comprehensive digital ambition that would need to exist to support that plateau's operations.
       3.For each of the customer archetypes, detail between 3 to 5 digital ambition elements that are core to their new experience.

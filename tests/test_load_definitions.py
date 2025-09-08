@@ -13,7 +13,6 @@ from io_utils.loader import load_definitions
 
 def test_load_definitions_roundtrip(tmp_path: Path) -> None:
     """All definition fields are rendered in the output."""
-
     content = {
         "title": "Key definitions",
         "bullets": [
@@ -57,7 +56,6 @@ def test_load_definitions_roundtrip(tmp_path: Path) -> None:
 
 def test_load_definitions_validation_error(tmp_path: Path) -> None:
     """Invalid definition entries raise ``RuntimeError``."""
-
     content = {
         "title": "Key definitions",
         "bullets": [{"id": "a", "name": "Alpha"}],

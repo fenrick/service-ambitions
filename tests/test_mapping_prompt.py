@@ -29,7 +29,6 @@ from models import MappingItem, MaturityScore, PlateauFeature  # noqa: E402
 @pytest.mark.parametrize("shuffle", [False, True])
 def test_render_set_prompt_orders_content(shuffle: bool, monkeypatch) -> None:
     """Catalogue items and features are sorted deterministically."""
-
     template = "{mapping_sections}\n{features}"
     monkeypatch.setattr("core.mapping_prompt.load_prompt_text", lambda _n: template)
 
@@ -86,7 +85,6 @@ def test_render_set_prompt_orders_content(shuffle: bool, monkeypatch) -> None:
 
 def test_render_items_normalizes_whitespace() -> None:
     """Newline and tab characters are replaced with spaces in items."""
-
     items = [
         MappingItem(
             id="A\nB",
@@ -101,7 +99,6 @@ def test_render_items_normalizes_whitespace() -> None:
 
 def test_render_features_normalizes_whitespace() -> None:
     """Embedded whitespace in features is sanitized."""
-
     features = [
         PlateauFeature(
             feature_id="1\t2",
@@ -118,7 +115,6 @@ def test_render_features_normalizes_whitespace() -> None:
 
 def test_render_set_prompt_normalizes_whitespace(monkeypatch) -> None:
     """Whitespace is sanitised when rendering the full prompt."""
-
     template = "{mapping_sections}\n{features}"
     monkeypatch.setattr("core.mapping_prompt.load_prompt_text", lambda _n: template)
 
@@ -154,7 +150,6 @@ def test_render_set_prompt_normalizes_whitespace(monkeypatch) -> None:
 
 def test_render_set_prompt_uses_diagnostics_template(monkeypatch) -> None:
     """Diagnostics mode loads the alternate prompt template."""
-
     called: dict[str, str] = {}
 
     def fake_load(name: str) -> str:
@@ -176,7 +171,6 @@ def test_render_set_prompt_uses_diagnostics_template(monkeypatch) -> None:
 
 def test_render_set_prompt_handles_literal_braces(monkeypatch) -> None:
     """Unescaped braces in templates are preserved without KeyError."""
-
     template = (
         "{mapping_sections}\n"
         'Each array element must be an object with only one field: { "item": <ID> }\n'
@@ -196,7 +190,6 @@ def test_render_set_prompt_handles_literal_braces(monkeypatch) -> None:
 
 def test_render_set_prompt_inserts_service_metadata(monkeypatch) -> None:
     """Service placeholders are replaced in the rendered prompt."""
-
     template = "{service_name}|{service_description}|{plateau}"
     monkeypatch.setattr("core.mapping_prompt.load_prompt_text", lambda _n: template)
     result = render_set_prompt(

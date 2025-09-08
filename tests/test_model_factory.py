@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: MIT
+"""Tests for model factory and configuration."""
 import importlib
 import sys
 
