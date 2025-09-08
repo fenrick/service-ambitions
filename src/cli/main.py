@@ -138,7 +138,9 @@ def _should_write_cache(mode: str, exists_before: bool) -> bool:
     return not exists_before
 
 
-def _reconstruct_feature_cache(svc_id: str, plateau: PlateauResult) -> None:
+def _reconstruct_feature_cache(
+    svc_id: str, plateau: PlateauResult, service_name: str | None = None
+) -> None:
     """Write grouped features for ``plateau`` to the cache respecting flags."""
     with logfire.span(
         "cli.reconstruct_feature_cache",
@@ -153,12 +155,35 @@ def _reconstruct_feature_cache(svc_id: str, plateau: PlateauResult) -> None:
                 name=feat.name, description=feat.description, score=feat.score
             )
             block.setdefault(feat.customer_type, []).append(item)
+        payload = PlateauFeaturesResponse(features=block)
+        # Write canonical human-friendly file for quick inspection
         feat_path = _feature_cache_path(svc_id, plateau.plateau)
-        if _should_write_cache(
-            getattr(settings, "cache_mode", "read"), feat_path.exists()
-        ):
-            payload = PlateauFeaturesResponse(features=block)
+        if _should_write_cache(getattr(settings, "cache_mode", "read"), feat_path.exists()):
             cache_write_json_atomic(feat_path, payload.model_dump())
+
+        # Also write hashed prompt-cache entry so different contexts co-exist
+        try:
+            from generation.plateau_generator import default_role_ids
+        except Exception:  # pragma: no cover - defensive import
+            default_role_ids = lambda: []  # type: ignore[misc,assignment]
+        roles = default_role_ids()
+        roles_str = ", ".join(f'"{r}"' for r in roles)
+        template = load_prompt_text("plateau_prompt")
+        prompt = template.format(
+            service_name=(service_name or svc_id),
+            service_description=plateau.service_description,
+            plateau=str(plateau.plateau),
+            roles=str(roles_str),
+        )
+        feature_model = (
+            getattr(getattr(settings, "models", None), "features", None)
+            or settings.model
+        )
+        stage = f"features_{plateau.plateau}"
+        f_key = _prompt_cache_key(prompt, feature_model, stage)
+        f_cache = _prompt_cache_path(svc_id, stage, f_key)
+        if _should_write_cache(getattr(settings, "cache_mode", "read"), f_cache.exists()):
+            cache_write_json_atomic(f_cache, payload.model_dump())
 
 
 def _rebuild_mapping_cache(
@@ -195,6 +220,9 @@ def _rebuild_mapping_cache(
                 catalogue_hash,
                 plateau.features,
                 settings.diagnostics,
+                plateau=plateau.plateau,
+                service_description=plateau.service_description,
+                service_name=None,
             )
             cache_file = cache_path(svc_id, plateau.plateau, cfg.field, key)
             if _should_write_cache(
@@ -272,7 +300,7 @@ def _cmd_reverse(args: argparse.Namespace, transcripts_dir: Path | None) -> None
             svc_id = evo.service.service_id
             _rebuild_description_cache(svc_id, evo, settings)
             for plateau in evo.plateaus:
-                _reconstruct_feature_cache(svc_id, plateau)
+                _reconstruct_feature_cache(svc_id, plateau, evo.service.name)
                 _rebuild_mapping_cache(svc_id, plateau, settings, catalogue_hash)
             evo.meta.mapping_types = []
             record = canonicalise_record(evo.model_dump(mode="json"))

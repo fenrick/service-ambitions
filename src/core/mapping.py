@@ -107,6 +107,10 @@ def build_cache_key(
     catalogue_hash: str,
     features: Sequence[PlateauFeature],
     diagnostics: bool,
+    *,
+    plateau: int,
+    service_description: str,
+    service_name: str | None = None,
 ) -> str:
     """Return a deterministic cache key for mapping responses.
 
@@ -126,6 +130,9 @@ def build_cache_key(
         template_hash,
         str(int(diagnostics)),
         _features_hash(features),
+        str(plateau),
+        hashlib.sha256(service_description.encode("utf-8")).hexdigest(),
+        hashlib.sha256((service_name or "").encode("utf-8")).hexdigest(),
     ]
     return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:32]
 
@@ -599,7 +606,14 @@ def _build_context(
     model_obj = getattr(session, "client", None)
     model_name = getattr(getattr(model_obj, "model", None), "model_name", "")
     key = build_cache_key(
-        model_name, set_name, params.catalogue_hash, features, use_diag
+        model_name,
+        set_name,
+        params.catalogue_hash,
+        features,
+        use_diag,
+        plateau=params.plateau,
+        service_description=params.service_description,
+        service_name=params.service_name,
     )
     # Resolve the expected Pydantic model type for cache validation.
     # Some agents expose a `NativeOutput` wrapper rather than a model class.

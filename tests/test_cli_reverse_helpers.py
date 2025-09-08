@@ -90,7 +90,14 @@ def test_rebuild_mapping_cache_writes_entries(tmp_path) -> None:
     _rebuild_mapping_cache("svc", plateau, settings, "0" * 64)
     assert plateau.mappings == {}
     key = build_cache_key(
-        settings.model, "applications", "0" * 64, [feat], settings.diagnostics
+        settings.model,
+        "applications",
+        "0" * 64,
+        [feat],
+        settings.diagnostics,
+        plateau=plateau.plateau,
+        service_description=plateau.service_description,
+        service_name=None,
     )
     cache_file = cache_path("svc", 1, "applications", key)
     assert cache_file.exists()
