@@ -209,7 +209,7 @@ def _compute_backoff_delay(
     if attempt == attempts - 1:
         raise exc
     delay: float = float(min(cap, base * (2**attempt)))
-    delay *= 1 + random.random() * 0.25
+    delay *= 1 + random.random() * 0.25  # nosec B311 - jitter for backoff; not crypto
     hint = _retry_after_seconds(exc)
     if hint is not None:
         delay = float(max(delay, hint))
