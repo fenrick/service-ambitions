@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import inspect
+import logging
 import os
 import platform
 import random
@@ -55,6 +56,9 @@ TRANSCRIPTS_HELP = (
 
 LOG_LEVELS = ["fatal", "error", "warn", "notice", "info", "debug", "trace"]
 
+# Module logger for CLI diagnostics mirroring
+logger = logging.getLogger(__name__)
+
 
 def _print_version() -> None:
     """Print the installed package version."""
@@ -62,20 +66,30 @@ def _print_version() -> None:
         pkg_version = version("service-ambitions")
     except PackageNotFoundError:  # pragma: no cover - fallback for editable installs
         pkg_version = "unknown"
-    print(f"service-ambitions {pkg_version}")
+    line = f"service-ambitions {pkg_version}"
+    print(line)
+    logger.info(line)
 
 
 def _print_diagnostics() -> None:
     """Output basic environment information for health checks."""
     _print_version()
-    print(f"Python {platform.python_version()}")
-    print(f"Platform {platform.platform()}")
+    py = f"Python {platform.python_version()}"
+    plat = f"Platform {platform.platform()}"
+    print(py)
+    print(plat)
+    logger.info(py)
+    logger.info(plat)
 
     missing = [var for var in ["SA_OPENAI_API_KEY"] if not os.getenv(var)]
     if missing:
-        print("Missing env vars: " + ", ".join(missing))
+        line = "Missing env vars: " + ", ".join(missing)
+        print(line)
+        logger.info(line)
     else:
-        print("Required env vars present")
+        line = "Required env vars present"
+        print(line)
+        logger.info(line)
 
 
 def _configure_logging(args: argparse.Namespace, settings: Settings) -> None:
