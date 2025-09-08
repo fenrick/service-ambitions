@@ -119,8 +119,8 @@ class ServiceExecution:
                 from pydantic_ai import Agent, NativeOutput
             except Exception as exc:  # Provide clear guidance on missing dep
                 msg = (
-                    "pydantic_ai Agent/NativeOutput not available; ensure a compatible "
-                    "version is installed"
+                    "pydantic_ai Agent/NativeOutput not available; install/update the "
+                    "pydantic-ai package to a compatible version"
                 )
                 raise RuntimeError(msg) from exc
 
