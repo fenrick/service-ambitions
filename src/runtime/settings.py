@@ -63,9 +63,7 @@ class Settings(BaseSettings):
     # LLM queue feature flag and concurrency
     llm_queue_enabled: bool = Field(
         False,
-        description=(
-            "Enable the global LLM execution queue to centralise concurrency."
-        ),
+        description="Enable the global LLM execution queue to centralise concurrency.",
     )
     llm_queue_concurrency: int = Field(
         3,

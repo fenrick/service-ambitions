@@ -1,3 +1,5 @@
+"""Tests validating the LLM queue routing and pipelined scheduling."""
+
 import asyncio
 from types import SimpleNamespace
 
@@ -78,7 +80,12 @@ async def test_plateau_pipeline_overlaps_when_enabled(monkeypatch):
     # Build generator with simple sessions
     session = ConversationSession(_Agent(), stage="features")
     mapping_session = ConversationSession(_Agent(), stage="mapping")
-    generator = PlateauGenerator(session, roles=["role"], mapping_session=mapping_session, description_session=session)
+    generator = PlateauGenerator(
+        session,
+        roles=["role"],
+        mapping_session=mapping_session,
+        description_session=session,
+    )
 
     svc = ServiceInput(
         service_id="svc1",
@@ -137,7 +144,12 @@ async def test_plateau_sequential_when_disabled(monkeypatch):
 
     session = ConversationSession(_Agent(), stage="features")
     mapping_session = ConversationSession(_Agent(), stage="mapping")
-    generator = PlateauGenerator(session, roles=["role"], mapping_session=mapping_session, description_session=session)
+    generator = PlateauGenerator(
+        session,
+        roles=["role"],
+        mapping_session=mapping_session,
+        description_session=session,
+    )
 
     svc = ServiceInput(
         service_id="svc2",

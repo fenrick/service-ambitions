@@ -22,7 +22,6 @@ from typing import (
     Awaitable,
     Callable,
     Iterable,
-    Literal,
     TextIO,
     TypeVar,
     cast,
@@ -41,10 +40,10 @@ from pydantic_core import to_json
 from tqdm import tqdm  # type: ignore[import-untyped]
 
 from core.canonical import canonicalise_record
-from runtime.environment import RuntimeEnv
-from llm.queue import LLMTaskMeta
 from io_utils.persistence import atomic_write
+from llm.queue import LLMTaskMeta
 from models import ReasoningConfig, ServiceInput
+from runtime.environment import RuntimeEnv
 
 SERVICES_PROCESSED = logfire.metric_counter("services_processed")
 SERVICES_FAILED = logfire.metric_counter("services_failed")
@@ -412,7 +411,8 @@ class ServiceAmbitionGenerator:
                     await self._process_service_line(service)
                 )
         else:
-            # Global queue is expected to bound concurrency when local limiter is disabled.
+            # Global queue is expected to bound concurrency when local limiter
+            # is disabled.
             payload, svc_id, tokens, retries, status = await self._process_service_line(
                 service
             )
@@ -501,12 +501,19 @@ class ServiceAmbitionGenerator:
         except Exception:  # pragma: no cover - environment dependent
             queue = None
         if queue is not None:
-            meta = LLMTaskMeta(stage="ambitions", model_name=getattr(self.model, "model_name", None), service_id=service.service_id)
-            coro_factory: Callable[[], Awaitable[_AgentRunResult[AmbitionModel]]] = (
-                lambda: queue.submit(lambda: agent.run(service_details), meta=meta)
+            meta = LLMTaskMeta(
+                stage="ambitions",
+                model_name=getattr(self.model, "model_name", None),
+                service_id=service.service_id,
             )
+
+            async def coro_factory() -> _AgentRunResult[AmbitionModel]:
+                return await queue.submit(lambda: agent.run(service_details), meta=meta)
+
         else:
-            coro_factory = lambda: agent.run(service_details)
+
+            async def coro_factory() -> _AgentRunResult[AmbitionModel]:
+                return await agent.run(service_details)
 
         result, retries = await _with_retry(
             coro_factory,
@@ -600,7 +607,8 @@ class ServiceAmbitionGenerator:
             self._prompt = prompt
             self._failure_counts.clear()
             try:
-                # Disable local limiter when global LLM queue is enabled to avoid double gating.
+                # Disable local limiter when global LLM queue is enabled to avoid
+                # double gating.
                 if getattr(RuntimeEnv.instance().settings, "llm_queue_enabled", False):
                     self._limiter = None
                 else:

@@ -643,6 +643,7 @@ class FeatureItem(BaseModel):
     Unknown fields are rejected (``extra='forbid'``) and input types are
     validated strictly, aligning with the repository typing standards.
     """
+
     model_config = ConfigDict(extra="forbid", strict=True)
     name: Annotated[
         str,

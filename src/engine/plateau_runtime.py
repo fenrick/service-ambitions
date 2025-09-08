@@ -157,9 +157,8 @@ class PlateauRuntime:
         if use_local_cache and cache_mode != "off":
             target = cache_file or self._feature_cache_path(service_id)
             exists_before = target.exists()
-            should_write = (
-                cache_mode == "refresh"
-                or (cache_mode in {"read", "write"} and not exists_before)
+            should_write = cache_mode == "refresh" or (
+                cache_mode in {"read", "write"} and not exists_before
             )
             if should_write:
                 cache_write_json_atomic(target, payload.model_dump())

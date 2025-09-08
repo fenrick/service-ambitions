@@ -27,9 +27,9 @@ from pydantic_ai import Agent, messages
 from pydantic_core import from_json, to_json
 
 from constants import DEFAULT_CACHE_DIR
+from llm.queue import LLMTaskMeta
 from models import ServiceInput
 from runtime.environment import RuntimeEnv
-from llm.queue import LLMTaskMeta
 
 from .dry_run import DryRunInvocation
 from .mapping import cache_write_json_atomic
@@ -362,9 +362,14 @@ class ConversationSession:
         except Exception:  # pragma: no cover - defensive when env not initialised
             queue = None
         if queue is not None:
-            meta = LLMTaskMeta(stage=stage, model_name=model_name, service_id=self._service_id)
+            meta = LLMTaskMeta(
+                stage=stage,
+                model_name=model_name,
+                service_id=self._service_id,
+            )
             result = await queue.submit(
-                lambda: runner(prompt, self._history), meta=meta
+                lambda: runner(prompt, self._history),
+                meta=meta,
             )
         else:
             result = await runner(prompt, self._history)

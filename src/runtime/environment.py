@@ -8,13 +8,13 @@ from typing import TYPE_CHECKING
 
 import logfire
 
+from llm.queue import LLMQueue
 from utils import (
     FileMappingLoader,
     FilePromptLoader,
     MappingLoader,
     PromptLoader,
 )
-from llm.queue import LLMQueue
 
 if TYPE_CHECKING:  # pragma: no cover - for type checkers only
     from models import ServiceMeta

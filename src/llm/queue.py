@@ -16,7 +16,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Protocol, TypeVar
+from typing import Any, Awaitable, Protocol, TypeVar
 
 import logfire
 
@@ -24,8 +24,7 @@ T = TypeVar("T")
 
 
 class _CoroFactory(Protocol[T]):
-    def __call__(self) -> Awaitable[T]:
-        ...
+    def __call__(self) -> Awaitable[T]: ...
 
 
 @dataclass
@@ -63,7 +62,12 @@ class LLMQueue:
             self._sem.release()
             self._inflight.set(self._sem._value)  # type: ignore[attr-defined]
 
-    async def submit(self, factory: _CoroFactory[T], *, meta: LLMTaskMeta | None = None) -> T:
+    async def submit(
+        self,
+        factory: _CoroFactory[T],
+        *,
+        meta: LLMTaskMeta | None = None,
+    ) -> T:
         """Run ``factory`` under the queue's concurrency gate and return its result.
 
         Args:
@@ -91,4 +95,3 @@ class LLMQueue:
 
 
 __all__ = ["LLMQueue", "LLMTaskMeta"]
-

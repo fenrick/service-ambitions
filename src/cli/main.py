@@ -173,7 +173,8 @@ def _cmd_preflight(args: argparse.Namespace) -> int:
             ds = getattr(cfg, "dataset", "")
             if ds and ds not in file_stems:
                 issues.append(
-                    f"mapping_types['{field}'].dataset='{ds}' has no matching file (by stem)"
+                    f"mapping_types['{field}'].dataset='{ds}' has no matching file (by"
+                    " stem)"
                 )
         # Check each mapping set file exists to surface multiple issues together
         missing_files = []
@@ -260,6 +261,7 @@ def _reconstruct_feature_cache(
             from generation.plateau_generator import (
                 default_role_ids as _role_ids_fn,
             )
+
             roles = list(_role_ids_fn())
         except ImportError:  # pragma: no cover - defensive import
             # Fallback when defaults are unavailable during import time
