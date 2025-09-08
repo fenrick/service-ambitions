@@ -127,7 +127,7 @@ class FileMappingLoader(MappingLoader):
             for path in sorted(self._data_dir.glob("*.json")):
                 try:
                     items, meta = _read_mapping_file(path)
-                except Exception:  # nosec B112 - skip unreadable/invalid files; logged by reader
+                except Exception:  # nosec B112 - skip unreadable/invalid files; reader logs
                     continue
                 field = (meta or {}).get("field") if meta else None
                 if not field:
