@@ -111,6 +111,7 @@ def print_summary() -> None:
             print(line)
             # Also emit structured log for operators
             import logfire as _lf  # local import to avoid cycles
+
             _lf.info(
                 "mapping.set_summary",
                 set_name=set_name,
@@ -124,6 +125,7 @@ def print_summary() -> None:
         total_tokens = sum(d.tokens for d in _metrics.values())
         print(f"Totals: tokens={total_tokens}")
         import logfire as _lf  # local import to avoid cycles
+
         _lf.info("mapping.totals", tokens=total_tokens)
     except Exception as exc:  # pragma: no cover - defensive
         _error_handler.handle("Failed to print telemetry summary", exc)

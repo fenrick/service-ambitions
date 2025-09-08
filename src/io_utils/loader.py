@@ -382,7 +382,11 @@ def load_role_ids(
         "loader.load_role_ids",
         attributes={"path": str(Path(base_dir) / Path(filename))},
     ):
-        return [role.role_id for role in load_roles(base_dir, filename)]
+        roles = load_roles(base_dir, filename)
+        ids = [role.role_id for role in roles]
+        if len(ids) != len(set(ids)):
+            raise RuntimeError("Duplicate role_id values found in roles.json")
+        return ids
 
 
 @lru_cache(maxsize=None)

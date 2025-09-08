@@ -57,6 +57,7 @@ packages = [
   { include = "models", from = "src" },
   { include = "observability", from = "src" },
   { include = "runtime", from = "src" },
+  { include = "llm", from = "src" },
   { include = "utils", from = "src" }
 ]
 

@@ -64,3 +64,7 @@ cache_mode: "read"          # Cache behaviour: off, read, refresh or write.
 cache_dir: ${XDG_CACHE_HOME}/service-ambitions # Directory to store cache files. Falls back to /tmp/service-ambitions when XDG_CACHE_HOME is unset.
 diagnostics: false          # Enable verbose diagnostics and tracing.
 strict: false               # Fail when features or mappings are missing.
+
+# Experimental: global LLM queue for centralised concurrency
+# llm_queue_enabled: true
+# llm_queue_concurrency: 3

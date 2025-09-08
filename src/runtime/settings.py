@@ -60,6 +60,17 @@ class Settings(BaseSettings):
         False, description="Enable OpenAI web search tooling for model browsing."
     )
 
+    # LLM queue feature flag and concurrency
+    llm_queue_enabled: bool = Field(
+        False,
+        description="Enable the global LLM execution queue to centralise concurrency.",
+    )
+    llm_queue_concurrency: int = Field(
+        3,
+        ge=1,
+        description="Maximum number of concurrent LLM calls across the app.",
+    )
+
     # Dry-run mode: proceed through the pipeline but do not invoke agents.
     # When enabled, cached artifacts are read as usual; if a cache miss occurs
     # at any point where an agent call would be required, execution halts with
@@ -179,6 +190,8 @@ def load_settings(config_path: Path | str | None = None) -> Settings:
             strict_mapping=getattr(config, "strict_mapping", False),
             mapping_mode=getattr(config, "mapping_mode", "per_set"),
             dry_run=getattr(config, "dry_run", False),
+            llm_queue_enabled=getattr(config, "llm_queue_enabled", False),
+            llm_queue_concurrency=getattr(config, "llm_queue_concurrency", 3),
             _env_file=env_file,
         )
     except ValidationError as exc:

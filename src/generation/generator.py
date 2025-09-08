@@ -22,34 +22,28 @@ from typing import (
     Awaitable,
     Callable,
     Iterable,
-    Literal,
     TextIO,
     TypeVar,
     cast,
 )
 
 import logfire
-from openai import AsyncOpenAI
 from pydantic import BaseModel
-from pydantic_ai import Agent
-from pydantic_ai.models import Model
-from pydantic_ai.models.openai import (
-    OpenAIResponsesModel,
-    OpenAIResponsesModelSettings,
-)
-from pydantic_ai.providers import Provider
-from pydantic_ai.providers.openai import OpenAIProvider
 
 if TYPE_CHECKING:
     from pydantic_ai.agent import AgentRunResult as _AgentRunResult
+    from pydantic_ai.models import Model as _PAIModel
 else:  # pragma: no cover - imported for typing only
     _AgentRunResult = Any
+    _PAIModel = Any  # Fallback to avoid hard runtime dependency
 from pydantic_core import to_json
 from tqdm import tqdm  # type: ignore[import-untyped]
 
 from core.canonical import canonicalise_record
 from io_utils.persistence import atomic_write
+from llm.queue import LLMTaskMeta
 from models import ReasoningConfig, ServiceInput
+from runtime.environment import RuntimeEnv
 
 SERVICES_PROCESSED = logfire.metric_counter("services_processed")
 SERVICES_FAILED = logfire.metric_counter("services_failed")
@@ -324,7 +318,7 @@ class ServiceAmbitionGenerator:
 
     def __init__(
         self,
-        model: Model,
+        model: _PAIModel,
         concurrency: int = 5,
         request_timeout: float = 60,
         retries: int = 5,
@@ -411,10 +405,14 @@ class ServiceAmbitionGenerator:
         JSONL write is protected by ``ctx.lock`` to keep output consistent.
         """
         limiter = self._limiter
-        if limiter is None:  # pragma: no cover - defensive
-            raise RuntimeError("Limiter not initialized")
-
-        async with limiter:
+        if limiter is not None:
+            async with limiter:
+                payload, svc_id, tokens, retries, status = (
+                    await self._process_service_line(service)
+                )
+        else:
+            # Global queue is expected to bound concurrency when local limiter
+            # is disabled.
             payload, svc_id, tokens, retries, status = await self._process_service_line(
                 service
             )
@@ -487,13 +485,38 @@ class ServiceAmbitionGenerator:
         if instructions is None:
             # Without instructions the agent cannot operate.
             raise ValueError("prompt must be provided")
-        agent: Agent[None, AmbitionModel] = Agent(
-            self.model, instructions=instructions, output_type=AmbitionModel
-        )
+        try:
+            from pydantic_ai import Agent  # Local import to avoid import-time deps
+        except ImportError as exc:  # pragma: no cover - environment dependent
+            raise RuntimeError(
+                "pydantic_ai is required for ambition generation; please install"
+            ) from exc
+        agent = Agent(self.model, instructions=instructions, output_type=AmbitionModel)
         service_details = service.model_dump_json()
         result: _AgentRunResult[AmbitionModel]
+        # Route through the global LLM queue when enabled to centralise concurrency.
+        queue = None
+        try:
+            queue = RuntimeEnv.instance().llm_queue
+        except Exception:  # pragma: no cover - environment dependent
+            queue = None
+        if queue is not None:
+            meta = LLMTaskMeta(
+                stage="ambitions",
+                model_name=getattr(self.model, "model_name", None),
+                service_id=service.service_id,
+            )
+
+            async def coro_factory() -> _AgentRunResult[AmbitionModel]:
+                return await queue.submit(lambda: agent.run(service_details), meta=meta)
+
+        else:
+
+            async def coro_factory() -> _AgentRunResult[AmbitionModel]:
+                return await agent.run(service_details)
+
         result, retries = await _with_retry(
-            lambda: agent.run(service_details),
+            coro_factory,
             request_timeout=self.request_timeout,
             attempts=self.retries,
             base=self.retry_base_delay,
@@ -584,7 +607,12 @@ class ServiceAmbitionGenerator:
             self._prompt = prompt
             self._failure_counts.clear()
             try:
-                self._limiter = Semaphore(self.concurrency)
+                # Disable local limiter when global LLM queue is enabled to avoid
+                # double gating.
+                if getattr(RuntimeEnv.instance().settings, "llm_queue_enabled", False):
+                    self._limiter = None
+                else:
+                    self._limiter = Semaphore(self.concurrency)
                 processed = await self._process_all(
                     services,
                     output_path,
@@ -620,7 +648,7 @@ def build_model(
     seed: int | None = None,
     reasoning: ReasoningConfig | None = None,
     web_search: bool = False,
-) -> Model:
+) -> _PAIModel:
     """Return a configured Pydantic AI model.
 
     Args:
@@ -636,9 +664,14 @@ def build_model(
     """
     # Allow callers to pass provider-prefixed names such as ``openai:gpt-4``.
     model_name = model_name.split(":", 1)[-1]
-    provider: Provider[AsyncOpenAI] | Literal["openai"] = (
-        OpenAIProvider(api_key=api_key) if api_key else "openai"
+    # Import OpenAI provider integrations lazily
+    from pydantic_ai.models.openai import (
+        OpenAIResponsesModel,
+        OpenAIResponsesModelSettings,
     )
+    from pydantic_ai.providers.openai import OpenAIProvider
+
+    provider = OpenAIProvider(api_key=api_key) if api_key else "openai"
     settings: OpenAIResponsesModelSettings = {
         "temperature": 0,
         "top_p": 1,
