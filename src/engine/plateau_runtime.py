@@ -150,11 +150,19 @@ class PlateauRuntime:
         raw = await session.ask_async(prompt)
         logfire.info("Validating features", pleateau=self.plateau, service=service_id)
         payload = PlateauFeaturesResponse.model_validate(raw)
+        # Respect cache mode semantics for writes:
+        # - off: never write
+        # - refresh: always write (overwrite)
+        # - read/write: write only when the file is absent
         if use_local_cache and cache_mode != "off":
-            cache_write_json_atomic(
-                cache_file or self._feature_cache_path(service_id),
-                payload.model_dump(),
+            target = cache_file or self._feature_cache_path(service_id)
+            exists_before = target.exists()
+            should_write = (
+                cache_mode == "refresh"
+                or (cache_mode in {"read", "write"} and not exists_before)
             )
+            if should_write:
+                cache_write_json_atomic(target, payload.model_dump())
         return payload
 
     async def generate_features(
@@ -233,7 +241,8 @@ class PlateauRuntime:
             Grouped mapping results keyed by mapping item identifier.
         """
         set_session = session.derive()
-        set_session.stage = f"mapping_{cfg.field}"
+        # Include plateau in stage name so any ancillary tooling can scope by level.
+        set_session.stage = f"mapping_{self.plateau}_{cfg.field}"
         params = MapSetParams(
             service_name=service_name,
             service_description=service_description,

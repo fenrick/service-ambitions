@@ -319,6 +319,11 @@ class ConversationSession:
         out_type: type[Any] | None,
     ) -> CacheResult:
         """Return cached payload and write flag if applicable."""
+        # Mapping stages implement their own canonical cache handling with
+        # validation and migration in core.mapping; avoid duplicate prompt-cache
+        # writes under non-plateau paths by disabling session-level caching.
+        if stage.startswith("mapping_"):
+            return ConversationSession.CacheResult(None, None, False)
         if not self.use_local_cache:
             return ConversationSession.CacheResult(None, None, False)
         if self.cache_mode == "off":
