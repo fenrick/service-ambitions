@@ -638,7 +638,7 @@ class PlateauDescriptionsResponse(StrictModel):
 
 
 class FeatureItem(BaseModel):
-    # model_config = ConfigDict(extra="forbid", strict=True)
+    model_config = ConfigDict(extra="forbid", strict=True)
     name: Annotated[
         str,
         Field(min_length=1, description="Feature name (trimmed, non-empty)."),
@@ -660,7 +660,7 @@ class PlateauFeaturesResponse(BaseModel):
     Features are grouped by role identifier to simplify downstream rendering.
     """
 
-    # model_config = ConfigDict(extra="forbid", strict=True)
+    model_config = ConfigDict(extra="forbid", strict=True)
     features: FeaturesBlock
 
 
