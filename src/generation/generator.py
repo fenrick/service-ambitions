@@ -106,7 +106,7 @@ def _import_exception(path: str) -> type[BaseException] | None:
         module_name, exc_name = path.rsplit(".", 1)
         module = import_module(module_name)
         exc = getattr(module, exc_name)
-    except Exception:  # pragma: no cover - defensive
+    except (ImportError, AttributeError, ValueError):  # pragma: no cover - defensive
         return None
     return exc if isinstance(exc, type) and issubclass(exc, BaseException) else None
 

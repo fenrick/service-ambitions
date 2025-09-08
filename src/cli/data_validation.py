@@ -9,12 +9,12 @@ from __future__ import annotations
 
 import json
 import logging
-
-logger = logging.getLogger(__name__)
 from pathlib import Path
 
 from io_utils import validate_jsonl
 from models import MappingItem, ServiceInput
+
+logger = logging.getLogger(__name__)
 
 
 def validate_data_dir(data_dir: Path) -> None:
