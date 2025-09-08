@@ -1,20 +1,20 @@
 repos:
   - repo: https://github.com/psf/black
-    rev: 24.3.0
+    rev: 24.8.0
     hooks:
       - id: black
         args: ["--preview", "--enable-unstable-feature", "string_processing"]
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.1
+    rev: v0.6.2
     hooks:
       - id: ruff
         args: ["--fix"]
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.10.0
+    rev: v1.11.2
     hooks:
       - id: mypy
   - repo: https://github.com/PyCQA/bandit
-    rev: 1.7.5
+    rev: 1.7.9
     hooks:
       - id: bandit
         args: ["-r", "src", "-ll"]
