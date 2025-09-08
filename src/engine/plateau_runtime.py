@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal, Mapping, Sequence
+from typing import Any, Literal, Mapping, Sequence
 
 import logfire
 from pydantic import ValidationError
 from pydantic_core import from_json
+from tqdm import tqdm  # type: ignore[import-untyped]
 
 from core.conversation import ConversationSession
 from core.dry_run import DryRunInvocation
@@ -261,6 +262,7 @@ class PlateauRuntime:
         strict: bool,
         use_local_cache: bool,
         cache_mode: Literal["off", "read", "refresh", "write"],
+        progress: tqdm[Any] | None = None,
     ) -> None:
         """Populate ``self.mappings`` for ``self.features``."""
         settings = RuntimeEnv.instance().settings
@@ -280,6 +282,9 @@ class PlateauRuntime:
                 cache_mode=cache_mode,
                 catalogue_hash=catalogue_hash,
             )
+            # Tick once per mapping LLM call.
+            if progress:
+                progress.update(1)
 
         self.mappings = groups
         self.success = True

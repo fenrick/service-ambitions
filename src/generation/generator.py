@@ -665,3 +665,18 @@ __all__ = [
     "build_model",
     "extend_transient_exceptions",
 ]
+
+
+def ambition_total_ticks(services_count: int) -> int:
+    """Return dynamic progress ticks for ambitions generation.
+
+    The ambitions pipeline makes exactly one LLM call per service, so the
+    progress advances once per processed service.
+
+    Args:
+        services_count: Number of services to process.
+
+    Returns:
+        The total number of ticks for the run.
+    """
+    return max(0, int(services_count))

@@ -22,6 +22,7 @@ from io_utils.loader import (
     configure_mapping_data_dir,
     configure_prompt_dir,
     load_evolution_prompt,
+    load_plateau_definitions,
     load_role_ids,
 )
 from io_utils.persistence import atomic_write, read_lines
@@ -219,7 +220,7 @@ class ProcessingEngine:
         """Create a progress bar if enabled.
 
         Args:
-            total: Total number of services.
+            total: Total number of progress ticks.
 
         Returns:
             :class:`tqdm` progress bar or ``None`` when disabled.
@@ -243,9 +244,23 @@ class ProcessingEngine:
     def _init_sessions(self) -> None:
         """Create concurrency, progress and error-handling helpers.
 
-        The total number of services is derived from ``self.services``.
+        The total number of progress ticks is derived from ``self.services``
+        multiplied by the number of LLM calls per service.
         """
-        total = len(self.services or [])
+        # Progress advances per LLM call. Compute dynamically based on the
+        # number of plateaus (P) and mapping sets (M):
+        #   1 (descriptions) + P (features) + P*M (mappings) + 1 (assembly)
+        # = P*(M + 1) + 2 per service.
+        services_count = len(self.services or [])
+        try:
+            plateaus_count = len(
+                load_plateau_definitions(self.settings.mapping_data_dir)
+            )
+        except Exception:
+            plateaus_count = 0
+        mapping_sets_count = len(getattr(self.settings, "mapping_sets", []) or [])
+        per_service_ticks = plateaus_count * (mapping_sets_count + 1) + 2
+        total = services_count * max(per_service_ticks, 1)
         self.sem = self._setup_concurrency()
         self.progress = self._create_progress(total)
         self.temp_output_dir = (
@@ -290,11 +305,12 @@ class ProcessingEngine:
                     temp_output_dir=self.temp_output_dir,
                     allow_prompt_logging=self.args.allow_prompt_logging,
                     error_handler=self.error_handler,
+                    progress=self.progress,
                 )
                 success = await execution.run()
                 self.runtimes.append(runtime)
-        if self.progress:
-            self.progress.update(1)
+        # Progress updates are handled per LLM call within ServiceExecution and
+        # underlying generators; no per-service tick here.
         return success
 
     async def _generate_evolution(self) -> bool:

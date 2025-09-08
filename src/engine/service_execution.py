@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence
 from uuid import uuid4
 
 import logfire
@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from pydantic_ai import Agent, NativeOutput
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_core import to_json
+from tqdm import tqdm  # type: ignore[import-untyped]
 
 from core.canonical import canonicalise_record
 from core.conversation import ConversationSession
@@ -59,6 +60,7 @@ class ServiceExecution:
         temp_output_dir: Path | None,
         allow_prompt_logging: bool,
         error_handler: ErrorHandler,
+        progress: tqdm[Any] | None = None,
     ) -> None:
         self.runtime = runtime
         self.factory = factory
@@ -68,6 +70,7 @@ class ServiceExecution:
         self.temp_output_dir = temp_output_dir
         self.allow_prompt_logging = allow_prompt_logging
         self.error_handler = error_handler
+        self.progress: tqdm[Any] | None = progress
         # Cache runtime settings for use across helper methods
         self.settings: Settings = RuntimeEnv.instance().settings
         # Initialised in ``_build_generator``
@@ -295,6 +298,9 @@ class ServiceExecution:
                 SERVICES_PROCESSED.add(1)
                 self._ensure_run_meta()
                 runtimes = await self._prepare_runtimes()
+                # Tick once for the descriptions request covering all plateaus.
+                if self.progress:
+                    self.progress.update(1)
                 env = RuntimeEnv.instance()
                 meta = env.run_meta
                 if meta is None:
@@ -304,12 +310,16 @@ class ServiceExecution:
                     runtimes,
                     transcripts_dir=self.transcripts_dir,
                     meta=meta,
+                    progress=self.progress,
                 )
                 record = canonicalise_record(evolution.model_dump(mode="json"))
                 self._write_temp_output(service, record)
                 self.runtime.plateaus = runtimes
                 self.runtime.line = to_json(record).decode()
                 self.runtime.success = True
+                # Tick once for final assembly and write-out.
+                if self.progress:
+                    self.progress.update(1)
                 return True
             except RuntimeError:
                 raise

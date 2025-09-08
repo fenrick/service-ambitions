@@ -14,10 +14,11 @@ import asyncio
 import re
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal, Sequence
+from typing import Any, Literal, Sequence
 
 import logfire
 from pydantic_core import to_json
+from tqdm import tqdm  # type: ignore[import-untyped]
 
 from core.conversation import ConversationSession
 from engine.plateau_runtime import PlateauRuntime
@@ -240,7 +241,9 @@ class PlateauGenerator:
                 if not cleaned:
                     raise ValueError(A_NON_EMPTY_STRING)
                 results[name] = cleaned
-            except Exception as exc:  # noqa: BLE001 - tolerate provider/client glitches; safe fallback path (see issue #501)
+            except (
+                Exception
+            ) as exc:  # noqa: BLE001 - tolerate provider/client glitches; safe fallback path (see issue #501)
                 self._quarantine_description(name, raw)
                 logfire.error(f"Invalid plateau description for {name}: {exc}")
                 results[name] = ""
@@ -314,6 +317,8 @@ class PlateauGenerator:
         self,
         runtimes: Sequence[PlateauRuntime],
         service_input: ServiceInput,
+        *,
+        progress: tqdm[Any] | None = None,
     ) -> list[PlateauRuntime]:
         """Populate ``runtimes`` with plateau results."""
         results: list[PlateauRuntime] = []
@@ -325,7 +330,9 @@ class PlateauGenerator:
                 cache_mode=self.cache_mode,
             )
             plateau_session.add_parent_materials(service_input)
-            await self.generate_plateau_async(runtime, session=plateau_session)
+            await self.generate_plateau_async(
+                runtime, session=plateau_session, progress=progress
+            )
             results.append(runtime)
         return results
 
@@ -444,6 +451,7 @@ class PlateauGenerator:
         runtime: PlateauRuntime,
         *,
         session: ConversationSession | None = None,
+        progress: tqdm[Any] | None = None,
     ) -> PlateauRuntime:
         """Populate ``runtime`` with plateau artefacts."""
         if self._service is None:
@@ -461,6 +469,9 @@ class PlateauGenerator:
             use_local_cache=self.use_local_cache,
             cache_mode=self.cache_mode,
         )
+        # Tick once per plateau feature generation.
+        if progress:
+            progress.update(1)
 
         map_session = ConversationSession(
             self.mapping_session.client,
@@ -477,6 +488,7 @@ class PlateauGenerator:
             strict=self.strict,
             use_local_cache=self.use_local_cache,
             cache_mode=self.cache_mode,
+            progress=progress,
         )
         return runtime
 
@@ -548,6 +560,7 @@ class PlateauGenerator:
         *,
         transcripts_dir: Path | None = None,
         meta: ServiceMeta,
+        progress: tqdm[Any] | None = None,
     ) -> ServiceEvolution:
         """Asynchronously return service evolution for provided ``runtimes``.
 
@@ -560,6 +573,9 @@ class PlateauGenerator:
                 disables transcript persistence.
             meta: Metadata object applied to the resulting evolution (e.g. model
                 configuration, mapping types, web search flag).
+            progress: Optional tqdm progress handle updated after each LLM call
+                (descriptions, features per plateau, mappings per set, and final
+                assembly).
         """
         self.quarantined_descriptions.clear()
         self._prepare_sessions(service_input)
@@ -570,7 +586,9 @@ class PlateauGenerator:
                 span.set_attribute("customer_type", service_input.customer_type)
             runtimes = await self._init_runtimes(runtimes)
             role_ids = self._resolve_role_ids(role_ids)
-            results = await self._schedule_plateaus(runtimes, service_input)
+            results = await self._schedule_plateaus(
+                runtimes, service_input, progress=progress
+            )
             plateau_results, plateau_names = self._collect_results(runtimes, results)
             evolution = await self._assemble_evolution(
                 service_input,

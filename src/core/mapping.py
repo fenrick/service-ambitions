@@ -431,7 +431,9 @@ async def _request_mapping_payload(
     try:
         payload = await session.ask_async(prompt)
         tokens = getattr(session, "last_tokens", 0)
-    except Exception as exc:  # noqa: BLE001 - narrow types are impractical here due to heterogeneous user data; logged and re-raised upstream (see issue #501)
+    except (
+        Exception
+    ) as exc:  # noqa: BLE001 - narrow types are impractical here due to heterogeneous user data; logged and re-raised upstream (see issue #501)
         svc = service or "unknown"
         _writer.write(set_name, svc, "json_parse_error", str(exc))
         _error_handler.handle("Invalid mapping response", exc)
