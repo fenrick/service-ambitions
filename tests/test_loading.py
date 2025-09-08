@@ -10,7 +10,6 @@ from io_utils.loader import (
     clear_prompt_cache,
     load_ambition_prompt,
     load_app_config,
-    load_mapping_type_config,
     load_plateau_definitions,
     load_prompt,
     load_prompt_text,
@@ -305,39 +304,25 @@ def test_invalid_fixture_quarantines(tmp_path):
     assert any(quarantine_dir.iterdir())
 
 
-def test_load_mapping_type_config(tmp_path):
-    base = tmp_path / "config"
-    base.mkdir()
-    (base / "app.yaml").write_text(
-        """
-mapping_types:
-  alpha:
-    dataset: ds
-    label: Alpha
-""",
-        encoding="utf-8",
-    )
-    load_app_config.cache_clear()
-    load_mapping_type_config.cache_clear()
-    config = load_mapping_type_config(str(base))
-    assert config["alpha"].dataset == "ds"
-
-
 def test_load_app_config(tmp_path):
     base = tmp_path / "config"
     base.mkdir()
     (base / "app.yaml").write_text(
         """
-mapping_types:
-  beta:
-    dataset: ds2
-    label: Beta
+models:
+  features: m1
+  mapping: m2
+prompt_dir: prompts
+context_id: university
+inspiration: general
 """,
         encoding="utf-8",
     )
     load_app_config.cache_clear()
     config = load_app_config(str(base))
-    assert "beta" in config.mapping_types
+    assert config.models is not None
+    assert config.models.features == "m1"
+    assert config.models.mapping == "m2"
 
 
 def test_load_app_config_models(tmp_path):

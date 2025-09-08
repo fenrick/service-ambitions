@@ -372,9 +372,9 @@ injected into mapping prompts so that features can be matched against consistent
 options. Mapping prompts run separately for information, applications and
 technologies to keep each decision focused. All application configuration is
 stored in `config/app.yaml`; the chat model and any reasoning parameters live
-at the top level, while mapping types and their associated datasets live under
-the `mapping_types` section, allowing new categories to be added without code
-changes. Plateau definitions and their level mappings come from
+at the top level, while mapping categories are defined solely by `mapping_sets`
+entries (file + field pairs). Add or remove categories by editing `mapping_sets`.
+Plateau definitions and their level mappings come from
 `data/service_feature_plateaus.json`. Roles are defined in `data/roles.json`
 by default and can be overridden with the `--roles-file` CLI flag.
 

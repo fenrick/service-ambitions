@@ -25,7 +25,6 @@ from models import (
     DefinitionItem,
     MappingItem,
     MappingSet,
-    MappingTypeConfig,
     Role,
     ServiceFeaturePlateau,
 )
@@ -281,18 +280,6 @@ def load_app_config(
     """
     path = Path(base_dir) / Path(filename)
     return _read_yaml_file(path, AppConfig)
-
-
-@lru_cache(maxsize=None)
-def load_mapping_type_config(
-    base_dir: Path | str = Path("config"),
-    filename: Path | str = Path("app.yaml"),
-) -> dict[str, MappingTypeConfig]:
-    """Return mapping type configuration from ``base_dir``.
-
-    Results are cached for the lifetime of the process.
-    """
-    return load_app_config(base_dir, filename).mapping_types
 
 
 @lru_cache(maxsize=None)

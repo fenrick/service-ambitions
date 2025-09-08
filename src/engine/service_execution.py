@@ -236,8 +236,10 @@ class ServiceExecution:
                 seed=self.factory.seed,
                 models=models_map,
                 web_search=getattr(self.factory, "_web_search", False),
-                mapping_types=sorted(
-                    getattr(self.settings, "mapping_types", {}).keys()
+                mapping_types=(
+                    sorted(getattr(self.settings, "mapping_types", {}).keys())
+                    if getattr(self.settings, "mapping_types", {})
+                    else sorted({s.field for s in self.settings.mapping_sets})
                 ),
                 context_window=context_window,
                 diagnostics=self.settings.diagnostics,

@@ -21,18 +21,6 @@ web_search: false
 # Adjust log level as needed: DEBUG, INFO, WARNING, ERROR.
 log_level: INFO
 
-# Mapping type definitions: dataset names and labels.
-mapping_types:
-  data:
-    dataset: information  # Data catalogue dataset name.
-    label: Data
-  applications:
-    dataset: applications  # Applications catalogue dataset name.
-    label: Applications
-  technologies:
-    dataset: technologies  # Technologies catalogue dataset name.
-    label: Technologies
-
 # Reference datasets used for mapping features to catalogues.
 mapping_sets:
   - name: Applications  # Human-friendly name.
@@ -55,8 +43,6 @@ inspiration: general
 # Concurrency controls for API requests.
 concurrency: 5              # Number of services processed in parallel.
 request_timeout: 60         # Per-request timeout in seconds.
-retries: 5                  # Number of retry attempts.
-retry_base_delay: 0.5       # Initial backoff delay in seconds.
 use_local_cache: true       # Enable reading/writing the cache directory.
 cache_mode: "read"          # Cache behaviour: off, read, refresh or write.
 cache_dir: ${XDG_CACHE_HOME}/service-ambitions # Directory to store cache files. Falls back to /tmp/service-ambitions when XDG_CACHE_HOME is unset.
