@@ -495,14 +495,6 @@ class AppConfig(StrictModel):
         int,
         Field(gt=0, description="Per-request timeout in seconds."),
     ] = 60
-    retries: Annotated[
-        int,
-        Field(ge=1, description="Number of retry attempts."),
-    ] = 5
-    retry_base_delay: Annotated[
-        float,
-        Field(gt=0, description="Initial backoff delay in seconds."),
-    ] = 0.5
     use_local_cache: bool = Field(
         True,
         description="Enable reading and writing the cache directory.",
@@ -534,10 +526,8 @@ class AppConfig(StrictModel):
             return Path(expanded)
         raise TypeError("Path fields must be a string or Path instance")
 
-    mapping_types: dict[str, MappingTypeConfig] = Field(
-        default_factory=dict,
-        description="Mapping type definitions keyed by field name.",
-    )
+    # mapping_types removed from configuration; mapping set fields now define
+    # the active categories directly.
 
 
 class PlateauFeature(StrictModel):

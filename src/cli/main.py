@@ -28,7 +28,6 @@ from io_utils.loader import (
     configure_prompt_dir,
     load_evolution_prompt,
     load_mapping_items,
-    load_mapping_type_config,
     load_plateau_definitions,
     load_prompt_text,
     load_role_ids,
@@ -155,28 +154,8 @@ def _pf_setup_resources(settings: Settings) -> None:
     _ = load_role_ids(settings.roles_file)
 
 
-def _pf_mapping_type_issues(settings: Settings, args: argparse.Namespace) -> list[str]:
-    """Return issues found comparing mapping sets and mapping types."""
-    cfg_base = Path(args.config).parent if args.config else Path("config")
-    cfg_file = Path(args.config).name if args.config else Path("app.yaml")
-    mapping_types = load_mapping_type_config(cfg_base, cfg_file)
-    defined_types = set(mapping_types.keys())
-    file_stems = {Path(s.file).stem for s in settings.mapping_sets}
-
-    problems: list[str] = []
-    for s in settings.mapping_sets:
-        if s.field not in defined_types:
-            problems.append(f"mapping_sets field '{s.field}' not in mapping_types")
-    for field, cfg in mapping_types.items():
-        ds = getattr(cfg, "dataset", "")
-        if ds and ds not in file_stems:
-            problems.append(
-                (
-                    f"mapping_types['{field}'].dataset='{ds}' has no matching file (by"
-                    " stem)"
-                )
-            )
-    return problems
+# mapping_types were removed from configuration. Mapping set integrity checks
+# now rely solely on the presence of configured files via _pf_missing_mapping_files.
 
 
 def _pf_missing_mapping_files(settings: Settings) -> tuple[list[str], list[str]]:
@@ -247,7 +226,6 @@ def _cmd_preflight(args: argparse.Namespace) -> int:
     try:
         settings = load_settings(args.config)
         _pf_setup_resources(settings)
-        issues.extend(_pf_mapping_type_issues(settings, args))
         missing_issues, file_notes = _pf_missing_mapping_files(settings)
         issues.extend(missing_issues)
         notes.extend(file_notes)
@@ -496,6 +474,15 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
         help=(
             "Global chat model name (default openai:gpt-5). "
             "Can also be set via the SA_MODEL env variable."
+        ),
+    )
+    parser.add_argument(
+        "--context-id",
+        type=str,
+        default=None,
+        help=(
+            "Situational context identifier to select context-specific prompts. "
+            "Overrides the value in config/app.yaml when provided."
         ),
     )
     parser.add_argument(
@@ -891,6 +878,7 @@ def _apply_args_to_settings(args: argparse.Namespace, settings: Settings) -> Non
     _update_stage_models(args, settings)
     arg_mapping: dict[str, tuple[str, Callable[[Any], Any] | None]] = {
         "model": ("model", None),
+        "context_id": ("context_id", None),
         "concurrency": ("concurrency", None),
         "strict_mapping": ("strict_mapping", None),
         # Alias: --fail-on-quarantine sets strict_mapping

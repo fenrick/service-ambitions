@@ -39,10 +39,6 @@ class Settings(BaseSettings):
     request_timeout: int = Field(
         60, gt=0, description="Per-request timeout in seconds."
     )
-    retries: int = Field(5, ge=1, description="Number of retry attempts.")
-    retry_base_delay: float = Field(
-        0.5, gt=0, description="Initial backoff delay in seconds."
-    )
     use_local_cache: bool = Field(
         True, description="Enable reading and writing the cache directory."
     )
@@ -168,8 +164,6 @@ def load_settings(config_path: Path | str | None = None) -> Settings:
             inspiration=config.inspiration,
             concurrency=config.concurrency,
             request_timeout=config.request_timeout,
-            retries=config.retries,
-            retry_base_delay=config.retry_base_delay,
             use_local_cache=(
                 env_use_local_cache.lower() in {"1", "true", "yes"}
                 if env_use_local_cache is not None
