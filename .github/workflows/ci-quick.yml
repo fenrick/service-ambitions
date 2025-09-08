@@ -23,6 +23,8 @@ jobs:
     permissions: read-all
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
       - name: Install Poetry
         run: |
           pipx install poetry
@@ -51,6 +53,13 @@ jobs:
         run: poetry run pytest --maxfail=1 -q -m "not slow" \
           --cov=src --cov-report=xml --cov-report=term \
           --cov-fail-under=85
+      - name: Diff coverage (PRs)
+        if: github.event_name == 'pull_request'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install diff-cover
+          # Compare against the PR base ref for accurate diff coverage
+          diff-cover coverage.xml --compare-branch origin/${{ github.base_ref }} --fail-under=85
       - name: Coverage summary
         run: poetry run coverage report >> "$GITHUB_STEP_SUMMARY"
       - name: Upload coverage
