@@ -182,7 +182,7 @@ def _reconstruct_feature_cache(
                 default_role_ids as _role_ids_fn,
             )
             roles = list(_role_ids_fn())
-        except Exception:  # pragma: no cover - defensive import
+        except ImportError:  # pragma: no cover - defensive import
             # Fallback when defaults are unavailable during import time
             roles = []
         roles_str = ", ".join(f'"{r}"' for r in roles)
