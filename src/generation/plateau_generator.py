@@ -320,20 +320,77 @@ class PlateauGenerator:
         *,
         progress: tqdm[Any] | None = None,
     ) -> list[PlateauRuntime]:
-        """Populate ``runtimes`` with plateau results."""
-        results: list[PlateauRuntime] = []
-        for runtime in runtimes:
+        """Populate ``runtimes`` with overlapped features/mappings pipeline.
+
+        Strategy:
+            - Start feature generation tasks for all plateaus immediately.
+            - As each plateau's features complete (in order), schedule its mapping
+              task without waiting for mapping completion to start the next
+              plateau's features. The global LLM queue bounds actual API
+              concurrency.
+        """
+
+        async def run_features(rt: PlateauRuntime) -> None:
             plateau_session = ConversationSession(
                 self.session.client,
-                stage=f"features_{runtime.plateau}",
+                stage=f"features_{rt.plateau}",
                 use_local_cache=self.use_local_cache,
                 cache_mode=self.cache_mode,
             )
             plateau_session.add_parent_materials(service_input)
-            await self.generate_plateau_async(
-                runtime, session=plateau_session, progress=progress
+            await rt.generate_features(
+                plateau_session,
+                service_id=service_input.service_id,
+                service_name=service_input.name,
+                roles=self.roles,
+                code_registry=self.code_registry,
+                use_local_cache=self.use_local_cache,
+                cache_mode=self.cache_mode,
             )
-            results.append(runtime)
+            # Tick once per plateau feature generation
+            if progress:
+                progress.update(1)
+
+        async def run_mapping(rt: PlateauRuntime) -> None:
+            map_session = ConversationSession(
+                self.mapping_session.client,
+                stage=self.mapping_session.stage,
+                use_local_cache=self.use_local_cache,
+                cache_mode=self.cache_mode,
+            )
+            map_session.add_parent_materials(service_input)
+            await rt.generate_mappings(
+                map_session,
+                service_name=service_input.name,
+                service_id=service_input.service_id,
+                service_description=rt.description,
+                strict=self.strict,
+                use_local_cache=self.use_local_cache,
+                cache_mode=self.cache_mode,
+                progress=progress,
+            )
+
+        # When the LLM queue is enabled, run the pipelined schedule to overlap
+        # stages while the global queue bounds concurrency. Otherwise, retain the
+        # original sequential behaviour for stability.
+        from runtime.environment import RuntimeEnv
+
+        if getattr(RuntimeEnv.instance().settings, "llm_queue_enabled", False):
+            async with asyncio.TaskGroup() as tg:
+                feature_tasks: list[asyncio.Task[None]] = [
+                    tg.create_task(run_features(rt)) for rt in runtimes
+                ]
+                for idx, ft in enumerate(feature_tasks):
+                    await ft
+                    tg.create_task(run_mapping(runtimes[idx]))
+            return list(runtimes)
+
+        # Fallback: sequential per-plateau processing (features then mappings).
+        results: list[PlateauRuntime] = []
+        for rt in runtimes:
+            await run_features(rt)
+            await run_mapping(rt)
+            results.append(rt)
         return results
 
     def _validate_plateau_results(

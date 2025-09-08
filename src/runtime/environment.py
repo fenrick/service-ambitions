@@ -14,6 +14,7 @@ from utils import (
     MappingLoader,
     PromptLoader,
 )
+from llm.queue import LLMQueue
 
 if TYPE_CHECKING:  # pragma: no cover - for type checkers only
     from models import ServiceMeta
@@ -35,6 +36,10 @@ class RuntimeEnv:
         self._mapping_loader: MappingLoader = FileMappingLoader(
             settings.mapping_data_dir
         )
+        # Optional global LLM queue (feature-flagged)
+        self._llm_queue: LLMQueue | None = None
+        if getattr(settings, "llm_queue_enabled", False):
+            self._llm_queue = LLMQueue(getattr(settings, "llm_queue_concurrency", 3))
         # Debug logging helps diagnose configuration loading problems.
         logfire.debug("RuntimeEnv created", settings=str(settings))
 
@@ -71,6 +76,11 @@ class RuntimeEnv:
         """Persist ``loader`` for later retrieval."""
         with self._state_lock:
             self._mapping_loader = loader
+
+    @property
+    def llm_queue(self) -> LLMQueue | None:
+        """Return the global LLM queue if enabled."""
+        return self._llm_queue
 
     @classmethod
     def initialize(cls, settings: "Settings") -> "RuntimeEnv":

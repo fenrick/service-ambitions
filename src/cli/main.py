@@ -25,8 +25,13 @@ from engine.processing_engine import ProcessingEngine
 from generation.plateau_generator import _feature_cache_path, default_plateau_names
 from io_utils.loader import (
     configure_mapping_data_dir,
+    configure_prompt_dir,
+    load_evolution_prompt,
     load_mapping_items,
+    load_mapping_type_config,
+    load_plateau_definitions,
     load_prompt_text,
+    load_role_ids,
 )
 from models import (
     Contribution,
@@ -135,6 +140,80 @@ async def _cmd_map(args: argparse.Namespace, transcripts_dir: Path | None) -> No
         catalogue_hash,
     )
     write_output(evolutions, Path(args.output_file))
+
+
+def _cmd_preflight(args: argparse.Namespace) -> int:
+    """Run environment and data checks and report status.
+
+    Returns:
+        Process exit code (0 = success, 1 = issues found).
+    """
+    issues: list[str] = []
+    notes: list[str] = []
+
+    # Try to load full settings (validates cache dir and API key)
+    try:
+        settings = load_settings(args.config)
+        configure_prompt_dir(settings.prompt_dir)
+        configure_mapping_data_dir(settings.mapping_data_dir)
+        # Load prompt pieces and data files
+        _ = load_evolution_prompt(settings.context_id, settings.inspiration)
+        _ = load_plateau_definitions(settings.mapping_data_dir)
+        _ = load_role_ids(settings.roles_file)
+        # Validate mapping set fields are defined in configuration mapping_types
+        cfg_base = Path(args.config).parent if args.config else Path("config")
+        cfg_file = Path(args.config).name if args.config else Path("app.yaml")
+        mapping_types = load_mapping_type_config(cfg_base, cfg_file)
+        defined_types = set(mapping_types.keys())
+        file_stems = {Path(s.file).stem for s in settings.mapping_sets}
+        for s in settings.mapping_sets:
+            if s.field not in defined_types:
+                issues.append(f"mapping_sets field '{s.field}' not in mapping_types")
+        for field, cfg in mapping_types.items():
+            ds = getattr(cfg, "dataset", "")
+            if ds and ds not in file_stems:
+                issues.append(
+                    f"mapping_types['{field}'].dataset='{ds}' has no matching file (by stem)"
+                )
+        # Check each mapping set file exists to surface multiple issues together
+        missing_files = []
+        for s in settings.mapping_sets:
+            p = settings.mapping_data_dir / s.file
+            if not p.is_file():
+                missing_files.append(str(p))
+        if missing_files:
+            for p in missing_files:
+                issues.append(f"missing mapping file: {p}")
+        else:
+            _, catalogue_hash = load_mapping_items(settings.mapping_sets)
+            notes.append(f"catalogue_hash={catalogue_hash}")
+        if not settings.openai_api_key:
+            issues.append("SA_OPENAI_API_KEY is empty")
+        notes.append(f"cache_dir={settings.cache_dir}")
+    except Exception as exc:
+        # Allow partial checks to aid developers without full credentials
+        msg = f"settings: {exc}"
+        logger.warning(msg)
+        issues.append(msg)
+        try:
+            # Best-effort checks using defaults
+            configure_prompt_dir(Path("prompts"))
+            configure_mapping_data_dir(Path("data"))
+            _ = load_plateau_definitions(Path("data"))
+            _ = load_role_ids(Path("data/roles.json"))
+            notes.append("partial_checks=ok")
+        except Exception as sub_exc:  # pragma: no cover - defensive
+            issues.append(f"partial_checks: {sub_exc}")
+
+    header = "Preflight checks: OK" if not issues else "Preflight checks: ISSUES"
+    print(header)
+    logger.info(header)
+    for note in notes:
+        logger.info("%s", note)
+    for issue in issues:
+        logger.error("%s", issue)
+        print(f"- {issue}")
+    return 0 if not issues else 1
 
 
 def _should_write_cache(mode: str, exists_before: bool) -> bool:
@@ -432,6 +511,12 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
         help="Fail when feature mappings are missing",
     )
     parser.add_argument(
+        "--fail-on-quarantine",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Alias of --strict-mapping (non-zero exit on quarantines)",
+    )
+    parser.add_argument(
         "--mapping-data-dir",
         type=str,
         default=None,
@@ -563,6 +648,26 @@ def _add_map_subparser(
         help=OUTPUT_FILE_HELP,
     )
     parser.set_defaults(func=_cmd_map)
+    return parser
+
+
+def _add_preflight_subparser(
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
+    common: argparse.ArgumentParser,
+) -> argparse.ArgumentParser:
+    """Create the ``preflight`` subcommand parser."""
+    parser = subparsers.add_parser(
+        "preflight",
+        parents=[common],
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        help="Run environment and data validations",
+        description=(
+            "Verify configuration, prompts, roles, plateau definitions, and mapping"
+            " datasets; reports catalogue hash when available."
+        ),
+    )
+    # Wrap to match dispatcher signature (args, transcripts_dir)
+    parser.set_defaults(func=lambda _args, _tx: _cmd_preflight(_args))
     return parser
 
 
@@ -707,6 +812,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_reverse_subparser(subparsers, common)
     _add_run_subparser(subparsers, common)
     _add_validate_subparser(subparsers, common)
+    _add_preflight_subparser(subparsers, common)
     return parser
 
 
@@ -738,6 +844,8 @@ def _apply_args_to_settings(args: argparse.Namespace, settings: Settings) -> Non
         "model": ("model", None),
         "concurrency": ("concurrency", None),
         "strict_mapping": ("strict_mapping", None),
+        # Alias: --fail-on-quarantine sets strict_mapping
+        "fail_on_quarantine": ("strict_mapping", None),
         "mapping_data_dir": ("mapping_data_dir", Path),
         "roles_file": ("roles_file", Path),
         "web_search": ("web_search", None),
@@ -785,6 +893,9 @@ def main() -> None:
     if args.command is None:
         parser.print_help()
         raise SystemExit(1)
+    if args.command == "preflight":
+        code = _cmd_preflight(args)
+        raise SystemExit(code)
     if args.command == "validate" and getattr(args, "data", None):
         validate_data_dir(Path(args.data))
         return

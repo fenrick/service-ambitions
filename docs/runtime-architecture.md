@@ -127,3 +127,17 @@ sequenceDiagram
     end
     PE->>PE: flush outputs
 ```
+
+## LLM Queue (experimental)
+
+- Feature flag: enable with `llm_queue_enabled: true` and configure
+  `llm_queue_concurrency` (default 3) in `config/app.yaml` or via
+  environment variables `SA_LLM_QUEUE_ENABLED`, `SA_LLM_QUEUE_CONCURRENCY`.
+- When enabled, all ConversationSession async calls route through a global
+  bounded-concurrency queue to centralise rate limiting across services and
+  stages. When disabled, behaviour is unchanged.
+
+Roadmap / TODOs (tracked as issues):
+- Add retry/backoff + circuit breaker to the queue (reuse existing retry util).
+- Pipeline plateau work to overlap features of N+1 with mapping of N.
+- Unify generator concurrency with the global queue.

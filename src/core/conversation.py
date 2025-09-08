@@ -29,6 +29,7 @@ from pydantic_core import from_json, to_json
 from constants import DEFAULT_CACHE_DIR
 from models import ServiceInput
 from runtime.environment import RuntimeEnv
+from llm.queue import LLMTaskMeta
 
 from .dry_run import DryRunInvocation
 from .mapping import cache_write_json_atomic
@@ -352,7 +353,21 @@ class ConversationSession:
     ) -> tuple[Any, int]:
         """Execute ``runner`` and return output and token count."""
         self._log_prompt(prompt)
-        result = await runner(prompt, self._history)
+        # If the global LLM queue is enabled, route the call through it; otherwise
+        # invoke the runner directly. This preserves behaviour when the feature
+        # flag is off.
+        queue = None
+        try:
+            queue = RuntimeEnv.instance().llm_queue
+        except Exception:  # pragma: no cover - defensive when env not initialised
+            queue = None
+        if queue is not None:
+            meta = LLMTaskMeta(stage=stage, model_name=model_name, service_id=self._service_id)
+            result = await queue.submit(
+                lambda: runner(prompt, self._history), meta=meta
+            )
+        else:
+            result = await runner(prompt, self._history)
         return self._handle_success(result, stage, model_name, request_id)
 
     def _write_cache_result(self, cache_file: Path, output: Any) -> None:
