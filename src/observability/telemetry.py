@@ -96,19 +96,35 @@ def reset() -> None:
 
 
 def print_summary() -> None:
-    """Write a summary of collected metrics to ``stdout``."""
+    """Write a summary of collected metrics to stdout and logfire."""
     if not _metrics:
         return
     try:
         for set_name, data in _metrics.items():
             avg_latency = data.average_latency
-            print(
+            line = (
                 f"{set_name}: features={data.features} mapped_ids={data.mapped_ids} "
                 f"unknown_ids={data.unknown_ids} retries={data.retries} "
                 f"avg_latency={avg_latency:.2f}s tokens={data.tokens}"
             )
+            # Preserve stdout for existing consumers/tests
+            print(line)
+            # Also emit structured log for operators
+            import logfire as _lf  # local import to avoid cycles
+            _lf.info(
+                "mapping.set_summary",
+                set_name=set_name,
+                features=data.features,
+                mapped_ids=data.mapped_ids,
+                unknown_ids=data.unknown_ids,
+                retries=data.retries,
+                avg_latency=avg_latency,
+                tokens=data.tokens,
+            )
         total_tokens = sum(d.tokens for d in _metrics.values())
         print(f"Totals: tokens={total_tokens}")
+        import logfire as _lf  # local import to avoid cycles
+        _lf.info("mapping.totals", tokens=total_tokens)
     except Exception as exc:  # pragma: no cover - defensive
         _error_handler.handle("Failed to print telemetry summary", exc)
 
