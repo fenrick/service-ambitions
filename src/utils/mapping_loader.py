@@ -127,7 +127,12 @@ class FileMappingLoader(MappingLoader):
             for path in sorted(self._data_dir.glob("*.json")):
                 try:
                     items, meta = _read_mapping_file(path)
-                except Exception:  # nosec B112 - skip unreadable/invalid files; reader logs
+                except Exception as exc:  # nosec B112 - skip but record issue
+                    logfire.warning(
+                        "Failed to read mapping dataset",
+                        path=str(path),
+                        error=str(exc),
+                    )
                     continue
                 field = (meta or {}).get("field") if meta else None
                 if not field:
