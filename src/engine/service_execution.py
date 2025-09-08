@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Sequence
@@ -10,8 +11,6 @@ from uuid import uuid4
 
 import logfire
 from pydantic import ValidationError
-from pydantic_ai import Agent, NativeOutput
-from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_core import to_json
 from tqdm import tqdm  # type: ignore[import-untyped]
 
@@ -44,6 +43,13 @@ SERVICES_PROCESSED = logfire.metric_counter("services_processed")
 EVOLUTIONS_GENERATED = logfire.metric_counter("evolutions_generated")
 LINES_WRITTEN = logfire.metric_counter("lines_written")
 _writer = QuarantineWriter()
+
+# Resolve optional exception type at runtime without hard import-time dependency
+try:  # pragma: no cover - environment dependent
+    mod: Any = importlib.import_module("pydantic_ai.exceptions")
+    UnexpectedModelBehavior = mod.UnexpectedModelBehavior
+except Exception:  # pragma: no cover - fallback when package unavailable
+    UnexpectedModelBehavior = Exception
 
 
 class ServiceExecution:
@@ -107,6 +113,16 @@ class ServiceExecution:
             self.feat_name = self.factory.model_name("features")
             self.map_name = self.factory.model_name("mapping")
             self.feat_model = feat_model
+
+            # Import Agent/NativeOutput at runtime to avoid import-time failures
+            try:  # pragma: no cover - import is environment dependent
+                from pydantic_ai import Agent, NativeOutput
+            except Exception as exc:  # Provide clear guidance on missing dep
+                msg = (
+                    "pydantic_ai Agent/NativeOutput not available; ensure a compatible "
+                    "version is installed"
+                )
+                raise RuntimeError(msg) from exc
 
             desc_agent: Agent[None, PlateauDescriptionsResponse] = Agent(
                 desc_model,
