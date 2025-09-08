@@ -42,7 +42,7 @@ from .mapping_prompt import render_set_prompt
 
 if TYPE_CHECKING:
     from .conversation import ConversationSession
-
+from .dry_run import DryRunInvocation
 
 _writer = QuarantineWriter()
 
@@ -52,14 +52,12 @@ _error_handler: ErrorHandler = LoggingErrorHandler()
 
 def configure_cache_manager(manager: CacheManager) -> None:
     """Override the cache manager used for mapping results."""
-
     global _cache_manager
     _cache_manager = manager
 
 
 def configure_error_handler(handler: ErrorHandler) -> None:
     """Override the error handler used for mapping operations."""
-
     global _error_handler
     _error_handler = handler
 
@@ -70,27 +68,24 @@ UNKNOWN_ID_LOG_LIMIT = 5
 
 def _sanitize(value: str) -> str:
     """Return ``value`` with newlines and tabs replaced by spaces."""
-
     return value.replace("\n", " ").replace("\t", " ")
 
 
 def _json_bytes(value: Any, *, sort_keys: bool = False, **kwargs: Any) -> bytes:
     """Return ``value`` serialised to JSON bytes."""
-
     if sort_keys and isinstance(value, dict):
         value = dict(sorted(value.items()))
     try:
-        return cast(Any, to_json)(value, **kwargs)
+        return cast(bytes, cast(Any, to_json)(value, **kwargs))
     except TypeError:  # pragma: no cover - legacy pydantic-core
         if "sort_keys" in kwargs:
             kwargs = dict(kwargs)
             kwargs.pop("sort_keys")
-        return cast(Any, to_json)(value, **kwargs)
+        return cast(bytes, cast(Any, to_json)(value, **kwargs))
 
 
 def _features_hash(features: Sequence[PlateauFeature]) -> str:
     """Return a SHA256 hash summarising ``features``."""
-
     digests = []
     for feat in features:
         canonical = _json_bytes(
@@ -118,7 +113,6 @@ def build_cache_key(
     The key incorporates the model, catalogue hash, prompt template version,
     diagnostics flag and a hash of the feature definitions.
     """
-
     template_name = "mapping_prompt_diagnostics" if diagnostics else "mapping_prompt"
     try:
         template_text = load_prompt_text(template_name)
@@ -141,7 +135,6 @@ def cache_path(service: str, plateau: int, set_name: str, key: str) -> Path:
 
     Cache files are grouped by context, service identifier and plateau level.
     """
-
     try:
         settings = RuntimeEnv.instance().settings
         cache_root = settings.cache_dir
@@ -173,7 +166,6 @@ def _discover_cache_file(
     within an ``unknown`` folder). The first match is returned alongside the
     canonical path.
     """
-
     canonical = cache_path(service, plateau, set_name, key)
     if canonical.exists():
         return canonical, canonical
@@ -187,7 +179,6 @@ def _discover_cache_file(
 
 def cache_write_json_atomic(path: Path, content: Any) -> None:
     """Atomically write ``content`` as pretty JSON to ``path``."""
-
     _cache_manager.write_json_atomic(path, content)
 
 
@@ -196,7 +187,6 @@ def _catalogues_for_merge(
     catalogue_items: Mapping[str, list[MappingItem]] | None,
 ) -> Mapping[str, list[MappingItem]]:
     """Return catalogue mapping for ``mapping_types``."""
-
     env = RuntimeEnv.instance()
     return (
         catalogue_items
@@ -211,7 +201,6 @@ def _build_valid_ids(
     catalogues: Mapping[str, list[MappingItem]],
 ) -> dict[str, set[str]]:
     """Return valid identifier lookup for each mapping type."""
-
     return {
         key: {item.id for item in catalogues[cfg.dataset]}
         for key, cfg in mapping_types.items()
@@ -228,7 +217,6 @@ def _merge_feature(
     missing_features: dict[str, list[str]],
 ) -> PlateauFeature:
     """Merge mappings for a single ``feature``."""
-
     mapped = mapped_lookup.get(feature.feature_id)
     update_data: dict[str, list[Contribution]]
     if mapped is None:
@@ -262,7 +250,6 @@ def _merge_all_features(
     dict[str, list[str]],
 ]:
     """Return merged features and tracking dictionaries."""
-
     results: list[PlateauFeature] = []
     dropped: dict[str, list[str]] = {}
     missing: dict[str, int] = {}
@@ -281,7 +268,6 @@ def _log_unknown_ids(
     strict: bool,
 ) -> int:
     """Log and optionally raise for unknown identifiers."""
-
     if not dropped:
         return 0
     unknown_total = 0
@@ -304,7 +290,6 @@ def _log_missing_features(
     strict: bool,
 ) -> None:
     """Log and optionally raise for features missing mappings."""
-
     if not missing_features:
         return
     for key, ids in missing_features.items():
@@ -320,7 +305,6 @@ def _log_missing_features(
 
 def _log_missing_counts(missing: Mapping[str, int], strict: bool) -> None:
     """Log and optionally raise for features lacking valid mappings."""
-
     if not missing:
         return
     for key, count in missing.items():
@@ -333,7 +317,6 @@ def _read_mapping_cache(
     candidate: Path, cache_file: Path, model_type: type[StrictModel]
 ) -> StrictModel:
     """Return cached mapping payload from ``candidate``."""
-
     try:
         with candidate.open("rb") as fh:
             data = from_json(fh.read())
@@ -366,7 +349,6 @@ def _load_cache(
     model_type: type[StrictModel],
 ) -> CacheInfo:
     """Return cache information for the mapping request."""
-
     if cache_mode == "off":
         return CacheInfo(None, None, False, False)
     svc = service or "unknown"
@@ -385,7 +367,6 @@ def _load_cache(
 
 def _cache_state(cache_mode: str, cache_hit: bool) -> str:
     """Return human readable cache status."""
-
     if cache_mode == "refresh":
         return "refresh"
     return "hit" if cache_hit else "miss"
@@ -402,7 +383,6 @@ def _prepare_prompt(
     session: "ConversationSession",
 ) -> tuple[str, bool, bool]:
     """Return rendered prompt and prompt logging state."""
-
     prompt = render_set_prompt(
         set_name,
         list(items),
@@ -448,11 +428,10 @@ async def _request_mapping_payload(
     retries: int,
 ) -> tuple[StrictModel | None, int, list[PlateauFeature] | None]:
     """Return mapping payload or fallback features on error."""
-
     try:
         payload = await session.ask_async(prompt)
         tokens = getattr(session, "last_tokens", 0)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 - narrow types are impractical here due to heterogeneous user data; logged and re-raised upstream (see issue #501)
         svc = service or "unknown"
         _writer.write(set_name, svc, "json_parse_error", str(exc))
         _error_handler.handle("Invalid mapping response", exc)
@@ -484,7 +463,6 @@ async def _fetch_and_cache(
     params: FetchParams,
 ) -> tuple[StrictModel | None, int, list[PlateauFeature] | None]:
     """Fetch payload from model and optionally write to cache."""
-
     prompt, should_log_prompt, original_flag = _prepare_prompt(
         params.set_name,
         params.items,
@@ -514,7 +492,6 @@ async def _fetch_and_cache(
 
 def _normalise_payload(payload: StrictModel, use_diag: bool) -> MappingResponse:
     """Return mapping response normalised for diagnostics."""
-
     if use_diag:
         diag_payload = cast(MappingDiagnosticsResponse, payload)
         plain = [
@@ -541,7 +518,6 @@ def _record_metrics(
     tokens: int,
 ) -> None:
     """Record telemetry for a mapping operation."""
-
     latency = time.monotonic() - start
     mapped_ids = sum(len(f.mappings.get(set_name, [])) for f in merged)
     record_mapping_set(
@@ -612,7 +588,6 @@ def _build_context(
     params: MapSetParams,
 ) -> ModelContext:
     """Derive model and cache details for mapping."""
-
     cfg = MappingTypeConfig(dataset=set_name, label=set_name)
     use_diag = (
         params.diagnostics
@@ -624,14 +599,17 @@ def _build_context(
     key = build_cache_key(
         model_name, set_name, params.catalogue_hash, features, use_diag
     )
-    model_type = cast(
-        type[StrictModel],
-        getattr(
-            model_obj,
-            "output_type",
+    # Resolve the expected Pydantic model type for cache validation.
+    # Some agents expose a `NativeOutput` wrapper rather than a model class.
+    # In that case, fall back to the known response models based on diagnostics.
+    _out = getattr(model_obj, "output_type", None)
+    if hasattr(_out, "model_validate"):
+        model_type = cast(type[StrictModel], _out)
+    else:
+        model_type = cast(
+            type[StrictModel],
             MappingDiagnosticsResponse if use_diag else MappingResponse,
-        ),
-    )
+        )
     return ModelContext(cfg, use_diag, model_name, model_type, key)
 
 
@@ -645,7 +623,6 @@ def _merge_mapping_results(
     strict: bool = False,
 ) -> tuple[list[PlateauFeature], int]:
     """Return ``features`` merged with mapping ``payload`` and unknown count."""
-
     catalogues = _catalogues_for_merge(mapping_types, catalogue_items)
     valid_ids = _build_valid_ids(mapping_types, catalogues)
     mapped_lookup = {item.feature_id: item.mappings for item in payload.features}
@@ -691,30 +668,53 @@ async def map_set(
     - ``"write"``: avoid reading and only write responses when the file is
       absent.
     """
+    with logfire.span(
+        "mapping.map_set", attributes={"set_name": set_name, "features": len(features)}
+    ) as span:
+        context = _build_context(session, set_name, features, params)
+        cache = _load_cache(
+            params.cache_mode,
+            params.service,
+            params.plateau,
+            set_name,
+            context.key,
+            context.model_type,
+        )
+        cache_state = _cache_state(params.cache_mode, cache.cache_hit)
+        span.set_attribute("cache", cache_state)
+        span.set_attribute("cache_key", context.key)
+        logfire.info(
+            "mapping_set",
+            set_name=set_name,
+            cache=cache_state,
+            cache_key=context.key,
+            features=len(features),
+        )
 
-    context = _build_context(session, set_name, features, params)
-    cache = _load_cache(
-        params.cache_mode,
-        params.service,
-        params.plateau,
-        set_name,
-        context.key,
-        context.model_type,
-    )
-    cache_state = _cache_state(params.cache_mode, cache.cache_hit)
-    logfire.info(
-        "mapping_set",
-        set_name=set_name,
-        cache=cache_state,
-        cache_key=context.key,
-        features=len(features),
-    )
-
-    start = time.monotonic()
-    retries = 0
-    tokens = 0
-    payload = cache.payload
+        start = time.monotonic()
+        retries = 0
+        tokens = 0
+        payload = cache.payload
     if payload is None:
+        # Dry-run: halt before any agent invocation when cache is missing.
+        try:
+            _settings = RuntimeEnv.instance().settings
+        except Exception:  # pragma: no cover - defensive
+            _settings = None
+        if getattr(_settings, "dry_run", False):
+            svc = params.service or "unknown"
+            stage_name = f"mapping_{set_name}"
+            model_name = getattr(
+                getattr(getattr(session, "client", None), "model", None),
+                "model_name",
+                "",
+            )
+            raise DryRunInvocation(
+                stage=stage_name,
+                model=model_name,
+                cache_file=cache.cache_file,
+                service_id=svc,
+            )
         fetch_params = FetchParams(
             session=session,
             set_name=set_name,
@@ -764,7 +764,6 @@ def group_features_by_mapping(
         List of :class:`MappingFeatureGroup` entries sorted by mapping ID.
         Features without mappings for ``mapping_type`` are ignored.
     """
-
     groups: dict[str, list[FeatureMappingRef]] = {}
     for feat in features:
         items = feat.mappings.get(mapping_type, [])

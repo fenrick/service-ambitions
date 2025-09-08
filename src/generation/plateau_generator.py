@@ -51,7 +51,6 @@ A_NON_EMPTY_STRING = "'description' must be a non-empty string"
 @lru_cache(maxsize=1)
 def plateau_definitions() -> list[ServiceFeaturePlateau]:
     """Return service feature plateau definitions from configuration."""
-
     settings = RuntimeEnv.instance().settings
     return load_plateau_definitions(settings.mapping_data_dir)
 
@@ -59,34 +58,29 @@ def plateau_definitions() -> list[ServiceFeaturePlateau]:
 @lru_cache(maxsize=1)
 def default_plateau_map() -> dict[str, int]:
     """Return mapping of plateau name to numeric level."""
-
     return {p.name: idx + 1 for idx, p in enumerate(plateau_definitions())}
 
 
 @lru_cache(maxsize=1)
 def default_plateau_names() -> list[str]:
     """Return plateau names in ascending maturity order."""
-
     return [p.name for p in plateau_definitions()]
 
 
 @lru_cache(maxsize=1)
 def default_role_ids() -> list[str]:
     """Return core role identifiers."""
-
     settings = RuntimeEnv.instance().settings
     return load_role_ids(settings.roles_file)
 
 
 def _feature_cache_path(service: str, plateau: int) -> Path:
     """Return canonical cache path for features at ``plateau``."""
-
     return feature_cache(service, plateau)
 
 
 def _discover_feature_cache(service: str, plateau: int) -> tuple[Path, Path]:
     """Return existing feature cache and canonical destination."""
-
     canonical = _feature_cache_path(service, plateau)
     if canonical.exists():
         return canonical, canonical
@@ -147,7 +141,6 @@ class PlateauGenerator:
 
     def _quarantine_description(self, plateau_name: str, raw: str) -> Path:
         """Persist ``raw`` text for ``plateau_name`` and record its path."""
-
         # Create the quarantine directory if it does not yet exist.
         qdir = Path("quarantine/descriptions")
         qdir.mkdir(parents=True, exist_ok=True)
@@ -187,7 +180,6 @@ class PlateauGenerator:
 
     def _build_descriptions_prompt(self, plateau_names: Sequence[str]) -> str:
         """Return a prompt requesting descriptions for ``plateau_names``."""
-
         lines: list[str] = []
         for name in plateau_names:
             try:
@@ -199,14 +191,43 @@ class PlateauGenerator:
         template = load_prompt_text("plateau_descriptions_prompt")
         return template.format(plateaus=plateaus_str)
 
-    def _request_descriptions_common(
-        self, plateau_names: Sequence[str], payload: PlateauDescriptionsResponse
-    ) -> dict[str, str]:
-        """Parse ``payload`` description data for ``plateau_names``."""
+    def _normalize_descriptions_payload(
+        self, payload: PlateauDescriptionsResponse | dict[str, object]
+    ) -> tuple[PlateauDescriptionsResponse | None, str]:
+        """Return validated model and raw JSON string for ``payload``.
 
-        raw = payload.model_dump_json()
+        If validation fails, returns ``(None, raw)`` where ``raw`` captures the
+        serialised payload for quarantine purposes.
+        """
+        if isinstance(payload, PlateauDescriptionsResponse):
+            return payload, payload.model_dump_json()
+        if isinstance(payload, dict):
+            try:
+                model = PlateauDescriptionsResponse.model_validate(payload)
+                return model, model.model_dump_json()
+            except Exception:  # noqa: BLE001 - defensive normalisation
+                return None, to_json(payload).decode()
+        return None, str(payload)
+
+    def _request_descriptions_common(
+        self,
+        plateau_names: Sequence[str],
+        payload: PlateauDescriptionsResponse | dict[str, object],
+    ) -> dict[str, str]:
+        """Parse ``payload`` description data for ``plateau_names``.
+
+        Accepts either a validated :class:`PlateauDescriptionsResponse` or a
+        ``dict`` (e.g. when loaded from cache without automatic validation).
+        """
         results: dict[str, str] = {}
-        item_map = {item.plateau_name: item for item in payload.descriptions}
+        model, raw = self._normalize_descriptions_payload(payload)
+        if model is None:
+            # Unable to normalise the payload; quarantine entries and return empty.
+            for name in plateau_names:
+                self._quarantine_description(name, raw)
+                results[name] = ""
+            return results
+        item_map = {item.plateau_name: item for item in model.descriptions}
         for name in plateau_names:
             item = item_map.get(name)
             if item is None:
@@ -219,7 +240,7 @@ class PlateauGenerator:
                 if not cleaned:
                     raise ValueError(A_NON_EMPTY_STRING)
                 results[name] = cleaned
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001 - tolerate provider/client glitches; safe fallback path (see issue #501)
                 self._quarantine_description(name, raw)
                 logfire.error(f"Invalid plateau description for {name}: {exc}")
                 results[name] = ""
@@ -232,6 +253,7 @@ class PlateauGenerator:
     ) -> dict[str, str]:
         session = session or self.description_session
         prompt = self._build_descriptions_prompt(plateau_names)
+        logfire.info("Requesting plateau descriptions", plateaus=list(plateau_names))
         payload = session.ask(prompt)
         return self._request_descriptions_common(plateau_names, payload)
 
@@ -241,9 +263,9 @@ class PlateauGenerator:
         session: ConversationSession | None = None,
     ) -> dict[str, str]:
         """Asynchronously return descriptions for ``plateau_names``."""
-
         session = session or self.description_session
         prompt = self._build_descriptions_prompt(plateau_names)
+        logfire.info("Requesting plateau descriptions", plateaus=list(plateau_names))
         payload = await session.ask_async(prompt)
         return self._request_descriptions_common(plateau_names, payload)
 
@@ -260,7 +282,6 @@ class PlateauGenerator:
         Returns:
             Plateau feature populated with the provided metadata.
         """
-
         canonical = f"{item.name}|{role}|{plateau_name}"
         feature_id = self.code_registry.generate(canonical)
         return PlateauFeature(
@@ -273,7 +294,6 @@ class PlateauGenerator:
 
     def _build_plateau_prompt(self, level: int, description: str) -> str:
         """Return a prompt requesting features for ``level``."""
-
         template = load_prompt_text("plateau_prompt")
         roles_str = ", ".join(f'"{r}"' for r in self.roles)
         return template.format(
@@ -285,7 +305,6 @@ class PlateauGenerator:
 
     def _prepare_sessions(self, service_input: ServiceInput) -> None:
         """Attach ``service_input`` to all conversation sessions."""
-
         self._service = service_input
         self.session.add_parent_materials(service_input)
         self.description_session.add_parent_materials(service_input)
@@ -297,12 +316,11 @@ class PlateauGenerator:
         service_input: ServiceInput,
     ) -> list[PlateauRuntime]:
         """Populate ``runtimes`` with plateau results."""
-
         results: list[PlateauRuntime] = []
         for runtime in runtimes:
             plateau_session = ConversationSession(
                 self.session.client,
-                stage=self.session.stage,
+                stage=f"features_{runtime.plateau}",
                 use_local_cache=self.use_local_cache,
                 cache_mode=self.cache_mode,
             )
@@ -332,7 +350,6 @@ class PlateauGenerator:
             Tuple of validated plateau results and a mapping indicating which
             roles were encountered.
         """
-
         plateaus: list[PlateauResult] = []
         roles_seen: dict[str, bool] = {r: False for r in role_ids}
         for result in results:
@@ -381,7 +398,6 @@ class PlateauGenerator:
         evolution: ServiceEvolution,
     ) -> None:
         """Persist a transcript for ``service_input`` and ``evolution``."""
-
         payload = {
             "request": service_input.model_dump(mode="json"),
             "response": evolution.model_dump(mode="json"),
@@ -406,7 +422,6 @@ class PlateauGenerator:
         strict: bool = False,
     ) -> ServiceEvolution:
         """Return ``ServiceEvolution`` from plateau ``results``."""
-
         plateaus, roles_seen = self._validate_plateau_results(
             results, plateau_names, role_ids, strict=strict
         )
@@ -431,7 +446,6 @@ class PlateauGenerator:
         session: ConversationSession | None = None,
     ) -> PlateauRuntime:
         """Populate ``runtime`` with plateau artefacts."""
-
         if self._service is None:
             raise ValueError(
                 "ServiceInput not set. Call generate_service_evolution first."
@@ -473,14 +487,12 @@ class PlateauGenerator:
         session: ConversationSession | None = None,
     ) -> PlateauRuntime:
         """Synchronously populate ``runtime`` with mapped features."""
-
         return asyncio.run(self.generate_plateau_async(runtime, session=session))
 
     async def _init_runtimes(
         self, runtimes: Sequence[PlateauRuntime] | None
     ) -> list[PlateauRuntime]:
         """Create default plateau runtimes when none are provided."""
-
         if runtimes is not None:
             return list(runtimes)
         names = default_plateau_names()
@@ -499,14 +511,12 @@ class PlateauGenerator:
 
     def _resolve_role_ids(self, role_ids: Sequence[str] | None) -> list[str]:
         """Return explicit role identifiers or fall back to defaults."""
-
         return list(role_ids or self.roles)
 
     def _collect_results(
         self, runtimes: Sequence[PlateauRuntime], results: Sequence[PlateauRuntime]
     ) -> tuple[list[PlateauResult], list[str]]:
         """Transform plateau runtimes into evolution results."""
-
         plateau_names = [r.plateau_name for r in runtimes]
         plateau_results = [
             PlateauResult(
@@ -523,7 +533,6 @@ class PlateauGenerator:
 
     def _log_quarantines(self) -> None:
         """Emit a warning when any plateau descriptions were quarantined."""
-
         if self.quarantined_descriptions:
             logfire.warning(
                 f"Quarantined {len(self.quarantined_descriptions)} plateau"
@@ -549,8 +558,9 @@ class PlateauGenerator:
             role_ids: Optional subset of role identifiers to include.
             transcripts_dir: Directory to persist per-service transcripts. ``None``
                 disables transcript persistence.
+            meta: Metadata object applied to the resulting evolution (e.g. model
+                configuration, mapping types, web search flag).
         """
-
         self.quarantined_descriptions.clear()
         self._prepare_sessions(service_input)
 
@@ -584,7 +594,6 @@ class PlateauGenerator:
         meta: ServiceMeta,
     ) -> ServiceEvolution:
         """Return service evolution for provided plateau runtimes."""
-
         return asyncio.run(
             self.generate_service_evolution_async(
                 service_input,
