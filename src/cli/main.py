@@ -19,9 +19,15 @@ from pydantic_core import to_json
 from constants import DEFAULT_CACHE_DIR
 from core.canonical import canonicalise_record
 from core.mapping import build_cache_key, cache_path, cache_write_json_atomic
+from core.conversation import _prompt_cache_key, _prompt_cache_path
+from generation.plateau_generator import default_plateau_names
 from engine.processing_engine import ProcessingEngine
 from generation.plateau_generator import _feature_cache_path
-from io_utils.loader import configure_mapping_data_dir, load_mapping_items
+from io_utils.loader import (
+    configure_mapping_data_dir,
+    load_mapping_items,
+    load_prompt_text,
+)
 from models import (
     Contribution,
     FeatureItem,
@@ -199,6 +205,53 @@ def _rebuild_mapping_cache(
         plateau.mappings = {}
 
 
+def _rebuild_description_cache(svc_id: str, evo: ServiceEvolution, settings: Settings) -> None:
+    """Write the descriptions prompt-cache entry for ``svc_id``.
+
+    Reconstructs the same prompt used by the descriptions stage so future runs
+    can hit the prompt cache and avoid re-calling the model.
+    Respects ``settings.use_local_cache`` and ``settings.cache_mode``.
+    """
+    with logfire.span(
+        "cli.rebuild_description_cache",
+        attributes={"service_id": svc_id},
+    ):
+        if not getattr(settings, "use_local_cache", True):
+            return
+        # Build the exact prompt used for plateau descriptions.
+        names = default_plateau_names()
+        # Build "1. <name>" lines using configured plateau definitions
+        lines: list[str] = []
+        # Map plateau name -> level from configuration
+        # Reuse plateau_generator.default_plateau_names ordering and enumerate for level
+        for idx, name in enumerate(names, start=1):
+            lines.append(f"{idx}. {name}")
+        plateaus_str = "\n".join(lines)
+        template = load_prompt_text("plateau_descriptions_prompt")
+        prompt = template.format(plateaus=plateaus_str)
+        # Use the descriptions model override when set, otherwise fallback to base model
+        model_name = (
+            getattr(getattr(settings, "models", None), "descriptions", None)
+            or settings.model
+        )
+        key = _prompt_cache_key(prompt, model_name, "descriptions")
+        cache_file = _prompt_cache_path(svc_id, "descriptions", key)
+        if not _should_write_cache(getattr(settings, "cache_mode", "read"), cache_file.exists()):
+            return
+        # Build payload with all plateau descriptions in the expected schema
+        desc_lookup = {p.plateau_name: p.service_description for p in evo.plateaus}
+        items = [
+            {
+                "plateau": idx + 1,
+                "plateau_name": name,
+                "description": desc_lookup.get(name, ""),
+            }
+            for idx, name in enumerate(names)
+        ]
+        payload = {"descriptions": items}
+        cache_write_json_atomic(cache_file, payload)
+
+
 def _cmd_reverse(args: argparse.Namespace, transcripts_dir: Path | None) -> None:
     """Backfill feature and mapping caches from ``evolutions.jsonl``."""
     settings = RuntimeEnv.instance().settings
@@ -217,6 +270,7 @@ def _cmd_reverse(args: argparse.Namespace, transcripts_dir: Path | None) -> None
     with output_path.open("w", encoding="utf-8") as out_fh:
         for evo in evolutions:
             svc_id = evo.service.service_id
+            _rebuild_description_cache(svc_id, evo, settings)
             for plateau in evo.plateaus:
                 _reconstruct_feature_cache(svc_id, plateau)
                 _rebuild_mapping_cache(svc_id, plateau, settings, catalogue_hash)
