@@ -117,3 +117,77 @@ async def test_llm_queue_limits_concurrency():
     assert starts[:2] == [1, 2]
     assert sorted(res) == [1, 2, 3]
 
+
+@pytest.mark.asyncio()
+async def test_plateau_sequential_when_disabled(monkeypatch):
+    # Ensure feature flag is off
+    env = RuntimeEnv.instance()
+    env.settings.llm_queue_enabled = False
+
+    events: list[str] = []
+
+    async def fake_generate_features(self, session, **kwargs):  # noqa: ANN001
+        events.append(f"features_{self.plateau}")
+
+    async def fake_generate_mappings(self, session, **kwargs):  # noqa: ANN001
+        events.append(f"mapping_{self.plateau}")
+
+    monkeypatch.setattr(PlateauRuntime, "generate_features", fake_generate_features)
+    monkeypatch.setattr(PlateauRuntime, "generate_mappings", fake_generate_mappings)
+
+    session = ConversationSession(_Agent(), stage="features")
+    mapping_session = ConversationSession(_Agent(), stage="mapping")
+    generator = PlateauGenerator(session, roles=["role"], mapping_session=mapping_session, description_session=session)
+
+    svc = ServiceInput(
+        service_id="svc2",
+        name="Service",
+        description="d",
+        jobs_to_be_done=["job"],
+    )
+    runtimes = [
+        PlateauRuntime(plateau=1, plateau_name="P1", description="d1"),
+        PlateauRuntime(plateau=2, plateau_name="P2", description="d2"),
+    ]
+    await generator._schedule_plateaus(runtimes, svc)
+    # With the flag off, execution is sequential per plateau
+    assert events == ["features_1", "mapping_1", "features_2", "mapping_2"]
+
+
+@pytest.mark.asyncio()
+async def test_global_queue_caps_across_sessions(monkeypatch):
+    # Enable the real queue with concurrency 2
+    from llm.queue import LLMQueue
+
+    env = RuntimeEnv.instance()
+    env.settings.llm_queue_enabled = True
+    env._llm_queue = LLMQueue(max_concurrency=2)  # type: ignore[attr-defined]
+
+    current = 0
+    max_seen = 0
+
+    class _AgentCapped:
+        async def run(self, user_prompt: str):  # pragma: no cover - simple stub
+            nonlocal current, max_seen
+            current += 1
+            max_seen = max(max_seen, current)
+            try:
+                await asyncio.sleep(0.05)
+                return _Result(output={"ok": True, "prompt": user_prompt})
+            finally:
+                current -= 1
+
+    # Create multiple sessions and fire a bunch of calls concurrently
+    s1 = ConversationSession(_AgentCapped(), stage="features_1")
+    s2 = ConversationSession(_AgentCapped(), stage="features_2")
+    s3 = ConversationSession(_AgentCapped(), stage="mapping")
+
+    await asyncio.gather(
+        s1.ask_async("a"),
+        s2.ask_async("b"),
+        s3.ask_async("c"),
+        s1.ask_async("d"),
+        s2.ask_async("e"),
+    )
+
+    assert max_seen <= 2
