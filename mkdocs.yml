@@ -1,0 +1,18 @@
+site_name: Service Ambitions
+site_description: Documentation for the Service Ambitions CLI and architecture
+repo_url: https://github.com/FromHereOnAU/service-ambitions
+repo_name: FromHereOnAU/service-ambitions
+docs_dir: docs
+use_directory_urls: true
+
+nav:
+  - Home: index.md
+  - Standards: coding-standards.md
+  - Architecture: runtime-architecture.md
+  - Generation:
+      - Evolution: generate-evolution.md
+      - Mapping: generate-mapping.md
+  - Logging: logging-levels.md
+  - SDRs: sd01-flow-of-evolution-prompts.md
+
+# Keep defaults; no extra plugins/themes required for CI build
