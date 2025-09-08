@@ -12,7 +12,7 @@ import platform
 import random
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
-from typing import Any, Callable, Coroutine, cast
+from typing import Any, Callable, Coroutine, Iterable, cast
 
 import logfire
 from pydantic_core import to_json
@@ -142,70 +142,88 @@ async def _cmd_map(args: argparse.Namespace, transcripts_dir: Path | None) -> No
     write_output(evolutions, Path(args.output_file))
 
 
-def _cmd_preflight(args: argparse.Namespace) -> int:
-    """Run environment and data checks and report status.
+def _pf_setup_resources(settings: Settings) -> None:
+    """Configure resource directories and validate required data files.
 
-    Returns:
-        Process exit code (0 = success, 1 = issues found).
+    Loads prompt templates, plateau definitions, and role identifiers to
+    surface issues early.
     """
-    issues: list[str] = []
-    notes: list[str] = []
+    configure_prompt_dir(settings.prompt_dir)
+    configure_mapping_data_dir(settings.mapping_data_dir)
+    _ = load_evolution_prompt(settings.context_id, settings.inspiration)
+    _ = load_plateau_definitions(settings.mapping_data_dir)
+    _ = load_role_ids(settings.roles_file)
 
-    # Try to load full settings (validates cache dir and API key)
-    try:
-        settings = load_settings(args.config)
-        configure_prompt_dir(settings.prompt_dir)
-        configure_mapping_data_dir(settings.mapping_data_dir)
-        # Load prompt pieces and data files
-        _ = load_evolution_prompt(settings.context_id, settings.inspiration)
-        _ = load_plateau_definitions(settings.mapping_data_dir)
-        _ = load_role_ids(settings.roles_file)
-        # Validate mapping set fields are defined in configuration mapping_types
-        cfg_base = Path(args.config).parent if args.config else Path("config")
-        cfg_file = Path(args.config).name if args.config else Path("app.yaml")
-        mapping_types = load_mapping_type_config(cfg_base, cfg_file)
-        defined_types = set(mapping_types.keys())
-        file_stems = {Path(s.file).stem for s in settings.mapping_sets}
-        for s in settings.mapping_sets:
-            if s.field not in defined_types:
-                issues.append(f"mapping_sets field '{s.field}' not in mapping_types")
-        for field, cfg in mapping_types.items():
-            ds = getattr(cfg, "dataset", "")
-            if ds and ds not in file_stems:
-                issues.append(
+
+def _pf_mapping_type_issues(settings: Settings, args: argparse.Namespace) -> list[str]:
+    """Return issues found comparing mapping sets and mapping types."""
+    cfg_base = Path(args.config).parent if args.config else Path("config")
+    cfg_file = Path(args.config).name if args.config else Path("app.yaml")
+    mapping_types = load_mapping_type_config(cfg_base, cfg_file)
+    defined_types = set(mapping_types.keys())
+    file_stems = {Path(s.file).stem for s in settings.mapping_sets}
+
+    problems: list[str] = []
+    for s in settings.mapping_sets:
+        if s.field not in defined_types:
+            problems.append(f"mapping_sets field '{s.field}' not in mapping_types")
+    for field, cfg in mapping_types.items():
+        ds = getattr(cfg, "dataset", "")
+        if ds and ds not in file_stems:
+            problems.append(
+                (
                     f"mapping_types['{field}'].dataset='{ds}' has no matching file (by"
                     " stem)"
                 )
-        # Check each mapping set file exists to surface multiple issues together
-        missing_files = []
-        for s in settings.mapping_sets:
-            p = settings.mapping_data_dir / s.file
-            if not p.is_file():
-                missing_files.append(str(p))
-        if missing_files:
-            for p in missing_files:
-                issues.append(f"missing mapping file: {p}")
-        else:
-            _, catalogue_hash = load_mapping_items(settings.mapping_sets)
-            notes.append(f"catalogue_hash={catalogue_hash}")
-        if not settings.openai_api_key:
-            issues.append("SA_OPENAI_API_KEY is empty")
-        notes.append(f"cache_dir={settings.cache_dir}")
-    except Exception as exc:
-        # Allow partial checks to aid developers without full credentials
-        msg = f"settings: {exc}"
-        logger.warning(msg)
-        issues.append(msg)
-        try:
-            # Best-effort checks using defaults
-            configure_prompt_dir(Path("prompts"))
-            configure_mapping_data_dir(Path("data"))
-            _ = load_plateau_definitions(Path("data"))
-            _ = load_role_ids(Path("data/roles.json"))
-            notes.append("partial_checks=ok")
-        except Exception as sub_exc:  # pragma: no cover - defensive
-            issues.append(f"partial_checks: {sub_exc}")
+            )
+    return problems
 
+
+def _pf_missing_mapping_files(settings: Settings) -> tuple[list[str], list[str]]:
+    """Check mapping files exist; return (issues, notes).
+
+    When files are present, also compute and record the catalogue hash.
+    """
+    missing_files: list[str] = []
+    for s in settings.mapping_sets:
+        p = settings.mapping_data_dir / s.file
+        if not p.is_file():
+            missing_files.append(str(p))
+
+    issues: list[str] = []
+    notes: list[str] = []
+    if missing_files:
+        for p in missing_files:
+            issues.append(f"missing mapping file: {p}")
+    else:
+        _, catalogue_hash = load_mapping_items(settings.mapping_sets)
+        notes.append(f"catalogue_hash={catalogue_hash}")
+    return issues, notes
+
+
+def _pf_check_api_key(settings: Settings) -> Iterable[str]:
+    """Yield an issue when the required API key is empty."""
+    if not settings.openai_api_key:
+        yield "SA_OPENAI_API_KEY is empty"
+
+
+def _pf_partial_checks() -> tuple[list[str], list[str]]:
+    """Run best-effort checks with default paths after settings failure."""
+    notes: list[str] = []
+    issues: list[str] = []
+    try:  # pragma: no cover - defensive
+        configure_prompt_dir(Path("prompts"))
+        configure_mapping_data_dir(Path("data"))
+        _ = load_plateau_definitions(Path("data"))
+        _ = load_role_ids(Path("data/roles.json"))
+        notes.append("partial_checks=ok")
+    except Exception as sub_exc:  # pragma: no cover - defensive
+        issues.append(f"partial_checks: {sub_exc}")
+    return issues, notes
+
+
+def _pf_report(issues: list[str], notes: list[str]) -> int:
+    """Print a standard preflight report and return an exit code."""
     header = "Preflight checks: OK" if not issues else "Preflight checks: ISSUES"
     print(header)
     logger.info(header)
@@ -215,6 +233,35 @@ def _cmd_preflight(args: argparse.Namespace) -> int:
         logger.error("%s", issue)
         print(f"- {issue}")
     return 0 if not issues else 1
+
+
+def _cmd_preflight(args: argparse.Namespace) -> int:
+    """Run environment and data checks and report status.
+
+    Returns:
+        Process exit code (0 = success, 1 = issues found).
+    """
+    issues: list[str] = []
+    notes: list[str] = []
+
+    try:
+        settings = load_settings(args.config)
+        _pf_setup_resources(settings)
+        issues.extend(_pf_mapping_type_issues(settings, args))
+        missing_issues, file_notes = _pf_missing_mapping_files(settings)
+        issues.extend(missing_issues)
+        notes.extend(file_notes)
+        issues.extend(_pf_check_api_key(settings))
+        notes.append(f"cache_dir={settings.cache_dir}")
+    except Exception as exc:
+        msg = f"settings: {exc}"
+        logger.warning(msg)
+        issues.append(msg)
+        partial_issues, partial_notes = _pf_partial_checks()
+        issues.extend(partial_issues)
+        notes.extend(partial_notes)
+
+    return _pf_report(issues, notes)
 
 
 def _should_write_cache(mode: str, exists_before: bool) -> bool:
