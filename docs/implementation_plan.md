@@ -11,6 +11,185 @@ Conventions for each item in this plan:
 
 ---
 
+## Phase 0 — Foundations (Do First)
+
+Early, cross‑cutting tasks to unblock safe implementation and rollout. Complete these before substantial feature work.
+
+### Tooling and CI Parity
+
+Objective
+- Guarantee local and CI run the same gates with identical flags; minimise drift.
+
+What’s Needed
+- Confirm `pyproject.toml` tool configs match coding standards (Ruff selects incl. `C901`, docstring convention `google`, Black preview flags); ensure coverage branch tracking is enabled.
+- Add convenience commands (scripts or Makefile targets) to run `fmt`, `lint`, `type`, `sec`, `audit`, `test` consistently.
+- Ensure CI workflows call the same commands to avoid divergence.
+
+Where It’s Needed
+- `pyproject.toml`, `Makefile`, `.github/workflows/*.yml`.
+
+Definition of Done
+- Single entrypoints exist for each gate and are used by CI; branch coverage enabled; local and CI outputs match.
+
+Status/Notes
+- CI already runs the gates; add/confirm Makefile or Poetry script parity for developer convenience.
+
+---
+
+### Pre‑commit Bootstrap
+
+Objective
+- Catch issues before commits and keep diffs clean.
+
+What’s Needed
+- Ensure `.pre-commit-config.yaml` covers Black, Ruff, mypy, Bandit (already present) and document installation/usage.
+- Optionally add a basic secret scanner.
+
+Where It’s Needed
+- `.pre-commit-config.yaml`, `CONTRIBUTING.md` (installation), `AGENTS.md` (local commands).
+
+Definition of Done
+- `poetry run pre-commit install` and `poetry run pre-commit run --all-files` pass; optional secret scan configured or explicitly deferred with rationale.
+
+Status/Notes
+- Hook set covers the core tools; secret scanning can be added as a follow‑up if desired.
+
+---
+
+### Architecture Doc (Queue)
+
+Objective
+- Document the LLM queue design, control flow, and telemetry for maintainers and operators.
+
+What’s Needed
+- Create `docs/runtime-architecture.md` with a high‑level diagram, queue lifecycle, concurrency model, and integration points; add tuning guidance.
+- Add to MkDocs nav for discoverability.
+
+Where It’s Needed
+- `docs/runtime-architecture.md`, `mkdocs.yml` (nav update).
+
+Definition of Done
+- Page renders in `mkdocs build --strict`; includes diagram or ASCII sketch, sequence overview, metrics/spans table, and tuning notes.
+
+Status/Notes
+- Not yet present; referenced in this plan and should be added early.
+
+---
+
+### Runbook (Enablement / Rollback)
+
+Objective
+- Provide a concise operational runbook for enabling, tuning, and rolling back the queue.
+
+What’s Needed
+- Create `docs/runbook.md` detailing feature flag toggling, safe concurrency defaults by provider, monitoring checks, and rollback steps.
+- Link from README and plan.
+
+Where It’s Needed
+- `docs/runbook.md`, `README.md` (links), this plan (Enablement section).
+
+Definition of Done
+- Runbook exists, is actionable, and validated by a dry‑run in staging; referenced from README and this plan.
+
+Status/Notes
+- To be authored alongside Observability tasks so guidance is grounded in actual metrics.
+
+---
+
+### Testing Scaffolds (Deterministic)
+
+Objective
+- Enable reliable async/concurrency tests without flakiness.
+
+What’s Needed
+- Provide test helpers for time control or fakes (avoid `time.sleep` in async tests), and an LLM provider stub with deterministic responses.
+- Shared fixtures for event loop and queue setup/teardown; helpers to assert order and concurrency without relying on wall‑clock.
+
+Where It’s Needed
+- `tests/conftest.py`, `tests/utils/` (helpers), `tests/test_llm_queue.py` (usage).
+
+Definition of Done
+- New tests for cancellation/timeouts/drain pass deterministically in CI; no sleeps in async paths; fixtures reused across tests.
+
+Status/Notes
+- Build before adding more queue edge‑case tests.
+
+---
+
+### Error Taxonomy
+
+Objective
+- Standardise error types for queue and provider failures to simplify handling and testing.
+
+What’s Needed
+- Define domain exceptions and wrap provider errors with causes; document retryable vs fatal classifications.
+
+Where It’s Needed
+- `src/llm/errors.py` (new) and usages in `src/llm/queue.py`, `src/core/conversation.py`, `src/generation/*`.
+
+Definition of Done
+- Tests assert exception types/messages; callers handle classes appropriately; no silent swallowing.
+
+Status/Notes
+- Create a tracking issue and introduce incrementally to avoid large refactors.
+
+---
+
+### Telemetry Redaction
+
+Objective
+- Ensure logs, spans, and metrics never leak secrets or PII.
+
+What’s Needed
+- Implement and apply a redaction helper for telemetry attributes; audit current spans/metrics for sensitive fields.
+
+Where It’s Needed
+- `src/observability/` (helper), `src/llm/queue.py` and call sites; documentation in `SECURITY.md`.
+
+Definition of Done
+- Bandit passes; manual spot‑checks show no sensitive data; tests cover redaction behaviour where practical.
+
+Status/Notes
+- Align with existing Logfire configuration and attributes.
+
+---
+
+### Commands Unification (DX)
+
+Objective
+- Provide a single set of commands to run all gates locally and in CI.
+
+What’s Needed
+- Add Make targets or Poetry scripts: `fmt`, `lint`, `type`, `sec`, `audit`, `test`, `check` (all).
+
+Where It’s Needed
+- `Makefile` and/or `pyproject.toml`.
+
+Definition of Done
+- `make check` (or `poetry run task check`) runs all gates; CI uses the same.
+
+Status/Notes
+- Consider keeping both Makefile and Poetry scripts for flexibility.
+
+---
+
+### Coverage Config Hygiene
+
+Objective
+- Avoid ambiguity by using a single coverage configuration.
+
+What’s Needed
+- Consolidate to one coverage config file and ensure branch coverage and thresholds are set.
+
+Where It’s Needed
+- `.coveragerc` and `coveragerc` (dedupe to one), CI pytest step.
+
+Definition of Done
+- Only one coverage config remains; CI and local runs read the same file; thresholds enforced.
+
+Status/Notes
+- Both `.coveragerc` and `coveragerc` currently exist; remove one after confirming usage.
+
 ## Workstream: LLM Queue Migration (Progressive)
 
 Objective
