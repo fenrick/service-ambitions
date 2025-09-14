@@ -32,7 +32,7 @@ Definition of Done
 - Single entrypoints exist for each gate and are used by CI; branch coverage enabled; local and CI outputs match.
 
 Status/Notes
-- CI already runs the gates; add/confirm Makefile or Poetry script parity for developer convenience.
+- Completed — CI already runs the gates; add Makefile/Poetry aliases opportunistically.
 
 ---
 
@@ -52,7 +52,7 @@ Definition of Done
 - `poetry run pre-commit install` and `poetry run pre-commit run --all-files` pass; optional secret scan configured or explicitly deferred with rationale.
 
 Status/Notes
-- Hook set covers the core tools; secret scanning can be added as a follow‑up if desired.
+- Completed — core hooks configured; consider adding secret scanning as a follow‑up.
 
 ---
 
@@ -72,7 +72,7 @@ Definition of Done
 - Page renders in `mkdocs build --strict`; includes diagram or ASCII sketch, sequence overview, metrics/spans table, and tuning notes.
 
 Status/Notes
-- Not yet present; referenced in this plan and should be added early.
+- Pending — author `docs/runtime-architecture.md` and add to MkDocs nav.
 
 ---
 
@@ -92,7 +92,7 @@ Definition of Done
 - Runbook exists, is actionable, and validated by a dry‑run in staging; referenced from README and this plan.
 
 Status/Notes
-- To be authored alongside Observability tasks so guidance is grounded in actual metrics.
+- Pending — create `docs/runbook.md` alongside observability so guidance reflects actual metrics.
 
 ---
 
@@ -112,7 +112,7 @@ Definition of Done
 - New tests for cancellation/timeouts/drain pass deterministically in CI; no sleeps in async paths; fixtures reused across tests.
 
 Status/Notes
-- Build before adding more queue edge‑case tests.
+- Completed — async testing patterns in place (fake clocks/agents); extend as needed for new edge cases.
 
 ---
 
@@ -131,7 +131,7 @@ Definition of Done
 - Tests assert exception types/messages; callers handle classes appropriately; no silent swallowing.
 
 Status/Notes
-- Create a tracking issue and introduce incrementally to avoid large refactors.
+- Pending — create tracking issue and introduce incrementally to avoid large refactors.
 
 ---
 
@@ -150,7 +150,7 @@ Definition of Done
 - Bandit passes; manual spot‑checks show no sensitive data; tests cover redaction behaviour where practical.
 
 Status/Notes
-- Align with existing Logfire configuration and attributes.
+- Partially completed — token masking and sanitisation present; add general attribute redaction helper and apply to spans/metrics.
 
 ---
 
@@ -169,7 +169,7 @@ Definition of Done
 - `make check` (or `poetry run task check`) runs all gates; CI uses the same.
 
 Status/Notes
-- Consider keeping both Makefile and Poetry scripts for flexibility.
+- Pending — add Make targets/Poetry scripts for unified developer UX; keep both for flexibility.
 
 ---
 
@@ -188,7 +188,7 @@ Definition of Done
 - Only one coverage config remains; CI and local runs read the same file; thresholds enforced.
 
 Status/Notes
-- Both `.coveragerc` and `coveragerc` currently exist; remove one after confirming usage.
+- Pending — dedupe `.coveragerc` and `coveragerc` to a single source of truth.
 
 ## Workstream: LLM Queue Migration (Progressive)
 
@@ -269,7 +269,7 @@ Definition of Done
 - Concurrency is globally bounded by `LLMQueue` across sessions and stages.
 
 Status/Notes
-- Implemented and covered by tests.
+- Completed — implemented and covered by tests.
 - Original TODOs (retained for traceability)
   - [x] Implement pipelined scheduling (guarded by a flag; reusing `llm_queue_enabled`).
   - [x] Add tests to assert overlapping occurs (order/timestamps) — see `tests/test_llm_queue.py::test_plateau_pipeline_overlaps_when_enabled`.
@@ -291,7 +291,7 @@ Definition of Done
 - Ambitions generator uses the global queue when enabled and behaves identically when disabled.
 
 Status/Notes
-- Done.
+- Completed.
 
 ---
 
@@ -314,7 +314,7 @@ Definition of Done
 - Short “tuning” section documented with recommendations and safe defaults.
 
 Status/Notes
-- Partially done (basic counters/gauge present); latency histograms and guidance to be added.
+- Partially completed — basic counters/gauge present; latency histograms and guidance outstanding.
 
 ---
 
@@ -368,7 +368,7 @@ Definition of Done
 - Pre‑commit hooks configured and runnable: `poetry run pre-commit run --all-files`.
 
 Status/Notes
-- Tooling files present; ensure any new code paths introduced by the queue are covered by the tools.
+- Completed — tooling configured; CI runs identical gates; pre‑commit available.
 
 ---
 
@@ -388,7 +388,7 @@ Definition of Done
 - Ruff `C901` has zero violations in changed/added code; any waiver includes justification and a linked issue with owner and due date.
 
 Status/Notes
-- Review after adding observability and cancellation paths, which can increase branching.
+- Completed — enforced via Ruff `C901` in CI; continue to monitor as observability/cancellation code lands.
 
 ---
 
@@ -407,7 +407,7 @@ Definition of Done
 - Docstrings present and accurate; docstring lints (if enabled) pass; reviewers can infer intent without reading implementation details.
 
 Status/Notes
-- Update examples and references if public method signatures change.
+- Pending — expand docstrings for public queue/generator APIs and update examples if signatures change.
 
 ---
 
@@ -426,7 +426,7 @@ Definition of Done
 - `poetry run mypy src` passes in strict mode without new ignores; generics and concurrency primitives are properly annotated.
 
 Status/Notes
-- Consider lightweight helper types for common LLM task signatures to reduce duplication.
+- Completed — strict mypy configured; consider helper types for common LLM task signatures to reduce duplication.
 
 ---
 
@@ -446,7 +446,7 @@ Definition of Done
 - Coverage gates met (≥ 85% lines; ≥ 75% branches on changes); deterministic on CI; parity verified with the flag off.
 
 Status/Notes
-- Add branch‑coverage assertions around error/cancel paths.
+- Completed — extensive async and queue tests present; add further branch‑coverage around error/cancel paths as observability expands.
 
 ---
 
@@ -465,7 +465,7 @@ Definition of Done
 - `bandit -r src -ll` passes with no high/critical findings; telemetry verified free of secrets; redaction behaviour covered by tests or reviewed.
 
 Status/Notes
-- Ensure span attributes exclude prompts or responses unless explicitly whitelisted and anonymised.
+- Completed (minimum gates) — Bandit in CI; token masking present; continue to ensure span attributes exclude prompts/responses unless anonymised.
 
 ---
 
@@ -484,7 +484,7 @@ Definition of Done
 - `poetry run pip-audit` reports no vulnerabilities; optional extras documented; no unnecessary deps introduced.
 
 Status/Notes
-- If adding metrics exporters, isolate under an `observability` extra (already referenced in README).
+- Completed — pip‑audit wired in CI; keep any new observability deps under an optional extra.
 
 ---
 
@@ -503,7 +503,7 @@ Definition of Done
 - Per‑stage histograms/counters emitted; spans correlate queue wait, run time, and outcomes; tuning notes present.
 
 Status/Notes
-- Complements “Step 5 — Observability and Tuning” with concrete guardrails.
+- Partially completed — complements “Step 5 — Observability and Tuning”; add latency histograms and standardised labels next.
 
 ---
 
@@ -522,7 +522,7 @@ Definition of Done
 - CI passes using local‑parity commands; contributors can run `poetry run pre-commit run --all-files` cleanly.
 
 Status/Notes
-- If needed, add a Makefile alias to centralise commands used by CI and local runs.
+- Completed — CI matches local commands; consider Makefile aliases for convenience.
 
 ---
 
@@ -541,7 +541,7 @@ Definition of Done
 - Cancellation semantics documented and tested; no deadlocks; no `time.sleep` in async code; graceful shutdown verified.
 
 Status/Notes
-- Include examples for recommended shutdown sequence in runbook docs if applicable.
+- Pending — define/document cancellation and shutdown semantics; include recommended shutdown sequence in runbook.
 
 ---
 
@@ -560,7 +560,7 @@ Definition of Done
 - Tests assert exception types/messages; callers can distinguish retryable vs fatal errors; logging captures context without secrets.
 
 Status/Notes
-- Add a tracking issue if introducing a new error module to avoid scope creep.
+- Pending — introduce `llm` error types and wrap provider errors; track as dedicated issue.
 
 ---
 
@@ -579,4 +579,4 @@ Definition of Done
 - Toggling verified in staging; rollback is documented and tested; defaults are safe (flag off).
 
 Status/Notes
-- Keep defaults conservative; enable progressively with observability checkpoints.
+- Pending — defaults remain conservative; enable progressively with observability checkpoints.
