@@ -32,15 +32,9 @@ dummy_pydantic = types.SimpleNamespace(
     messages=types.SimpleNamespace(ModelMessage=object),
 )
 sys.modules.setdefault("pydantic_ai", cast(types.ModuleType, dummy_pydantic))
-
-cli = importlib.import_module("cli.main")  # noqa: E402
 sys.modules.setdefault(
     "pydantic_ai.models",
     cast(types.ModuleType, types.SimpleNamespace(Model=object)),
-)
-sys.modules.setdefault(
-    "generation.generator",
-    cast(types.ModuleType, types.SimpleNamespace(build_model=lambda *a, **k: None)),
 )
 
 
@@ -278,6 +272,12 @@ def test_cli_generate_matches_golden(monkeypatch, tmp_path, dummy_agent) -> None
                 model_dump=lambda mode=None: resp.output.model_dump()
             )
 
+    monkeypatch.setitem(
+        sys.modules,
+        "generation.generator",
+        types.SimpleNamespace(build_model=lambda *a, **k: None),
+    )
+    cli = importlib.import_module("cli.main")
     monkeypatch.setattr(cli, "load_settings", _settings)
     monkeypatch.setattr(cli, "_configure_logging", lambda *a, **k: None)
     import engine.processing_engine as pe

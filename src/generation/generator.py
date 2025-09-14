@@ -39,6 +39,14 @@ else:  # pragma: no cover - imported for typing only
 from pydantic_core import to_json
 from tqdm import tqdm  # type: ignore[import-untyped]
 
+try:  # pragma: no cover - optional dependency
+    from pydantic_ai import Agent
+except Exception:  # pragma: no cover - fallback when dependency absent
+
+    class Agent:  # type: ignore[no-redef]
+        """Fallback Agent when pydantic_ai is unavailable."""
+
+
 from core.canonical import canonicalise_record
 from io_utils.persistence import atomic_write
 from llm.queue import LLMTaskMeta
@@ -485,12 +493,6 @@ class ServiceAmbitionGenerator:
         if instructions is None:
             # Without instructions the agent cannot operate.
             raise ValueError("prompt must be provided")
-        try:
-            from pydantic_ai import Agent  # Local import to avoid import-time deps
-        except ImportError as exc:  # pragma: no cover - environment dependent
-            raise RuntimeError(
-                "pydantic_ai is required for ambition generation; please install"
-            ) from exc
         agent = Agent(self.model, instructions=instructions, output_type=AmbitionModel)
         service_details = service.model_dump_json()
         result: _AgentRunResult[AmbitionModel]
