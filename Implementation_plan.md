@@ -4,27 +4,6 @@ This document lists code-quality improvements for the core system. Remove items 
 
 # Highest-impact engineering work
 
-## LLM queue hardening (retry/backoff + breaker + parity)
-
-* **Implement**
-
-  * Extend `src/llm/queue.py` to optionally apply the same retry/backoff logic already used in `generation/generator.py` so all LLM calls are consistently protected.
-
-    * Add optional params to `LLMQueue.submit(..., retry: bool=False, attempts:int=6, base:float=1.0, cap:float=30.0)`.
-    * Reuse/port `TRANSIENT_EXCEPTIONS`, `_parse_retry_datetime`, and `CircuitBreaker` patterns from `generation/generator.py` into a small utility module `src/llm/retry.py` to avoid duplication.
-  * When `Settings.llm_queue_enabled` is true, make `ConversationSession.ask_async` pass `retry=True` to the queue for “descriptions”, “features\_*”, and “mapping\_*” stages.
-* **Files**
-
-  * `src/llm/queue.py`, `src/llm/retry.py` (new), `src/core/conversation.py`
-* **Tests**
-
-  * `tests/test_llm_queue.py::test_submit_retries_on_transient`
-  * `tests/test_llm_queue.py::test_retry_after_header_honoured`
-  * `tests/test_conversation_queue_parity.py::test_results_equal_with_and_without_queue` (seeded)
-* **Success criteria**
-
-  * With queue on/off and fixed seed, outputs match (byte-for-byte) across the golden fixtures for a small sample; transient errors are retried; breaker pauses after N failures.
-
 ## Graceful cancellation & shutdown path
 
 * **Implement**
@@ -430,13 +409,6 @@ This document lists code-quality improvements for the core system. Remove items 
 ## Quick insert template for your `Implementation_plan.md`
 
 You can paste this block as-is and tweak wording:
-
-> ### LLM queue hardening
->
-> * Add retry/backoff & circuit-breaker in `LLMQueue.submit` (new `src/llm/retry.py` utility).
-> * Wire `ConversationSession.ask_async` to pass `retry=True` when queue is enabled.
-> * **Tests:** `tests/test_llm_queue.py::{test_submit_retries_on_transient,test_retry_after_header_honoured}`; `tests/test_conversation_queue_parity.py::test_results_equal_with_and_without_queue`.
-> * **Done when:** parity holds on golden fixtures with/without queue; transient errors are retried; breaker pauses after N failures.
 
 > ### Graceful cancellation
 >
