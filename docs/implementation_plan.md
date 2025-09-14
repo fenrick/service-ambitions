@@ -160,3 +160,244 @@ Definition of Done
 Status/Notes
 - Proceed via staged rollout: dev → staging → production, with observability checks at each stage.
 
+---
+
+## Coding Standards Integration (Cross‑cutting)
+
+These items ensure the LLM Queue Migration aligns with repository‑wide standards and CI gates.
+
+### Tooling Parity and Gates
+
+Objective
+- Enforce consistent local and CI execution of formatting, linting, typing, security, dependency audit, and tests per the coding standards.
+
+What’s Needed
+- Use Poetry scripts or equivalent to run: Black (with preview + `string_processing`), Ruff (imports, errors, complexity), mypy (strict), Bandit, pip‑audit, and pytest with coverage gates.
+- Ensure pre‑commit runs these checks locally.
+
+Where It’s Needed
+- `pyproject.toml` (tool configs and optional scripts), `.pre-commit-config.yaml`, CI workflow under `.github/workflows/*`, `AGENTS.md` and `CONTRIBUTING.md` for docs.
+
+Definition of Done
+- The following commands pass locally and in CI using the same entry points:
+  - `poetry run black --preview --enable-unstable-feature string_processing .`
+  - `poetry run ruff check .`
+  - `poetry run mypy src`
+  - `poetry run bandit -r src -ll`
+  - `poetry run pip-audit`
+  - `poetry run pytest --maxfail=1 --disable-warnings -q --cov=src --cov-report=term-missing --cov-fail-under=85`
+- Pre‑commit hooks configured and runnable: `poetry run pre-commit run --all-files`.
+
+Status/Notes
+- Tooling files present; ensure any new code paths introduced by the queue are covered by the tools.
+
+---
+
+### Complexity Budgets (< 8)
+
+Objective
+- Keep cyclomatic complexity under 8 for functions impacted by the queue and pipeline changes.
+
+What’s Needed
+- Audit queue and scheduling code; refactor conditional logic and extract helpers where complexity spikes.
+- For temporary waivers, add `# noqa: C901  # reason + link to issue` and create a refactor issue.
+
+Where It’s Needed
+- `src/llm/queue.py`, `src/generation/plateau_generator.py`, `src/generation/generator.py`, `src/core/conversation.py`.
+
+Definition of Done
+- Ruff `C901` has zero violations in changed/added code; any waiver includes justification and a linked issue with owner and due date.
+
+Status/Notes
+- Review after adding observability and cancellation paths, which can increase branching.
+
+---
+
+### Docstrings and Public API Hygiene
+
+Objective
+- Ensure public interfaces are documented with Google‑style docstrings for readability and maintenance.
+
+What’s Needed
+- Add/align docstrings covering purpose, params, returns, raises, and side effects for public classes/methods.
+
+Where It’s Needed
+- Public APIs in `src/llm/queue.py`, `src/generation/plateau_generator.py`, `src/generation/generator.py`, `src/core/conversation.py`.
+
+Definition of Done
+- Docstrings present and accurate; docstring lints (if enabled) pass; reviewers can infer intent without reading implementation details.
+
+Status/Notes
+- Update examples and references if public method signatures change.
+
+---
+
+### Strict Typing (mypy)
+
+Objective
+- Maintain strict, precise types across queue tasks, metadata, and async boundaries.
+
+What’s Needed
+- Add concrete types for task payloads and results; use `TypedDict`/`Protocol` where appropriate; avoid `Any`; annotate async functions and context managers.
+
+Where It’s Needed
+- `src/llm/queue.py`, LLM call sites in `src/core/conversation.py` and `src/generation/*`; mypy settings in `pyproject.toml`.
+
+Definition of Done
+- `poetry run mypy src` passes in strict mode without new ignores; generics and concurrency primitives are properly annotated.
+
+Status/Notes
+- Consider lightweight helper types for common LLM task signatures to reduce duplication.
+
+---
+
+### Tests and Coverage (incl. branches)
+
+Objective
+- Prove correctness for concurrency, error handling, and parity; keep coverage thresholds green.
+
+What’s Needed
+- Add tests for cancellation, timeouts, error propagation, shutdown/drain behaviour, and “flag off” parity.
+- Avoid flakiness by using fakes or controlled clocks; no `time.sleep` in async tests.
+
+Where It’s Needed
+- `tests/test_llm_queue.py` (new/expanded), existing async fixtures.
+
+Definition of Done
+- Coverage gates met (≥ 85% lines; ≥ 75% branches on changes); deterministic on CI; parity verified with the flag off.
+
+Status/Notes
+- Add branch‑coverage assertions around error/cancel paths.
+
+---
+
+### Security and Secrets Hygiene
+
+Objective
+- Prevent leakage of sensitive data via logs/spans/metrics and satisfy Bandit.
+
+What’s Needed
+- Redact PII and secrets in telemetry; avoid unsafe subprocess and eval patterns; triage Bandit findings.
+
+Where It’s Needed
+- Logging and metrics in `src/llm/queue.py` and LLM call sites; env/config handling; `SECURITY.md` if patterns need documenting.
+
+Definition of Done
+- `bandit -r src -ll` passes with no high/critical findings; telemetry verified free of secrets; redaction behaviour covered by tests or reviewed.
+
+Status/Notes
+- Ensure span attributes exclude prompts or responses unless explicitly whitelisted and anonymised.
+
+---
+
+### Dependency Policy and Audit
+
+Objective
+- Keep dependency footprint minimal and vulnerability‑free; make optional features extras.
+
+What’s Needed
+- Avoid adding new runtime deps unless justified; add observability deps as optional extras; run `pip-audit`; verify licenses.
+
+Where It’s Needed
+- `pyproject.toml` (optionally under `[tool.poetry.extras]`), `poetry.lock`, `README.md` install instructions.
+
+Definition of Done
+- `poetry run pip-audit` reports no vulnerabilities; optional extras documented; no unnecessary deps introduced.
+
+Status/Notes
+- If adding metrics exporters, isolate under an `observability` extra (already referenced in README).
+
+---
+
+### Logging and Observability Guardrails
+
+Objective
+- Standardise telemetry with useful, safe metrics and spans; provide tuning guidance.
+
+What’s Needed
+- Adopt consistent metric names/labels, add latency histograms, and ensure spans include correlating attributes without PII.
+
+Where It’s Needed
+- `src/llm/queue.py`, call sites setting task metadata; docs here and `docs/runtime-architecture.md` for tuning guidance.
+
+Definition of Done
+- Per‑stage histograms/counters emitted; spans correlate queue wait, run time, and outcomes; tuning notes present.
+
+Status/Notes
+- Complements “Step 5 — Observability and Tuning” with concrete guardrails.
+
+---
+
+### CI Parity and Pre‑commit
+
+Objective
+- Ensure CI runs the exact same commands as local development; enforce hooks early.
+
+What’s Needed
+- CI workflow invokes Poetry commands identical to local; pre‑commit set up for contributors.
+
+Where It’s Needed
+- `.github/workflows/*`, `.pre-commit-config.yaml`, `pyproject.toml` scripts.
+
+Definition of Done
+- CI passes using local‑parity commands; contributors can run `poetry run pre-commit run --all-files` cleanly.
+
+Status/Notes
+- If needed, add a Makefile alias to centralise commands used by CI and local runs.
+
+---
+
+### Concurrency and Cancellation Semantics
+
+Objective
+- Define and validate cancellation, timeout, and shutdown behaviours to avoid deadlocks and leaks.
+
+What’s Needed
+- Specify behaviour for task cancel and queue shutdown (graceful drain vs immediate cancel); ensure no blocking in async paths.
+
+Where It’s Needed
+- `src/llm/queue.py` (implementation and docs), tests exercising cancel/timeout/drain.
+
+Definition of Done
+- Cancellation semantics documented and tested; no deadlocks; no `time.sleep` in async code; graceful shutdown verified.
+
+Status/Notes
+- Include examples for recommended shutdown sequence in runbook docs if applicable.
+
+---
+
+### Error Taxonomy and Wrapping
+
+Objective
+- Provide a clear error model for queue and provider failures for easier handling upstream.
+
+What’s Needed
+- Define domain exceptions and wrap provider errors with causes; avoid silent swallowing.
+
+Where It’s Needed
+- `src/llm/errors.py` (if needed) and usages across queue and callers.
+
+Definition of Done
+- Tests assert exception types/messages; callers can distinguish retryable vs fatal errors; logging captures context without secrets.
+
+Status/Notes
+- Add a tracking issue if introducing a new error module to avoid scope creep.
+
+---
+
+### Config, Rollout, and Rollback
+
+Objective
+- Ship a safe default and a clear path to enable, tune, and, if necessary, roll back.
+
+What’s Needed
+- Validate feature flag toggling end‑to‑end; document staged rollout steps and rollback runbook.
+
+Where It’s Needed
+- `config/*`, `src/runtime/settings.py`, this plan, and optionally `docs/runbook.md`.
+
+Definition of Done
+- Toggling verified in staging; rollback is documented and tested; defaults are safe (flag off).
+
+Status/Notes
+- Keep defaults conservative; enable progressively with observability checkpoints.
