@@ -6,12 +6,19 @@ Ensures OpenAI calls are stubbed and a deterministic API key is present.
 
 from __future__ import annotations
 
+import os
 import sys
+from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock
 
 import pytest
+
+os.environ.setdefault("SA_OPENAI_API_KEY", "test-key")
+
+if os.getenv("PYTEST_PYPROJECT") == "0":
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
 @pytest.fixture(autouse=True)

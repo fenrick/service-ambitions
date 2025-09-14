@@ -164,21 +164,6 @@ This document lists code-quality improvements for the core system. Remove items 
 
 # Quality, CI & safety nets
 
-## Test stability outside Poetry
-
-* **Implement**
-
-  * Make tests resilient when `pytest` isn’t run via Poetry by ensuring `pythonpath = ["src"]` is respected in all environments (fallback `conftest` sys.path insert when env var `PYTEST_PYPROJECT=0`).
-* **Files**
-
-  * `tests/conftest.py`
-* **Tests**
-
-  * `tests/test_imports.py::test_modules_import_without_poetry`
-* **Success criteria**
-
-  * `pytest -q` works locally without Poetry bootstrap.
-
 ## Migrations CLI (schema + cache)
 
 * **Implement**
@@ -499,12 +484,6 @@ You can paste this block as-is and tweak wording:
 >
 > * Fix truncated lines; add queue enablement + troubleshooting section.
 > * **Done when:** README sections copy/paste cleanly; links valid.
-
-> ### Pytest outside Poetry
->
-> * Fallback `sys.path` insert in `tests/conftest.py` when `PYTEST_PYPROJECT=0`.
-> * **Test:** `tests/test_imports.py::test_modules_import_without_poetry`.
-> * **Done when:** `pytest -q` works without Poetry.
 
 > ### Migrations CLI
 >

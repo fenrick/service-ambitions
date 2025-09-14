@@ -23,6 +23,10 @@ poetry run pip-audit
 # Tests with coverage gates
 poetry run pytest --maxfail=1 --disable-warnings -q \
   --cov=src --cov-report=term-missing --cov-fail-under=85
+
+# Or without Poetry (ensure ``src`` is on ``sys.path``)
+PYTEST_PYPROJECT=0 pytest --maxfail=1 --disable-warnings -q \
+  --cov=src --cov-report=term-missing --cov-fail-under=85
 ```
 
 Expectations:
