@@ -4,23 +4,6 @@ This document lists code-quality improvements for the core system. Remove items 
 
 # Highest-impact engineering work
 
-## Graceful cancellation & shutdown path
-
-* **Implement**
-
-  * Add signal handling for `SIGINT/SIGTERM` in the CLI to cancel in-flight tasks cleanly.
-  * Ensure `ProcessingEngine.run` and `ServiceExecution.run` propagate `asyncio.CancelledError` without masking, flush temp output, and persist `processed_ids.txt`.
-* **Files**
-
-  * `src/cli/main.py`, `src/engine/processing_engine.py`, `src/engine/service_execution.py`
-* **Tests**
-
-  * `tests/test_cancellation.py::test_ctrl_c_flushes_partial_output`
-  * `tests/test_cancellation.py::test_resume_after_cancel_continues_from_processed_ids`
-* **Success criteria**
-
-  * Hitting cancel mid-run leaves a valid `.tmp.part` and `processed_ids.txt`; re-run with `--resume` appends without duplication.
-
 ## Cache integrity & self-healing
 
 * **Implement**
@@ -409,12 +392,6 @@ This document lists code-quality improvements for the core system. Remove items 
 ## Quick insert template for your `Implementation_plan.md`
 
 You can paste this block as-is and tweak wording:
-
-> ### Graceful cancellation
->
-> * Handle SIGINT/SIGTERM in `cli/main.py`; ensure safe flush of `.tmp.part` and `processed_ids.txt` in `ProcessingEngine`.
-> * **Tests:** `tests/test_cancellation.py::{test_ctrl_c_flushes_partial_output,test_resume_after_cancel_continues_from_processed_ids}`.
-> * **Done when:** resume appends without dupes after cancellation.
 
 > ### Cache integrity & self-healing
 >

@@ -10,6 +10,7 @@ import logging
 import os
 import platform
 import random
+import signal
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any, Callable, Coroutine, Iterable, cast
@@ -442,10 +443,15 @@ async def _cmd_generate_evolution(
 ) -> None:
     """Generate service evolution summaries via ``ProcessingEngine``."""
     engine = ProcessingEngine(args, transcripts_dir)
-    success = await engine.run()
-    await engine.finalise()
-    if not success:
-        logfire.warning("One or more services failed during processing")
+    try:
+        success = await engine.run()
+    except asyncio.CancelledError:
+        await engine.finalise()
+        raise
+    else:
+        await engine.finalise()
+        if not success:
+            logfire.warning("One or more services failed during processing")
 
 
 def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
@@ -901,6 +907,33 @@ def _apply_args_to_settings(args: argparse.Namespace, settings: Settings) -> Non
         settings.mapping_mode = "per_set"
 
 
+def _run_async_with_signals(coro: Coroutine[Any, Any, Any]) -> Any:
+    """Execute ``coro`` and cancel on SIGINT or SIGTERM.
+
+    Args:
+        coro: Coroutine to run.
+
+    Returns:
+        Result of the coroutine.
+
+    Raises:
+        asyncio.CancelledError: Propagated when a termination signal is received.
+    """
+
+    async def _runner() -> Any:
+        loop = asyncio.get_running_loop()
+        task = asyncio.create_task(coro)
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(sig, task.cancel)
+        try:
+            return await task
+        finally:
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                loop.remove_signal_handler(sig)
+
+    return asyncio.run(_runner())
+
+
 def _execute_subcommand(args: argparse.Namespace, settings: Settings) -> None:
     """Initialise runtime and dispatch to the chosen subcommand."""
     RuntimeEnv.initialize(settings)
@@ -909,12 +942,14 @@ def _execute_subcommand(args: argparse.Namespace, settings: Settings) -> None:
     _configure_logging(args, settings)
     telemetry.reset()
     result = args.func(args, None)
-    if inspect.isawaitable(result):
-        asyncio.run(cast(Coroutine[Any, Any, Any], result))
-    telemetry.print_summary()
-    logfire.force_flush()
-    if settings.strict_mapping and telemetry.has_quarantines():
-        raise SystemExit(1)
+    try:
+        if inspect.isawaitable(result):
+            _run_async_with_signals(cast(Coroutine[Any, Any, Any], result))
+    finally:
+        telemetry.print_summary()
+        logfire.force_flush()
+        if settings.strict_mapping and telemetry.has_quarantines():
+            raise SystemExit(1)
 
 
 def main() -> None:

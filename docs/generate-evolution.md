@@ -58,6 +58,13 @@ default best‑effort behaviour.
 Services run concurrently using a bounded worker pool configured via the
 `--concurrency` flag or the `concurrency` setting in `config/app.yaml`.
 
+## Cancellation and resuming
+
+Press ``Ctrl+C`` to halt an in-progress run. Completed services are flushed to
+the output file and a companion ``processed_ids.txt`` record. Invoke the command
+again with ``--resume`` to continue from where the run stopped without
+duplicating previously processed services.
+
 Include `--seed <value>` to make backoff jitter and model sampling
 deterministic when supported by the provider.
 
