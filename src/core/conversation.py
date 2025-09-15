@@ -252,15 +252,20 @@ class ConversationSession:
         request_id: str,
     ) -> None:
         """Log failure details."""
-        logfire.error(
-            "Prompt failed",
-            stage=stage,
-            model_name=model_name,
-            total_tokens=tokens,
-            error=str(exc),
-            request_id=request_id,
-            service_id=self._service_id,
-        )
+        try:
+            settings = RuntimeEnv.instance().settings
+        except RuntimeError:  # pragma: no cover - when env uninitialised
+            settings = None
+        attrs = {
+            "stage": stage,
+            "model_name": model_name,
+            "total_tokens": tokens,
+            "error": str(exc),
+            "service_id": self._service_id,
+        }
+        if getattr(settings, "trace_ids", False):
+            attrs["request_id"] = request_id
+        logfire.error("Prompt failed", **attrs)
 
     def _finalise_metrics(
         self,

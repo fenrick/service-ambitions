@@ -177,8 +177,9 @@ without it, Logfire still records logs and metrics locally but nothing is sent
 to the cloud. Provide a token to stream traces to Logfire. The CLI instruments
 Pydantic, Pydantic AI, OpenAI and system metrics by default. Prompts are
 excluded from logs unless `--allow-prompt-logging` is specified. Pass
-`--json-logs` to emit logs as structured JSON and `--trace` to enable
-per‑request timing spans.
+`--json-logs` to emit logs as structured JSON, `--trace` to enable
+per‑request timing spans, and `--trace-ids` to print provider request IDs when
+failures occur.
 
 See [Logging levels](docs/logging-levels.md) for guidance on TRACE through
 EXCEPTION and when to use each level.

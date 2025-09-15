@@ -7,6 +7,9 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import logfire
+
+from core.conversation import ConversationSession
 from engine.processing_engine import ProcessingEngine
 from runtime.environment import RuntimeEnv
 
@@ -30,6 +33,7 @@ def _prepare_settings(_config: str | None = None):
         prompt_dir=Path("prompts"),
         mapping_data_dir=Path("data"),
         roles_file=Path("data/roles.json"),
+        trace_ids=False,
     )
 
 
@@ -246,3 +250,37 @@ def test_progress_suppressed_with_json_logs(monkeypatch, tmp_path):
     engine = _make_engine(tmp_path, json_logs=True)
     monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
     assert engine._create_progress(1) is None
+
+
+def test_trace_ids_reports_request_ids(monkeypatch, capsys):
+    """`--trace-ids` prints provider request IDs for failures."""
+
+    class _Agent:
+        def run(self, _prompt, message_history=None):  # pragma: no cover - dummy
+            raise RuntimeError("boom")
+
+        def run_sync(self, _prompt, message_history=None):  # pragma: no cover
+            raise RuntimeError("boom")
+
+    async def fake_generate(_args, _dir):
+        session = ConversationSession(_Agent(), diagnostics=False, log_prompts=False)
+        session._handle_failure(RuntimeError("boom"), "stage", "model", 0, "req-id-1")
+
+    monkeypatch.setattr(cli, "_cmd_generate_evolution", fake_generate)
+    monkeypatch.setattr(cli, "load_settings", _prepare_settings)
+    monkeypatch.setattr(
+        cli,
+        "_configure_logging",
+        lambda *a, **k: logfire.configure(
+            console=logfire.ConsoleOptions(
+                min_log_level="error", show_project_link=False, verbose=True
+            )
+        ),
+    )
+    monkeypatch.setattr(sys, "argv", ["main", "run", "--trace-ids"])
+
+    cli.main()
+
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    assert "request_id" in combined

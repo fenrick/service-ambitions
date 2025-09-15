@@ -46,6 +46,7 @@ Force fresh calls / control caching and diagnostics
 - `--cache-mode off` disables cache reads/writes.
 - `--concurrency` tunes parallelism across services.
 - `--trace` enables per‑request diagnostics and spans.
+- `--trace-ids` prints provider request IDs for failed items.
 
 Logfire is required by the CLI but the `SA_LOGFIRE_TOKEN` environment variable is
 optional for local runs. Set the token to stream traces to Logfire; without it,

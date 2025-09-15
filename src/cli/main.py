@@ -629,6 +629,11 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
         ),
     )
     parser.add_argument(
+        "--trace-ids",
+        action="store_true",
+        help="Print provider request IDs for failed items",
+    )
+    parser.add_argument(
         "--strict",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -901,6 +906,7 @@ def _apply_args_to_settings(args: argparse.Namespace, settings: Settings) -> Non
         "cache_dir": ("cache_dir", Path),
         "strict": ("strict", None),
         "trace": ("diagnostics", None),
+        "trace_ids": ("trace_ids", None),
         "dry_run": ("dry_run", None),
     }
     for arg_name, (attr, converter) in arg_mapping.items():
