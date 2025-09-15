@@ -33,6 +33,7 @@ class LLMTaskMeta:
     stage: str | None = None
     model_name: str | None = None
     service_id: str | None = None
+    request_id: str | None = None
 
 
 class LLMQueue:
@@ -42,9 +43,9 @@ class LLMQueue:
         if max_concurrency < 1:
             raise ValueError("max_concurrency must be >= 1")
         self._sem = asyncio.Semaphore(max_concurrency)
-        self._inflight = logfire.metric_gauge("llm_queue_inflight")
-        self._submitted = logfire.metric_counter("llm_queue_submitted")
-        self._completed = logfire.metric_counter("llm_queue_completed")
+        self._inflight = logfire.metric_gauge("sa_llm_queue_inflight")
+        self._submitted = logfire.metric_counter("sa_llm_queue_submitted")
+        self._completed = logfire.metric_counter("sa_llm_queue_completed")
 
     @asynccontextmanager
     async def _slot(self) -> Any:
@@ -72,16 +73,18 @@ class LLMQueue:
         stage = getattr(meta, "stage", None)
         model_name = getattr(meta, "model_name", None)
         service_id = getattr(meta, "service_id", None)
+        request_id = getattr(meta, "request_id", None)
         span_attrs = {
             k: v
             for k, v in {
                 "stage": stage,
                 "model_name": model_name,
                 "service_id": service_id,
+                "request_id": request_id,
             }.items()
             if v is not None
         }
-        with logfire.span("llm_queue.submit", attributes=span_attrs):
+        with logfire.span("sa_llm_queue.submit", attributes=span_attrs):
             async with self._slot():
                 result = await factory()
                 self._completed.add(1)

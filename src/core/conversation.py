@@ -371,6 +371,7 @@ class ConversationSession:
                 stage=stage,
                 model_name=model_name,
                 service_id=self._service_id,
+                request_id=request_id,
             )
             result = await queue.submit(
                 lambda: runner(prompt, self._history),

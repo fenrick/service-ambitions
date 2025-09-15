@@ -69,3 +69,16 @@ Note on generation policy
 
 - Logs must not imply multi‑pass content retries. Generation is one‑shot by
   design; only transport‑level retries are performed.
+
+## Metrics
+
+All internal metrics use the `sa_` prefix for consistency. Current metrics
+include:
+
+- `sa_llm_queue_inflight`: current queue slots in use.
+- `sa_llm_queue_submitted`: total LLM tasks submitted.
+- `sa_llm_queue_completed`: total LLM tasks completed.
+- `sa_mapping_set_summary`/`sa_mapping_totals`: mapping run summaries.
+
+When diagnostics are enabled, spans are annotated with ``stage``,
+``model_name``, ``service_id`` and ``request_id`` to aid troubleshooting.
