@@ -241,9 +241,10 @@ parallel workers, `--max-services` to limit how many entries are processed, and
 `--dry-run` to validate inputs without calling the API. Supply `--config` to
 point at a custom `app.yaml`. Evolution processing runs concurrently with a
 worker pool bounded by this setting. Pass `--progress` to display a progress
-bar during long runs; it is suppressed automatically in CI environments or when
-stdout is not a TTY. Provide `--seed` to make stochastic behaviour such as
-backoff jitter deterministic during tests and demos.
+bar during long runs; it is suppressed automatically in CI environments, when
+stdout is not a TTY, or when `--json-logs` is enabled. Provide `--seed` to make
+stochastic behaviour such as backoff jitter deterministic during tests and
+demos.
 
 ## Concurrency control
 

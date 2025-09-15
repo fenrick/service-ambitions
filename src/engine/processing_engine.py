@@ -261,9 +261,10 @@ class ProcessingEngine:
         Side effects:
             None.
         """
-        if self.args.progress and sys.stdout.isatty():
+        if self.args.progress and sys.stdout.isatty() and not self.args.json_logs:
             return tqdm(total=total)
-        # Progress bars are disabled in non-interactive environments.
+        # Progress bars are disabled in non-interactive environments or when
+        # structured logs are requested.
         return None
 
     def _prepare_models(self) -> None:

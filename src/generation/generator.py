@@ -667,13 +667,17 @@ def build_model(
     # Allow callers to pass provider-prefixed names such as ``openai:gpt-4``.
     model_name = model_name.split(":", 1)[-1]
     # Import OpenAI provider integrations lazily
+    from typing import Literal
+
     from pydantic_ai.models.openai import (
         OpenAIResponsesModel,
         OpenAIResponsesModelSettings,
     )
     from pydantic_ai.providers.openai import OpenAIProvider
 
-    provider = OpenAIProvider(api_key=api_key) if api_key else "openai"
+    provider: OpenAIProvider | Literal["openai"] = (
+        OpenAIProvider(api_key=api_key) if api_key else "openai"
+    )
     settings: OpenAIResponsesModelSettings = {
         "temperature": 0,
         "top_p": 1,

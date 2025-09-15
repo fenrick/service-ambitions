@@ -5,21 +5,23 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Iterable, Literal, Sequence, cast
+from typing import Any, Iterable, Literal, Sequence, cast
 
 from core import mapping
 from core.canonical import canonicalise_record
 from core.conversation import ConversationSession
 from io_utils.loader import configure_mapping_data_dir, load_mapping_items, load_roles
 from models import (
-    FeatureMappingRef,
+    Contribution,
     EnrichedContribution,
+    FeatureMappingRef,
     MappingFeatureGroup,
     MappingItem,
     MappingSet,
-    PlateauRole,
     PlateauFeature,
     PlateauResult,
+    PlateauRole,
+    Role,
     ServiceEvolution,
 )
 from runtime.settings import Settings
@@ -160,6 +162,42 @@ def _assemble_mapping_groups(
             )
 
 
+def _enrich_feature(
+    feature: PlateauFeature,
+    role_lookup: dict[str, Role],
+    catalogue_by_field: dict[str, dict[str, MappingItem]],
+) -> PlateauFeature:
+    """Attach role and mapping metadata to ``feature``."""
+    if getattr(feature, "role", None) is None and feature.customer_type in role_lookup:
+        feature.role = role_lookup[feature.customer_type]
+    enriched: dict[str, list[EnrichedContribution]] = {}
+    for field, contribs in feature.mappings.items():
+        cat = catalogue_by_field.get(field, {})
+        enriched[field] = []
+        for contrib in contribs:
+            item = cat.get(contrib.item)
+            if item is None:
+                enriched[field].append(
+                    EnrichedContribution(
+                        item=contrib.item,
+                        name=contrib.item,
+                        description="",
+                        justification=None,
+                    )
+                )
+            else:
+                enriched[field].append(
+                    EnrichedContribution(
+                        item=contrib.item,
+                        name=item.name,
+                        description=item.description,
+                        justification=None,
+                    )
+                )
+    feature.mappings = cast(dict[str, list[Contribution]], enriched)
+    return feature
+
+
 async def remap_features(
     evolutions: Sequence[ServiceEvolution],
     items: dict[str, list[MappingItem]],
@@ -184,50 +222,15 @@ async def remap_features(
     mapped = await _apply_mapping_sets(
         features, items, settings, cache_mode, catalogue_hash
     )
-    # Propagate per-feature mappings back into the evolutions for denormalised output
-    # and enrich with full role details and mapping item details.
     mapped_by_id = {f.feature_id: f for f in mapped}
     role_lookup = {r.role_id: r for r in load_roles(settings.roles_file)}
-    # Build catalogue lookups by field for enrichment
-    catalogue_by_field = {
-        field: {it.id: it for it in items[field]} for field in items
-    }
+    catalogue_by_field = {field: {it.id: it for it in items[field]} for field in items}
     for evo in evolutions:
         for plateau in evo.plateaus:
             updated: list[PlateauFeature] = []
             for f in plateau.features:
                 mf = mapped_by_id.get(f.feature_id, f)
-                # Attach role details if missing and lookup is available.
-                if getattr(mf, "role", None) is None and mf.customer_type in role_lookup:
-                    mf.role = role_lookup[mf.customer_type]
-                # Enrich mapping entries with human-friendly details
-                enriched: dict[str, list[EnrichedContribution]] = {}
-                for field, contribs in mf.mappings.items():
-                    cat = catalogue_by_field.get(field, {})
-                    enriched[field] = []
-                    for c in contribs:
-                        item = cat.get(c.item)
-                        if item is None:
-                            # Fallback to id placeholders if catalogue missing
-                            enriched[field].append(
-                                EnrichedContribution(
-                                    item=c.item,
-                                    name=c.item,
-                                    description="",
-                                    justification=None,
-                                )
-                            )
-                        else:
-                            enriched[field].append(
-                                EnrichedContribution(
-                                    item=c.item,
-                                    name=item.name,
-                                    description=item.description,
-                                    justification=None,
-                                )
-                            )
-                mf.mappings = enriched  # type: ignore[assignment]
-                updated.append(mf)
+                updated.append(_enrich_feature(mf, role_lookup, catalogue_by_field))
             plateau.features = updated
             # Build denormalised roles[] view for progressive readability
             role_groups: dict[str, list[PlateauFeature]] = {}
@@ -240,9 +243,7 @@ async def remap_features(
                     description=(
                         role_lookup[rid].description if rid in role_lookup else ""
                     ),
-                    features=sorted(
-                        feats, key=lambda x: x.feature_id
-                    ),
+                    features=sorted(feats, key=lambda x: x.feature_id),
                 )
                 for rid, feats in sorted(role_groups.items())
             ]
@@ -260,7 +261,7 @@ def write_output(evolutions: Iterable[ServiceEvolution], output_path: Path) -> N
         Creates or overwrites ``output_path`` with one line per evolution.
     """
     # Keep schemas lightweight for JSONL; placeholder for now.
-    schemas = {}
+    schemas: dict[str, Any] = {}
 
     with output_path.open("w", encoding="utf-8") as fh:
         for evo in evolutions:
