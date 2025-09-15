@@ -88,6 +88,29 @@ cache_dir: ${XDG_CACHE_HOME}/service-ambitions # Directory to store cache files.
 Set `use_local_cache: false` or `cache_mode: "off"` to bypass the cache, or use
 `write` to record new entries and `refresh` to rewrite existing ones.
 
+## Enable the LLM queue
+
+The experimental LLM queue overlaps feature generation with mapping across
+services. Enable it via configuration:
+
+```yaml
+llm_queue_enabled: true
+llm_queue_concurrency: 3  # total concurrent LLM calls across the app
+```
+
+Environment variables override these settings:
+
+```bash
+export SA_LLM_QUEUE_ENABLED=true
+export SA_LLM_QUEUE_CONCURRENCY=3
+```
+
+Monitor behaviour with the `sa_llm_queue_inflight`,
+`sa_llm_queue_submitted` and `sa_llm_queue_completed` metrics. If
+throughput stalls, increase `llm_queue_concurrency` gradually and verify
+provider rate limits. See [LLM Queue](docs/llm-queue.md) for full
+troubleshooting guidance.
+
 ## Health & diagnostics
 
 The Docker image is built on a [distroless](https://github.com/GoogleContainerTools/distroless)

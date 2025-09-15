@@ -80,21 +80,6 @@ using off-the-shelf libraries (e.g., Tenacity for retries) to meet these goals.
 
   * Cleaner CI logs; faster triage of failures.
 
-# Observability & docs
-
-## README & docs correctness pass
-
-* **Implement**
-
-  * Fix truncated code fences and tables (there are visible `...` truncations in `README.md` and `Implementation_plan.md` itself).
-  * Add a short “Enable the queue” section with flags (`llm_queue_enabled`, `llm_queue_concurrency`), troubleshooting, and metric names.
-* **Files**
-
-  * `README.md`, `docs/llm-queue-migration.md`, `docs/index.md`
-* **Success criteria**
-
-  * Copy/pasteable commands; no truncated lines; queue feature documented end-to-end.
-
 # Quality, CI & safety nets
 
 ## Migrations CLI (schema + cache)
