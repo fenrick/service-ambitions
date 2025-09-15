@@ -93,6 +93,9 @@ class Settings(BaseSettings):
     diagnostics: bool = Field(
         False, description="Enable verbose diagnostics and tracing."
     )
+    trace_ids: bool = Field(
+        False, description="Print provider request IDs for failed items."
+    )
     strict: bool = Field(
         False,
         description="Fail when features or mappings are missing.",

@@ -69,7 +69,7 @@ using off-the-shelf libraries (e.g., Tenacity for retries) to meet these goals.
 
 * **Implement**
 
-  * Flags: `--cache validate`, `--cache purge`, `--allow-prompt-logging` already exists—add `--trace-ids` to print request IDs for failed items.
+  * Flags: `--cache validate`, `--cache purge`, `--allow-prompt-logging` already exists.
 * **Files**
 
   * `src/cli/main.py`
@@ -279,11 +279,11 @@ using off-the-shelf libraries (e.g., Tenacity for retries) to meet these goals.
 
   * SBOM attached to builds; CI fails on disallowed licences.
 
-## CLI UX: `quarantine` triage & `--trace-ids`
+## CLI UX: `quarantine` triage
 
 * **Implement**
 
-  * Add `quarantine ls|show|rm` subcommands; implement `--trace-ids` to print provider request IDs on failures (already suggested—wire it fully).
+  * Add `quarantine ls|show|rm` subcommands.
 * **Files**
 
   * `src/cli/main.py`, `src/io_utils/quarantine.py`.
@@ -406,7 +406,7 @@ You can paste this block as-is and tweak wording:
 
 > ### CLI diagnostics QoL
 >
-> * Add `--cache validate|purge`, `--trace-ids`; suppress progress on non-TTY/`--json-logs`.
+> * Add `--cache validate|purge`; suppress progress on non-TTY/`--json-logs`.
 > * **Test:** `tests/test_cli_modes.py::test_progress_suppressed_in_non_tty`.
 > * **Done when:** cleaner logs and faster triage.
 
