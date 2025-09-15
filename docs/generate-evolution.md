@@ -27,7 +27,7 @@ To re-run mapping on an existing evolution output, see
 Example command:
 
 ```bash
-poetry run service-ambitions generate-evolution \
+poetry run service-ambitions run \
   --input-file sample-services.jsonl \
   --output-file evolution.jsonl \
   --strict-mapping
@@ -58,6 +58,12 @@ default best‑effort behaviour.
 
 Services run concurrently using a bounded worker pool configured via the
 `--concurrency` flag or the `concurrency` setting in `config/app.yaml`.
+
+To verify your setup before a full run, use preflight checks:
+
+```bash
+poetry run service-ambitions preflight --config config/app.yaml
+```
 
 ## Cancellation and resuming
 

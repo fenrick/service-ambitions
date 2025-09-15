@@ -27,6 +27,9 @@ poetry run pytest --maxfail=1 --disable-warnings -q \
 # Or without Poetry (ensure ``src`` is on ``sys.path``)
 PYTEST_PYPROJECT=0 pytest --maxfail=1 --disable-warnings -q \
   --cov=src --cov-report=term-missing --cov-fail-under=85
+
+# Optional: quick environment/data validation
+poetry run service-ambitions preflight --config config/app.yaml
 ```
 
 Expectations:

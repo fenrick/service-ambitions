@@ -10,9 +10,9 @@ loading behave consistently across both commands.
 Example command:
 
 ```bash
-poetry run service-ambitions generate-mapping \
-  --input evolution.jsonl \
-  --output remapped.jsonl \
+poetry run service-ambitions map \
+  --input-file evolution.jsonl \
+  --output-file remapped.jsonl \
   --strict-mapping
 ```
 
@@ -79,7 +79,7 @@ to help you reconcile configuration.
 
 ## Input format
 
-Provide a JSON Lines file produced by `generate-evolution`. Each line should be a
+Provide a JSON Lines file produced by `run`. Each line should be a
 `ServiceEvolution` object containing plateau features. Existing mapping data, if
 present, is replaced.
 

@@ -247,11 +247,29 @@ stdout is not a TTY, or when `--json-logs` is enabled. Provide `--seed` to make
 stochastic behaviour such as backoff jitter deterministic during tests and
 demos.
 
+### Preflight checks
+
+Run quick environment and data validations before a full run. This verifies
+configuration, required data files, and reports the current catalogue hash when
+available.
+
+```bash
+poetry run service-ambitions preflight --config config/app.yaml
+```
+
+The command exits non‑zero when issues are detected (for example, missing
+mapping files or an unset `SA_OPENAI_API_KEY`).
+
 ## Concurrency control
 
 Requests run in parallel using a standard semaphore. Each service consumes a
 single permit, so throughput is capped only by the `--concurrency` flag (or the
 `concurrency` setting in `config/app.yaml`).
+
+When the experimental global LLM queue is enabled, plateau feature generation
+overlaps with mapping (pipeline mode) while the queue bounds overall LLM
+concurrency across services and stages. See the “LLM Queue” section below for
+details and metrics.
 
 ## Plateau-first workflow
 
@@ -456,3 +474,29 @@ This project is licensed under the [MIT License](LICENSE).
 See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines and mandatory
 quality checks. All participants are expected to uphold the
 [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## LLM Queue (experimental)
+
+Enable a global, bounded‑concurrency execution queue for all LLM calls. When
+enabled, feature generation and mapping stages are pipelined per service while
+the queue enforces a single concurrency limit across the whole process.
+
+- Enable in config: set `llm_queue_enabled: true` and optionally
+  `llm_queue_concurrency: 3` in `config/app.yaml`.
+- Or via environment variables:
+
+  ```bash
+  export SA_LLM_QUEUE_ENABLED=true
+  export SA_LLM_QUEUE_CONCURRENCY=3
+  ```
+
+Observability
+- Metrics: `sa_llm_queue_inflight` (gauge), `sa_llm_queue_submitted` and
+  `sa_llm_queue_completed` (counters).
+- Spans: Conversation stages include `{stage, model_name, service_id, request_id}`
+  attributes when `--trace` is active.
+
+Troubleshooting
+- If throughput drops unexpectedly, lower `--concurrency` (services) or raise
+  `llm_queue_concurrency` (LLM queue) slightly. Start conservatively to avoid
+  provider rate limits.

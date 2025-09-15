@@ -12,6 +12,7 @@ nav:
   - Generation:
       - Evolution: generate-evolution.md
       - Mapping: generate-mapping.md
+  - Queue: llm-queue.md
   - Logging: logging-levels.md
   - SDRs: sd01-flow-of-evolution-prompts.md
 

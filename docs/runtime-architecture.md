@@ -130,14 +130,22 @@ sequenceDiagram
 
 ## LLM Queue (experimental)
 
-- Feature flag: enable with `llm_queue_enabled: true` and configure
-  `llm_queue_concurrency` (default 3) in `config/app.yaml` or via
-  environment variables `SA_LLM_QUEUE_ENABLED`, `SA_LLM_QUEUE_CONCURRENCY`.
-- When enabled, all ConversationSession async calls route through a global
-  bounded-concurrency queue to centralise rate limiting across services and
-  stages. When disabled, behaviour is unchanged.
+- Enable with `llm_queue_enabled: true` and configure
+  `llm_queue_concurrency` (default 3) in `config/app.yaml`, or via environment
+  variables `SA_LLM_QUEUE_ENABLED` and `SA_LLM_QUEUE_CONCURRENCY`.
+- When enabled, ConversationSession async calls route through a global
+  bounded‑concurrency queue to centralise rate limiting across services and
+  stages. Plateau generation overlaps with mapping (pipeline mode) while the
+  queue bounds overall concurrency. When disabled, behaviour is unchanged and
+  stages execute sequentially per plateau.
+
+Metrics and tracing:
+- Gauge `sa_llm_queue_inflight` represents available queue slots.
+- Counters `sa_llm_queue_submitted` and `sa_llm_queue_completed` count tasks.
+- Spans for queue submissions carry `{stage, model_name, service_id, request_id}`
+  attributes when diagnostics are enabled.
 
 Roadmap / TODOs (tracked as issues):
-- Add retry/backoff + circuit breaker to the queue by configuring a standard library (e.g., Tenacity) instead of custom code.
-- Pipeline plateau work to overlap features of N+1 with mapping of N.
-- Unify generator concurrency with the global queue.
+- Provider‑aware RPM/TPM rate limiting on the queue.
+- Per‑service plateau concurrency guardrails.
+- Latency histograms and queue depth sampling.
