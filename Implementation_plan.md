@@ -82,22 +82,6 @@ using off-the-shelf libraries (e.g., Tenacity for retries) to meet these goals.
 
 # Observability & docs
 
-## Metric & log naming consistency
-
-* **Implement**
-
-  * Standardise metric names across modules (e.g., `sa_llm_queue_*`, `sa_engine_*`, `sa_mapping_*`) and document in `docs/logging-levels.md`.
-  * Ensure all spans include `{stage, model_name, service_id, request_id}` when `diagnostics=true`.
-* **Files**
-
-  * `src/core/conversation.py`, `src/llm/queue.py`, `src/engine/*`, `docs/logging-levels.md`
-* **Tests**
-
-  * `tests/test_observability.py::test_span_attributes_present`
-* **Success criteria**
-
-  * Uniform metric prefix; spans consistently annotated.
-
 ## README & docs correctness pass
 
 * **Implement**
