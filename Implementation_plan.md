@@ -2,6 +2,10 @@
 
 This document lists code-quality improvements for the core system. Remove items once implemented.
 
+Wherever possible we configure existing frameworks or compose lightweight tools
+rather than building new infrastructure from scratch. The plan below assumes
+using off-the-shelf libraries (e.g., Tenacity for retries) to meet these goals.
+
 # Highest-impact engineering work
 
 ## Cache integrity & self-healing
@@ -200,11 +204,11 @@ This document lists code-quality improvements for the core system. Remove items 
 * **Implement**
 
   * Add `Settings.model_fallbacks: dict[str, list[str]]` (e.g., primary → candidates).
-  * In the queue wrapper, on specific non-transient failures (or model unavailability), **retry on next fallback**; surface which model produced the result.
+  * In the queue wrapper, on specific non-transient failures (or model unavailability), **retry on next fallback** using a configured library rather than custom helpers; surface which model produced the result.
   * Provide a chaos flag `--inject-failures p=0.05` for tests to randomly raise retriable errors.
 * **Files**
 
-  * `src/llm/retry.py` (extend), `src/generation/generator.py` (optional: reuse fallback path), `src/runtime/settings.py`, `src/cli/main.py`.
+  * `src/llm/queue.py`, `src/generation/generator.py` (optional: reuse fallback path), `src/runtime/settings.py`, `src/cli/main.py`.
 * **Tests**
 
   * `tests/test_fallbacks.py::{test_fallback_on_unavailable_model,test_inject_failures_exercises_fallbacks}`
@@ -461,7 +465,7 @@ Ensure all work follows the repository's standards in [AGENTS.md](AGENTS.md) and
 > ## Model fallbacks & chaos
 >
 > * `model_fallbacks` + failure injection.
-> * **Files:** `src/llm/retry.py`, `src/runtime/settings.py`.
+> * **Files:** `src/llm/queue.py`, `src/runtime/settings.py`.
 > * **Tests:** `tests/test_fallbacks.py`.
 > * **Done when:** fallbacks used on targeted failures.
 

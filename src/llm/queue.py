@@ -3,8 +3,7 @@
 
 This module provides a minimal async queue abstraction to centralise
 concurrency control for LLM calls. It is intentionally simple for the initial
-scaffold and can be extended to include retries, circuit breaking and richer
-observability.
+scaffold and can be extended with richer observability.
 
 Usage is feature-flagged via settings and integrated in ConversationSession so
 existing call sites do not need to change. When disabled, the queue is not
@@ -19,8 +18,6 @@ from dataclasses import dataclass
 from typing import Any, Awaitable, Protocol, TypeVar
 
 import logfire
-
-from .retry import CircuitBreaker, with_retry
 
 T = TypeVar("T", covariant=True)
 
@@ -39,12 +36,7 @@ class LLMTaskMeta:
 
 
 class LLMQueue:
-    """Bounded concurrency queue for LLM invocations.
-
-    In addition to a semaphore limiting concurrent executions, ``LLMQueue`` can
-    optionally retry transient failures with exponential backoff and a
-    circuit-breaker to pause after repeated faults.
-    """
+    """Bounded concurrency queue for LLM invocations."""
 
     def __init__(self, max_concurrency: int = 3) -> None:
         if max_concurrency < 1:
@@ -53,7 +45,6 @@ class LLMQueue:
         self._inflight = logfire.metric_gauge("llm_queue_inflight")
         self._submitted = logfire.metric_counter("llm_queue_submitted")
         self._completed = logfire.metric_counter("llm_queue_completed")
-        self._breaker = CircuitBreaker()
 
     @asynccontextmanager
     async def _slot(self) -> Any:
@@ -70,20 +61,12 @@ class LLMQueue:
         factory: _CoroFactory[T],
         *,
         meta: LLMTaskMeta | None = None,
-        retry: bool = False,
-        attempts: int = 6,
-        base: float = 1.0,
-        cap: float = 30.0,
     ) -> T:
         """Run ``factory`` under the queue's concurrency gate and return its result.
 
         Args:
             factory: Zero-arg coroutine factory for the actual LLM call.
             meta: Optional metadata recorded for tracing.
-            retry: Enable retry/backoff on transient errors when ``True``.
-            attempts: Maximum retry attempts when ``retry`` is enabled.
-            base: Initial delay in seconds for backoff when ``retry`` is enabled.
-            cap: Maximum backoff delay in seconds when ``retry`` is enabled.
         """
         self._submitted.add(1)
         stage = getattr(meta, "stage", None)
@@ -100,17 +83,7 @@ class LLMQueue:
         }
         with logfire.span("llm_queue.submit", attributes=span_attrs):
             async with self._slot():
-                if retry:
-                    result, _ = await with_retry(
-                        factory,
-                        request_timeout=60.0,
-                        attempts=attempts,
-                        base=base,
-                        cap=cap,
-                        circuit_breaker=self._breaker,
-                    )
-                else:
-                    result = await factory()
+                result = await factory()
                 self._completed.add(1)
                 return result
 

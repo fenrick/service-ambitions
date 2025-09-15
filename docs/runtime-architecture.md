@@ -138,6 +138,6 @@ sequenceDiagram
   stages. When disabled, behaviour is unchanged.
 
 Roadmap / TODOs (tracked as issues):
-- Add retry/backoff + circuit breaker to the queue (reuse existing retry util).
+- Add retry/backoff + circuit breaker to the queue by configuring a standard library (e.g., Tenacity) instead of custom code.
 - Pipeline plateau work to overlap features of N+1 with mapping of N.
 - Unify generator concurrency with the global queue.

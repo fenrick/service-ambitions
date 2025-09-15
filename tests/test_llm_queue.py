@@ -12,10 +12,6 @@ from models import ServiceInput
 from runtime.environment import RuntimeEnv
 
 
-class _TransientError(asyncio.TimeoutError):
-    """Custom transient error for testing retries."""
-
-
 class _Result:
     def __init__(self, output: object) -> None:
         self.output = output
@@ -129,58 +125,6 @@ async def test_llm_queue_limits_concurrency():
     # The first two started before the third
     assert starts[:2] == [1, 2]
     assert sorted(res) == [1, 2, 3]
-
-
-@pytest.mark.asyncio()
-async def test_submit_retries_on_transient():
-    from llm.queue import LLMQueue
-
-    q = LLMQueue(max_concurrency=1)
-    calls = 0
-
-    async def flaky():
-        nonlocal calls
-        calls += 1
-        if calls == 1:
-            raise _TransientError()
-        return "ok"
-
-    result = await q.submit(flaky, retry=True, attempts=3, base=0.0, cap=0.0)
-    assert result == "ok"
-    assert calls == 2
-
-
-@pytest.mark.asyncio()
-async def test_retry_after_header_honoured(monkeypatch):
-    from types import SimpleNamespace
-
-    from llm import retry as llm_retry
-    from llm.queue import LLMQueue
-
-    class _RateLimitError(Exception):
-        def __init__(self, delay: float) -> None:
-            self.response = SimpleNamespace(headers={"Retry-After": str(delay)})
-
-    monkeypatch.setattr(llm_retry, "RateLimitError", _RateLimitError, raising=False)
-    monkeypatch.setattr(
-        llm_retry,
-        "TRANSIENT_EXCEPTIONS",
-        llm_retry.TRANSIENT_EXCEPTIONS + (_RateLimitError,),
-        raising=False,
-    )
-
-    q = LLMQueue(max_concurrency=1)
-    calls: list[float] = []
-
-    async def flaky():
-        calls.append(asyncio.get_event_loop().time())
-        if len(calls) == 1:
-            raise _RateLimitError(0.05)
-        return "ok"
-
-    result = await q.submit(flaky, retry=True, attempts=2, base=0.0, cap=0.0)
-    assert result == "ok"
-    assert calls[1] - calls[0] >= 0.05
 
 
 @pytest.mark.asyncio()

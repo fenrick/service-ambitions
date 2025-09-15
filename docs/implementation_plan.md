@@ -2,6 +2,8 @@
 
 This document consolidates implementation workstreams into a single plan with clear objectives and consistent per‑item structure: What’s Needed, Where It’s Needed, and Definitions of Done. It currently incorporates the LLM Queue Migration workstream and can be extended with additional items as they are defined.
 
+Wherever feasible, use established frameworks or compose existing tools instead of creating new infrastructure. For example, leverage libraries like Tenacity for retry and backoff behaviour rather than bespoke helpers.
+
 Conventions for each item in this plan:
 - Objective: outcome this item delivers and why it matters.
 - What’s Needed: concrete changes, tests, or decisions required.

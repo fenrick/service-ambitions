@@ -367,15 +367,9 @@ class ConversationSession:
                 model_name=model_name,
                 service_id=self._service_id,
             )
-            needs_retry = (
-                stage == "descriptions"
-                or stage.startswith("features_")
-                or stage.startswith("mapping_")
-            )
             result = await queue.submit(
                 lambda: runner(prompt, self._history),
                 meta=meta,
-                retry=needs_retry,
             )
         else:
             result = await runner(prompt, self._history)
