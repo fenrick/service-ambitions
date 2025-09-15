@@ -173,8 +173,8 @@ def _pf_missing_mapping_files(settings: Settings) -> tuple[list[str], list[str]]
     issues: list[str] = []
     notes: list[str] = []
     if missing_files:
-        for p in missing_files:
-            issues.append(f"missing mapping file: {p}")
+        for missing in missing_files:
+            issues.append(f"missing mapping file: {missing}")
     else:
         _, catalogue_hash = load_mapping_items(settings.mapping_sets)
         notes.append(f"catalogue_hash={catalogue_hash}")

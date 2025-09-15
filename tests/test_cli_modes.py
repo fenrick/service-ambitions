@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+from engine.processing_engine import ProcessingEngine
 from runtime.environment import RuntimeEnv
 
 cli = importlib.import_module("cli.main")
@@ -30,6 +31,31 @@ def _prepare_settings(_config: str | None = None):
         mapping_data_dir=Path("data"),
         roles_file=Path("data/roles.json"),
     )
+
+
+def _make_engine(
+    tmp_path: Path, *, json_logs: bool, progress: bool = True
+) -> ProcessingEngine:
+    """Return ``ProcessingEngine`` with minimal arguments for progress tests."""
+    svc_file = tmp_path / "services.json"
+    svc_file.write_text("[]", encoding="utf-8")
+    roles_file = tmp_path / "roles.json"
+    roles_file.write_text("[]", encoding="utf-8")
+    args = SimpleNamespace(
+        output_file=str(tmp_path / "out.jsonl"),
+        resume=False,
+        transcripts_dir=None,
+        seed=0,
+        roles_file=str(roles_file),
+        input_file=str(svc_file),
+        max_services=None,
+        progress=progress,
+        temp_output_dir=None,
+        dry_run=False,
+        allow_prompt_logging=False,
+        json_logs=json_logs,
+    )
+    return ProcessingEngine(args, None)
 
 
 def test_run_invokes_generator(monkeypatch):
@@ -206,3 +232,17 @@ def test_run_passes_config_path(monkeypatch, tmp_path):
     cli.main()
 
     assert called["config"] == str(cfg)
+
+
+def test_progress_suppressed_in_non_tty(monkeypatch, tmp_path):
+    """Progress bar should not render when stdout is not a TTY."""
+    engine = _make_engine(tmp_path, json_logs=False)
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: False)
+    assert engine._create_progress(1) is None
+
+
+def test_progress_suppressed_with_json_logs(monkeypatch, tmp_path):
+    """Progress bar should be disabled when structured logs are requested."""
+    engine = _make_engine(tmp_path, json_logs=True)
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    assert engine._create_progress(1) is None

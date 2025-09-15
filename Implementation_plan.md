@@ -70,13 +70,12 @@ using off-the-shelf libraries (e.g., Tenacity for retries) to meet these goals.
 * **Implement**
 
   * Flags: `--cache validate`, `--cache purge`, `--allow-prompt-logging` already exists—add `--trace-ids` to print request IDs for failed items.
-  * Automatically suppress progress when not TTY (already hinted in README) and when `--json-logs` is on; assert with tests.
 * **Files**
 
   * `src/cli/main.py`
 * **Tests**
 
-  * `tests/test_cli_modes.py::test_progress_suppressed_in_non_tty`
+  * `tests/test_cli_modes.py::test_trace_ids_reports_request_ids`
 * **Success criteria**
 
   * Cleaner CI logs; faster triage of failures.
