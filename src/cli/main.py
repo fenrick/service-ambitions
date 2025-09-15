@@ -589,11 +589,15 @@ def _add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
         help="Display a progress bar during execution",
     )
     parser.add_argument(
+        "--resume",
         "--continue",
         dest="resume",
         action="store_true",
         default=False,
-        help="Resume processing using processed_ids.txt",
+        help=(
+            "Resume processing using processed_ids.txt; refuses if input file or "
+            "output path changed"
+        ),
     )
     parser.add_argument(
         "--web-search",

@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import os
 import sys
+from hashlib import sha256
 from itertools import islice
 from pathlib import Path
+from typing import Any, cast
 
 import logfire
 from tqdm import tqdm  # type: ignore[import-untyped]
@@ -89,6 +92,23 @@ def _load_resume_state(
         return processed_ids, existing_lines
 
 
+def _load_resume_meta(state_path: Path, resume: bool) -> dict[str, Any]:
+    """Return metadata from a previous run when resuming."""
+    with logfire.span(
+        "processing_engine.load_resume_meta",
+        attributes={"state_path": str(state_path), "resume": resume},
+    ):
+        if not resume:
+            return {}
+        lines = read_lines(state_path)
+        if not lines:
+            raise FileNotFoundError(state_path)
+        try:
+            return cast(dict[str, Any], json.loads(lines[0]))
+        except json.JSONDecodeError as exc:  # pragma: no cover - defensive
+            raise ValueError(f"Invalid resume metadata: {state_path}") from exc
+
+
 def _ensure_transcripts_dir(path: str | None, output: Path) -> Path:
     """Create and return the directory used to store transcripts.
 
@@ -158,6 +178,19 @@ class ProcessingEngine:
         self.processed_ids, self.existing_lines = _load_resume_state(
             self.processed_path, self.output_path, args.resume
         )
+        self.state_path = self.output_path.with_name("resume_state.json")
+        input_path = Path(args.input_file)
+        if args.resume and not input_path.exists():
+            raise FileNotFoundError(input_path)
+        self.input_hash = (
+            sha256(input_path.read_bytes()).hexdigest() if input_path.exists() else ""
+        )
+        meta = _load_resume_meta(self.state_path, args.resume)
+        if args.resume:
+            if meta.get("input_hash") != self.input_hash:
+                raise ValueError("Resume refused: input file has changed")
+            if meta.get("output_path") != str(self.output_path):
+                raise ValueError("Resume refused: output path has changed")
         if self.transcripts_dir is None:
             self.transcripts_dir = _ensure_transcripts_dir(
                 args.transcripts_dir, self.output_path
@@ -397,6 +430,17 @@ class ProcessingEngine:
             os.replace(self.part_path, self.output_path)
             self.processed_ids = set(self.new_ids)
         atomic_write(self.processed_path, sorted(self.processed_ids))
+        settings_dump = (
+            self.settings.model_dump()
+            if hasattr(self.settings, "model_dump")
+            else vars(self.settings)
+        )
+        state = {
+            "input_hash": self.input_hash,
+            "output_path": str(self.output_path),
+            "settings": settings_dump,
+        }
+        atomic_write(self.state_path, [json.dumps(state, default=str)])
 
     async def finalise(self) -> None:
         """Write successful results to disk."""
