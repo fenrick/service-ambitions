@@ -61,22 +61,6 @@ This document lists code-quality improvements for the core system. Remove items 
 
 # CLI, UX & developer experience
 
-## End-to-end resume UX polish
-
-* **Implement**
-
-  * Document and enforce invariants for `--resume`: same input file hash, same output path. Refuse resume if they differ (to prevent accidental data skew).
-  * Persist input file SHA-256 and settings snapshot alongside `processed_ids.txt`.
-* **Files**
-
-  * `src/engine/processing_engine.py`, `src/cli/main.py`
-* **Tests**
-
-  * `tests/test_resume_guards.py::test_refuse_resume_on_input_changed`
-* **Success criteria**
-
-  * Resume is safe-by-default; users get a precise message on mismatch.
-
 ## CLI: cache & diagnostics quality of life
 
 * **Implement**

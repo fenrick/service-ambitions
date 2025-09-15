@@ -63,7 +63,9 @@ Services run concurrently using a bounded worker pool configured via the
 Press ``Ctrl+C`` to halt an in-progress run. Completed services are flushed to
 the output file and a companion ``processed_ids.txt`` record. Invoke the command
 again with ``--resume`` to continue from where the run stopped without
-duplicating previously processed services.
+duplicating previously processed services. A ``resume_state.json`` file stores
+the SHA-256 hash of the input file and the output path; resuming is refused if
+either value changes to prevent accidental data skew.
 
 Include `--seed <value>` to make backoff jitter and model sampling
 deterministic when supported by the provider.

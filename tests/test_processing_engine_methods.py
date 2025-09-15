@@ -13,13 +13,15 @@ from runtime.environment import RuntimeEnv
 
 
 def _make_args(tmp_path: Path) -> SimpleNamespace:
+    svc_file = tmp_path / "services.json"
+    svc_file.write_text("[]", encoding="utf-8")
     return SimpleNamespace(
         output_file=str(tmp_path / "out.jsonl"),
         resume=False,
         transcripts_dir=None,
         seed=0,
         roles_file=str(tmp_path / "roles.json"),
-        input_file="services.json",
+        input_file=str(svc_file),
         max_services=None,
         progress=False,
         temp_output_dir=None,
