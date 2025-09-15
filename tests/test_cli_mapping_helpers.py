@@ -14,6 +14,9 @@ from core import mapping
 from models import Contribution, MappingSet, ServiceEvolution
 from runtime.settings import Settings
 
+FEAT1 = "ABCDEF"
+FEAT2 = "ABCDEG"
+
 
 def _settings() -> Settings:
     """Return minimal settings for helper tests."""
@@ -23,6 +26,7 @@ def _settings() -> Settings:
             diagnostics=False,
             strict_mapping=False,
             mapping_data_dir=Path("tests/fixtures/catalogue"),
+            roles_file=Path("tests/fixtures/roles.json"),
             mapping_sets=[
                 MappingSet(
                     name="Applications", file="applications.json", field="applications"
@@ -35,6 +39,18 @@ def _settings() -> Settings:
     )
 
 
+def _load_evolutions() -> list[ServiceEvolution]:
+    text = Path("tests/fixtures/mapping_services.jsonl").read_text(encoding="utf-8")
+    text = text.replace('"feature_id":"F1"', f'"feature_id":"{FEAT1}"').replace(
+        '"feature_id":"F2"', f'"feature_id":"{FEAT2}"'
+    )
+    return [
+        ServiceEvolution.model_validate_json(line)
+        for line in text.splitlines()
+        if line.strip()
+    ]
+
+
 def _stub_map_set(*args, **kwargs):
     """Return deterministic mappings for test features."""
     session, set_name, _, features, *rest = args
@@ -42,9 +58,9 @@ def _stub_map_set(*args, **kwargs):
     for feat in features:
         mappings = dict(feat.mappings)
         if set_name == "applications":
-            mapping_id = {"F1": "app1", "F2": "app2"}.get(feat.feature_id)
+            mapping_id = {FEAT1: "app1", FEAT2: "app2"}.get(feat.feature_id)
         else:
-            mapping_id = {"F1": "tech1", "F2": "tech2"}.get(feat.feature_id)
+            mapping_id = {FEAT1: "tech1", FEAT2: "tech2"}.get(feat.feature_id)
         if mapping_id:
             mappings.setdefault(set_name, []).append(Contribution(item=mapping_id))
         mapped.append(feat.model_copy(update={"mappings": mappings}))
@@ -61,12 +77,7 @@ async def test_apply_mapping_sets_invokes_map_set(monkeypatch) -> None:
     settings = _settings()
     items, catalogue_hash = cli_mapping.load_catalogue(None, settings)
 
-    text = Path("tests/fixtures/mapping_services.jsonl").read_text(encoding="utf-8")
-    evolutions = [
-        ServiceEvolution.model_validate_json(line)
-        for line in text.splitlines()
-        if line.strip()
-    ]
+    evolutions = _load_evolutions()
     features = [f for evo in evolutions for p in evo.plateaus for f in p.features]
 
     calls: list[str] = []
@@ -91,12 +102,7 @@ async def test_assemble_mapping_groups_groups_features(monkeypatch) -> None:
     settings = _settings()
     items, catalogue_hash = cli_mapping.load_catalogue(None, settings)
 
-    text = Path("tests/fixtures/mapping_services.jsonl").read_text(encoding="utf-8")
-    evolutions = [
-        ServiceEvolution.model_validate_json(line)
-        for line in text.splitlines()
-        if line.strip()
-    ]
+    evolutions = _load_evolutions()
 
     monkeypatch.setattr(mapping, "map_set", _stub_map_set_async)
     features = [f for evo in evolutions for p in evo.plateaus for f in p.features]
@@ -142,12 +148,7 @@ async def test_remap_features_populates_mappings(monkeypatch) -> None:
     settings = _settings()
     items, catalogue_hash = cli_mapping.load_catalogue(None, settings)
 
-    text = Path("tests/fixtures/mapping_services.jsonl").read_text(encoding="utf-8")
-    evolutions = [
-        ServiceEvolution.model_validate_json(line)
-        for line in text.splitlines()
-        if line.strip()
-    ]
+    evolutions = _load_evolutions()
 
     monkeypatch.setattr(mapping, "map_set", _stub_map_set_async)
 
@@ -165,12 +166,7 @@ async def test_write_output_matches_golden(monkeypatch, tmp_path) -> None:
     """Writing mapped output produces the locked golden file."""
     settings = _settings()
     items, catalogue_hash = cli_mapping.load_catalogue(None, settings)
-    text = Path("tests/fixtures/mapping_services.jsonl").read_text(encoding="utf-8")
-    evolutions = [
-        ServiceEvolution.model_validate_json(line)
-        for line in text.splitlines()
-        if line.strip()
-    ]
+    evolutions = _load_evolutions()
     monkeypatch.setattr(mapping, "map_set", _stub_map_set_async)
     await cli_mapping.remap_features(evolutions, items, settings, "off", catalogue_hash)
 

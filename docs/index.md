@@ -31,8 +31,20 @@ poetry run service-ambitions map \
   --output-file remapped.jsonl
 ```
 
-See the LLM Queue section to enable centralised concurrency and pipelined
-execution when appropriate.
+## Enable the LLM queue
+
+Enable the global queue to overlap feature generation with mapping:
+
+```yaml
+llm_queue_enabled: true
+llm_queue_concurrency: 3
+```
+
+These settings live in `config/app.yaml` and can be overridden with
+`SA_LLM_QUEUE_ENABLED` and `SA_LLM_QUEUE_CONCURRENCY` environment
+variables. Monitor the `sa_llm_queue_inflight`, `sa_llm_queue_submitted`
+and `sa_llm_queue_completed` metrics to verify operation. See
+[LLM Queue](llm-queue.md) for tuning and troubleshooting guidance.
 
 For the full project overview, see the README on GitHub:
 

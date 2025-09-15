@@ -11,7 +11,7 @@ def test_run_help_mentions_one_shot_and_flags(capsys) -> None:
     run_parser = parser._subparsers._group_actions[0].choices["run"]  # type: ignore[attr-defined]
     run_parser.print_help()
     out = capsys.readouterr().out
-    assert "one model call per plateau" in out
+    assert "one-shot per plateau" in out
     assert "--cache-mode" in out
     assert "--concurrency" in out
     assert "--trace" in out
