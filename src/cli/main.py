@@ -277,7 +277,34 @@ def _build_evolution_from_payload(
     return ServiceEvolution(meta=meta, service=service, plateaus=plateaus)
 
 
-def _load_service_evolution_for_mapping(  # noqa: C901  # complexity; TODO: split parsing branches into helpers
+def _parse_evolution_line(
+    line: str,
+    service_id: str,
+    service_lookup: Mapping[str, ServiceInput],
+    catalogue_hash: str,
+) -> ServiceEvolution | None:
+    """Return a ``ServiceEvolution`` for ``line`` if it matches ``service_id``.
+
+    Tries typed JSON first; falls back to raw dict parsing for lean mapping
+    inputs that are not full ServiceEvolution instances.
+    """
+    try:
+        evolution = ServiceEvolution.model_validate_json(line)
+    except ValidationError:
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError as exc:  # pragma: no cover - defensive
+            raise ValueError("Invalid JSON in features file: %s" % exc) from exc
+        if _extract_service_id(payload) != service_id:
+            return None
+        return _build_evolution_from_payload(
+            payload, service_id, service_lookup, catalogue_hash
+        )
+    else:
+        return evolution if evolution.service.service_id == service_id else None
+
+
+def _load_service_evolution_for_mapping(
     service_id: str,
     features_path: Path,
     service_path: Path | None,
@@ -296,26 +323,15 @@ def _load_service_evolution_for_mapping(  # noqa: C901  # complexity; TODO: spli
     last_error: ValueError | None = None
     for line in _iter_json_lines(features_path):
         try:
-            evolution = ServiceEvolution.model_validate_json(line)
-        except ValidationError:
-            try:
-                payload = json.loads(line)
-            except json.JSONDecodeError as exc:  # pragma: no cover - defensive
-                raise ValueError(
-                    f"Invalid JSON in features file '{features_path}': {exc}"
-                ) from exc
-            if _extract_service_id(payload) != service_id:
-                continue
-            try:
-                return _build_evolution_from_payload(
-                    payload, service_id, service_lookup, catalogue_hash
-                )
-            except ValueError as exc:
-                last_error = exc
-                break
-        else:
-            if evolution.service.service_id == service_id:
-                return evolution
+            evo = _parse_evolution_line(
+                line, service_id, service_lookup, catalogue_hash
+            )
+        except ValueError as exc:
+            # Preserve first parsing error associated with the requested service
+            last_error = exc
+            break
+        if evo is not None:
+            return evo
 
     if last_error is not None:
         raise last_error
