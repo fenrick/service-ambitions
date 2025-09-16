@@ -35,9 +35,15 @@ from .dry_run import DryRunInvocation
 from .mapping import cache_write_json_atomic
 
 
-def _prompt_cache_key(prompt: str, model: str, stage: str) -> str:
-    """Return a stable cache key for ``prompt`` and ``model``."""
-    data = to_json([prompt, model, stage]).decode()
+def _prompt_cache_key(prompt: str, model: str, stage: str, history: str | None = None) -> str:
+    """Return a stable cache key for a prompt including conversation history.
+
+    The key is derived from the full prompt text, model identifier, stage, and
+    any prior user-provided context (``history``). When ``history`` is ``None``,
+    only the prompt text is used (for backward compatibility in tooling that
+    reconstructs prompts without full context).
+    """
+    data = to_json([history or "", prompt, model, stage]).decode()
     return hashlib.sha256(data.encode("utf-8")).hexdigest()[:32]
 
 
@@ -141,6 +147,7 @@ class ConversationSession:
             else (Path("transcripts") if diagnostics else None)
         )
         self._service_id: str | None = None
+        self._service_context_text: str | None = None
         # Token usage for the most recent request
         self.last_tokens: int = 0
         self.use_local_cache = use_local_cache
@@ -172,6 +179,11 @@ class ConversationSession:
             messages.ModelRequest(parts=[messages.UserPromptPart(ctx)])
         )
         self._service_id = service_input.service_id
+        self._service_context_text = ctx
+
+    def history_context_text(self) -> str:
+        """Return the serialized service context text for hashing purposes."""
+        return self._service_context_text or ""
 
     def derive(self) -> "ConversationSession":
         """Return a new session copying the current history."""
@@ -358,7 +370,7 @@ class ConversationSession:
             salt = _os.getenv("PYTEST_CURRENT_TEST", "")
             no_runtime = True
         salted_model = model_name + ("|" + salt if salt else "")
-        key = _prompt_cache_key(prompt, salted_model, stage)
+        key = _prompt_cache_key(prompt, salted_model, stage, self._service_context_text)
         svc = self._service_id or "unknown"
         cache_file = _prompt_cache_path(svc, stage, key, feature_id)
         service_root = _service_cache_root(svc)

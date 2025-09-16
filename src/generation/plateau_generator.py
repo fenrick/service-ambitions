@@ -41,7 +41,6 @@ from models import (
 )
 from runtime.environment import RuntimeEnv
 from utils import ShortCodeRegistry
-from utils.cache_paths import feature_cache
 
 # Settings and token scheduling are no longer required after simplification.
 
@@ -85,22 +84,7 @@ def default_role_lookup() -> dict[str, Role]:
     return {r.role_id: r for r in roles}
 
 
-def _feature_cache_path(service: str, plateau: int) -> Path:
-    """Return canonical cache path for features at ``plateau``."""
-    return feature_cache(service, plateau)
-
-
-def _discover_feature_cache(service: str, plateau: int) -> tuple[Path, Path]:
-    """Return existing feature cache and canonical destination."""
-    canonical = _feature_cache_path(service, plateau)
-    if canonical.exists():
-        return canonical, canonical
-
-    service_root = canonical.parents[1]
-    for candidate in service_root.glob("**/features.json"):
-        return candidate, canonical
-
-    return canonical, canonical
+# legacy feature cache helpers removed; prompt-cache is authoritative
 
 
 class PlateauGenerator:

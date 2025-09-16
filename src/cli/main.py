@@ -23,9 +23,11 @@ from pydantic_core import to_json
 from constants import DEFAULT_CACHE_DIR
 from core.canonical import canonicalise_record
 from core.conversation import _prompt_cache_key, _prompt_cache_path
-from core.mapping import build_cache_key, cache_path, cache_write_json_atomic
+from core.mapping import cache_path, cache_write_json_atomic
+from core.mapping_prompt import render_set_prompt
+from core.conversation import _prompt_cache_key
 from engine.processing_engine import ProcessingEngine
-from generation.plateau_generator import _feature_cache_path, default_plateau_names
+from generation.plateau_generator import default_plateau_names
 from io_utils.loader import (
     configure_mapping_data_dir,
     configure_prompt_dir,
@@ -530,14 +532,7 @@ def _reconstruct_feature_cache(
             )
             block.setdefault(feat.customer_type, []).append(item)
         payload = PlateauFeaturesResponse(features=block)
-        # Write canonical human-friendly file for quick inspection
-        feat_path = _feature_cache_path(svc_id, plateau.plateau)
-        if _should_write_cache(
-            getattr(settings, "cache_mode", "read"), feat_path.exists()
-        ):
-            cache_write_json_atomic(feat_path, payload.model_dump())
-
-        # Also write hashed prompt-cache entry so different contexts co-exist
+        # Write hashed prompt-cache entry so different contexts co-exist
         try:
             from generation.plateau_generator import (
                 default_role_ids as _role_ids_fn,
@@ -557,7 +552,9 @@ def _reconstruct_feature_cache(
                 or settings.model
             )
             stage = f"features_{plateau.plateau}"
-            f_key = _prompt_cache_key(prompt, feature_model, stage)
+            # Include service context as history in the key
+            svc_ctx = "SERVICE_CONTEXT:\n" + evo.service.model_dump_json()
+            f_key = _prompt_cache_key(prompt, feature_model, stage, svc_ctx)
             f_cache = _prompt_cache_path(svc_id, stage, f_key)
             if _should_write_cache(
                 getattr(settings, "cache_mode", "read"), f_cache.exists()
@@ -595,16 +592,21 @@ def _rebuild_mapping_cache(
                     features_by_id[ref.feature_id].mappings.setdefault(
                         cfg.field, []
                     ).append(contrib)
-            key = build_cache_key(
-                settings.model,
+            # Reconstruct mapping prompt and compute new key including history
+            prompt = render_set_prompt(
                 cfg.field,
-                catalogue_hash,
+                items[cfg.field],
                 plateau.features,
-                settings.diagnostics,
-                plateau=plateau.plateau,
+                service_name=evo.service.name,
                 service_description=plateau.service_description,
-                service_name=None,
+                plateau=plateau.plateau,
+                diagnostics=settings.diagnostics,
+                facets_meta=None,
             )
+            model_name = getattr(getattr(settings, "models", None), "mapping", None) or settings.model
+            stage = f"mapping_{cfg.field}"
+            svc_ctx = "SERVICE_CONTEXT:\n" + evo.service.model_dump_json()
+            key = _prompt_cache_key(prompt, model_name, stage, svc_ctx)
             cache_file = cache_path(svc_id, plateau.plateau, cfg.field, key)
             if _should_write_cache(
                 getattr(settings, "cache_mode", "read"), cache_file.exists()
@@ -645,7 +647,8 @@ def _rebuild_description_cache(
             getattr(getattr(settings, "models", None), "descriptions", None)
             or settings.model
         )
-        key = _prompt_cache_key(prompt, model_name, "descriptions")
+        svc_ctx = "SERVICE_CONTEXT:\n" + evo.service.model_dump_json()
+        key = _prompt_cache_key(prompt, model_name, "descriptions", svc_ctx)
         cache_file = _prompt_cache_path(svc_id, "descriptions", key)
         if not _should_write_cache(
             getattr(settings, "cache_mode", "read"), cache_file.exists()

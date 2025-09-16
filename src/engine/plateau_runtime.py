@@ -30,7 +30,7 @@ from models import (
 )
 from runtime.environment import RuntimeEnv
 from utils import ShortCodeRegistry
-from utils.cache_paths import feature_cache
+from core.conversation import _prompt_cache_key, _prompt_cache_path
 
 
 @dataclass
@@ -44,21 +44,18 @@ class PlateauRuntime:
     mappings: dict[str, list[MappingFeatureGroup]] = field(default_factory=dict)
     success: bool = False
 
-    def _feature_cache_path(self, service: str) -> Path:
-        """Return canonical cache path for features."""
-        return feature_cache(service, self.plateau)
+    def _feature_cache_hashed_path(self, service: str, session: ConversationSession, *, service_name: str) -> Path:
+        """Return hashed prompt-cache path for features.
 
-    def _discover_feature_cache(self, service: str) -> tuple[Path, Path]:
-        """Return existing feature cache and canonical destination."""
-        canonical = self._feature_cache_path(service)
-        if canonical.exists():
-            return canonical, canonical
-
-        service_root = canonical.parents[1]
-        for candidate in service_root.glob("**/features.json"):
-            return candidate, canonical
-
-        return canonical, canonical
+        The key incorporates full prompt text and prior service context.
+        """
+        prompt = self._build_plateau_prompt(
+            service_name=service_name, description=self.description, roles=[]
+        )
+        stage = f"features_{self.plateau}"
+        model_name = getattr(getattr(session.client, "model", None), "model_name", "")
+        key = _prompt_cache_key(prompt, model_name, stage, session.history_context_text())
+        return _prompt_cache_path(service, stage, key)
 
     def _to_feature(
         self, item: FeatureItem, role: str, code_registry: ShortCodeRegistry
@@ -109,6 +106,8 @@ class PlateauRuntime:
     def _load_cached_payload(
         self,
         service_id: str,
+        session: ConversationSession,
+        service_name: str,
         use_local_cache: bool,
         cache_mode: Literal["off", "read", "refresh", "write"],
     ) -> tuple[PlateauFeaturesResponse | None, Path | None]:
@@ -116,15 +115,13 @@ class PlateauRuntime:
         payload: PlateauFeaturesResponse | None = None
         cache_file: Path | None = None
         if use_local_cache and cache_mode != "off":
-            candidate, cache_file = self._discover_feature_cache(service_id)
+            cache_file = self._feature_cache_hashed_path(service_id, session, service_name=service_name)
+            candidate = cache_file
             if cache_mode == "read" and candidate.exists():
                 try:
                     with candidate.open("rb") as fh:
                         data = from_json(fh.read())
                     payload = PlateauFeaturesResponse.model_validate(data)
-                    if candidate != cache_file:
-                        cache_write_json_atomic(cache_file, payload.model_dump())
-                        candidate.unlink()
                 except (ValidationError, ValueError) as exc:
                     raise RuntimeError(f"Invalid feature cache: {candidate}") from exc
         return payload, cache_file
@@ -155,7 +152,7 @@ class PlateauRuntime:
         # - refresh: always write (overwrite)
         # - read/write: write only when the file is absent
         if use_local_cache and cache_mode != "off":
-            target = cache_file or self._feature_cache_path(service_id)
+            target = cache_file or self._feature_cache_hashed_path(service_id, session, service_name=service_name)
             exists_before = target.exists()
             should_write = cache_mode == "refresh" or (
                 cache_mode in {"read", "write"} and not exists_before
@@ -177,7 +174,7 @@ class PlateauRuntime:
     ) -> None:
         """Populate ``self.features`` using ``session``."""
         payload, cache_file = self._load_cached_payload(
-            service_id, use_local_cache, cache_mode
+            service_id, session, service_name, use_local_cache, cache_mode
         )
         if payload is None:
             # In dry-run mode, halt before making the agent call.

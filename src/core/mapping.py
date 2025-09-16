@@ -20,6 +20,7 @@ from pydantic import ValidationError
 from pydantic_core import from_json, to_json
 
 from constants import DEFAULT_CACHE_DIR
+from .conversation import _prompt_cache_key
 from io_utils.loader import load_mapping_items, load_mapping_meta, load_prompt_text
 from io_utils.quarantine import QuarantineWriter
 from models import (
@@ -101,40 +102,15 @@ def _features_hash(features: Sequence[PlateauFeature]) -> str:
     return hashlib.sha256(combined.encode("utf-8")).hexdigest()
 
 
-def build_cache_key(
-    model_name: str,
-    set_name: str,
-    catalogue_hash: str,
-    features: Sequence[PlateauFeature],
-    diagnostics: bool,
-    *,
-    plateau: int,
-    service_description: str,
-    service_name: str | None = None,
-) -> str:
-    """Return a deterministic cache key for mapping responses.
+def build_cache_key(*args: Any, **kwargs: Any) -> str:  # pragma: no cover - legacy shim
+    """Deprecated: mapping cache is now keyed by full prompt+history.
 
-    The key incorporates the model, catalogue hash, prompt template version,
-    diagnostics flag and a hash of the feature definitions.
+    Retained for callers that still import this symbol; returns a short hash of
+    arguments only to keep deterministic but non-conflicting values. Not used
+    by the engine.
     """
-    template_name = "mapping_prompt_diagnostics" if diagnostics else "mapping_prompt"
-    try:
-        template_text = load_prompt_text(template_name)
-    except FileNotFoundError:
-        template_text = ""
-    template_hash = hashlib.sha256(template_text.encode("utf-8")).hexdigest()
-    parts = [
-        model_name,
-        set_name,
-        catalogue_hash,
-        template_hash,
-        str(int(diagnostics)),
-        _features_hash(features),
-        str(plateau),
-        hashlib.sha256(service_description.encode("utf-8")).hexdigest(),
-        hashlib.sha256((service_name or "").encode("utf-8")).hexdigest(),
-    ]
-    return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:32]
+    payload = "|".join([str(a) for a in args] + [f"{k}={v}" for k, v in kwargs.items()])
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
 
 def cache_path(service: str, plateau: int, set_name: str, key: str) -> Path:
@@ -692,13 +668,12 @@ class MapSetParams:
 
 @dataclass
 class ModelContext:
-    """Derived model details for mapping requests."""
+    """Derived model details for mapping requests (no cache key)."""
 
     cfg: MappingTypeConfig
     use_diag: bool
     model_name: str
     model_type: type[StrictModel]
-    key: str
 
 
 @dataclass
@@ -736,16 +711,6 @@ def _build_context(
     )
     model_obj = getattr(session, "client", None)
     model_name = getattr(getattr(model_obj, "model", None), "model_name", "")
-    key = build_cache_key(
-        model_name,
-        set_name,
-        params.catalogue_hash,
-        features,
-        use_diag,
-        plateau=params.plateau,
-        service_description=params.service_description,
-        service_name=params.service_name,
-    )
     # Resolve the expected Pydantic model type for cache validation.
     # Some agents expose a `NativeOutput` wrapper rather than a model class.
     # In that case, fall back to the known response models based on diagnostics.
@@ -757,7 +722,7 @@ def _build_context(
             type[StrictModel],
             MappingDiagnosticsResponse if use_diag else MappingResponse,
         )
-    return ModelContext(cfg, use_diag, model_name, model_type, key)
+    return ModelContext(cfg, use_diag, model_name, model_type)
 
 
 def _merge_mapping_results(
@@ -819,22 +784,36 @@ async def map_set(
         "mapping.map_set", attributes={"set_name": set_name, "features": len(features)}
     ) as span:
         context = _build_context(session, set_name, features, params)
+        # Render prompt to compute the new key based on full prompt+history
+        prompt, should_log_prompt, original_flag = _prepare_prompt(
+            params.set_name,
+            items,
+            features,
+            params.service_name,
+            params.service_description,
+            params.plateau,
+            context.use_diag,
+            session,
+        )
+        stage = f"mapping_{set_name}"
+        history = session.history_context_text() if hasattr(session, "history_context_text") else ""
+        key = _prompt_cache_key(prompt, context.model_name, stage, history)
         cache = _load_cache(
             params.cache_mode,
             params.service,
             params.plateau,
             set_name,
-            context.key,
+            key,
             context.model_type,
         )
         cache_state = _cache_state(params.cache_mode, cache.cache_hit)
         span.set_attribute("cache", cache_state)
-        span.set_attribute("cache_key", context.key)
+        span.set_attribute("cache_key", key)
         logfire.info(
             "mapping_set",
             set_name=set_name,
             cache=cache_state,
-            cache_key=context.key,
+            cache_key=key,
             features=len(features),
         )
 

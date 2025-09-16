@@ -3,7 +3,6 @@
 from .generator import AmbitionModel, ServiceAmbitionGenerator, build_model
 from .plateau_generator import (
     PlateauGenerator,
-    _feature_cache_path,
     default_plateau_map,
     default_plateau_names,
     default_role_ids,
@@ -19,5 +18,4 @@ __all__ = [
     "default_plateau_names",
     "default_role_ids",
     "plateau_definitions",
-    "_feature_cache_path",
 ]

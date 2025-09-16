@@ -5,26 +5,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from constants import DEFAULT_CACHE_DIR
-from runtime.environment import RuntimeEnv
+from constants import DEFAULT_CACHE_DIR  # noqa: F401  (kept for backward imports)
+from runtime.environment import RuntimeEnv  # noqa: F401
 
+# Deprecated: fixed-name feature cache has been removed in favour of hashed
+# prompt-cache entries under stage-specific subdirectories. This module is kept
+# to avoid breaking imports from older tooling.
 
-def feature_cache(service_id: str, plateau: int) -> Path:
-    """Return canonical cache path for features for ``service_id`` at ``plateau``.
-
-    Ensures the parent directory exists before returning the final path.
-    """
-    try:
-        settings = RuntimeEnv.instance().settings
-        cache_root = settings.cache_dir
-        context = settings.context_id
-    except RuntimeError:  # pragma: no cover - settings unavailable
-        cache_root = DEFAULT_CACHE_DIR
-        context = "unknown"
-
-    path = cache_root / context / service_id / str(plateau) / "features.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    return path
-
-
-__all__ = ["feature_cache"]
+__all__: list[str] = []
