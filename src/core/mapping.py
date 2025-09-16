@@ -577,18 +577,9 @@ async def _request_mapping_payload(
 
 async def _fetch_and_cache(
     params: FetchParams,
+    prompt: str,
 ) -> tuple[StrictModel | None, int, list[PlateauFeature] | None]:
     """Fetch payload from model and optionally write to cache."""
-    prompt, should_log_prompt, original_flag = _prepare_prompt(
-        params.set_name,
-        params.items,
-        params.features,
-        params.service_name,
-        params.service_description,
-        params.plateau,
-        params.use_diag,
-        params.session,
-    )
     payload, tokens, fallback = await _request_mapping_payload(
         params.session,
         prompt,
@@ -601,8 +592,6 @@ async def _fetch_and_cache(
         params.start,
         params.retries,
     )
-    if should_log_prompt:
-        params.session.log_prompts = original_flag
     return payload, tokens, fallback
 
 
@@ -857,9 +846,12 @@ async def map_set(
             start=start,
             retries=retries,
         )
-        payload, tokens, fallback = await _fetch_and_cache(fetch_params)
+        payload, tokens, fallback = await _fetch_and_cache(fetch_params, prompt)
         if fallback is not None:
             return fallback
+    # Restore prompt logging flag when diagnostics temporarily logged the prompt
+    if should_log_prompt:
+        session.log_prompts = original_flag
 
     payload_norm = _normalise_payload(cast(StrictModel, payload), context.use_diag)
     _validate_facets_for_set(
