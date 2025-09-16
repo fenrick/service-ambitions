@@ -230,6 +230,13 @@ subcommands to select the desired operation:
 poetry run service-ambitions run --input-file sample-services.jsonl --output-file evolutions.jsonl
 poetry run service-ambitions validate --input-file sample-services.jsonl
 poetry run service-ambitions reverse --input-file evolutions.jsonl --output-file features.jsonl
+poetry run service-ambitions map --input-file features.jsonl --output-file mapped.jsonl
+# Map a single service and stream the result to stdout
+poetry run service-ambitions map \
+  --service-id svc-001 \
+  --features-file features.jsonl \
+  --service-file sample-services.jsonl \
+  --output-file -
 # Load an alternate config and preview actions without calling the API
 poetry run service-ambitions run --config config/alt.yaml --dry-run --input-file sample-services.jsonl
 ```
@@ -240,7 +247,15 @@ Alternatively, use the provided shell script which forwards all arguments to the
 ./run.sh run --input-file sample-services.jsonl --output-file evolutions.jsonl
 ./run.sh validate --input-file sample-services.jsonl
 ./run.sh reverse --input-file evolutions.jsonl --output-file features.jsonl
+./run.sh map --input-file features.jsonl --output-file mapped.jsonl
 ```
+
+Use the `map` subcommand to attach catalogue references to existing plateau
+features. Pass `--service-id` to remap a single service. When the target
+service's metadata lives in a separate JSONL file, provide
+`--features-file` to point at the feature source and `--service-file` for the
+service definitions. Specify `--output-file -` to print the mapped output to
+stdout instead of writing to disk.
 
 ### Docker
 
