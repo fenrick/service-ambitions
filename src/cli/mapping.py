@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Iterable, Literal, Sequence, cast
+from typing import Any, Iterable, Iterator, Literal, Sequence, cast
 
 from core import mapping
 from core.canonical import canonicalise_record
@@ -250,6 +250,28 @@ async def remap_features(
     _assemble_mapping_groups(evolutions, mapped, items, settings)
 
 
+def iter_serialised_evolutions(
+    evolutions: Iterable[ServiceEvolution],
+) -> Iterator[str]:
+    """Yield canonical JSON representations for ``evolutions``.
+
+    Args:
+        evolutions: Iterable of evolutions with mappings applied.
+
+    Yields:
+        JSON strings in canonical form ready for JSONL output.
+    """
+
+    schemas: dict[str, Any] = {}
+    for evo in evolutions:
+        record = canonicalise_record(evo.model_dump(mode="json"))
+        meta = record.get("meta", {})
+        if isinstance(meta, dict):
+            meta["schemas"] = schemas
+            record["meta"] = meta
+        yield json.dumps(record, separators=(",", ":"), sort_keys=True)
+
+
 def write_output(evolutions: Iterable[ServiceEvolution], output_path: Path) -> None:
     """Write mapped evolutions to ``output_path`` as canonical JSON lines.
 
@@ -260,15 +282,7 @@ def write_output(evolutions: Iterable[ServiceEvolution], output_path: Path) -> N
     Side Effects:
         Creates or overwrites ``output_path`` with one line per evolution.
     """
-    # Keep schemas lightweight for JSONL; placeholder for now.
-    schemas: dict[str, Any] = {}
 
     with output_path.open("w", encoding="utf-8") as fh:
-        for evo in evolutions:
-            record = canonicalise_record(evo.model_dump(mode="json"))
-            # Embed schemas into meta for self-describing output
-            meta = record.get("meta", {})
-            if isinstance(meta, dict):
-                meta["schemas"] = schemas
-                record["meta"] = meta
-            fh.write(json.dumps(record, separators=(",", ":"), sort_keys=True) + "\n")
+        for line in iter_serialised_evolutions(evolutions):
+            fh.write(line + "\n")

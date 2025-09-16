@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import inspect
+import json
 import logging
 import os
 import platform
@@ -13,9 +14,10 @@ import random
 import signal
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
-from typing import Any, Callable, Coroutine, Iterable, cast
+from typing import Any, Callable, Coroutine, Iterable, Iterator, Mapping, cast
 
 import logfire
+from pydantic import ValidationError
 from pydantic_core import to_json
 
 from constants import DEFAULT_CACHE_DIR
@@ -41,6 +43,8 @@ from models import (
     PlateauFeaturesResponse,
     PlateauResult,
     ServiceEvolution,
+    ServiceInput,
+    ServiceMeta,
     StageModels,
 )
 from observability import telemetry
@@ -49,7 +53,12 @@ from runtime.environment import RuntimeEnv
 from runtime.settings import Settings, load_settings
 
 from .data_validation import validate_data_dir
-from .mapping import load_catalogue, remap_features, write_output
+from .mapping import (
+    iter_serialised_evolutions,
+    load_catalogue,
+    remap_features,
+    write_output,
+)
 
 SERVICES_FILE_HELP = "Path to the services JSONL file"
 OUTPUT_FILE_HELP = "File to write the results"
@@ -116,14 +125,253 @@ async def _cmd_validate(args: argparse.Namespace, transcripts_dir: Path | None) 
     await _cmd_generate_evolution(args, transcripts_dir)
 
 
+def _iter_json_lines(path: Path) -> Iterator[str]:
+    """Yield non-empty JSON lines from ``path``."""
+
+    with path.open("r", encoding="utf-8") as handle:
+        for raw_line in handle:
+            line = raw_line.strip()
+            if line:
+                yield line
+
+
+def _load_service_lookup(service_path: Path) -> dict[str, ServiceInput]:
+    """Return a lookup of service identifiers to ``ServiceInput`` records."""
+
+    lookup: dict[str, ServiceInput] = {}
+    for line in _iter_json_lines(service_path):
+        service = ServiceInput.model_validate_json(line)
+        lookup[service.service_id] = service
+    return lookup
+
+
+def _extract_service_id(payload: Mapping[str, Any]) -> str | None:
+    """Return the service identifier embedded within ``payload`` when present."""
+
+    service_block = payload.get("service")
+    if isinstance(service_block, Mapping):
+        service_id = service_block.get("service_id")
+        if isinstance(service_id, str):
+            return service_id
+    service_id = payload.get("service_id")
+    return service_id if isinstance(service_id, str) else None
+
+
+def _resolve_service_input(
+    payload: Mapping[str, Any],
+    service_id: str,
+    service_lookup: Mapping[str, ServiceInput],
+) -> ServiceInput:
+    """Return ``ServiceInput`` for ``service_id`` from payload or lookup."""
+
+    service_block = payload.get("service")
+    if isinstance(service_block, Mapping):
+        try:
+            service = ServiceInput.model_validate(service_block)
+        except ValidationError as exc:  # pragma: no cover - defensive
+            raise ValueError(
+                f"Invalid service definition for '{service_id}': {exc}"
+            ) from exc
+        if service.service_id != service_id:
+            raise ValueError(
+                f"Service id '{service.service_id}' does not match requested"
+                f" '{service_id}'"
+            )
+        return service
+
+    try:
+        candidate = ServiceInput.model_validate(payload)
+    except ValidationError:
+        candidate = None
+    if candidate and candidate.service_id == service_id:
+        return candidate
+
+    service = service_lookup.get(service_id)
+    if service is None:
+        raise ValueError(
+            "Service details missing. Provide --service-file when features omit"
+            f" service '{service_id}'."
+        )
+    return service
+
+
+def _resolve_meta(
+    payload: Mapping[str, Any], service_id: str, catalogue_hash: str
+) -> ServiceMeta:
+    """Return metadata for ``service_id`` with catalogue hash applied when absent."""
+
+    meta_raw = payload.get("meta")
+    if meta_raw is not None:
+        try:
+            meta = ServiceMeta.model_validate(meta_raw)
+        except ValidationError as exc:  # pragma: no cover - defensive
+            raise ValueError(f"Invalid metadata for '{service_id}': {exc}") from exc
+        if catalogue_hash and not meta.catalogue_hash:
+            meta = meta.model_copy(update={"catalogue_hash": catalogue_hash})
+        return meta
+
+    meta = ServiceMeta(run_id=f"map-{service_id}")
+    if catalogue_hash:
+        meta = meta.model_copy(update={"catalogue_hash": catalogue_hash})
+    return meta
+
+
+def _build_plateaus_from_payload(
+    payload: Mapping[str, Any], service: ServiceInput
+) -> list[PlateauResult]:
+    """Return plateau results for ``service`` parsed from ``payload``."""
+
+    plateaus_raw = payload.get("plateaus")
+    if isinstance(plateaus_raw, list) and plateaus_raw:
+        plateaus: list[PlateauResult] = []
+        for index, raw_plateau in enumerate(plateaus_raw, start=1):
+            if not isinstance(raw_plateau, Mapping):
+                raise ValueError(
+                    f"Plateau entry {index} for '{service.service_id}' must be an"
+                    " object."
+                )
+            plateau_payload = dict(raw_plateau)
+            plateau_payload.setdefault("service_description", service.description)
+            try:
+                plateau = PlateauResult.model_validate(plateau_payload)
+            except ValidationError as exc:  # pragma: no cover - defensive
+                raise ValueError(
+                    f"Invalid plateau definition for '{service.service_id}' at index"
+                    f" {index}: {exc}"
+                ) from exc
+            plateaus.append(plateau)
+        return plateaus
+
+    features_raw = payload.get("features")
+    if isinstance(features_raw, list):
+        plateau_payload = {
+            "plateau": payload.get("plateau", 1),
+            "plateau_name": (
+                payload.get("plateau_name") or f"Plateau {payload.get('plateau', 1)}"
+            ),
+            "service_description": (
+                payload.get("service_description") or service.description
+            ),
+            "features": features_raw,
+        }
+        try:
+            plateau = PlateauResult.model_validate(plateau_payload)
+        except ValidationError as exc:  # pragma: no cover - defensive
+            raise ValueError(
+                f"Invalid feature list for '{service.service_id}': {exc}"
+            ) from exc
+        return [plateau]
+
+    return []
+
+
+def _build_evolution_from_payload(
+    payload: Mapping[str, Any],
+    service_id: str,
+    service_lookup: Mapping[str, ServiceInput],
+    catalogue_hash: str,
+) -> ServiceEvolution:
+    """Construct ``ServiceEvolution`` for ``service_id`` from ``payload``."""
+
+    service = _resolve_service_input(payload, service_id, service_lookup)
+    plateaus = _build_plateaus_from_payload(payload, service)
+    if not plateaus:
+        raise ValueError(
+            f"Features for service '{service_id}' not found; expected 'plateaus' or"
+            " 'features'."
+        )
+    meta = _resolve_meta(payload, service_id, catalogue_hash)
+    return ServiceEvolution(meta=meta, service=service, plateaus=plateaus)
+
+
+def _load_service_evolution_for_mapping(
+    service_id: str,
+    features_path: Path,
+    service_path: Path | None,
+    catalogue_hash: str,
+) -> ServiceEvolution:
+    """Load a single service evolution for mapping based on ``service_id``."""
+
+    if not features_path.exists():
+        raise FileNotFoundError(features_path)
+
+    service_lookup: Mapping[str, ServiceInput] = {}
+    if service_path is not None:
+        if not service_path.exists():
+            raise FileNotFoundError(service_path)
+        service_lookup = _load_service_lookup(service_path)
+
+    last_error: ValueError | None = None
+    for line in _iter_json_lines(features_path):
+        try:
+            evolution = ServiceEvolution.model_validate_json(line)
+        except ValidationError:
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError as exc:  # pragma: no cover - defensive
+                raise ValueError(
+                    f"Invalid JSON in features file '{features_path}': {exc}"
+                ) from exc
+            if _extract_service_id(payload) != service_id:
+                continue
+            try:
+                return _build_evolution_from_payload(
+                    payload, service_id, service_lookup, catalogue_hash
+                )
+            except ValueError as exc:
+                last_error = exc
+                break
+        else:
+            if evolution.service.service_id == service_id:
+                return evolution
+
+    if last_error is not None:
+        raise last_error
+
+    locations = [f"'{features_path}'"]
+    if service_path is not None:
+        locations.append(f"'{service_path}'")
+    joined = " or ".join(locations)
+    raise ValueError(f"Service '{service_id}' was not found in {joined}.")
+
+
+def _write_mapped_output(
+    evolutions: Iterable[ServiceEvolution], output_target: str
+) -> None:
+    """Write mapped evolutions to ``output_target`` or stdout when ``-``."""
+
+    if output_target == "-":
+        for line in iter_serialised_evolutions(evolutions):
+            print(line)
+        return
+
+    write_output(evolutions, Path(output_target))
+
+
 async def _cmd_map(args: argparse.Namespace, transcripts_dir: Path | None) -> None:
     """Populate feature mappings for an existing features file."""
+    settings = RuntimeEnv.instance().settings
+    items, catalogue_hash = load_catalogue(args.mapping_data_dir, settings)
+
+    if getattr(args, "service_id", None):
+        features_path = Path(args.features_file or args.input_file)
+        service_path = Path(args.service_file) if args.service_file else None
+        evolution = _load_service_evolution_for_mapping(
+            args.service_id, features_path, service_path, catalogue_hash
+        )
+        await remap_features(
+            [evolution],
+            items,
+            settings,
+            args.cache_mode,
+            catalogue_hash,
+        )
+        _write_mapped_output([evolution], args.output_file)
+        return
+
     input_path = Path(args.input_file)
     if not input_path.exists():
         raise FileNotFoundError(input_path)
-
-    settings = RuntimeEnv.instance().settings
-    items, catalogue_hash = load_catalogue(args.mapping_data_dir, settings)
 
     text = input_path.read_text(encoding="utf-8")
     evolutions = [
@@ -139,7 +387,7 @@ async def _cmd_map(args: argparse.Namespace, transcripts_dir: Path | None) -> No
         args.cache_mode,
         catalogue_hash,
     )
-    write_output(evolutions, Path(args.output_file))
+    _write_mapped_output(evolutions, args.output_file)
 
 
 def _pf_setup_resources(settings: Settings) -> None:
@@ -697,6 +945,30 @@ def _add_map_subparser(
         type=str,
         default="mapped.jsonl",
         help=OUTPUT_FILE_HELP,
+    )
+    parser.add_argument(
+        "--service-id",
+        type=str,
+        default=None,
+        help="Map features for a single service identifier",
+    )
+    parser.add_argument(
+        "--features-file",
+        type=str,
+        default=None,
+        help=(
+            "Alternate features JSONL file when mapping a single service; defaults"
+            " to --input-file"
+        ),
+    )
+    parser.add_argument(
+        "--service-file",
+        type=str,
+        default=None,
+        help=(
+            "Services JSONL file providing metadata when individual features lack"
+            " service details"
+        ),
     )
     parser.set_defaults(func=_cmd_map)
     return parser
