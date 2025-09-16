@@ -7,12 +7,19 @@ from pathlib import Path
 from typing import Any
 
 import logfire
-from pydantic_core import from_json, to_json
+import json
+from pydantic_core import to_json
 
 from observability import telemetry
 
 MANIFEST = "manifest.json"
-ALLOWED_KINDS = {"json_parse_error", "unknown_ids", "schema_mismatch", "timeout"}
+ALLOWED_KINDS = {
+    "json_parse_error",
+    "unknown_ids",
+    "schema_mismatch",
+    "timeout",
+    "facet_validation",
+}
 
 
 class QuarantineWriter:
@@ -67,7 +74,10 @@ class QuarantineWriter:
 
             manifest_path = qdir / MANIFEST
             if manifest_path.exists():
-                manifest = from_json(manifest_path.read_text(encoding="utf-8"))
+                try:
+                    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                except json.JSONDecodeError:
+                    manifest = {}
             else:
                 manifest = {}
             entry = manifest.setdefault(kind, {"count": 0, "examples": []})
@@ -75,8 +85,7 @@ class QuarantineWriter:
             if len(entry["examples"]) < 3:
                 entry["examples"].append(payload)
             manifest_path.write_text(
-                to_json(manifest, indent=2).decode("utf-8"),
-                encoding="utf-8",
+                json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
             )
 
             span.set_attribute("path", str(file_path))
