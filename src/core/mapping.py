@@ -269,38 +269,22 @@ def _merge_all_features(
     return results, dropped, missing, missing_features
 
 
-def _validate_facets_for_set(  # noqa: C901  # complexity; TODO: consider splitting model-build and validation
-    payload: MappingResponse,
-    set_name: str,
-    *,
-    strict: bool,
-    service: str | None,
-) -> None:
-    """Validate contribution facets using a dynamic Pydantic model.
+def _build_facets_model(
+    set_name: str, schema: object
+) -> tuple["TypeAdapter", bool] | tuple[None, bool]:
+    """Return a ``TypeAdapter`` for the dataset facets and a required flag.
 
-    Builds a Facets model from the dataset's facet schema and validates each
-    contribution's ``facets`` object for ``set_name``. When any facet is marked
-    required in the dataset, the ``facets`` object itself is required.
+    When ``schema`` is falsy or imports are unavailable, returns ``(None, False)``.
     """
     try:
-        from typing import Literal, Optional
-
+        from typing import Literal, Optional, Any as _Any
         from pydantic import TypeAdapter, create_model
     except Exception:  # pragma: no cover - defensive import
-        return
+        return (None, False)
 
-    try:
-        settings = RuntimeEnv.instance().settings
-        meta = load_mapping_meta(settings.mapping_sets)
-        cfg = meta.get(set_name, {}) if isinstance(meta, dict) else {}
-        schema = cfg.get("facets") if isinstance(cfg, dict) else None
-    except Exception:  # pragma: no cover - defensive
-        schema = None
     if not schema:
-        return
+        return (None, False)
 
-    # Build a Facets model with required/optional fields mapped by type.
-    from typing import Any as _Any
     fields: dict[str, tuple[_Any, _Any]] = {}
     any_required = False
     for f in cast(list[dict[str, object]], schema):
@@ -310,9 +294,8 @@ def _validate_facets_for_set(  # noqa: C901  # complexity; TODO: consider splitt
         if not isinstance(fid, str) or not isinstance(ftype, str):
             continue
         any_required = any_required or required
-        fpy: _Any
         if ftype == "boolean":
-            fpy = bool
+            fpy: _Any = bool
         elif ftype == "integer":
             fpy = int
         elif ftype == "number":
@@ -332,11 +315,19 @@ def _validate_facets_for_set(  # noqa: C901  # complexity; TODO: consider splitt
         else:
             fields[fid] = (Optional[fpy], None)
 
-    FacetsModel = create_model(
-        f"Facets_{set_name}", **cast(dict[str, Any], fields)
-    )
-    facets_adapter = TypeAdapter(FacetsModel)
+    FacetsModel = create_model(f"Facets_{set_name}", **cast(dict[str, Any], fields))
+    return TypeAdapter(FacetsModel), any_required
 
+
+def _collect_facet_violations(
+    payload: MappingResponse,
+    set_name: str,
+    facets_adapter: "TypeAdapter" | None,
+    any_required: bool,
+) -> list[dict[str, object]]:
+    """Return a list of facet validation violations for ``set_name``."""
+    if facets_adapter is None:
+        return []
     violations: list[dict[str, object]] = []
     for feat in payload.features:
         contribs = feat.mappings.get(set_name, [])
@@ -364,7 +355,31 @@ def _validate_facets_for_set(  # noqa: C901  # complexity; TODO: consider splitt
                         "error": str(exc),
                     }
                 )
+    return violations
 
+
+def _validate_facets_for_set(
+    payload: MappingResponse,
+    set_name: str,
+    *,
+    strict: bool,
+    service: str | None,
+) -> None:
+    """Validate contribution facets using a dynamic Pydantic model.
+
+    Builds a Facets model from the dataset's facet schema and validates each
+    contribution's ``facets`` object for ``set_name``. When any facet is marked
+    required in the dataset, the ``facets`` object itself is required.
+    """
+    try:
+        settings = RuntimeEnv.instance().settings
+        meta = load_mapping_meta(settings.mapping_sets)
+        cfg = meta.get(set_name, {}) if isinstance(meta, dict) else {}
+        schema = cfg.get("facets") if isinstance(cfg, dict) else None
+    except Exception:  # pragma: no cover - defensive
+        schema = None
+    adapter, any_required = _build_facets_model(set_name, schema)
+    violations = _collect_facet_violations(payload, set_name, adapter, any_required)
     if not violations:
         return
     svc = service or "unknown"
