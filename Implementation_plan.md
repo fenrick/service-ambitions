@@ -8,6 +8,44 @@ using off-the-shelf libraries (e.g., Tenacity for retries) to meet these goals.
 
 # Highest-impact engineering work
 
+## Facets on mappings & mapping-only CLI
+
+Scope: make mapping usable directly on existing features (no plateau requirement), add configurable per-dataset facets with mandatory/optional rules, and document/validate the behaviour end-to-end.
+
+* Implement
+
+  * Data-driven facet schemas in dataset files (applications, technologies, data) using `facets[]` with `id/label/type/required/options`.
+  * Dynamic Pydantic validation: build per-dataset Facets model at runtime and validate each mapping contribution (required keys, enums, types).
+  * Prompt rendering: embed facet schema and require all `required=true` facets per contribution; keep minimal mapping JSON shape.
+  * Mapping-only CLI flow: support features+service JSONL input; ensure service block present or resolvable via `--service-file`.
+  * Preserve lean mapping shape in output; facets appear as `{ "item": "...", "facets": { ... } }` when configured.
+  * Update golden fixtures and canonicalisation to keep deterministic output.
+
+* Files
+
+  * `data/*.json` (facet schemas)
+  * `src/core/mapping.py` (dynamic facet validation)
+  * `src/core/mapping_prompt.py`, `prompts/mapping_prompt*.md` (prompt + facet section)
+  * `src/cli/mapping.py` (preserve mapping shape; grouping)
+  * `src/io_utils/loader.py`, `src/utils/mapping_loader.py` (facet metadata loading)
+  * `src/models/__init__.py` (Contribution.facets; facet model types)
+
+* Docs
+
+  * `docs/facets.md` (defaults, triggering, validation)
+  * `docs/index.md` (mapping CLI input/output formats)
+  * `README.md` (features+service example; facets overview)
+
+* Tests
+
+  * Update golden: `tests/golden/mapping_run.jsonl` to include `facets: null` where applicable.
+  * Mapping-only path: `tests/test_cli_mapping_helpers.py` should pass with stubs.
+  * Regression: small mapping and reverse cache tests continue to pass.
+
+* Success criteria
+
+  * `poetry run service-ambitions map` accepts features+service JSONL and emits mapped evolutions with facet validation; all tests and quality gates pass.
+
 ## Cache integrity & self-healing
 
 * **Implement**
