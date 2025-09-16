@@ -1,6 +1,67 @@
 {
   "field": "applications",
   "label": "Applications",
+  "facets": [
+    { "id": "service_type", "label": "ServiceType", "type": "enum", "required": true,
+      "options": [
+        { "id": "ui", "label": "UI" },
+        { "id": "api", "label": "API" },
+        { "id": "batch", "label": "Batch" },
+        { "id": "event-producer", "label": "EventProducer" },
+        { "id": "event-consumer", "label": "EventConsumer" },
+        { "id": "scheduler", "label": "Scheduler" }
+      ]
+    },
+    { "id": "execution_model", "label": "ExecutionModel", "type": "enum", "required": true,
+      "options": [
+        { "id": "process", "label": "process" },
+        { "id": "vm", "label": "VM" },
+        { "id": "container", "label": "container" },
+        { "id": "function", "label": "function" },
+        { "id": "wasm", "label": "WASM" }
+      ]
+    },
+    { "id": "placement", "label": "Placement", "type": "enum", "required": true,
+      "options": [
+        { "id": "device", "label": "device" },
+        { "id": "edge/site", "label": "edge/site" },
+        { "id": "data centre", "label": "data centre" },
+        { "id": "cloud", "label": "cloud" },
+        { "id": "hybrid", "label": "hybrid" }
+      ]
+    },
+    { "id": "plane", "label": "Plane (primary)", "type": "enum", "required": true,
+      "options": [
+        { "id": "data", "label": "data" },
+        { "id": "control", "label": "control" },
+        { "id": "management", "label": "management" }
+      ]
+    },
+    { "id": "exposure", "label": "Exposure", "type": "enum", "required": true,
+      "options": [
+        { "id": "private", "label": "private" },
+        { "id": "internal", "label": "internal" },
+        { "id": "partner", "label": "partner" },
+        { "id": "public", "label": "public" }
+      ]
+    },
+    { "id": "security_posture", "label": "SecurityPosture", "type": "string", "required": true,
+      "description": "Describe AuthN (e.g., OIDC/mTLS), AuthZ (e.g., RBAC/ABAC), and DataSensitivity (public/internal/restricted)."
+    },
+
+    { "id": "slos", "label": "SLOs", "type": "string", "required": false,
+      "description": "Optional: Availability %, P95 latency (ms), RPO/RTO (e.g., '99.9; 250ms; RPO=1h; RTO=4h')."
+    },
+    { "id": "scaling", "label": "Scaling", "type": "enum", "required": false,
+      "options": [ { "id": "manual", "label": "manual" }, { "id": "auto", "label": "auto" } ]
+    },
+    { "id": "tenancy", "label": "Tenancy", "type": "enum", "required": false,
+      "options": [ { "id": "single", "label": "single" }, { "id": "multi", "label": "multi" } ]
+    },
+    { "id": "depends_on", "label": "DependsOn", "type": "string", "required": false,
+      "description": "Optional: Comma-separated TC IDs from the tech tree (e.g., 'TECH002,TECH010')."
+    }
+  ],
   "items": [
     {
       "id": "APP001",

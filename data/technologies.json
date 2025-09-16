@@ -1,6 +1,126 @@
 {
   "field": "technologies",
   "label": "Technologies",
+  "facets": [
+    {
+      "id": "execution_model",
+      "label": "ExecutionModel",
+      "type": "enum",
+      "required": true,
+      "options": [
+        { "id": "process", "label": "process" },
+        { "id": "vm", "label": "VM" },
+        { "id": "container", "label": "container" },
+        { "id": "function", "label": "function" },
+        { "id": "batch", "label": "batch" },
+        { "id": "stream", "label": "stream" },
+        { "id": "wasm", "label": "WASM" }
+      ]
+    },
+    {
+      "id": "placement",
+      "label": "Placement",
+      "type": "enum",
+      "required": true,
+      "options": [
+        { "id": "device", "label": "device" },
+        { "id": "edge/site", "label": "edge/site" },
+        { "id": "data centre", "label": "data centre" },
+        { "id": "cloud", "label": "cloud" },
+        { "id": "hybrid", "label": "hybrid" },
+        { "id": "enclave", "label": "enclave" }
+      ]
+    },
+    {
+      "id": "plane",
+      "label": "Plane (primary)",
+      "type": "enum",
+      "required": true,
+      "options": [
+        { "id": "data", "label": "data" },
+        { "id": "control", "label": "control" },
+        { "id": "management", "label": "management" }
+      ]
+    },
+    {
+      "id": "trust_model",
+      "label": "TrustModel",
+      "type": "enum",
+      "required": true,
+      "options": [
+        { "id": "perimeter", "label": "perimeter" },
+        { "id": "zero-trust", "label": "zero-trust" },
+        { "id": "federated", "label": "federated" }
+      ]
+    },
+    {
+      "id": "telemetry_baseline",
+      "label": "TelemetryBaseline",
+      "type": "enum",
+      "required": true,
+      "options": [
+        { "id": "logs", "label": "logs" },
+        { "id": "metrics", "label": "metrics" },
+        { "id": "logs+metrics", "label": "logs+metrics" }
+      ]
+    },
+    {
+      "id": "privacy_in_flight",
+      "label": "PrivacyBaseline (in-flight)",
+      "type": "boolean",
+      "required": true
+    },
+    {
+      "id": "acceleration",
+      "label": "Acceleration",
+      "type": "enum",
+      "required": false,
+      "options": [
+        { "id": "cpu", "label": "CPU" },
+        { "id": "gpu", "label": "GPU" },
+        { "id": "npu/tpu", "label": "NPU/TPU" },
+        { "id": "fpga", "label": "FPGA" }
+      ]
+    },
+    {
+      "id": "data_shape",
+      "label": "DataShape",
+      "type": "enum",
+      "required": false,
+      "options": [
+        { "id": "structured", "label": "structured" },
+        { "id": "semi-structured", "label": "semi-structured" },
+        { "id": "unstructured", "label": "unstructured" },
+        { "id": "vector", "label": "vector" },
+        { "id": "time-series", "label": "time-series" },
+        { "id": "graph", "label": "graph" }
+      ]
+    },
+    {
+      "id": "connectivity",
+      "label": "Connectivity (box-level)",
+      "type": "enum",
+      "required": false,
+      "options": [
+        { "id": "http", "label": "HTTP" },
+        { "id": "grpc", "label": "gRPC" },
+        { "id": "events", "label": "events" },
+        { "id": "batch/file", "label": "batch/file" }
+      ]
+    },
+    {
+      "id": "automation_level",
+      "label": "AutomationLevel",
+      "type": "enum",
+      "required": false,
+      "options": [
+        { "id": "manual", "label": "manual" },
+        { "id": "scripted", "label": "scripted" },
+        { "id": "iac/gitops", "label": "IaC/GitOps" },
+        { "id": "closed-loop", "label": "closed-loop" }
+      ]
+    }
+  ],
   "items": [
     {
       "id": "TECH001",

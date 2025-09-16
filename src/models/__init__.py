@@ -127,6 +127,13 @@ class Contribution(StrictModel):
     item: Annotated[
         str, Field(min_length=1, description="Identifier of the mapped element.")
     ]
+    # Optional facet metadata describing the nature/quality of the mapping
+    # relationship. The allowed keys and requirements are defined per mapping
+    # dataset (see FacetDefinition and MappingDatasetFile).
+    facets: dict[str, str | int | float | bool] | None = Field(
+        default=None,
+        description="Optional facet values keyed by facet id (per mapping dataset).",
+    )
 
 
 class DiagnosticContribution(Contribution):
@@ -140,15 +147,15 @@ class DiagnosticContribution(Contribution):
 class EnrichedContribution(Contribution):
     """Contribution with catalogue details for readability."""
 
-    name: Annotated[
-        str, Field(min_length=1, description="Human readable item name.")
-    ]
+    name: Annotated[str, Field(min_length=1, description="Human readable item name.")]
     description: Annotated[
         str, Field(min_length=1, description="Explanation of the item.")
     ]
     justification: str | None = Field(
         default=None, description="Optional rationale for the contribution."
     )
+
+    # ``facets`` inherited from Contribution; kept as-is for pass-through.
 
 
 class DefinitionItem(StrictModel):
@@ -374,6 +381,34 @@ class MappingTypeConfig(StrictModel):
     ]
 
 
+class FacetOption(StrictModel):
+    """Allowed value option for enum-like facets."""
+
+    id: Annotated[str, Field(min_length=1, description="Facet value identifier.")]
+    label: Annotated[str, Field(min_length=1, description="Human label for the value.")]
+
+
+class FacetDefinition(StrictModel):
+    """Schema describing a facet available on a mapping relationship.
+
+    Facets are configured per mapping dataset and referenced by ``id`` in
+    contribution ``facets`` dictionaries.
+    """
+
+    id: Annotated[str, Field(min_length=1, description="Facet identifier.")]
+    label: Annotated[str, Field(min_length=1, description="Human readable name.")]
+    type: Annotated[
+        Literal["string", "integer", "number", "boolean", "enum"],
+        Field(description="Facet value type."),
+    ]
+    required: bool = Field(False, description="Whether a value is mandatory.")
+    description: str | None = Field(None, description="Facet purpose/notes.")
+    options: list[FacetOption] | None = Field(
+        default=None,
+        description="Allowed values for enum facets (id/label pairs).",
+    )
+
+
 class MappingSet(StrictModel):
     """Configuration for a mapping dataset.
 
@@ -412,6 +447,11 @@ class MappingDatasetFile(StrictModel):
     )
     items: list[MappingItem] = Field(
         default_factory=list, description="Catalogue entries for this dataset"
+    )
+    # Optional facet schema for contributions referencing this dataset.
+    facets: list[FacetDefinition] | None = Field(
+        default=None,
+        description="Facet schema available for mapping contributions.",
     )
 
 
@@ -873,9 +913,7 @@ class MappingFeatureGroup(StrictModel):
 class PlateauRole(StrictModel):
     """Denormalised role container within a plateau."""
 
-    role_id: Annotated[
-        str, Field(min_length=1, description="Unique role identifier.")
-    ]
+    role_id: Annotated[str, Field(min_length=1, description="Unique role identifier.")]
     name: Annotated[str, Field(min_length=1, description="Human readable role name.")]
     description: Annotated[
         str, Field(min_length=1, description="Explanation of the role.")
@@ -903,6 +941,8 @@ __all__ = [
     "MappingItem",
     "MappingResponse",
     "MappingDatasetFile",
+    "FacetDefinition",
+    "FacetOption",
     "MappingDiagnosticsFeature",
     "MappingDiagnosticsResponse",
     "FeatureMappingRef",

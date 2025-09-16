@@ -67,6 +67,7 @@ def render_set_prompt(
     service_description: str,
     plateau: int,
     diagnostics: bool = False,
+    facets_meta: Sequence[dict[str, object]] | None = None,
 ) -> str:
     """Return a prompt requesting mappings for ``features`` against ``set_name``.
 
@@ -79,9 +80,19 @@ def render_set_prompt(
         plateau: Numeric plateau level being evaluated.
         diagnostics: When ``True``, use the diagnostics template variant which
             logs additional context for debugging.
+        facets_meta: Optional facet schema for the dataset (list of objects with
+            ``id``, ``label``, ``type``, ``required`` and optional ``options``).
+            When provided, it is embedded in the prompt to instruct the model to
+            include all required facet values in each mapping contribution.
 
     Returns:
         Fully rendered prompt string.
+
+    Notes:
+        The optional ``facets_meta`` provides a dataset-specific facet schema
+        (list of dicts with id/label/type/required/options) that is rendered
+        into the prompt when present so the model can populate required facet
+        values for each mapping contribution.
     """
     # Instruction template defines sections for catalogue items, feature
     # descriptions and service metadata. Rendering is deterministic as both
@@ -93,6 +104,20 @@ def render_set_prompt(
     feature_lines = _render_features(features)
     mapping_section = f"## Available {set_name}\n\n```json\n{catalogue_lines}\n```"
 
+    # Optional: include facet schema instructions when provided by the dataset
+    # metadata. The templates include a placeholder that expands to an empty
+    # string when no facets are configured to preserve backwards compatibility.
+    facet_lines = ""
+    if facets_meta:
+        # Reduce to a stable, minimal schema the model can follow.
+        facet_lines = to_json(facets_meta, indent=2).decode()
+        facet_lines = (
+            "\n## Facets (optional per mapping entry)\n\n"
+            "When provided, each mapping object may include a 'facets' object "
+            "with keys from the schema below. Only include keys defined here.\n\n"
+            f"```json\n{facet_lines}\n```\n"
+        )
+
     # Manual placeholder substitution avoids ``str.format`` interpreting JSON
     # braces within the template as formatting fields. This ensures the prompt
     # retains literal brace characters required for example JSON structures and
@@ -101,6 +126,7 @@ def render_set_prompt(
         "{mapping_labels}": set_name,
         "{mapping_sections}": mapping_section,
         "{mapping_fields}": set_name,
+        "{facet_instructions}": facet_lines,
         "{features}": f"```json\n{feature_lines}\n```",
         "{service_name}": _sanitize(service_name),
         "{service_description}": _sanitize(service_description),

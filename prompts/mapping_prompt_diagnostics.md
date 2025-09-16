@@ -6,6 +6,8 @@ Lists are provided as JSON arrays in code blocks. Each object contains `id`, `na
 
 {mapping_sections}
 
+{facet_instructions}
+
 ## Features (for review only; do not quote or cite in output)
 
 {features}
@@ -27,6 +29,8 @@ Lists are provided as JSON arrays in code blocks. Each object contains `id`, `na
   - Each array element must be an object with exactly:
     - "item": the selected ID (preserve original type and formatting, e.g., string vs number, UUID hyphens).
     - "rationale": a single-line explanation of the match (concise; no line breaks).
+    - Optional "facets": object of facet values keyed by facet id (only when a facet schema is provided above; include only defined keys).
+  - When a facet schema is provided, include ALL facets marked required in the schema for each returned item. Optional facets should be included only when relevant and known.
   - Do not include weights, scores, or extra fields.
   - Do not invent IDs or rationales.
 - Deduplicate within each array (no repeated IDs per feature).

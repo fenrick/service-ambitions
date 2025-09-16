@@ -269,6 +269,26 @@ def load_mapping_items(
             raise
 
 
+def load_mapping_meta(
+    sets: Sequence[MappingSet], data_dir: Path | str | None = None
+) -> dict[str, dict[str, object]]:
+    """Return mapping dataset metadata keyed by field.
+
+    The metadata includes optional attributes carried in object‑form datasets
+    such as ``label`` and ``facets``. When called with a plain list‑form
+    dataset, the result may be empty for that field.
+    """
+    loader = (
+        FileMappingLoader(Path(data_dir))
+        if data_dir is not None
+        else RuntimeEnv.instance().mapping_loader
+    )
+    if not isinstance(loader, FileMappingLoader):  # pragma: no cover - defensive
+        return {}
+    # Ensure caches are warm and return the meta snapshot.
+    return loader.meta(sets)
+
+
 @lru_cache(maxsize=None)
 def load_app_config(
     base_dir: Path | str = Path("config"),

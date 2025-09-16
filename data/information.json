@@ -1,6 +1,81 @@
 {
-  "field": "information",
-  "label": "Information Types",
+  "field": "data",
+  "label": "Data Assets",
+  "facets": [
+    { "id": "asset_type", "label": "AssetType", "type": "enum", "required": true,
+      "options": [
+        { "id": "entity", "label": "Entity" },
+        { "id": "dataset", "label": "Dataset" },
+        { "id": "eventstream", "label": "EventStream" },
+        { "id": "metric", "label": "Metric" },
+        { "id": "featureset", "label": "FeatureSet" },
+        { "id": "document", "label": "Document" }
+      ]
+    },
+    { "id": "domain_context", "label": "Domain/Context", "type": "string", "required": true,
+      "description": "Business domain or bounded context (e.g., Admissions, Finance.AR)."
+    },
+    { "id": "shape", "label": "Shape", "type": "enum", "required": true,
+      "options": [
+        { "id": "structured", "label": "structured" },
+        { "id": "semi", "label": "semi" },
+        { "id": "unstructured", "label": "unstructured" },
+        { "id": "time-series", "label": "time-series" },
+        { "id": "graph", "label": "graph" },
+        { "id": "vector", "label": "vector" }
+      ]
+    },
+    { "id": "sensitivity_class", "label": "Sensitivity/Class", "type": "enum", "required": true,
+      "options": [
+        { "id": "public", "label": "public" },
+        { "id": "internal", "label": "internal" },
+        { "id": "confidential", "label": "confidential" },
+        { "id": "restricted", "label": "restricted" }
+      ]
+    },
+    { "id": "pii_types", "label": "PIITypes", "type": "string", "required": false,
+      "description": "Optional: list PII types if present (e.g., email, phone)."
+    },
+    { "id": "mastership", "label": "Mastership", "type": "enum", "required": true,
+      "options": [
+        { "id": "system-of-record", "label": "SystemOfRecord" },
+        { "id": "golden", "label": "Golden" },
+        { "id": "reference", "label": "Reference" },
+        { "id": "derived", "label": "Derived" }
+      ]
+    },
+    { "id": "owning_app", "label": "OwningApp", "type": "string", "required": true,
+      "description": "Owning application/service ID or name."
+    },
+    { "id": "freshness_mode", "label": "Freshness/Mode", "type": "enum", "required": true,
+      "options": [
+        { "id": "batch", "label": "batch" },
+        { "id": "micro-batch", "label": "micro-batch" },
+        { "id": "stream", "label": "stream" }
+      ]
+    },
+    { "id": "freshness_sla", "label": "FreshnessSLA", "type": "string", "required": true,
+      "description": "Target freshness/SLA (e.g., '<= 1h', 'P95 5m')."
+    },
+    { "id": "residency_region", "label": "Residency/Region", "type": "string", "required": true,
+      "description": "Primary data residency region(s) (e.g., 'AU', 'EU')."
+    },
+    { "id": "retention_policy", "label": "Retention", "type": "string", "required": true,
+      "description": "Retention policy (e.g., '7y regulatory', '30d rolling')."
+    },
+    { "id": "dq_slos_present", "label": "Quality/DQ SLOs Present", "type": "boolean", "required": true },
+    { "id": "lineage_captured", "label": "Lineage Captured", "type": "boolean", "required": true },
+
+    { "id": "identifier_strategy", "label": "IdentifierStrategy", "type": "string", "required": false,
+      "description": "Optional: global ID approach (e.g., ULID, UUIDv7)."
+    },
+    { "id": "contractual_schema", "label": "ContractualSchema", "type": "enum", "required": false,
+      "options": [ { "id": "json-schema", "label": "JSON Schema" }, { "id": "avro", "label": "Avro" } ]
+    },
+    { "id": "versioning_policy", "label": "VersioningPolicy", "type": "enum", "required": false,
+      "options": [ { "id": "semver", "label": "semver" }, { "id": "compatible", "label": "compatible" } ]
+    }
+  ],
   "items": [
     {
       "id": "INFO001",

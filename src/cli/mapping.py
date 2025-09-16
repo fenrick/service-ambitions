@@ -183,6 +183,7 @@ def _enrich_feature(
                         name=contrib.item,
                         description="",
                         justification=None,
+                        facets=getattr(contrib, "facets", None),
                     )
                 )
             else:
@@ -192,6 +193,7 @@ def _enrich_feature(
                         name=item.name,
                         description=item.description,
                         justification=None,
+                        facets=getattr(contrib, "facets", None),
                     )
                 )
     feature.mappings = cast(dict[str, list[Contribution]], enriched)
@@ -261,7 +263,6 @@ def iter_serialised_evolutions(
     Yields:
         JSON strings in canonical form ready for JSONL output.
     """
-
     schemas: dict[str, Any] = {}
     for evo in evolutions:
         record = canonicalise_record(evo.model_dump(mode="json"))
@@ -282,7 +283,6 @@ def write_output(evolutions: Iterable[ServiceEvolution], output_path: Path) -> N
     Side Effects:
         Creates or overwrites ``output_path`` with one line per evolution.
     """
-
     with output_path.open("w", encoding="utf-8") as fh:
         for line in iter_serialised_evolutions(evolutions):
             fh.write(line + "\n")

@@ -31,6 +31,36 @@ poetry run service-ambitions map \
   --output-file remapped.jsonl
 ```
 
+## Facets
+
+Facets let you capture and validate the qualities of a mapping relationship
+(applications, technologies, data). They are configured per dataset and
+enforced dynamically at runtime. See `docs/facets.md` for defaults and usage.
+
+## Mapping CLI (input/output formats)
+
+Input (JSONL; one record per service). Two accepted shapes:
+
+- Full `ServiceEvolution` record (with or without `plateaus`).
+- Features+service record with:
+  - `service`: minimally `service_id`, `name`, `description` (include
+    `jobs_to_be_done` for better context; strings or objects allowed).
+  - `features`: list of features with `feature_id`, `name`, `description`,
+    `score` (level, label, justification), and `customer_type`.
+
+Example (features+service):
+
+```json
+{"service": {"service_id": "svc-001", "name": "Admissions", "description": "Handles student applications."},
+ "features": [
+   {"feature_id": "ABCDEF", "name": "Online application form", "description": "...", "score": {"level": 2, "label": "Managed", "justification": "..."}, "customer_type": "learner"}
+ ]}
+```
+
+Output (JSONL): Canonical `ServiceEvolution` per service with `plateaus[]` and
+`mappings{}` populated. Each contribution may include a `facets` object,
+depending on the dataset’s `facets` schema. See `docs/facets.md`.
+
 ## Enable the LLM queue
 
 Enable the global queue to overlap feature generation with mapping:

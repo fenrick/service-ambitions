@@ -52,6 +52,10 @@ class FileMappingLoader(MappingLoader):
     def __init__(self, data_dir: Path) -> None:
         self._data_dir = data_dir
         self._cache: dict[tuple[str, str], tuple[ItemList, str]] = {}
+        # Per-dataset metadata as declared in MappingDatasetFile (e.g., field,
+        # label, facets schema). Not included in public digests to preserve the
+        # existing API but available through the ``meta`` helper.
+        self._meta_cache: dict[tuple[str, str], dict[str, object] | None] = {}
 
     def load(self, sets: Sequence[MappingSet]) -> tuple[CatalogueMap, str]:
         """Return mapping data and a combined hash for ``sets``.
@@ -96,6 +100,7 @@ class FileMappingLoader(MappingLoader):
                             file=str(path),
                         )
                     self._cache[cache_key] = (ordered, digest)
+                    self._meta_cache[cache_key] = meta
                 ordered, digest = self._cache[cache_key]
                 data[field] = ordered
                 digests.append(f"{field}:{digest}")
@@ -111,6 +116,7 @@ class FileMappingLoader(MappingLoader):
     def clear_cache(self) -> None:
         """Empty the internal mapping cache."""
         self._cache.clear()
+        self._meta_cache.clear()
 
     def discover(self) -> tuple[CatalogueMap, str]:
         """Return mapping data discovered from object-form datasets in the directory.
@@ -138,12 +144,29 @@ class FileMappingLoader(MappingLoader):
                 if not field:
                     continue  # skip list-only datasets in discovery mode
                 ordered, digest = _compile_catalogue_for_set(items, meta)
-                data[field] = ordered
+                field_str = cast(str, field)
+                data[field_str] = ordered
                 digests.append(f"{field}:{digest}")
             combined = "|".join(sorted(digests))
             digest = hashlib.sha256(combined.encode("utf-8")).hexdigest()
             logfire.debug("Discovered mapping sets", count=len(data), digest=digest)
             return data, digest
+
+    def meta(self, sets: Sequence[MappingSet]) -> dict[str, dict[str, object]]:
+        """Return merged metadata for ``sets`` keyed by mapping field.
+
+        Includes any ``field``, ``label`` or ``facets`` provided by
+        ``MappingDatasetFile`` inputs. Entries are omitted when a dataset does
+        not provide metadata.
+        """
+        # Ensure caches are primed by invoking ``load``
+        _ = self.load(sets)
+        result: dict[str, dict[str, object]] = {}
+        for s in sets:
+            meta = self._meta_cache.get((s.file, s.field))
+            if meta:
+                result[s.field] = dict(meta)
+        return result
 
 
 T = TypeVar("T")
@@ -158,7 +181,7 @@ def _read_json_file(path: Path, schema: type[T]) -> T:
         return data
 
 
-def _read_mapping_file(path: Path) -> tuple[ItemList, dict[str, str] | None]:
+def _read_mapping_file(path: Path) -> tuple[ItemList, dict[str, object] | None]:
     """Return items and optional metadata from a mapping dataset file.
 
     Supports two formats:
@@ -171,13 +194,33 @@ def _read_mapping_file(path: Path) -> tuple[ItemList, dict[str, str] | None]:
         try:
             adapter = TypeAdapter(MappingDatasetFile)
             dataset: MappingDatasetFile = adapter.validate_json(text)
-            meta: dict[str, str] | None = None
+            meta: dict[str, object] | None = None
             if dataset.field or dataset.label:
                 meta = {}
                 if dataset.field:
                     meta["field"] = dataset.field
                 if dataset.label:
                     meta["label"] = dataset.label
+            if dataset.facets:
+                # Serialize facet schema minimally so downstream consumers can
+                # include it in prompts or validation without re-reading files.
+                meta = meta or {}
+                # Pydantic model -> plain dicts
+                meta["facets"] = [
+                    {
+                        "id": f.id,
+                        "label": f.label,
+                        "type": f.type,
+                        "required": f.required,
+                        "description": f.description or "",
+                        "options": (
+                            [{"id": o.id, "label": o.label} for o in (f.options or [])]
+                            if f.options is not None
+                            else None
+                        ),
+                    }
+                    for f in dataset.facets
+                ]
             logfire.debug(
                 "Read mapping dataset (object)",
                 path=str(path),
@@ -200,7 +243,7 @@ def _sanitize(value: str) -> str:
 
 
 def _compile_catalogue_for_set(
-    items: Sequence[MappingItem], meta: dict[str, str] | None = None
+    items: Sequence[MappingItem], meta: dict[str, object] | None = None
 ) -> tuple[ItemList, str]:
     ordered = sorted(items, key=lambda item: item.id)
     canonical = [

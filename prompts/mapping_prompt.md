@@ -6,6 +6,8 @@ Lists are provided as JSON arrays in code blocks. Each object contains `id`, `na
 
 {mapping_sections}
 
+{facet_instructions}
+
 ## Features (for review only; do not quote or cite in output)
 
 {features}
@@ -24,7 +26,10 @@ Lists are provided as JSON arrays in code blocks. Each object contains `id`, `na
   - Arrays for each of: {mapping_fields}.
 - Selection rules for each array:
   - Include all relevant IDs found in the corresponding list(s).
-  - Each array element must be an object with only one field: { "item": <ID> }.
+  - Each array element must be an object with either:
+    - { "item": <ID> } (when no facets apply), or
+    - { "item": <ID>, "facets": { "<facet_id>": <value>, ... } } when a facet schema is provided above.
+  - When a facet schema is provided, include ALL facets marked required in the schema for each returned item. Optional facets should be included only when relevant and known.
   - Do not include weights, explanations, scores, or extra fields.
   - Do not invent IDs. Only use IDs present in the provided lists.
   - No limit on the number of returned items.

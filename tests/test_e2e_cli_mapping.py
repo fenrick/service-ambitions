@@ -49,7 +49,6 @@ def _settings() -> SimpleNamespace:
 
 def _stub_map_set(*args, **kwargs):
     """Return deterministic mappings for test features."""
-
     session, set_name, _, features, *rest = args
     mapped = []
     app_lookup = {
@@ -80,7 +79,6 @@ async def _stub_map_set_async(*args, **kwargs):
 
 def _stub_roles() -> list[Role]:
     """Return a deterministic role list for tests."""
-
     return [Role(role_id="learners", name="Learner", description="Learner role")]
 
 
@@ -114,7 +112,6 @@ def test_cli_map_matches_golden(monkeypatch, tmp_path) -> None:
 
 def test_cli_map_single_service_filters_output(monkeypatch, tmp_path) -> None:
     """Mapping with --service-id limits the output to the requested service."""
-
     monkeypatch.setattr(mapping, "map_set", _stub_map_set_async)
     monkeypatch.setattr(cli, "load_settings", lambda _path=None: _settings())
     monkeypatch.setattr(cli, "_configure_logging", lambda *a, **k: None)
@@ -152,7 +149,6 @@ def test_cli_map_single_service_filters_output(monkeypatch, tmp_path) -> None:
 
 def test_cli_map_single_service_with_service_file(monkeypatch, tmp_path) -> None:
     """Mapping a single service can combine separate service and feature sources."""
-
     monkeypatch.setattr(mapping, "map_set", _stub_map_set_async)
     monkeypatch.setattr(cli, "load_settings", lambda _path=None: _settings())
     monkeypatch.setattr(cli, "_configure_logging", lambda *a, **k: None)

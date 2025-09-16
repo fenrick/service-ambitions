@@ -13,14 +13,14 @@ import hashlib
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Mapping, Sequence, cast
+from typing import TYPE_CHECKING, Any, Literal, Mapping, Optional, Sequence, cast
 
 import logfire
 from pydantic import ValidationError
 from pydantic_core import from_json, to_json
 
 from constants import DEFAULT_CACHE_DIR
-from io_utils.loader import load_mapping_items, load_prompt_text
+from io_utils.loader import load_mapping_items, load_mapping_meta, load_prompt_text
 from io_utils.quarantine import QuarantineWriter
 from models import (
     Contribution,
@@ -269,6 +269,110 @@ def _merge_all_features(
     return results, dropped, missing, missing_features
 
 
+def _validate_facets_for_set(  # noqa: C901  # complexity; TODO: consider splitting model-build and validation
+    payload: MappingResponse,
+    set_name: str,
+    *,
+    strict: bool,
+    service: str | None,
+) -> None:
+    """Validate contribution facets using a dynamic Pydantic model.
+
+    Builds a Facets model from the dataset's facet schema and validates each
+    contribution's ``facets`` object for ``set_name``. When any facet is marked
+    required in the dataset, the ``facets`` object itself is required.
+    """
+    try:
+        from typing import Literal, Optional
+
+        from pydantic import TypeAdapter, create_model
+    except Exception:  # pragma: no cover - defensive import
+        return
+
+    try:
+        settings = RuntimeEnv.instance().settings
+        meta = load_mapping_meta(settings.mapping_sets)
+        cfg = meta.get(set_name, {}) if isinstance(meta, dict) else {}
+        schema = cfg.get("facets") if isinstance(cfg, dict) else None
+    except Exception:  # pragma: no cover - defensive
+        schema = None
+    if not schema:
+        return
+
+    # Build a Facets model with required/optional fields mapped by type.
+    from typing import Any as _Any
+    fields: dict[str, tuple[_Any, _Any]] = {}
+    any_required = False
+    for f in cast(list[dict[str, object]], schema):
+        fid = f.get("id")
+        ftype = f.get("type")
+        required = bool(f.get("required"))
+        if not isinstance(fid, str) or not isinstance(ftype, str):
+            continue
+        any_required = any_required or required
+        fpy: _Any
+        if ftype == "boolean":
+            fpy = bool
+        elif ftype == "integer":
+            fpy = int
+        elif ftype == "number":
+            fpy = float
+        elif ftype == "enum":
+            opts_raw = cast(list[dict[str, object]] | None, f.get("options"))
+            opts = [
+                o.get("id")
+                for o in (opts_raw or [])
+                if isinstance(o, dict) and isinstance(o.get("id"), str)
+            ]
+            fpy = cast(_Any, Literal[tuple(opts)]) if opts else str
+        else:
+            fpy = str
+        if required:
+            fields[fid] = (fpy, ...)
+        else:
+            fields[fid] = (Optional[fpy], None)
+
+    FacetsModel = create_model(
+        f"Facets_{set_name}", **cast(dict[str, Any], fields)
+    )
+    facets_adapter = TypeAdapter(FacetsModel)
+
+    violations: list[dict[str, object]] = []
+    for feat in payload.features:
+        contribs = feat.mappings.get(set_name, [])
+        for c in contribs:
+            facets = getattr(c, "facets", None)
+            if facets is None and any_required:
+                violations.append(
+                    {
+                        "feature_id": feat.feature_id,
+                        "item": c.item,
+                        "reason": "facets object missing",
+                    }
+                )
+                continue
+            if facets is None:
+                continue
+            try:
+                facets_adapter.validate_python(facets)
+            except Exception as exc:  # pragma: no cover - defensive
+                violations.append(
+                    {
+                        "feature_id": feat.feature_id,
+                        "item": c.item,
+                        "reason": "invalid facets",
+                        "error": str(exc),
+                    }
+                )
+
+    if not violations:
+        return
+    svc = service or "unknown"
+    _writer.write(set_name, svc, "facet_validation", violations)
+    if strict:
+        raise MappingError("Required facet validation failed")
+
+
 def _log_unknown_ids(
     dropped: Mapping[str, list[str]],
     service: str,
@@ -390,6 +494,17 @@ def _prepare_prompt(
     session: "ConversationSession",
 ) -> tuple[str, bool, bool]:
     """Return rendered prompt and prompt logging state."""
+    # Resolve optional facet schema for this mapping set (by field name)
+    try:
+        settings = RuntimeEnv.instance().settings
+        meta = load_mapping_meta(settings.mapping_sets)
+        facets_meta = (
+            meta.get(set_name, {}).get("facets") if isinstance(meta, dict) else None
+        )
+        facets_seq = list(facets_meta) if isinstance(facets_meta, list) else None
+    except Exception:  # pragma: no cover - defensive
+        facets_seq = None
+
     prompt = render_set_prompt(
         set_name,
         list(items),
@@ -398,6 +513,7 @@ def _prepare_prompt(
         service_description=service_description,
         plateau=plateau,
         diagnostics=diagnostics,
+        facets_meta=facets_seq,
     )
     should_log_prompt = diagnostics and getattr(session, "log_prompts", False)
     original_flag = getattr(session, "log_prompts", False)
@@ -752,6 +868,12 @@ async def map_set(
             return fallback
 
     payload_norm = _normalise_payload(cast(StrictModel, payload), context.use_diag)
+    _validate_facets_for_set(
+        payload_norm,
+        set_name,
+        strict=params.strict,
+        service=params.service,
+    )
     merged, unknown_count = _merge_mapping_results(
         features,
         payload_norm,

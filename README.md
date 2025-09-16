@@ -257,6 +257,73 @@ service's metadata lives in a separate JSONL file, provide
 service definitions. Specify `--output-file -` to print the mapped output to
 stdout instead of writing to disk.
 
+An example features-only JSONL line (no pre‑existing plateau blocks) looks like:
+
+```json
+{"service": {"service_id": "svc-001", "name": "Admissions", "description": "..."},
+ "features": [
+   {"feature_id": "ABCDEF", "name": "Online application form", "description": "...", "score": {"level": 2, "label": "Managed", "justification": "..."}, "customer_type": "learner"},
+   {"feature_id": "GHIJKL", "name": "Eligibility checker", "description": "...", "score": {"level": 2, "label": "Managed", "justification": "..."}, "customer_type": "learner"}
+ ]}
+```
+
+Mapping CLI input/output formats:
+- Input (JSONL; one record per service): either a full `ServiceEvolution` or a
+  features+service record. The features+service record must include a `service`
+  block with at least `service_id`, `name`, and `description`. Including
+  `jobs_to_be_done` (strings or objects) improves prompt context. Provide
+  `--service-file` when your features file omits the `service` block.
+- Output (JSONL): a canonical `ServiceEvolution` per service with `plateaus[]`
+  and `mappings{}` populated. Each contribution may include a `facets` object
+  depending on the dataset schema.
+
+### Facets on mappings
+
+Datasets can declare a facet schema so each mapping contribution includes
+additional metadata (e.g., utilisation model, exposure, sensitivity). Add a
+`facets` array to an object‑form dataset file in `data/`.
+
+```json
+{
+  "field": "applications",
+  "label": "Applications",
+  "facets": [
+    { "id": "critical", "label": "Critical", "type": "boolean", "required": false },
+    { "id": "utilisation", "label": "Utilisation", "type": "enum", "required": true,
+      "options": [
+        { "id": "low", "label": "Low" },
+        { "id": "medium", "label": "Medium" },
+        { "id": "high", "label": "High" }
+      ]
+    }
+  ],
+  "items": [
+    { "id": "crm", "name": "CRM", "description": "Customer relationship management" }
+  ]
+}
+```
+
+How it works:
+- Trigger: presence of `facets` in a dataset file. If any facet is marked
+  `required: true`, a `facets` object becomes mandatory on every contribution
+  for that dataset.
+- Enforcement: the app dynamically builds a Pydantic model from the dataset
+  schema and validates the LLM output (type/enums/required).
+- Flexibility: update dataset files to change facets; no code changes needed.
+
+Defaults in this repo:
+- Applications: required ServiceType, ExecutionModel, Placement, Plane (primary),
+  Exposure, SecurityPosture; optional SLOs, Scaling, Tenancy, DependsOn.
+- Technologies: required ExecutionModel, Placement, Plane (primary), TrustModel,
+  TelemetryBaseline, PrivacyBaseline (in‑flight); optional Acceleration, DataShape,
+  Connectivity (box‑level), AutomationLevel.
+- Data assets (field `data`): required AssetType, Domain/Context, Shape,
+  Sensitivity/Class, Mastership, OwningApp, Freshness/Mode, FreshnessSLA,
+  Residency/Region, Retention, DQ SLOs present, Lineage captured; optional
+  PIITypes, IdentifierStrategy, ContractualSchema, VersioningPolicy.
+
+See `docs/facets.md` for full details and examples.
+
 ### Docker
 
 Build the image and execute the CLI in an isolated container:

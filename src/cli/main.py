@@ -127,7 +127,6 @@ async def _cmd_validate(args: argparse.Namespace, transcripts_dir: Path | None) 
 
 def _iter_json_lines(path: Path) -> Iterator[str]:
     """Yield non-empty JSON lines from ``path``."""
-
     with path.open("r", encoding="utf-8") as handle:
         for raw_line in handle:
             line = raw_line.strip()
@@ -137,7 +136,6 @@ def _iter_json_lines(path: Path) -> Iterator[str]:
 
 def _load_service_lookup(service_path: Path) -> dict[str, ServiceInput]:
     """Return a lookup of service identifiers to ``ServiceInput`` records."""
-
     lookup: dict[str, ServiceInput] = {}
     for line in _iter_json_lines(service_path):
         service = ServiceInput.model_validate_json(line)
@@ -147,7 +145,6 @@ def _load_service_lookup(service_path: Path) -> dict[str, ServiceInput]:
 
 def _extract_service_id(payload: Mapping[str, Any]) -> str | None:
     """Return the service identifier embedded within ``payload`` when present."""
-
     service_block = payload.get("service")
     if isinstance(service_block, Mapping):
         service_id = service_block.get("service_id")
@@ -163,7 +160,6 @@ def _resolve_service_input(
     service_lookup: Mapping[str, ServiceInput],
 ) -> ServiceInput:
     """Return ``ServiceInput`` for ``service_id`` from payload or lookup."""
-
     service_block = payload.get("service")
     if isinstance(service_block, Mapping):
         try:
@@ -186,20 +182,19 @@ def _resolve_service_input(
     if candidate and candidate.service_id == service_id:
         return candidate
 
-    service = service_lookup.get(service_id)
-    if service is None:
+    srv = service_lookup.get(service_id)
+    if srv is None:
         raise ValueError(
             "Service details missing. Provide --service-file when features omit"
             f" service '{service_id}'."
         )
-    return service
+    return srv
 
 
 def _resolve_meta(
     payload: Mapping[str, Any], service_id: str, catalogue_hash: str
 ) -> ServiceMeta:
     """Return metadata for ``service_id`` with catalogue hash applied when absent."""
-
     meta_raw = payload.get("meta")
     if meta_raw is not None:
         try:
@@ -220,7 +215,6 @@ def _build_plateaus_from_payload(
     payload: Mapping[str, Any], service: ServiceInput
 ) -> list[PlateauResult]:
     """Return plateau results for ``service`` parsed from ``payload``."""
-
     plateaus_raw = payload.get("plateaus")
     if isinstance(plateaus_raw, list) and plateaus_raw:
         plateaus: list[PlateauResult] = []
@@ -272,7 +266,6 @@ def _build_evolution_from_payload(
     catalogue_hash: str,
 ) -> ServiceEvolution:
     """Construct ``ServiceEvolution`` for ``service_id`` from ``payload``."""
-
     service = _resolve_service_input(payload, service_id, service_lookup)
     plateaus = _build_plateaus_from_payload(payload, service)
     if not plateaus:
@@ -284,14 +277,13 @@ def _build_evolution_from_payload(
     return ServiceEvolution(meta=meta, service=service, plateaus=plateaus)
 
 
-def _load_service_evolution_for_mapping(
+def _load_service_evolution_for_mapping(  # noqa: C901  # complexity; TODO: split parsing branches into helpers
     service_id: str,
     features_path: Path,
     service_path: Path | None,
     catalogue_hash: str,
 ) -> ServiceEvolution:
     """Load a single service evolution for mapping based on ``service_id``."""
-
     if not features_path.exists():
         raise FileNotFoundError(features_path)
 
@@ -339,7 +331,6 @@ def _write_mapped_output(
     evolutions: Iterable[ServiceEvolution], output_target: str
 ) -> None:
     """Write mapped evolutions to ``output_target`` or stdout when ``-``."""
-
     if output_target == "-":
         for line in iter_serialised_evolutions(evolutions):
             print(line)
