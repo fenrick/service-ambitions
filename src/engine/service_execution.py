@@ -7,6 +7,7 @@ import importlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Sequence
+from typing import Any as _Any
 from uuid import uuid4
 
 import logfire
@@ -43,6 +44,18 @@ SERVICES_PROCESSED = logfire.metric_counter("services_processed")
 EVOLUTIONS_GENERATED = logfire.metric_counter("evolutions_generated")
 LINES_WRITTEN = logfire.metric_counter("lines_written")
 _writer = QuarantineWriter()
+
+# Expose Agent/NativeOutput at module level for tests to monkeypatch.
+Agent: _Any
+NativeOutput: _Any
+try:  # pragma: no cover - guard optional dependency
+    from pydantic_ai import Agent as _AgentType
+    from pydantic_ai import NativeOutput as _NativeOutputType
+    Agent = _AgentType
+    NativeOutput = _NativeOutputType
+except Exception:
+    Agent = object
+    NativeOutput = object
 
 # Resolve optional exception type at runtime without hard import-time dependency
 try:  # pragma: no cover - environment dependent

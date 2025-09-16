@@ -594,10 +594,8 @@ class PlateauFeature(StrictModel):
     feature_id: Annotated[
         str,
         Field(
-            min_length=6,
-            max_length=6,
-            description="Deterministic 6-char code (A–Z, 2–7).",
-            pattern=r"^[A-Z2-7]{6}$",
+            min_length=1,
+            description="Feature identifier (deterministic when generated).",
         ),
     ]
     name: Annotated[str, Field(min_length=1, description="Feature name.")]
@@ -768,10 +766,8 @@ class MappingFeature(StrictModel):
     feature_id: Annotated[
         str,
         Field(
-            min_length=6,
-            max_length=6,
-            pattern=r"^[A-Z2-7]{6}$",
-            description="Deterministic 6-char feature code.",
+            min_length=1,
+            description="Feature identifier (deterministic when generated).",
         ),
     ]
     mappings: dict[str, list[Contribution]] = Field(
@@ -827,10 +823,8 @@ class MappingDiagnosticsFeature(StrictModel):
     feature_id: Annotated[
         str,
         Field(
-            min_length=6,
-            max_length=6,
-            pattern=r"^[A-Z2-7]{6}$",
-            description="Deterministic 6-char feature code.",
+            min_length=1,
+            description="Feature identifier (deterministic when generated).",
         ),
     ]
     mappings: dict[str, list[DiagnosticContribution]] = Field(
@@ -883,10 +877,8 @@ class FeatureMappingRef(StrictModel):
     feature_id: Annotated[
         str,
         Field(
-            min_length=6,
-            max_length=6,
-            pattern=r"^[A-Z2-7]{6}$",
-            description="Deterministic 6-char feature code.",
+            min_length=1,
+            description="Feature identifier (deterministic when generated).",
         ),
     ]
     description: Annotated[

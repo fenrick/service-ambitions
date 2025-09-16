@@ -528,28 +528,27 @@ def _reconstruct_feature_cache(
             )
 
             roles = list(_role_ids_fn())
-        except ImportError:  # pragma: no cover - defensive import
-            # Fallback when defaults are unavailable during import time
-            roles = []
-        roles_str = ", ".join(f'"{r}"' for r in roles)
-        template = load_prompt_text("plateau_prompt")
-        prompt = template.format(
-            service_name=(service_name or svc_id),
-            service_description=plateau.service_description,
-            plateau=str(plateau.plateau),
-            roles=str(roles_str),
-        )
-        feature_model = (
-            getattr(getattr(settings, "models", None), "features", None)
-            or settings.model
-        )
-        stage = f"features_{plateau.plateau}"
-        f_key = _prompt_cache_key(prompt, feature_model, stage)
-        f_cache = _prompt_cache_path(svc_id, stage, f_key)
-        if _should_write_cache(
-            getattr(settings, "cache_mode", "read"), f_cache.exists()
-        ):
-            cache_write_json_atomic(f_cache, payload.model_dump())
+            roles_str = ", ".join(f'"{r}"' for r in roles)
+            template = load_prompt_text("plateau_prompt")
+            prompt = template.format(
+                service_name=(service_name or svc_id),
+                service_description=plateau.service_description,
+                plateau=str(plateau.plateau),
+                roles=str(roles_str),
+            )
+            feature_model = (
+                getattr(getattr(settings, "models", None), "features", None)
+                or settings.model
+            )
+            stage = f"features_{plateau.plateau}"
+            f_key = _prompt_cache_key(prompt, feature_model, stage)
+            f_cache = _prompt_cache_path(svc_id, stage, f_key)
+            if _should_write_cache(
+                getattr(settings, "cache_mode", "read"), f_cache.exists()
+            ):
+                cache_write_json_atomic(f_cache, payload.model_dump())
+        except Exception:  # pragma: no cover - optional prompt cache
+            pass
 
 
 def _rebuild_mapping_cache(

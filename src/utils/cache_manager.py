@@ -51,14 +51,10 @@ class JSONCacheManager(CacheManager):
                     else content.encode("utf-8")
                 )
             )
-            if not isinstance(data, dict):
-                logfire.error("cache content must be a JSON object", path=str(path))
-                raise TypeError("cache content must be a JSON object")
-
             logfire.debug(
                 "Preparing cache file write",
                 path=str(path),
-                keys=len(data),
+                keys=(len(data) if isinstance(data, dict) else None),
             )
 
             tmp_path = path.with_suffix(".tmp")

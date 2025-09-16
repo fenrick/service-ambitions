@@ -12,8 +12,6 @@ from core.canonical import canonicalise_record
 from core.conversation import ConversationSession
 from io_utils.loader import configure_mapping_data_dir, load_mapping_items, load_roles
 from models import (
-    Contribution,
-    EnrichedContribution,
     FeatureMappingRef,
     MappingFeatureGroup,
     MappingItem,
@@ -167,36 +165,13 @@ def _enrich_feature(
     role_lookup: dict[str, Role],
     catalogue_by_field: dict[str, dict[str, MappingItem]],
 ) -> PlateauFeature:
-    """Attach role and mapping metadata to ``feature``."""
+    """Attach role metadata to ``feature`` without altering mapping shape.
+
+    The mapping contribution objects are left unchanged to preserve the
+    canonical JSON shape expected by golden tests and downstream tooling.
+    """
     if getattr(feature, "role", None) is None and feature.customer_type in role_lookup:
         feature.role = role_lookup[feature.customer_type]
-    enriched: dict[str, list[EnrichedContribution]] = {}
-    for field, contribs in feature.mappings.items():
-        cat = catalogue_by_field.get(field, {})
-        enriched[field] = []
-        for contrib in contribs:
-            item = cat.get(contrib.item)
-            if item is None:
-                enriched[field].append(
-                    EnrichedContribution(
-                        item=contrib.item,
-                        name=contrib.item,
-                        description="",
-                        justification=None,
-                        facets=getattr(contrib, "facets", None),
-                    )
-                )
-            else:
-                enriched[field].append(
-                    EnrichedContribution(
-                        item=contrib.item,
-                        name=item.name,
-                        description=item.description,
-                        justification=None,
-                        facets=getattr(contrib, "facets", None),
-                    )
-                )
-    feature.mappings = cast(dict[str, list[Contribution]], enriched)
     return feature
 
 

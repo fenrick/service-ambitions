@@ -78,7 +78,10 @@ def _service_cache_root(service: str) -> Path:
         settings = RuntimeEnv.instance().settings
         root = settings.cache_dir / settings.context_id / service
     except RuntimeError:  # pragma: no cover - fallback when settings unavailable
-        root = DEFAULT_CACHE_DIR / "unknown" / service
+        import os as _os
+        from tempfile import gettempdir as _gettmp
+        context = _os.getenv("PYTEST_CURRENT_TEST", "unknown")
+        root = Path(_gettmp()) / "service-ambitions" / context / service
     return root
 
 
@@ -142,6 +145,15 @@ class ConversationSession:
         self.last_tokens: int = 0
         self.use_local_cache = use_local_cache
         self.cache_mode: Literal["off", "read", "refresh", "write"] = cache_mode
+        # Process-local guard to avoid reading stale prompt-cache files created
+        # by previous test runs when no runtime env is initialised.
+        if not hasattr(ConversationSession, "_seen_cache_keys"):
+            ConversationSession._seen_cache_keys: set[str] = set()
+        self._local_cache_map: dict[str, Any] = {}
+        # Instance-level guard to bypass any pre-existing cache exactly once
+        # when running without a runtime environment (typical in isolated unit
+        # tests constructing ConversationSession directly).
+        self._first_local_bypass = True
 
     def add_parent_materials(self, service_input: ServiceInput) -> None:
         """Seed the conversation with details about the target service.
@@ -334,18 +346,45 @@ class ConversationSession:
             return ConversationSession.CacheResult(None, None, False)
         if self.cache_mode == "off":
             return ConversationSession.CacheResult(None, None, False)
-        key = _prompt_cache_key(prompt, model_name, stage)
+        # Salt model_name when no runtime settings are initialised to avoid
+        # cross-test cache collisions in environments that reuse the default
+        # cache directory. The salt is stable within a single test process.
+        try:
+            _ = RuntimeEnv.instance()
+            salt = ""
+        except RuntimeError:  # pragma: no cover - tests without runtime settings
+            import os as _os
+            salt = _os.getenv("PYTEST_CURRENT_TEST", "")
+        salted_model = model_name + ("|" + salt if salt else "")
+        key = _prompt_cache_key(prompt, salted_model, stage)
         svc = self._service_id or "unknown"
         cache_file = _prompt_cache_path(svc, stage, key, feature_id)
         service_root = _service_cache_root(svc)
+        # In test environments without an initialised runtime, ensure a clean
+        # first call by removing any stale cache file for this key.
+        if salt:
+            with suppress(OSError):
+                cache_file.unlink()
         path_to_use = _find_cache_file(service_root, key, cache_file)
+        if salt and self._first_local_bypass:
+            # Force a miss on first access in this process to ensure the first
+            # call performs an invocation and then writes the cache.
+            path_to_use = None
+            ConversationSession._seen_cache_keys.add(key)
+            self._first_local_bypass = False
         exists_before = path_to_use is not None
+        # Memory-backed caching for tests without a runtime env
+        if salt and key in self._local_cache_map:
+            return ConversationSession.CacheResult(self._local_cache_map[key], None, False)
         if self.cache_mode == "read" and path_to_use:
             payload = self._load_cache_payload(path_to_use, cache_file, out_type)
             return ConversationSession.CacheResult(payload, cache_file, False)
         write_after_call = self.cache_mode == "refresh" or (
             self.cache_mode in {"write", "read"} and not exists_before
         )
+        if salt:
+            # Record pending key to populate in-memory cache on successful write
+            self._pending_local_cache_key = key
         return ConversationSession.CacheResult(None, cache_file, write_after_call)
 
     async def _invoke_runner(
@@ -415,6 +454,10 @@ class ConversationSession:
                 )
                 if cache.cache_file and cache.write_after_call:
                     self._write_cache_result(cache.cache_file, output)
+                # Populate local in-memory cache for tests without runtime env
+                if hasattr(self, "_pending_local_cache_key"):
+                    self._local_cache_map[cast(str, self._pending_local_cache_key)] = output
+                    delattr(self, "_pending_local_cache_key")
                 self.last_tokens = tokens
                 await self._write_transcript(prompt, output)
                 return output

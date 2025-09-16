@@ -13,7 +13,7 @@ import hashlib
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Mapping, Optional, Sequence, cast
+from typing import TYPE_CHECKING, Any, Literal, Mapping, Sequence, cast
 
 import logfire
 from pydantic import ValidationError
