@@ -349,12 +349,14 @@ class ConversationSession:
         # Salt model_name when no runtime settings are initialised to avoid
         # cross-test cache collisions in environments that reuse the default
         # cache directory. The salt is stable within a single test process.
+        no_runtime = False
         try:
             _ = RuntimeEnv.instance()
             salt = ""
         except RuntimeError:  # pragma: no cover - tests without runtime settings
             import os as _os
             salt = _os.getenv("PYTEST_CURRENT_TEST", "")
+            no_runtime = True
         salted_model = model_name + ("|" + salt if salt else "")
         key = _prompt_cache_key(prompt, salted_model, stage)
         svc = self._service_id or "unknown"
@@ -365,7 +367,7 @@ class ConversationSession:
         if salt:
             with suppress(OSError):
                 cache_file.unlink()
-        path_to_use = _find_cache_file(service_root, key, cache_file)
+        path_to_use = None if no_runtime else _find_cache_file(service_root, key, cache_file)
         if salt and self._first_local_bypass:
             # Force a miss on first access in this process to ensure the first
             # call performs an invocation and then writes the cache.
@@ -376,16 +378,18 @@ class ConversationSession:
         # Memory-backed caching for tests without a runtime env
         if salt and key in self._local_cache_map:
             return ConversationSession.CacheResult(self._local_cache_map[key], None, False)
-        if self.cache_mode == "read" and path_to_use:
+        if not no_runtime and self.cache_mode == "read" and path_to_use:
             payload = self._load_cache_payload(path_to_use, cache_file, out_type)
             return ConversationSession.CacheResult(payload, cache_file, False)
-        write_after_call = self.cache_mode == "refresh" or (
-            self.cache_mode in {"write", "read"} and not exists_before
+        write_after_call = (
+            False
+            if no_runtime
+            else self.cache_mode == "refresh"
+            or (self.cache_mode in {"write", "read"} and not exists_before)
         )
-        if salt:
-            # Record pending key to populate in-memory cache on successful write
-            self._pending_local_cache_key = key
-        return ConversationSession.CacheResult(None, cache_file, write_after_call)
+        # Record pending key to populate in-memory cache on successful write
+        self._pending_local_cache_key = key
+        return ConversationSession.CacheResult(None, (None if no_runtime else cache_file), write_after_call)
 
     async def _invoke_runner(
         self,
