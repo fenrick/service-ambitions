@@ -122,7 +122,7 @@ def cache_path(service: str, plateau: int, set_name: str, key: str) -> Path:
         settings = RuntimeEnv.instance().settings
         cache_root = settings.cache_dir
         context = settings.context_id
-    except Exception:  # pragma: no cover - settings unavailable
+    except RuntimeError:  # pragma: no cover - settings unavailable
         cache_root = DEFAULT_CACHE_DIR
         context = "unknown"
 
@@ -352,7 +352,7 @@ def _validate_facets_for_set(
         meta = load_mapping_meta(settings.mapping_sets)
         cfg = meta.get(set_name, {}) if isinstance(meta, dict) else {}
         schema = cfg.get("facets") if isinstance(cfg, dict) else None
-    except Exception:  # pragma: no cover - defensive
+    except (RuntimeError, OSError, ValueError, TypeError):  # pragma: no cover - defensive
         schema = None
     adapter, any_required = _build_facets_model(set_name, schema)
     violations = _collect_facet_violations(payload, set_name, adapter, any_required)
@@ -493,7 +493,7 @@ def _prepare_prompt(
             meta.get(set_name, {}).get("facets") if isinstance(meta, dict) else None
         )
         facets_seq = list(facets_meta) if isinstance(facets_meta, list) else None
-    except Exception:  # pragma: no cover - defensive
+    except (RuntimeError, OSError, ValueError, TypeError):  # pragma: no cover - defensive
         facets_seq = None
 
     prompt = render_set_prompt(
@@ -814,7 +814,7 @@ async def map_set(
         # Dry-run: halt before any agent invocation when cache is missing.
         try:
             _settings = RuntimeEnv.instance().settings
-        except Exception:  # pragma: no cover - defensive
+        except RuntimeError:  # pragma: no cover - defensive
             _settings = None
         if getattr(_settings, "dry_run", False):
             svc = params.service or "unknown"
