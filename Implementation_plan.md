@@ -139,6 +139,21 @@ Scope: make mapping usable directly on existing features (no plateau requirement
 
 ## Provider-aware rate limiting (RPM/TPM) in the global LLM queue
 
+## Code Quality & Integrity (Sept 16, 2025)
+
+Implemented:
+
+- Refactored high-complexity functions into smaller helpers:
+  - `src/core/mapping.py::_validate_facets_for_set` split into `_build_facets_model` and `_collect_facet_violations` (removed `# noqa: C901`).
+  - `src/cli/main.py::_load_service_evolution_for_mapping` factored via `_parse_evolution_line` (removed `# noqa: C901`).
+- Improved cache determinism when runtime settings are absent:
+  - `src/core/conversation.py` now uses in-memory prompt cache only (no disk IO) when `RuntimeEnv` is not initialised; prevents stale cross-run cache and makes invocation counts stable.
+
+Planned follow-ups:
+
+- Add ruff rule gates to CI for `C901` without exceptions.
+- Expand unit tests around facet validation error reporting.
+
 * **Implement**
 
   * Add optional rate limiters to `LLMQueue` for **requests/min** and **tokens/min** per provider/model.
