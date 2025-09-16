@@ -15,7 +15,7 @@ from typing import Generator, Iterator
 
 import logfire
 from pydantic import TypeAdapter, ValidationError
-from pydantic_core import from_json
+import json
 
 from models import ServiceInput
 
@@ -30,12 +30,10 @@ SERVICE_ID_ATTR = "service.id"
 def _extract_service_id(line: str) -> str | None:
     """Return service identifier from ``line`` when available."""
     try:
-        data = from_json(line, allow_partial=True)
-    except (ValidationError, JSONDecodeError, ValueError):
+        data = json.loads(line)
+    except (JSONDecodeError, ValueError, TypeError):
         return None
-    if isinstance(data, dict):
-        return data.get("service_id")
-    return None
+    return data.get("service_id") if isinstance(data, dict) else None
 
 
 def _process_line(
