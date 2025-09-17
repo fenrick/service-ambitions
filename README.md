@@ -257,6 +257,12 @@ service's metadata lives in a separate JSONL file, provide
 service definitions. Specify `--output-file -` to print the mapped output to
 stdout instead of writing to disk.
 
+The command reuses the same Pydantic AI agents as the full pipeline, so ensure
+`SA_OPENAI_API_KEY` (or an equivalent provider key) is present in the
+environment. Cache flags (`--use-local-cache`, `--cache-mode`) behave exactly as
+they do for `run`, letting mapping-only workflows continue to benefit from
+prompt-history cache keys.
+
 An example features-only JSONL line (no pre‑existing plateau blocks) looks like:
 
 ```json

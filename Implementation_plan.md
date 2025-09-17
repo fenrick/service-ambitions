@@ -12,38 +12,20 @@ forward. The guiding principles are:
 
 ## Immediate priorities (Q4 2025)
 
-### 1. Mapping CLI uses real LLM sessions
+### Completed
 
-*Objective*
-- Ensure the `map` subcommand can populate mappings end-to-end without test-only
-  stubs by reusing the production `ModelFactory` and `ConversationSession`
-  abstractions.
+- ✅ **Mapping CLI uses real LLM sessions** (completed September 17, 2025)
+  - `service-ambitions map` now builds mapping agents via `ModelFactory` and
+    executes them through genuine `ConversationSession`s, so caching,
+    diagnostics, and prompts mirror the full pipeline.
+  - End-to-end tests stub the session factory (not `mapping.map_set`), providing
+    deterministic coverage of the new wiring.
+  - Documentation explains credential requirements and cache parity for
+    mapping-only runs.
+  - Follow-up: monitor live usage for regressions and extend fixtures if new
+    mapping sets appear.
 
-*What’s needed*
-- Instantiate stage-specific agents via `ModelFactory` inside
-  `cli.mapping.remap_features` instead of casting `object()` to
-  `ConversationSession`.
-- Route mapping requests through the existing caching hook so cache misses and
-  refreshes work identically to the `run` pipeline.
-- Update CLI tests to exercise the real wiring by injecting a fake
-  `ConversationSession` fixture rather than monkeypatching `mapping.map_set`.
-- Refresh CLI docs to describe how to provide API credentials and
-  cache strategies for mapping runs.
-
-*Where it’s needed*
-- `src/cli/mapping.py`
-- `src/models/factory.py`
-- `tests/test_e2e_cli_mapping.py`
-- `docs/index.md`, `README.md`
-
-*Definition of done*
-- `poetry run service-ambitions map` performs live mappings when cache entries
-  are missing; existing golden tests updated to use the shared fixture.
-- No direct casts to fake `ConversationSession` remain in production code.
-- Documentation covers expected environment variables and cache behaviour for
-  mapping-only runs.
-
-### 2. Resilience via `pydantic_ai.retries` and usage limits
+### 1. Resilience via `pydantic_ai.retries` and usage limits
 
 *Objective*
 - Configure the built-in retry/backoff and throttling facilities shipped with
@@ -78,7 +60,7 @@ forward. The guiding principles are:
   the test harness and raise `UsageLimitExceeded` when appropriate.
 - Legacy retry/circuit-breaker code is deleted.
 
-### 3. Cache & transcript storage built on DiskCache
+### 2. Cache & transcript storage built on DiskCache
 
 *Objective*
 - Replace the home-grown JSON cache writer with `diskcache` (or similar) so we
@@ -108,7 +90,7 @@ forward. The guiding principles are:
 - Settings expose size/TTL controls that map directly to the library.
 - Tests cover corruption handling and migration into the new store.
 
-### 4. Usage & cost reporting via `pydantic_ai.usage`
+### 3. Usage & cost reporting via `pydantic_ai.usage`
 
 *Objective*
 - Leverage Pydantic AI’s built-in usage tracking to expose cached vs live token

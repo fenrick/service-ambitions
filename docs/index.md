@@ -61,6 +61,17 @@ Output (JSONL): Canonical `ServiceEvolution` per service with `plateaus[]` and
 `mappings{}` populated. Each contribution may include a `facets` object,
 depending on the dataset’s `facets` schema. See `docs/facets.md`.
 
+### Credentials and caching for mapping-only runs
+
+The mapping CLI reuses the same Pydantic AI agent stack as the full pipeline.
+Set `SA_OPENAI_API_KEY` (or configure an equivalent provider key) before running
+`service-ambitions map`; the command will fail fast if credentials are missing.
+
+The `--use-local-cache` and `--cache-mode` flags work exactly as they do for the
+`run` workflow. Cache entries are keyed by prompt+history, so mapping-only runs
+benefit from the same deterministic retrieval when `cache_mode` remains `read`
+or `write`.
+
 ## Enable the LLM queue
 
 Enable the global queue to overlap feature generation with mapping:
