@@ -25,7 +25,6 @@ from core.canonical import canonicalise_record
 from core.conversation import _prompt_cache_key, _prompt_cache_path
 from core.mapping import cache_path, cache_write_json_atomic
 from core.mapping_prompt import render_set_prompt
-from core.conversation import _prompt_cache_key
 from engine.processing_engine import ProcessingEngine
 from generation.plateau_generator import default_plateau_names
 from io_utils.loader import (
@@ -41,6 +40,7 @@ from models import (
     Contribution,
     FeatureItem,
     MappingFeature,
+    MappingItem,
     MappingResponse,
     PlateauFeaturesResponse,
     PlateauResult,
@@ -156,10 +156,19 @@ def _extract_service_id(payload: Mapping[str, Any]) -> str | None:
     return service_id if isinstance(service_id, str) else None
 
 
+def _resolve_service_lookup(service_path: Path | None) -> Mapping[str, ServiceInput]:
+    """Return a lookup table for services referenced during mapping."""
+    if service_path is None:
+        return {}
+    if not service_path.exists():
+        raise FileNotFoundError(service_path)
+    return _load_service_lookup(service_path)
+
+
 def _resolve_service_input(
     payload: Mapping[str, Any],
-    service_id: str,
     service_lookup: Mapping[str, ServiceInput],
+    service_id: str,
 ) -> ServiceInput:
     """Return ``ServiceInput`` for ``service_id`` from payload or lookup."""
     service_block = payload.get("service")
@@ -268,7 +277,7 @@ def _build_evolution_from_payload(
     catalogue_hash: str,
 ) -> ServiceEvolution:
     """Construct ``ServiceEvolution`` for ``service_id`` from ``payload``."""
-    service = _resolve_service_input(payload, service_id, service_lookup)
+    service = _resolve_service_input(payload, service_lookup, service_id)
     plateaus = _build_plateaus_from_payload(payload, service)
     if not plateaus:
         raise ValueError(
@@ -316,11 +325,7 @@ def _load_service_evolution_for_mapping(
     if not features_path.exists():
         raise FileNotFoundError(features_path)
 
-    service_lookup: Mapping[str, ServiceInput] = {}
-    if service_path is not None:
-        if not service_path.exists():
-            raise FileNotFoundError(service_path)
-        service_lookup = _load_service_lookup(service_path)
+    service_lookup = _resolve_service_lookup(service_path)
 
     last_error: ValueError | None = None
     for line in _iter_json_lines(features_path):
@@ -362,6 +367,14 @@ async def _cmd_map(args: argparse.Namespace, transcripts_dir: Path | None) -> No
     settings = RuntimeEnv.instance().settings
     items, catalogue_hash = load_catalogue(args.mapping_data_dir, settings)
 
+    effective_cache_mode = args.cache_mode or settings.cache_mode
+    allow_prompt_logging = args.allow_prompt_logging
+    transcripts_dir = None
+    if (settings.diagnostics or allow_prompt_logging) and args.output_file != "-":
+        output_path = Path(args.output_file)
+        transcripts_dir = output_path.parent / "_transcripts"
+        transcripts_dir.mkdir(parents=True, exist_ok=True)
+
     if getattr(args, "service_id", None):
         features_path = Path(args.features_file or args.input_file)
         service_path = Path(args.service_file) if args.service_file else None
@@ -372,8 +385,10 @@ async def _cmd_map(args: argparse.Namespace, transcripts_dir: Path | None) -> No
             [evolution],
             items,
             settings,
-            args.cache_mode,
+            effective_cache_mode,
             catalogue_hash,
+            allow_prompt_logging=allow_prompt_logging,
+            transcripts_dir=transcripts_dir,
         )
         _write_mapped_output([evolution], args.output_file)
         return
@@ -393,8 +408,10 @@ async def _cmd_map(args: argparse.Namespace, transcripts_dir: Path | None) -> No
         evolutions,
         items,
         settings,
-        args.cache_mode,
+        effective_cache_mode,
         catalogue_hash,
+        allow_prompt_logging=allow_prompt_logging,
+        transcripts_dir=transcripts_dir,
     )
     _write_mapped_output(evolutions, args.output_file)
 
@@ -515,7 +532,10 @@ def _should_write_cache(mode: str, exists_before: bool) -> bool:
 
 
 def _reconstruct_feature_cache(
-    svc_id: str, plateau: PlateauResult, service_name: str | None = None
+    svc_id: str,
+    plateau: PlateauResult,
+    service_name: str | None = None,
+    service: ServiceInput | None = None,
 ) -> None:
     """Write grouped features for ``plateau`` to the cache respecting flags."""
     with logfire.span(
@@ -553,7 +573,11 @@ def _reconstruct_feature_cache(
             )
             stage = f"features_{plateau.plateau}"
             # Include service context as history in the key
-            svc_ctx = "SERVICE_CONTEXT:\n" + evo.service.model_dump_json()
+            if service is not None:
+                context_source = service.model_dump_json()
+            else:
+                context_source = json.dumps({"service_id": service_name or svc_id})
+            svc_ctx = "SERVICE_CONTEXT:\n" + context_source
             f_key = _prompt_cache_key(prompt, feature_model, stage, svc_ctx)
             f_cache = _prompt_cache_path(svc_id, stage, f_key)
             if _should_write_cache(
@@ -569,6 +593,9 @@ def _rebuild_mapping_cache(
     plateau: PlateauResult,
     settings: Settings,
     catalogue_hash: str,
+    *,
+    items: dict[str, list[MappingItem]],
+    service: ServiceInput,
 ) -> None:
     """Write mapping cache entries for all configured mapping sets.
 
@@ -597,15 +624,18 @@ def _rebuild_mapping_cache(
                 cfg.field,
                 items[cfg.field],
                 plateau.features,
-                service_name=evo.service.name,
+                service_name=service.name,
                 service_description=plateau.service_description,
                 plateau=plateau.plateau,
                 diagnostics=settings.diagnostics,
                 facets_meta=None,
             )
-            model_name = getattr(getattr(settings, "models", None), "mapping", None) or settings.model
+            model_name = (
+                getattr(getattr(settings, "models", None), "mapping", None)
+                or settings.model
+            )
             stage = f"mapping_{cfg.field}"
-            svc_ctx = "SERVICE_CONTEXT:\n" + evo.service.model_dump_json()
+            svc_ctx = "SERVICE_CONTEXT:\n" + service.model_dump_json()
             key = _prompt_cache_key(prompt, model_name, stage, svc_ctx)
             cache_file = cache_path(svc_id, plateau.plateau, cfg.field, key)
             if _should_write_cache(
@@ -672,7 +702,7 @@ def _cmd_reverse(args: argparse.Namespace, transcripts_dir: Path | None) -> None
     """Backfill feature and mapping caches from ``evolutions.jsonl``."""
     settings = RuntimeEnv.instance().settings
     configure_mapping_data_dir(args.mapping_data_dir or settings.mapping_data_dir)
-    _, catalogue_hash = load_mapping_items(settings.mapping_sets)
+    items, catalogue_hash = load_mapping_items(settings.mapping_sets)
 
     input_path = Path(args.input_file)
     output_path = Path(args.output_file)
@@ -688,8 +718,20 @@ def _cmd_reverse(args: argparse.Namespace, transcripts_dir: Path | None) -> None
             svc_id = evo.service.service_id
             _rebuild_description_cache(svc_id, evo, settings)
             for plateau in evo.plateaus:
-                _reconstruct_feature_cache(svc_id, plateau, evo.service.name)
-                _rebuild_mapping_cache(svc_id, plateau, settings, catalogue_hash)
+                _reconstruct_feature_cache(
+                    svc_id,
+                    plateau,
+                    evo.service.name,
+                    evo.service,
+                )
+                _rebuild_mapping_cache(
+                    svc_id,
+                    plateau,
+                    settings,
+                    catalogue_hash,
+                    items=items,
+                    service=evo.service,
+                )
             evo.meta.mapping_types = []
             record = canonicalise_record(evo.model_dump(mode="json"))
             out_fh.write(to_json(record).decode() + "\n")
