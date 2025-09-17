@@ -79,3 +79,17 @@ and `sa_llm_queue_completed` metrics to verify operation. See
 For the full project overview, see the README on GitHub:
 
 https://github.com/FromHereOnAU/service-ambitions#readme
+
+## Reference material for agents and maintainers
+
+To stay aligned with upstream behaviour, review the canonical framework
+exports before changing retries, usage tracking, or telemetry wiring:
+
+- Pydantic AI LLM guide (plain-text export): https://ai.pydantic.dev/llms-full.txt
+- Core Pydantic documentation (plain-text export): https://docs.pydantic.dev/latest/llms-full.txt
+- Logfire instrumentation reference (plain-text export): https://logfire.pydantic.dev/docs/llms-full.txt
+
+For offline work and deterministic builds, cached snapshots live in
+`docs/external/` and are named `<library>-llms-2025-09-17.txt` (e.g.
+`docs/external/pydantic-ai-llms-2025-09-17.txt`). Refresh these files whenever
+you need a newer snapshot and update the filename date to match.
