@@ -32,7 +32,7 @@ from models import ServiceInput
 from runtime.environment import RuntimeEnv
 
 from .dry_run import DryRunInvocation
-from .mapping import cache_write_json_atomic
+from .cache_utils import cache_write_json_atomic
 
 
 def _prompt_cache_key(prompt: str, model: str, stage: str, history: str | None = None) -> str:

@@ -21,7 +21,7 @@ from pydantic_core import from_json, to_json
 
 from constants import DEFAULT_CACHE_DIR
 from .conversation import _prompt_cache_key
-from io_utils.loader import load_mapping_items, load_mapping_meta, load_prompt_text
+from io_utils.loader import load_mapping_items, load_mapping_meta
 from io_utils.quarantine import QuarantineWriter
 from models import (
     Contribution,
@@ -37,24 +37,22 @@ from models import (
 )
 from observability.telemetry import record_mapping_set
 from runtime.environment import RuntimeEnv
-from utils import CacheManager, ErrorHandler, JSONCacheManager, LoggingErrorHandler
+from utils import ErrorHandler, LoggingErrorHandler
 
 from .mapping_prompt import render_set_prompt
 
 if TYPE_CHECKING:
     from .conversation import ConversationSession
 from .dry_run import DryRunInvocation
+from .cache_utils import (
+    cache_write_json_atomic,
+    configure_cache_manager as _configure_cache_manager,
+)
 
 _writer = QuarantineWriter()
 
-_cache_manager: CacheManager = JSONCacheManager()
 _error_handler: ErrorHandler = LoggingErrorHandler()
-
-
-def configure_cache_manager(manager: CacheManager) -> None:
-    """Override the cache manager used for mapping results."""
-    global _cache_manager
-    _cache_manager = manager
+configure_cache_manager = _configure_cache_manager
 
 
 def configure_error_handler(handler: ErrorHandler) -> None:
@@ -158,13 +156,6 @@ def _discover_cache_file(
         return candidate, canonical
 
     return canonical, canonical
-
-
-def cache_write_json_atomic(path: Path, content: Any) -> None:
-    """Atomically write ``content`` as pretty JSON to ``path``."""
-    _cache_manager.write_json_atomic(path, content)
-
-
 def _catalogues_for_merge(
     mapping_types: Mapping[str, MappingTypeConfig],
     catalogue_items: Mapping[str, list[MappingItem]] | None,
@@ -540,11 +531,17 @@ async def _request_mapping_payload(
     service: str | None,
     start: float,
     retries: int,
+    model_type: type[StrictModel],
 ) -> tuple[StrictModel | None, int, list[PlateauFeature] | None]:
     """Return mapping payload or fallback features on error."""
     try:
-        payload = await session.ask_async(prompt)
+        response = await session.ask_async(prompt)
         tokens = getattr(session, "last_tokens", 0)
+        payload = (
+            cast(StrictModel, response)
+            if hasattr(response, "model_dump")
+            else model_type.model_validate(response)
+        )
     except (
         Exception
     ) as exc:  # noqa: BLE001 - narrow types are impractical here due to heterogeneous user data; logged and re-raised upstream (see issue #501)
@@ -591,6 +588,7 @@ async def _fetch_and_cache(
         params.service,
         params.start,
         params.retries,
+        params.model_type,
     )
     return payload, tokens, fallback
 
@@ -677,6 +675,7 @@ class FetchParams:
     service_description: str
     plateau: int
     use_diag: bool
+    model_type: type[StrictModel]
     cache_file: Path | None
     write_after_call: bool
     strict: bool
@@ -775,7 +774,7 @@ async def map_set(
         context = _build_context(session, set_name, features, params)
         # Render prompt to compute the new key based on full prompt+history
         prompt, should_log_prompt, original_flag = _prepare_prompt(
-            params.set_name,
+            set_name,
             items,
             features,
             params.service_name,
@@ -839,6 +838,7 @@ async def map_set(
             service_description=params.service_description,
             plateau=params.plateau,
             use_diag=context.use_diag,
+            model_type=context.model_type,
             cache_file=cache.cache_file,
             write_after_call=cache.write_after_call,
             strict=params.strict,
