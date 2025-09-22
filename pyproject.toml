@@ -33,7 +33,7 @@ pytest = "*"
 pytest-xdist = "*"
 pytest-cov = "*"
 hypothesis = "*"
-types-pyyaml = "^6.0.12.20250822"
+types-pyyaml = "^6.0.12.20250915"
 pytest-asyncio = "^1.2.0"
 
 [tool.poetry.group.docs.dependencies]
